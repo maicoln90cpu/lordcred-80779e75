@@ -1,122 +1,44 @@
 
 
-# Plano de Correcao - 4 Problemas
+## Three Fixes
 
-## 1. Provedor nao salva ao trocar de Evolution para UazAPI
+### 1. Chip status out of sync (phone 554898097426 shows disconnected)
 
-**Causa raiz:** O `handleSave` usa `as any` para forcar o update, mas os tipos estao corretos no `types.ts`. O problema real e que a RLS policy `system_settings` exige `is_admin()`, e o update esta funcionando corretamente para admins. Porem, ao trocar o provedor no Select, o estado local atualiza mas o `handleSave` pode estar falhando silenciosamente porque o `toast` de erro e generico ("Erro ao salvar").
+**Problem:** The chip status in the database only updates during QR code polling or manual sync. There is no automatic periodic sync, so if a chip reconnects on the provider side, the local DB stays "disconnected."
 
-**Correcao:** Remover o `as any` do update e adicionar log detalhado do erro no toast para diagnostico. Tambem garantir que o `handleProviderChange` atualiza corretamente todos os campos necessarios.
+**Solution:**
+- On the Chips page load, automatically sync status of all chips with the provider API (batch call to `check-status` for each chip).
+- Update the `handleSyncStatus` to also be called in a `useEffect` on page mount for all connected/disconnected chips.
+- Add a "Sync All" button for manual batch sync.
 
-## 2. Admin (role "user") nao ve vendedores criados na aba "Criados"
+### 2. Show/hide password toggle on user creation dialog
 
-**Causa raiz:** No `Users.tsx` linha 91-93, o filtro para nao-master e:
-```
-enrichedUsers = enrichedUsers.filter(u => 
-  u.role === 'seller' && u.created_by === currentUser?.id
-);
-```
-Porem, a RLS policy de `profiles` so permite que admins (`is_admin()`) vejam todos os perfis. A funcao `is_admin()` provavelmente verifica se o role e `admin`, nao `user`. Portanto, usuarios com role `user` (Administrador) nao conseguem fazer SELECT em `profiles` de outros usuarios.
+**Problem:** The password field in the "Novo Vendedor" / "Novo Usuario" dialog is always masked.
 
-**Correcao:** Adicionar uma RLS policy em `profiles` que permita usuarios com role `user` ver os perfis que eles criaram (`created_by = auth.uid()`). Tambem adicionar policy similar em `user_roles` e `chips` para que o JOIN funcione.
+**Solution:**
+- Add a `showPassword` state toggle.
+- Change the password `<Input>` type from `"password"` to dynamically switch between `"text"` and `"password"`.
+- Add an Eye/EyeOff icon button inside or next to the input for toggling visibility.
 
-Novas policies necessarias:
-- `profiles`: SELECT WHERE `created_by = auth.uid()` para role `user`
-- `user_roles`: SELECT para user_ids que existam em profiles com `created_by = auth.uid()`
-- `chips`: SELECT para user_ids que existam em profiles com `created_by = auth.uid()`
+### 3. User list not updating after deletion
 
-## 3. Menu no header do /whatsapp para vendedores alterarem nome e senha
+**Problem:** Two issues:
+1. When `auth.admin.deleteUser()` succeeds, the edge function does NOT clean up the `profiles` and `user_roles` rows (only cleans up on 404). Since these tables have no FK to `auth.users`, the rows persist and the user keeps showing in the list.
+2. The `AlertDialogAction` component auto-closes the dialog on click, potentially interrupting the async `handleDeleteUser` before `fetchUsers()` runs.
 
-**Implementacao:**
-- Adicionar um `DropdownMenu` no header do `WhatsApp.tsx`, visivel para todos os usuarios (especialmente vendedores)
-- O menu tera um icone de usuario/perfil com opcoes:
-  - "Alterar Nome" - abre dialog para trocar o nome no `profiles`
-  - "Alterar Senha" - abre dialog que usa `supabase.auth.updateUser({ password })` para trocar a senha
-- Criar um componente `UserProfileMenu.tsx` que encapsula essa logica
-
-**Detalhes tecnicos:**
-- Para trocar nome: `supabase.from('profiles').update({ name }).eq('user_id', auth.uid())`
-- Para trocar senha: `supabase.auth.updateUser({ password: novaSenha })`
-- A RLS de `profiles` ja permite `Users can update their own profile` (UPDATE WHERE user_id = auth.uid())
-
-## 4. Permitir que "user" (Administrador) edite e exclua vendedores criados
-
-**Causa raiz:** 
-- O `delete-user` edge function so permite exclusao por `admin` (linha 53). Usuarios com role `user` recebem 403.
-- O `profiles` update por RLS so permite o proprio usuario ou admin.
-
-**Correcao:**
-- **delete-user function:** Alterar para aceitar role `user` tambem, mas restringir para que so possa excluir usuarios que ele criou (verificar `created_by`).
-- **profiles RLS:** Adicionar policy UPDATE para que `user` possa atualizar perfis onde `created_by = auth.uid()`.
-- **Users.tsx:** Adicionar funcionalidade de edicao (dialog para editar nome/email) dos vendedores criados.
+**Solution:**
+- **Edge function fix:** Always delete `user_roles` and `profiles` rows after successful auth deletion (move cleanup outside the error-only branch).
+- **Frontend fix:** Prevent `AlertDialogAction` default behavior with `e.preventDefault()` so the async operation completes fully before closing. Also optimistically remove the user from the local state immediately for instant UI feedback.
 
 ---
 
-## Resumo tecnico das alteracoes
+### Technical Details
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/migrations/new.sql` | Novas RLS policies para `profiles`, `user_roles`, `chips` permitindo role `user` ver/editar registros que criou |
-| `supabase/functions/delete-user/index.ts` | Permitir role `user` excluir vendedores que criou (verificar `created_by`) |
-| `src/components/whatsapp/UserProfileMenu.tsx` | Novo componente com dropdown para trocar nome e senha |
-| `src/pages/WhatsApp.tsx` | Adicionar `UserProfileMenu` no header |
-| `src/pages/admin/Users.tsx` | Adicionar dialog de edicao de vendedor (nome) |
-| `src/pages/admin/MasterAdmin.tsx` | Melhorar tratamento de erro no save do provedor |
+**Files to modify:**
 
-### SQL das novas RLS policies
+1. **`src/pages/Chips.tsx`** -- Add `useEffect` that calls `handleSyncStatus` for all chips on mount; add batch sync button.
 
-```sql
--- Administradores (role=user) podem ver perfis que criaram
-CREATE POLICY "Users can view profiles they created"
-ON public.profiles FOR SELECT
-TO authenticated
-USING (created_by = auth.uid());
+2. **`src/pages/admin/Users.tsx`** -- Add `showPassword` state + Eye toggle icon on password input; fix `AlertDialogAction` to use `e.preventDefault()` and optimistically update the user list.
 
--- Administradores podem atualizar perfis que criaram
-CREATE POLICY "Users can update profiles they created"
-ON public.profiles FOR UPDATE
-TO authenticated
-USING (created_by = auth.uid())
-WITH CHECK (created_by = auth.uid());
-
--- Administradores podem ver roles dos usuarios que criaram
-CREATE POLICY "Users can view roles of created users"
-ON public.user_roles FOR SELECT
-TO authenticated
-USING (user_id IN (
-  SELECT p.user_id FROM profiles p WHERE p.created_by = auth.uid()
-));
-
--- Administradores podem ver chips dos usuarios que criaram
-CREATE POLICY "Users can view chips of created users"
-ON public.chips FOR SELECT
-TO authenticated
-USING (user_id IN (
-  SELECT p.user_id FROM profiles p WHERE p.created_by = auth.uid()
-));
-```
-
-### Alteracao no delete-user
-
-Permitir que role `user` exclua, verificando `created_by`:
-```typescript
-// Antes: if (callerRole?.role !== 'admin')
-// Depois:
-if (callerRole?.role !== 'admin' && callerRole?.role !== 'user') {
-  return error 403
-}
-
-// Se nao e admin, verificar se criou o usuario
-if (callerRole?.role === 'user') {
-  const { data: targetProfile } = await adminClient
-    .from('profiles')
-    .select('created_by')
-    .eq('user_id', userId)
-    .single();
-  
-  if (targetProfile?.created_by !== caller.id) {
-    return error 403 "Voce so pode excluir usuarios que voce criou"
-  }
-}
-```
+3. **`supabase/functions/delete-user/index.ts`** -- Move `user_roles` and `profiles` cleanup to always execute after auth deletion (success or 404), not only on 404.
 
