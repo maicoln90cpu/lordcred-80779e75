@@ -308,7 +308,8 @@ Deno.serve(async (req) => {
             lastMessageAt: c.wa_lastMsgTimestamp ? new Date(c.wa_lastMsgTimestamp).toISOString() : null,
             unreadCount: c.wa_unreadCount || 0,
             isGroup: c.wa_isGroup || false,
-            isPinned: !!(c.wa_pin || c.pin),
+            isPinned: !!(c.wa_isPinned || c.wa_pin || c.pin),
+            profilePicUrl: c.imagePreview || c.image || null,
           }))
 
         return new Response(

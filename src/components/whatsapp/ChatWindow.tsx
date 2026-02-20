@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -58,9 +59,12 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [reactMsg, setReactMsg] = useState<MessageData | null>(null);
   const [editMsg, setEditMsg] = useState<MessageData | null>(null);
   const [editText, setEditText] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
@@ -455,20 +459,57 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     );
   }
 
+  const filteredMessages = searchQuery
+    ? messages.filter(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
+    : messages;
+
   return (
     <div className="flex flex-col h-full">
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card/50">
-        <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
+        {chat.profilePicUrl ? (
+          <img src={chat.profilePicUrl} alt="" className="w-9 h-9 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+        ) : null}
+        <div className={cn("w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center", chat.profilePicUrl && "hidden")}>
           <span className="text-sm font-medium text-primary">
             {chat.name.charAt(0).toUpperCase()}
           </span>
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{chat.name}</p>
           <p className="text-xs text-muted-foreground">{chat.phone}</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Search className="w-4 h-4" />
+        </Button>
       </div>
+
+      {/* Search bar */}
+      {searchOpen && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/30">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Buscar nas mensagens..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 text-sm bg-transparent border-0 focus-visible:ring-0"
+          />
+          {searchQuery && (
+            <span className="text-xs text-muted-foreground shrink-0">
+              {filteredMessages.length} resultado{filteredMessages.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
@@ -481,13 +522,13 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : messages.length === 0 ? (
+        ) : filteredMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            Nenhuma mensagem ainda
+            {searchQuery ? 'Nenhuma mensagem encontrada' : 'Nenhuma mensagem ainda'}
           </div>
         ) : (
           <div className="space-y-2 max-w-3xl mx-auto">
-            {messages.map((msg) => (
+            {filteredMessages.map((msg) => (
               <MessageBubble
                 key={msg.id}
                 text={msg.text}
