@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
     const { data: providerSettings } = await adminClient
       .from('system_settings')
       .select('provider_api_url, provider_api_key')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     const evolutionApiUrl = providerSettings?.provider_api_url || envEvolutionApiUrl
     const evolutionApiKey = providerSettings?.provider_api_key || envEvolutionApiKey

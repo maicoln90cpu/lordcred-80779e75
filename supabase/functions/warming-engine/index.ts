@@ -133,7 +133,8 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await adminClient
       .from('system_settings')
       .select('*')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     if (settingsError || !settings) {
       console.log('No system settings found')

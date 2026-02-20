@@ -21,7 +21,8 @@ Deno.serve(async (req) => {
     const { data: settings } = await adminClient
       .from('system_settings')
       .select('provider_api_url, provider_api_key, uazapi_api_url, uazapi_api_key, whatsapp_provider')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     const provider = (settings as any)?.whatsapp_provider || 'evolution'
     const baseUrl = ((settings as any)?.uazapi_api_url || settings?.provider_api_url || '').replace(/\/$/, '')
