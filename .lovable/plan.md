@@ -1,87 +1,68 @@
 
+## Correcao: Race Condition na Troca de Chips e Conversas
 
-## Plano Completo: 6 Correcoes e Funcionalidades
+### Causa Raiz Identificada
 
-### 1. Carregar TODAS as conversas do WhatsApp (historico completo)
+O problema NAO e de dados incorretos no banco. A tabela `conversations` tem os registros corretos (Maicoln Douglas pertence ao chip "Wpp 1" com id `fc818d1f`).
 
-**Problema**: O `fetch-chats` no edge function envia `limit: 50` e filtra grupos. A UazAPI via `POST /chat/find` retorna todas as conversas do numero, incluindo as que nao foram trocadas dentro da plataforma. O limite precisa ser aumentado e a paginacao implementada.
+O bug e uma **race condition classica** no React:
 
-**Correcoes**:
-- **`supabase/functions/uazapi-api/index.ts` (acao `fetch-chats`)**: Aumentar limite padrao para 200. Remover o filtro `!c.wa_isGroup` (deixar grupos aparecerem tambem). Adicionar suporte a paginacao para carregar mais conversas.
-- **`src/components/whatsapp/ChatSidebar.tsx`**: Adicionar scroll infinito na lista de conversas -- ao chegar no final da lista, carregar proxima pagina. Passar `page` para a API.
+1. Usuario seleciona chip A (Wpp 1) -> `fetchChats()` inicia chamada API para chip A
+2. Usuario troca para chip B (wpp 2) -> `useEffect` limpa estado e inicia `fetchChats()` para chip B
+3. A resposta da API de chip A chega DEPOIS da troca -> `setChats(chipA_data)` sobrescreve o estado com dados do chip errado
+4. Agora a sidebar mostra conversas do chip A enquanto o chip B esta selecionado
 
-### 2. Sidebar nao filtra conversas ao trocar de chip
+O mesmo problema acontece no `ChatWindow.tsx` — ao clicar em uma conversa, a resposta de uma busca anterior pode sobrescrever as mensagens exibidas com mensagens de outro chat.
 
-**Problema**: Ao trocar de chip, o `handleSelectChip` faz `setSelectedChat(null)`, mas a sidebar usa cache do chip anterior e nao limpa as conversas. O cache do chip 1 permanece visivel quando o chip 2 esta selecionado.
+### Correcao
 
-**Causa raiz**: O `ChatSidebar` carrega cache por `chipId` corretamente, mas a conversa do chip anterior fica visivel no cache porque o `useEffect` com `fetchChats` depende de `chipId`, e no momento da troca, o estado `chats` ainda tem os dados antigos ate o cache/API do novo chip carregar.
-
-**Correcao**:
-- **`src/components/whatsapp/ChatSidebar.tsx`**: Quando `chipId` muda, IMEDIATAMENTE carregar o cache do novo chip ou limpar o estado. Adicionar um `useEffect` que ao detectar mudanca de `chipId`, faz:
-  1. Tentar carregar cache do novo chip
-  2. Se nao tem cache, limpar `chats` e mostrar loading
-  3. Buscar da API em seguida
-
-### 3. Botao "Reagir" nao funciona
-
-**Problema**: O fluxo atual e: clique em "Reagir" -> seta `reactMsg` -> o `messages.map()` detecta que `reactMsg` corresponde ao `msg` -> envolve o bubble num `ReactionPicker` (Popover). Porem, o `Popover` tem `open` controlado internamente e o `PopoverTrigger` e a propria bolha da mensagem -- o usuario teria que clicar NOVAMENTE na bolha para abrir o popover. Isso nunca funciona na pratica.
-
-**Correcao**:
-- **`src/components/whatsapp/ChatWindow.tsx`**: Remover a logica de wrapping do `ReactionPicker` no `messages.map()`. Em vez disso, usar um Popover/Dialog posicionado absolutamente que abre automaticamente quando `reactMsg` e setado. Usar estado `reactMsg` + posicao da mensagem para renderizar o picker como overlay.
-- Alternativa mais simples: Criar um componente `ReactionOverlay` que aparece como dialog fixo no centro da tela com os 6 emojis quando `reactMsg !== null`. Ao clicar num emoji, chama `handleReactEmoji` e fecha.
-
-### 4. Sinalizador visual de conversa fixada
-
-**Problema**: Ao fixar uma conversa via UazAPI (`POST /chat/pin`), nao ha indicador visual na sidebar mostrando que ela esta fixada.
-
-**Correcao**:
-- **`src/pages/WhatsApp.tsx`**: Adicionar campo `isPinned` no tipo `ChatContact`.
-- **`supabase/functions/uazapi-api/index.ts` (acao `fetch-chats`)**: Verificar campo `wa_pin` ou `pin` retornado pelo `POST /chat/find` da UazAPI e incluir no objeto normalizado.
-- **`src/components/whatsapp/ChatSidebar.tsx`**: Exibir icone de pin (lucide `Pin`) ao lado do nome da conversa quando `chat.isPinned === true`. Ordenar conversas fixadas no topo.
-
-### 5. Pagina/painel de mensagens favoritadas
-
-**Implementacao**: Criar um painel lateral (sheet/drawer) acessivel pela pagina WhatsApp, que mostra todas as mensagens favoritadas do usuario.
-
-- **Criar `src/components/whatsapp/FavoritesPanel.tsx`**: Componente Sheet que:
-  - Busca da tabela `message_favorites` do Supabase
-  - Agrupa por conversa (`remote_jid`)
-  - Mostra texto da mensagem, data, e link para abrir a conversa
-  - Permite remover favoritos
-- **`src/pages/WhatsApp.tsx`**: Adicionar botao de estrela no header que abre o `FavoritesPanel`.
-
-### 6. Editar mensagens enviadas (UazAPI: POST /message/edit)
-
-**Endpoint UazAPI**: `POST /message/edit`
-- Body: `{ id: "messageId", content: "novo texto" }`
-- So funciona para mensagens enviadas pela propria instancia
-- Mensagem deve estar dentro do prazo do WhatsApp
-
-**Implementacao**:
-- **`supabase/functions/uazapi-api/index.ts`**: Adicionar acao `edit-message` que chama `POST /message/edit` com `{ id: messageId, content: newText }`.
-- **`src/components/whatsapp/MessageContextMenu.tsx`**: Adicionar opcao "Editar" no menu (apenas para mensagens `fromMe`).
-- **`src/components/whatsapp/MessageBubble.tsx`**: Adicionar "Editar" no dropdown (apenas `fromMe`). Passar callback `onEdit`.
-- **`src/components/whatsapp/ChatWindow.tsx`**: Adicionar handler `handleEdit` que abre um dialog/input com o texto atual, permite editar, e envia para a API. Apos sucesso, atualizar o texto da mensagem no estado local.
+Adicionar um mecanismo de "stale request detection" em ambos os componentes. Usar uma ref para rastrear o chipId/chatId ativo e ignorar respostas de requisicoes obsoletas.
 
 ---
 
 ### Detalhes Tecnicos
 
-**Arquivos a criar:**
-1. `src/components/whatsapp/FavoritesPanel.tsx` -- Painel lateral de favoritos
+**Arquivo 1: `src/components/whatsapp/ChatSidebar.tsx`**
 
-**Arquivos a modificar:**
-1. `supabase/functions/uazapi-api/index.ts` -- Adicionar `edit-message`, ajustar `fetch-chats` (limite, campo pin, remover filtro grupos)
-2. `src/components/whatsapp/ChatWindow.tsx` -- Corrigir ReactionPicker (overlay em vez de wrapper), adicionar handler `handleEdit`, dialog de edicao
-3. `src/components/whatsapp/ChatSidebar.tsx` -- Limpar estado ao trocar chip, scroll infinito, icone de pin, ordenacao pinned-first
-4. `src/components/whatsapp/MessageBubble.tsx` -- Adicionar "Editar" no menu (somente fromMe)
-5. `src/components/whatsapp/MessageContextMenu.tsx` -- Adicionar "Editar" no context menu (somente fromMe)
-6. `src/pages/WhatsApp.tsx` -- Adicionar `isPinned` no tipo `ChatContact`, botao de favoritos no header
+- Adicionar `activeChipRef = useRef(chipId)` que e atualizado imediatamente quando `chipId` muda
+- No `fetchChats`, apos receber a resposta da API, verificar se `activeChipRef.current === chipId` antes de chamar `setChats()`
+- Se o chipId mudou durante a requisicao, descartar a resposta silenciosamente
+- Tambem proteger o `setCachedChats` para nao salvar cache com chipId errado
 
-**Ordem de implementacao:**
-1. Corrigir sidebar ao trocar chip (prioridade -- bug visivel)
-2. Corrigir ReactionPicker (bug -- nao abre)
-3. Ajustar `fetch-chats` para trazer todas as conversas + campo pin
-4. Adicionar sinalizador de pin na sidebar
-5. Adicionar acao `edit-message` no edge function + UI
-6. Criar painel de favoritos
+```text
+Antes (bugado):
+  fetchChats() {
+    const response = await fetch(...)
+    setChats(response.data.chats)  // <-- executa mesmo se chip mudou
+  }
+
+Depois (corrigido):
+  fetchChats() {
+    const currentChip = chipId  // captura o chip da closure
+    const response = await fetch(...)
+    if (activeChipRef.current !== currentChip) return  // <-- descarta resposta obsoleta
+    setChats(response.data.chats)
+  }
+```
+
+**Arquivo 2: `src/components/whatsapp/ChatWindow.tsx`**
+
+- Adicionar `activeChatRef = useRef(chat?.remoteJid)` e `activeChipRef = useRef(chipId)`
+- No `fetchMessages`, apos resposta da API, verificar se o chat/chip ativo ainda e o mesmo
+- Proteger tambem o callback do realtime subscription
+- Quando `chat` muda, limpar `messages` imediatamente (ja acontece no useEffect linha 163-172, mas a protecao contra race condition esta faltando)
+
+**Arquivo 3: `src/hooks/useMessageCache.ts`**
+
+- Nenhuma alteracao necessaria — o cache ja e indexado por chipId, o problema e apenas no `setChats`/`setMessages`
+
+---
+
+### Resumo das Alteracoes
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `ChatSidebar.tsx` | Adicionar `activeChipRef`, verificar antes de `setChats` |
+| `ChatWindow.tsx` | Adicionar `activeChatRef` + `activeChipRef`, verificar antes de `setMessages` |
+
+Duas alteracoes cirurgicas que resolvem o problema na raiz sem mudar a logica de cache ou a API.
