@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     })
 
     const body = await req.json()
-    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId, emoji } = body
+    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId, emoji, newText } = body
 
     // Handle test-connection before requiring settings
     if (action === 'test-connection') {
@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
           body: JSON.stringify({
-            limit: limit || 50,
+            limit: limit || 200,
             page: page || 1,
             sort: 'desc',
           }),
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
         const chats = Array.isArray(data) ? data : (data.chats || data.data || [])
         
         const normalizedChats = chats
-          .filter((c: any) => !c.wa_isGroup && c.wa_chatid && !c.wa_chatid.includes('status@'))
+          .filter((c: any) => c.wa_chatid && !c.wa_chatid.includes('status@'))
           .map((c: any) => ({
             id: c.id || c.wa_chatid,
             remoteJid: c.wa_chatid,
@@ -308,6 +308,7 @@ Deno.serve(async (req) => {
             lastMessageAt: c.wa_lastMsgTimestamp ? new Date(c.wa_lastMsgTimestamp).toISOString() : null,
             unreadCount: c.wa_unreadCount || 0,
             isGroup: c.wa_isGroup || false,
+            isPinned: !!(c.wa_pin || c.pin),
           }))
 
         return new Response(
@@ -644,6 +645,24 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
           body: JSON.stringify({ chatid: chatId }),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'edit-message': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!messageId) throw new Error('messageId is required')
+        if (!newText) throw new Error('newText is required')
+
+        const response = await fetch(`${baseUrl}/message/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ id: messageId, content: newText }),
         })
         const data = await response.json()
         return new Response(

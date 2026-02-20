@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Search, MessageSquare, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, MessageSquare, Loader2, Pin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,42 +17,79 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ChatContact[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const prevChipRef = useRef<string | null>(null);
 
-  const fetchChats = useCallback(async () => {
+  // Immediately clear chats when chip changes
+  useEffect(() => {
+    if (chipId !== prevChipRef.current) {
+      prevChipRef.current = chipId;
+      if (chipId) {
+        const cached = getCachedChats(chipId);
+        if (cached && cached.length > 0) {
+          setChats(cached);
+        } else {
+          setChats([]);
+        }
+      } else {
+        setChats([]);
+      }
+      setCurrentPage(1);
+      setHasMore(true);
+    }
+  }, [chipId]);
+
+  const fetchChats = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId) return;
 
-    // 1. Load from cache instantly — never clear existing chats
-    const cached = getCachedChats(chipId);
-    if (cached && cached.length > 0) {
-      setChats(cached);
+    if (pageNum === 1 && !append) {
+      const cached = getCachedChats(chipId);
+      setLoading(cached && cached.length > 0 ? false : true);
+    } else {
+      setLoadingMore(true);
     }
 
-    // 2. Fetch from API — only show spinner if no cached data at all
-    const hasCachedOrExisting = (cached && cached.length > 0);
-    setLoading(hasCachedOrExisting ? false : true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'fetch-chats', chipId, limit: 50 },
+        body: { action: 'fetch-chats', chipId, limit: 200, page: pageNum },
       });
 
-      if (response.data?.success && response.data.chats && response.data.chats.length > 0) {
-        setChats(response.data.chats);
-        setCachedChats(chipId, response.data.chats);
+      if (response.data?.success && response.data.chats) {
+        const apiChats: ChatContact[] = response.data.chats;
+        if (apiChats.length < 200) setHasMore(false);
+
+        if (pageNum === 1 && !append) {
+          if (apiChats.length > 0) {
+            setChats(apiChats);
+            setCachedChats(chipId, apiChats);
+          }
+          // If empty, keep cache
+        } else if (append && apiChats.length > 0) {
+          setChats(prev => {
+            const existingJids = new Set(prev.map(c => c.remoteJid));
+            const newChats = apiChats.filter(c => !existingJids.has(c.remoteJid));
+            const merged = [...prev, ...newChats];
+            setCachedChats(chipId, merged);
+            return merged;
+          });
+        }
       }
-      // If API returns empty but we have cache, keep cached data (don't overwrite)
     } catch (error) {
       console.error('Error fetching chats:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [chipId]);
 
   useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+    if (chipId) fetchChats();
+  }, [fetchChats, chipId]);
 
   // Subscribe to conversations realtime updates
   useEffect(() => {
@@ -88,18 +125,20 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
             let newChats;
             if (existing >= 0) {
               newChats = [...prev];
-              newChats[existing] = updated;
+              newChats[existing] = { ...newChats[existing], ...updated };
             } else {
               newChats = [updated, ...prev];
             }
 
+            // Sort: pinned first, then by last message
             newChats.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
               const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
               const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
               return tb - ta;
             });
 
-            // Update cache with realtime data
             setCachedChats(chipId, newChats);
             return newChats;
           });
@@ -114,6 +153,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
     chat.name.toLowerCase().includes(search.toLowerCase()) ||
     chat.phone.includes(search)
   );
+
+  // Sort: pinned first, then by last message
+  const sortedChats = [...filteredChats].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return tb - ta;
+  });
 
   if (!chipId) {
     return (
@@ -144,6 +192,13 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   };
 
+  const handleScrollEnd = () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchChats(nextPage, true);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-3">
@@ -158,14 +213,20 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        {filteredChats.length === 0 && !loading ? (
+      <ScrollArea className="flex-1" onScrollCapture={(e) => {
+        const target = e.currentTarget.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        if (!target) return;
+        if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+          handleScrollEnd();
+        }
+      }}>
+        {sortedChats.length === 0 && !loading ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             Nenhuma conversa encontrada
           </div>
         ) : (
           <div className="divide-y divide-border/30">
-            {filteredChats.map((chat) => (
+            {sortedChats.map((chat) => (
               <button
                 key={chat.remoteJid}
                 onClick={() => onSelectChat(chat)}
@@ -181,7 +242,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium truncate">{chat.name}</span>
+                    <div className="flex items-center gap-1 min-w-0">
+                      {chat.isPinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
+                      <span className="text-sm font-medium truncate">{chat.name}</span>
+                    </div>
                     <span className="text-xs text-muted-foreground shrink-0">
                       {formatTime(chat.lastMessageAt)}
                     </span>
@@ -197,6 +261,11 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
                 </div>
               </button>
             ))}
+            {loadingMore && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

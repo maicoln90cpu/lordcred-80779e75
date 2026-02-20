@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Reply, SmilePlus, Forward, Download, Pin, Star, Trash2 } from 'lucide-react';
+import { Reply, SmilePlus, Forward, Download, Pin, Star, Trash2, Pencil } from 'lucide-react';
 
 interface MessageBubbleProps {
   text: string;
@@ -30,6 +30,7 @@ interface MessageBubbleProps {
   onPin?: (msg: MessageData) => void;
   onFavorite?: (msg: MessageData) => void;
   onDelete?: (msg: MessageData) => void;
+  onEdit?: (msg: MessageData) => void;
 }
 
 function nameToColor(name: string): string {
@@ -77,7 +78,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
-    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete }, ref
+    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -126,6 +127,11 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
         <Star className="w-4 h-4 mr-2" />Favoritar
       </DropdownMenuItem>
       <DropdownMenuSeparator />
+      {fromMe && (
+        <DropdownMenuItem onClick={() => onEdit?.(msgData)}>
+          <Pencil className="w-4 h-4 mr-2" />Editar
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem onClick={() => onDelete?.(msgData)} className="text-destructive focus:text-destructive">
         <Trash2 className="w-4 h-4 mr-2" />Apagar para todos
       </DropdownMenuItem>
