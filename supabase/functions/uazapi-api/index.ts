@@ -283,34 +283,101 @@ Deno.serve(async (req) => {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
 
+        const fetchChatsBody = { limit: limit || 200, page: page || 1 }
+        console.log(`fetch-chats: chipId=${chipId}, body=${JSON.stringify(fetchChatsBody)}`)
+
         const response = await fetch(`${baseUrl}/chat/find`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({
-            limit: limit || 200,
-            page: page || 1,
-            sort: 'desc',
-          }),
+          body: JSON.stringify(fetchChatsBody),
         })
         const data = await response.json()
         
-        // Normalize the chat list
-        const chats = Array.isArray(data) ? data : (data.chats || data.data || [])
+        const rawStr = JSON.stringify(data)
+        console.log(`fetch-chats: UazAPI returned ${rawStr.length} bytes, type=${typeof data}, isArray=${Array.isArray(data)}`)
+        // Log first 500 chars of response for debugging
+        console.log(`fetch-chats: response preview: ${rawStr.substring(0, 500)}`)
+        // Log top-level keys
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          console.log(`fetch-chats: top-level keys: ${Object.keys(data).join(', ')}`)
+        }
+
+        // Normalize the chat list — try multiple response formats
+        let chats: any[] = []
+        if (Array.isArray(data)) {
+          chats = data
+        } else if (data && typeof data === 'object') {
+          chats = data.chats || data.data || data.results || data.items || data.records || []
+          if (!Array.isArray(chats)) chats = []
+        }
         
+        console.log(`fetch-chats: raw chats count before filter: ${chats.length}`)
+
+        // Flexible filter: accept wa_chatid, chatid, jid, or remoteJid
         const normalizedChats = chats
-          .filter((c: any) => c.wa_chatid && !c.wa_chatid.includes('status@'))
-          .map((c: any) => ({
-            id: c.id || c.wa_chatid,
-            remoteJid: c.wa_chatid,
-            name: c.name || c.wa_name || c.wa_contactName || c.phone || 'Desconhecido',
-            phone: c.phone || c.wa_chatid?.split('@')[0] || '',
-            lastMessage: c.wa_lastMessageTextVote || '',
-            lastMessageAt: c.wa_lastMsgTimestamp ? new Date(c.wa_lastMsgTimestamp).toISOString() : null,
-            unreadCount: c.wa_unreadCount || 0,
-            isGroup: c.wa_isGroup || false,
-            isPinned: !!(c.wa_isPinned || c.wa_pin || c.pin),
-            profilePicUrl: c.imagePreview || c.image || null,
-          }))
+          .map((c: any) => {
+            const chatJid = c.wa_chatid || c.chatid || c.jid || c.remoteJid || ''
+            return { ...c, _resolvedJid: chatJid }
+          })
+          .filter((c: any) => c._resolvedJid && !c._resolvedJid.includes('status@'))
+          .map((c: any) => {
+            // wa_lastMsgTimestamp is int64 milliseconds per UazAPI schema
+            let lastMsgAt: string | null = null
+            if (c.wa_lastMsgTimestamp) {
+              const ts = Number(c.wa_lastMsgTimestamp)
+              // If timestamp is in seconds (< year 2100 in seconds), convert to ms
+              const msTs = ts < 10000000000 ? ts * 1000 : ts
+              lastMsgAt = new Date(msTs).toISOString()
+            }
+
+            return {
+              id: c.id || c._resolvedJid,
+              remoteJid: c._resolvedJid,
+              name: c.name || c.wa_name || c.wa_contactName || c.phone || c._resolvedJid?.split('@')[0] || 'Desconhecido',
+              phone: c.phone || c._resolvedJid?.split('@')[0] || '',
+              lastMessage: c.wa_lastMessageTextVote || c.lastMessage || '',
+              lastMessageAt: lastMsgAt,
+              unreadCount: c.wa_unreadCount || 0,
+              isGroup: c.wa_isGroup || c._resolvedJid?.includes('@g.us') || false,
+              isPinned: !!(c.wa_isPinned || c.wa_pin || c.pin),
+              profilePicUrl: c.imagePreview || c.image || null,
+            }
+          })
+
+        console.log(`fetch-chats: normalized chats count after filter: ${normalizedChats.length}`)
+
+        // Fallback: if UazAPI returned empty, try loading from conversations table
+        if (normalizedChats.length === 0) {
+          console.log(`fetch-chats: UazAPI returned 0 chats, falling back to conversations table`)
+          const { data: dbConvos, error: dbErr } = await adminClient
+            .from('conversations')
+            .select('*')
+            .eq('chip_id', chipId)
+            .order('last_message_at', { ascending: false })
+            .limit(limit || 200)
+          
+          if (dbErr) {
+            console.log(`fetch-chats: DB fallback error: ${dbErr.message}`)
+          } else if (dbConvos && dbConvos.length > 0) {
+            console.log(`fetch-chats: DB fallback found ${dbConvos.length} conversations`)
+            const dbChats = dbConvos.map((r: any) => ({
+              id: r.id,
+              remoteJid: r.remote_jid,
+              name: r.contact_name || r.contact_phone || r.remote_jid?.split('@')[0] || 'Desconhecido',
+              phone: r.contact_phone || r.remote_jid?.split('@')[0] || '',
+              lastMessage: r.last_message_text || '',
+              lastMessageAt: r.last_message_at,
+              unreadCount: r.unread_count || 0,
+              isGroup: r.is_group || false,
+              isPinned: false,
+              profilePicUrl: null,
+            }))
+            return new Response(
+              JSON.stringify({ success: true, chats: dbChats, source: 'database' }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
 
         return new Response(
           JSON.stringify({ success: true, chats: normalizedChats }),
@@ -368,11 +435,23 @@ Deno.serve(async (req) => {
 
           const isMedia = !!(detectedMediaType && detectedMediaType !== 'text' && detectedMediaType !== 'chat')
 
+          // Resolve timestamp: prefer ISO m.timestamp, then m.messageTimestamp (int ms or s)
+          let resolvedTimestamp: string
+          if (m.timestamp && typeof m.timestamp === 'string' && !isNaN(Date.parse(m.timestamp))) {
+            resolvedTimestamp = m.timestamp
+          } else if (m.messageTimestamp) {
+            const ts = Number(m.messageTimestamp)
+            const msTs = ts < 10000000000 ? ts * 1000 : ts
+            resolvedTimestamp = new Date(msTs).toISOString()
+          } else {
+            resolvedTimestamp = new Date().toISOString()
+          }
+
           return {
             id: m.id || m.messageid || crypto.randomUUID(),
             text,
             fromMe: m.fromMe === true,
-            timestamp: m.messageTimestamp ? new Date(m.messageTimestamp).toISOString() : new Date().toISOString(),
+            timestamp: resolvedTimestamp,
             senderName: m.senderName || '',
             messageType: detectedMediaType || 'text',
             mediaType: detectedMediaType || '',

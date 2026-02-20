@@ -113,9 +113,9 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
             if (cached && cached.length > 0) {
               const apiIds = new Set(apiMessages.map(m => m.id));
               const uniqueCached = cached.filter(m => !apiIds.has(m.id) && !m.id.startsWith('temp-'));
-              const merged = [...uniqueCached, ...apiMessages].sort(
-                (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-              );
+              const merged = [...uniqueCached, ...apiMessages]
+                .filter(m => m.timestamp && !isNaN(new Date(m.timestamp).getTime()))
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
               setMessages(merged);
               setCachedMessages(requestChipId, requestChatJid, merged);
             } else {
@@ -127,9 +127,9 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           setMessages(prev => {
             const existingIds = new Set(prev.map(m => m.id));
             const newOlder = apiMessages.filter(m => !existingIds.has(m.id));
-            return [...newOlder, ...prev].sort(
-              (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-            );
+            return [...newOlder, ...prev]
+              .filter(m => m.timestamp && !isNaN(new Date(m.timestamp).getTime()))
+              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           });
         }
       }
