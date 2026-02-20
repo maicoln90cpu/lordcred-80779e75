@@ -40,10 +40,13 @@ export default function Login() {
     const { error } = await signIn(data.email, data.password);
 
     if (error) {
+      const isEmailNotConfirmed = error.message?.toLowerCase().includes('email not confirmed');
       toast({
-        title: 'Erro ao entrar',
-        description: 'Email ou senha incorretos',
-        variant: 'destructive'
+        title: isEmailNotConfirmed ? 'Email não confirmado' : 'Erro ao entrar',
+        description: isEmailNotConfirmed
+          ? 'Verifique sua caixa de entrada (e spam) para confirmar seu email antes de entrar.'
+          : 'Email ou senha incorretos',
+        variant: isEmailNotConfirmed ? 'default' : 'destructive'
       });
     } else {
       navigate('/whatsapp');
