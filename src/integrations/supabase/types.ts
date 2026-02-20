@@ -177,6 +177,44 @@ export type Database = {
         }
         Relationships: []
       }
+      message_favorites: {
+        Row: {
+          chip_id: string
+          created_at: string
+          id: string
+          message_id: string
+          message_text: string | null
+          remote_jid: string
+          user_id: string
+        }
+        Insert: {
+          chip_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+          message_text?: string | null
+          remote_jid: string
+          user_id: string
+        }
+        Update: {
+          chip_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          message_text?: string | null
+          remote_jid?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_favorites_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_history: {
         Row: {
           chip_id: string

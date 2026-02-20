@@ -120,14 +120,14 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
       )}
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={() => onPin?.(msgData)}>
-        <Pin className="w-4 h-4 mr-2" />Fixar
+        <Pin className="w-4 h-4 mr-2" />Fixar conversa
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => onFavorite?.(msgData)}>
         <Star className="w-4 h-4 mr-2" />Favoritar
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={() => onDelete?.(msgData)} className="text-destructive focus:text-destructive">
-        <Trash2 className="w-4 h-4 mr-2" />Apagar
+        <Trash2 className="w-4 h-4 mr-2" />Apagar para todos
       </DropdownMenuItem>
     </>
   );

@@ -38,10 +38,11 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
         body: { action: 'fetch-chats', chipId, limit: 50 },
       });
 
-      if (response.data?.success && response.data.chats) {
+      if (response.data?.success && response.data.chats && response.data.chats.length > 0) {
         setChats(response.data.chats);
         setCachedChats(chipId, response.data.chats);
       }
+      // If API returns empty but we have cache, keep cached data (don't overwrite)
     } catch (error) {
       console.error('Error fetching chats:', error);
     } finally {
