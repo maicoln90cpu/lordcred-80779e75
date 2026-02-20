@@ -1,108 +1,87 @@
 
 
-## Plano: Funcoes Completas do Menu de Contexto + Correcao de Cache no Login
+## Plano Completo: 6 Correcoes e Funcionalidades
 
-### 1. Reagir a mensagens (UazAPI: POST /message/react)
+### 1. Carregar TODAS as conversas do WhatsApp (historico completo)
 
-**Endpoint UazAPI**: `POST /message/react`
-- Body: `{ number: "chatid@s.whatsapp.net", text: "emoji", id: "messageId" }`
-- Para remover reacao: `text: ""` (string vazia)
+**Problema**: O `fetch-chats` no edge function envia `limit: 50` e filtra grupos. A UazAPI via `POST /chat/find` retorna todas as conversas do numero, incluindo as que nao foram trocadas dentro da plataforma. O limite precisa ser aumentado e a paginacao implementada.
 
-**Alteracoes:**
+**Correcoes**:
+- **`supabase/functions/uazapi-api/index.ts` (acao `fetch-chats`)**: Aumentar limite padrao para 200. Remover o filtro `!c.wa_isGroup` (deixar grupos aparecerem tambem). Adicionar suporte a paginacao para carregar mais conversas.
+- **`src/components/whatsapp/ChatSidebar.tsx`**: Adicionar scroll infinito na lista de conversas -- ao chegar no final da lista, carregar proxima pagina. Passar `page` para a API.
 
-- **`supabase/functions/uazapi-api/index.ts`**: Adicionar acao `react-message` que chama `POST /message/react` com `{ number: chatId, text: emoji, id: messageId }`
-- **`src/components/whatsapp/ChatWindow.tsx`**: Substituir placeholder `handleReact` por logica real. Ao clicar "Reagir", abrir um mini-picker de emojis rapidos (6 emojis comuns: like, coracao, risada, surpresa, triste, reza) em popover sobre a mensagem
-- **`src/components/whatsapp/MessageBubble.tsx`**: Adicionar componente inline de reacao rapida (6 emojis) que aparece ao clicar "Reagir" no menu
+### 2. Sidebar nao filtra conversas ao trocar de chip
 
-### 2. Apagar mensagem para todos (UazAPI: POST /message/delete)
+**Problema**: Ao trocar de chip, o `handleSelectChip` faz `setSelectedChat(null)`, mas a sidebar usa cache do chip anterior e nao limpa as conversas. O cache do chip 1 permanece visivel quando o chip 2 esta selecionado.
 
-**Endpoint UazAPI**: `POST /message/delete`
-- Body: `{ id: "messageId" }`
-- Apaga para TODOS os participantes
+**Causa raiz**: O `ChatSidebar` carrega cache por `chipId` corretamente, mas a conversa do chip anterior fica visivel no cache porque o `useEffect` com `fetchChats` depende de `chipId`, e no momento da troca, o estado `chats` ainda tem os dados antigos ate o cache/API do novo chip carregar.
 
-**Nota**: A UazAPI NAO tem endpoint para "apagar apenas para mim". O WhatsApp Web tem essa opcao nativamente, mas a API so suporta "apagar para todos".
+**Correcao**:
+- **`src/components/whatsapp/ChatSidebar.tsx`**: Quando `chipId` muda, IMEDIATAMENTE carregar o cache do novo chip ou limpar o estado. Adicionar um `useEffect` que ao detectar mudanca de `chipId`, faz:
+  1. Tentar carregar cache do novo chip
+  2. Se nao tem cache, limpar `chats` e mostrar loading
+  3. Buscar da API em seguida
 
-**Alteracoes:**
+### 3. Botao "Reagir" nao funciona
 
-- **`supabase/functions/uazapi-api/index.ts`**: Adicionar acao `delete-message` que chama `POST /message/delete` com `{ id: messageId }`
-- **`src/components/whatsapp/ChatWindow.tsx`**: Substituir placeholder `handleDelete` por dialog de confirmacao com opcao "Apagar para todos" (unica opcao via API). Apos sucesso, remover mensagem do state local e do cache
-- **`src/components/whatsapp/MessageBubble.tsx`**: Atualizar menu para mostrar "Apagar para todos" ao inves de apenas "Apagar"
+**Problema**: O fluxo atual e: clique em "Reagir" -> seta `reactMsg` -> o `messages.map()` detecta que `reactMsg` corresponde ao `msg` -> envolve o bubble num `ReactionPicker` (Popover). Porem, o `Popover` tem `open` controlado internamente e o `PopoverTrigger` e a propria bolha da mensagem -- o usuario teria que clicar NOVAMENTE na bolha para abrir o popover. Isso nunca funciona na pratica.
 
-### 3. Fixar chat (UazAPI: POST /chat/pin)
+**Correcao**:
+- **`src/components/whatsapp/ChatWindow.tsx`**: Remover a logica de wrapping do `ReactionPicker` no `messages.map()`. Em vez disso, usar um Popover/Dialog posicionado absolutamente que abre automaticamente quando `reactMsg` e setado. Usar estado `reactMsg` + posicao da mensagem para renderizar o picker como overlay.
+- Alternativa mais simples: Criar um componente `ReactionOverlay` que aparece como dialog fixo no centro da tela com os 6 emojis quando `reactMsg !== null`. Ao clicar num emoji, chama `handleReactEmoji` e fecha.
 
-**Endpoint UazAPI**: `POST /chat/pin`
-- Fixa/desafixa um chat no topo da lista de conversas
+### 4. Sinalizador visual de conversa fixada
 
-**Nota**: Este endpoint fixa o CHAT (conversa inteira), nao uma mensagem individual. A UazAPI nao possui endpoint para fixar mensagens individuais dentro de uma conversa.
+**Problema**: Ao fixar uma conversa via UazAPI (`POST /chat/pin`), nao ha indicador visual na sidebar mostrando que ela esta fixada.
 
-**Alteracoes:**
+**Correcao**:
+- **`src/pages/WhatsApp.tsx`**: Adicionar campo `isPinned` no tipo `ChatContact`.
+- **`supabase/functions/uazapi-api/index.ts` (acao `fetch-chats`)**: Verificar campo `wa_pin` ou `pin` retornado pelo `POST /chat/find` da UazAPI e incluir no objeto normalizado.
+- **`src/components/whatsapp/ChatSidebar.tsx`**: Exibir icone de pin (lucide `Pin`) ao lado do nome da conversa quando `chat.isPinned === true`. Ordenar conversas fixadas no topo.
 
-- **`supabase/functions/uazapi-api/index.ts`**: Adicionar acao `pin-chat` que chama `POST /chat/pin` com o chatId
-- **`src/components/whatsapp/ChatWindow.tsx`**: Substituir placeholder `handlePin`. Como a API fixa o CHAT e nao a mensagem, o botao "Fixar" no menu de contexto vai fixar a conversa inteira no topo. Toast de confirmacao ao usuario
+### 5. Pagina/painel de mensagens favoritadas
 
-### 4. Favoritar mensagem (nao suportado pela UazAPI)
+**Implementacao**: Criar um painel lateral (sheet/drawer) acessivel pela pagina WhatsApp, que mostra todas as mensagens favoritadas do usuario.
 
-**Analise da documentacao**: A UazAPI NAO possui endpoint para favoritar/star mensagens. Os endpoints disponiveis na secao "Acoes na mensagem" sao: download, find, markread, react, delete, edit. Nao existe `/message/star` ou similar.
+- **Criar `src/components/whatsapp/FavoritesPanel.tsx`**: Componente Sheet que:
+  - Busca da tabela `message_favorites` do Supabase
+  - Agrupa por conversa (`remote_jid`)
+  - Mostra texto da mensagem, data, e link para abrir a conversa
+  - Permite remover favoritos
+- **`src/pages/WhatsApp.tsx`**: Adicionar botao de estrela no header que abre o `FavoritesPanel`.
 
-**Solucao**: Implementar favoritos LOCALMENTE no banco de dados Supabase, criando uma tabela `message_favorites` para armazenar mensagens favoritadas pelo usuario.
+### 6. Editar mensagens enviadas (UazAPI: POST /message/edit)
 
-**Alteracoes:**
+**Endpoint UazAPI**: `POST /message/edit`
+- Body: `{ id: "messageId", content: "novo texto" }`
+- So funciona para mensagens enviadas pela propria instancia
+- Mensagem deve estar dentro do prazo do WhatsApp
 
-- **Migracao SQL**: Criar tabela `message_favorites` com campos: `id`, `user_id`, `chip_id`, `message_id`, `remote_jid`, `message_text`, `created_at`
-- **RLS**: Usuarios podem ver/inserir/deletar apenas seus proprios favoritos
-- **`src/components/whatsapp/ChatWindow.tsx`**: Implementar `handleFavorite` que insere/remove da tabela `message_favorites`
-
-### 5. Mensagens nao aparecem ao logar (cache existe mas nao carrega)
-
-**Causa raiz identificada**: Quando o usuario faz login, a pagina `/whatsapp` carrega, mas `selectedChipId` inicia como `null`. O `ChipSelector` carrega os chips e chama `onSelectChip(data[0].id)` no primeiro render. Porem, o `ChatSidebar` depende de `chipId` e a sequencia de eventos e:
-
-1. Login -> navega para `/whatsapp`
-2. `selectedChipId = null` -> ChatSidebar nao carrega nada
-3. `ChipSelector.fetchChips()` completa -> `onSelectChip(chip.id)` atualiza `selectedChipId`
-4. `ChatSidebar` recebe novo `chipId` -> `fetchChats()` executa
-5. `getCachedChats(chipId)` pode retornar dados do cache, mas...
-6. O `fetchChats` faz `const cached = getCachedChats(chipId)` e seta `setChats(cached)` MAS logo apos inicia o fetch da API
-7. Se a API retorna vazio ou erro (ex: token expirado), `setChats` fica com array vazio e sobrescreve o cache
-
-**Problema adicional**: O cache usa `CACHE_VERSION = 'v1'` e expira apos 7 dias. Se o cache expirou, e a API retorna vazio, nao ha dados para mostrar.
-
-**Correcoes:**
-
-- **`src/components/whatsapp/ChatSidebar.tsx`**: Nao sobrescrever o cache com resultado vazio da API. Se a API retornar array vazio ou erro, manter os dados do cache. So atualizar se a API retornar dados reais
-- **`src/components/whatsapp/ChatWindow.tsx`**: Mesma logica para mensagens -- se a API retornar vazio, manter o cache. Tambem carregar mensagens do banco de dados (`message_history`) como fallback quando a API nao retorna dados
-
-### 6. Historico de mensagens externas ao sistema
-
-**Resposta**: SIM, e possivel! A UazAPI ja armazena o historico completo de mensagens do WhatsApp (incluindo as trocadas fora da plataforma). O endpoint `POST /message/find` retorna TODAS as mensagens de um chat, independentemente de quando foram enviadas.
-
-O problema atual e que o sistema so mostra 50 mensagens por vez. Para carregar historico mais antigo, precisa implementar paginacao (scroll infinito).
-
-**Alteracoes:**
-
-- **`src/components/whatsapp/ChatWindow.tsx`**: Adicionar scroll infinito -- quando o usuario rolar para o topo, carregar a proxima pagina de mensagens via `fetch-messages` com `page: 2, 3...`
+**Implementacao**:
+- **`supabase/functions/uazapi-api/index.ts`**: Adicionar acao `edit-message` que chama `POST /message/edit` com `{ id: messageId, content: newText }`.
+- **`src/components/whatsapp/MessageContextMenu.tsx`**: Adicionar opcao "Editar" no menu (apenas para mensagens `fromMe`).
+- **`src/components/whatsapp/MessageBubble.tsx`**: Adicionar "Editar" no dropdown (apenas `fromMe`). Passar callback `onEdit`.
+- **`src/components/whatsapp/ChatWindow.tsx`**: Adicionar handler `handleEdit` que abre um dialog/input com o texto atual, permite editar, e envia para a API. Apos sucesso, atualizar o texto da mensagem no estado local.
 
 ---
 
 ### Detalhes Tecnicos
 
-**Tabela nova (migracao SQL):**
-```
-message_favorites (id, user_id, chip_id, message_id, remote_jid, message_text, created_at)
-```
+**Arquivos a criar:**
+1. `src/components/whatsapp/FavoritesPanel.tsx` -- Painel lateral de favoritos
 
 **Arquivos a modificar:**
-1. `supabase/functions/uazapi-api/index.ts` -- Adicionar acoes: `react-message`, `delete-message`, `pin-chat`
-2. `src/components/whatsapp/ChatWindow.tsx` -- Implementar handlers reais + scroll infinito + proteger cache
-3. `src/components/whatsapp/MessageBubble.tsx` -- Mini emoji picker para reacoes + "Apagar para todos"
-4. `src/components/whatsapp/ChatSidebar.tsx` -- Proteger cache contra API vazia
-5. `src/components/whatsapp/MessageContextMenu.tsx` -- Atualizar labels
-
-**Arquivos a criar:**
-1. `src/components/whatsapp/ReactionPicker.tsx` -- Componente de selecao rapida de emoji para reacoes
+1. `supabase/functions/uazapi-api/index.ts` -- Adicionar `edit-message`, ajustar `fetch-chats` (limite, campo pin, remover filtro grupos)
+2. `src/components/whatsapp/ChatWindow.tsx` -- Corrigir ReactionPicker (overlay em vez de wrapper), adicionar handler `handleEdit`, dialog de edicao
+3. `src/components/whatsapp/ChatSidebar.tsx` -- Limpar estado ao trocar chip, scroll infinito, icone de pin, ordenacao pinned-first
+4. `src/components/whatsapp/MessageBubble.tsx` -- Adicionar "Editar" no menu (somente fromMe)
+5. `src/components/whatsapp/MessageContextMenu.tsx` -- Adicionar "Editar" no context menu (somente fromMe)
+6. `src/pages/WhatsApp.tsx` -- Adicionar `isPinned` no tipo `ChatContact`, botao de favoritos no header
 
 **Ordem de implementacao:**
-1. Corrigir cache no login (prioridade -- funcionalidade quebrada)
-2. Adicionar acoes no edge function (react, delete, pin)
-3. Implementar handlers reais no ChatWindow
-4. Criar tabela de favoritos + implementar
-5. Adicionar scroll infinito para historico
+1. Corrigir sidebar ao trocar chip (prioridade -- bug visivel)
+2. Corrigir ReactionPicker (bug -- nao abre)
+3. Ajustar `fetch-chats` para trazer todas as conversas + campo pin
+4. Adicionar sinalizador de pin na sidebar
+5. Adicionar acao `edit-message` no edge function + UI
+6. Criar painel de favoritos
