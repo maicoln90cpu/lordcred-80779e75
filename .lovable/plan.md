@@ -1,103 +1,87 @@
 
 
-## Plano: Corrigir Historico de Conversas Vazio e Mensagens Fora de Ordem
+## Plano: Corrigir 3 Bugs Criticos no WhatsApp
 
-### Problema 1: Conversas nao carregam ao logar (sidebar vazia)
+### Bug 1: Conversas duplicadas (cada mensagem cria um novo chat)
 
-A API `fetch-chats` retorna `{"success":true,"chats":[]}` consistentemente. Apos analise detalhada:
-
-**10 causas identificadas:**
-
-1. **Resposta da UazAPI com estrutura diferente**: O `POST /chat/find` pode retornar os chats em um campo diferente de `chats` ou `data`. O codigo tenta `Array.isArray(data) ? data : (data.chats || data.data || [])` mas a UazAPI pode usar outro nome (ex: `results`, `items`, ou retornar diretamente o array na raiz).
-
-2. **Falta de log de debug no fetch-chats**: Diferente do `fetch-messages` que tem `console.log` mostrando o que a UazAPI retornou, o `fetch-chats` NAO tem nenhum log. Impossivel diagnosticar sem ver a resposta real.
-
-3. **Filtro `wa_chatid` eliminando todos os registros**: O filtro `.filter((c: any) => c.wa_chatid && ...)` pode estar descartando TODOS os chats caso a UazAPI retorne o campo com nome diferente (ex: `chatid`, `jid`, `id`) ou caso o campo esteja vazio para chats nao-grupo.
-
-4. **Parametro `sort: 'desc'` pode ser invalido**: A documentacao da UazAPI nao especifica `sort` como parametro aceito para `/chat/find`. Enviar parametros desconhecidos pode causar erro 400 ou resposta vazia.
-
-5. **Campo `page` pode nao ser suportado pelo `/chat/find`**: A paginacao pode usar campos diferentes (`offset`, `skip`, etc). Se `page` nao for reconhecido, a API pode retornar vazio.
-
-6. **Token do chip invalido ou expirado**: O `getChipToken` busca `instance_token` do banco, mas se o token estiver incorreto ou expirado, a UazAPI retorna array vazio em vez de erro.
-
-7. **Cache do localStorage impedindo re-fetch**: Se o cache tem dados vazios ou corrompidos, e a protecao "nao sobrescrever cache com vazio" impede atualizacao, o usuario fica preso.
-
-8. **`getClaims` falhando silenciosamente**: O `auth.getClaims()` pode estar falhando em versoes mais recentes do Supabase client, causando que a edge function retorne erro 401 antes de chegar ao `fetch-chats`.
-
-9. **`response.json()` falhando**: Se a UazAPI retorna resposta nao-JSON ou vazia, o `response.json()` pode lancar excecao que e capturada pelo `catch` global, retornando erro 500 em vez de chats.
-
-10. **Chip recém-conectado sem historico sincronizado**: Ao conectar um WhatsApp pela primeira vez, a UazAPI pode precisar de tempo para sincronizar o historico de chats. As primeiras chamadas a `/chat/find` retornam vazio ate a sincronizacao completar.
-
-### Problema 2: Mensagens fora de ordem
-
-**Causa identificada**: O `messageTimestamp` no schema da UazAPI esta em **milissegundos** (integer). Porem, a resposta real da API retorna um campo `timestamp` como ISO string. O edge function mapeia `m.messageTimestamp` que pode nao existir na resposta, resultando em timestamp `undefined` que se converte para `Invalid Date`. Alem disso, ha um campo `text` na resposta que ja vem do UazAPI e outro campo `text` que o edge function tenta extrair como `m.text`.
-
-A correcao precisa mapear AMBOS os campos possiveis de timestamp.
-
----
-
-### Correcoes a Implementar
-
-**1. Adicionar logs de debug ao `fetch-chats` no edge function**
-
-No `supabase/functions/uazapi-api/index.ts`, dentro do case `fetch-chats`:
-- Adicionar `console.log` para registrar o corpo exato retornado pela UazAPI
-- Logar a quantidade de chats antes e depois do filtro
-- Logar o body enviado para a API
-- Isso permite diagnosticar o problema real na proxima execucao
-
-**2. Corrigir parsing do `fetch-chats` para aceitar multiplos formatos de resposta**
-
-O edge function precisa:
-- Tentar mais variantes: `data.results`, `data.items`, `data.records`
-- Fazer o filtro de `wa_chatid` mais flexivel: aceitar tambem `chatid`, `jid`, `remoteJid`
-- Remover parametro `sort` que pode nao ser aceito
-- Adicionar fallback: se nenhum chat encontrado, buscar da tabela `conversations` no Supabase como backup
-
-**3. Corrigir mapeamento de timestamp nas mensagens**
-
-No case `fetch-messages`:
-- Priorizar `m.timestamp` (ISO string que ja vem da API) sobre `m.messageTimestamp`
-- Se `m.messageTimestamp` existir (integer milissegundos), converter corretamente
-- Garantir que o sort final e por timestamp ascendente (mais antiga primeiro)
-
+**Causa raiz**: O webhook `handleUazapiMessage` no `evolution-webhook/index.ts` faz:
 ```text
-Antes:
-  timestamp: m.messageTimestamp ? new Date(m.messageTimestamp).toISOString() : new Date().toISOString()
-
-Depois:
-  timestamp: m.timestamp || (m.messageTimestamp ? new Date(Number(m.messageTimestamp)).toISOString() : new Date().toISOString())
+.select('id').eq('chip_id', chip.id).eq('remote_jid', remoteJid).single()
 ```
+Quando duas mensagens chegam simultaneamente, ambas nao encontram registro existente e ambas fazem INSERT. Nao existe constraint UNIQUE em `(chip_id, remote_jid)` na tabela `conversations`.
 
-**4. Adicionar fallback para carregar conversas do banco**
+**Resultado no banco**: Nilso tem **25 linhas duplicadas** para o mesmo chip+remoteJid. Ju tem 10 duplicatas.
 
-Se a UazAPI retornar chats vazios, o edge function deve buscar na tabela `conversations`:
-```text
-Se normalizedChats.length === 0:
-  Buscar conversations do Supabase WHERE chip_id = chipId
-  Mapear para o formato ChatContact
-  Retornar como fallback
-```
+**Correcao**:
+1. Adicionar constraint UNIQUE em `(chip_id, remote_jid)` na tabela `conversations` via migracao
+2. Antes da migracao, limpar duplicatas mantendo apenas o registro mais recente por `(chip_id, remote_jid)`
+3. No webhook, trocar `.single()` por `.maybeSingle()` e usar UPSERT (`onConflict: 'chip_id,remote_jid'`) em vez de INSERT separado
 
-**5. Corrigir sort no ChatWindow**
+### Bug 2: Sidebar mostra chats de outro chip
 
-O merge de mensagens do cache + API precisa garantir sort consistente por timestamp ISO. Tambem filtrar mensagens com timestamp invalido (`Invalid Date`).
+**Causa raiz**: No `ChatSidebar.tsx`, quando `fetch-chats` retorna `apiChats.length === 0` (linhas 72-76), o codigo NAO limpa o estado `chats`. Os chats do chip anterior permanecem visiveis.
+
+O fluxo:
+1. Usuario seleciona chip 2 -> chats do chip 2 carregam corretamente
+2. Usuario troca para chip 1 -> useEffect (linha 27) tenta carregar cache do chip 1
+3. Cache do chip 1 esta vazio -> `setChats([])` executa (correto)
+4. `fetchChats()` chama API -> API retorna 0 chats da UazAPI -> fallback DB retorna 2 conversas
+5. Mas... o `apiChats.length > 0` (2 chats) deveria funcionar. O problema real e que o chip 1 (554898119529) tem apenas 2 conversas no banco mas a sidebar mostra Ju, Nilso etc que pertencem ao chip 2
+
+Investigacao adicional: o `getChipToken` no edge function busca o token pelo `chipId`. Se os dois chips compartilham o mesmo token ou se o chipId esta sendo enviado incorretamente, a API retorna dados do chip errado.
+
+**Correcao**: Forcar `setChats([])` quando `apiChats.length === 0` na linha 73 do `ChatSidebar.tsx`, para garantir que dados antigos sejam limpos mesmo que a API retorne vazio.
+
+### Bug 3: Mensagens fora de contexto dentro do chat
+
+**Causa raiz**: Consequencia direta do Bug 1 e 2. Se o chat selecionado pertence ao chip errado, o `fetch-messages` busca mensagens usando o `remoteJid` correto mas o `chipId` errado, mostrando "sem mensagens" ou mensagens de outra conversa.
 
 ---
 
 ### Detalhes Tecnicos
 
-**Arquivos a modificar:**
+**Migracao SQL** (nova migracao):
+```text
+-- Limpar duplicatas: manter apenas o mais recente por (chip_id, remote_jid)
+DELETE FROM conversations 
+WHERE id NOT IN (
+  SELECT DISTINCT ON (chip_id, remote_jid) id 
+  FROM conversations 
+  ORDER BY chip_id, remote_jid, last_message_at DESC NULLS LAST
+);
+
+-- Adicionar constraint unica
+ALTER TABLE conversations 
+ADD CONSTRAINT conversations_chip_remote_unique 
+UNIQUE (chip_id, remote_jid);
+```
+
+**Arquivo: `supabase/functions/evolution-webhook/index.ts`**:
+- Trocar a logica de SELECT + INSERT/UPDATE por UPSERT:
+  - Usar `adminClient.from('conversations').upsert({ chip_id, remote_jid, ... }, { onConflict: 'chip_id,remote_jid' })`
+  - Isso elimina a race condition completamente
+- Aplicar o mesmo pattern em `handleUazapiChat`
+
+**Arquivo: `src/components/whatsapp/ChatSidebar.tsx`**:
+- Linha 72-76: quando `apiChats.length === 0`, forcar `setChats([])` e limpar cache para o chip
+- Isso garante que ao trocar de chip, se o novo chip nao tem conversas, a sidebar fica vazia em vez de mostrar dados do chip anterior
+
+**Arquivo: `supabase/functions/uazapi-api/index.ts`** (fetch-chats DB fallback):
+- Adicionar deduplicacao no fallback: agrupar por `remote_jid` e pegar apenas o mais recente (para funcionar mesmo antes da migracao rodar)
+
+---
+
+### Ordem de implementacao
+
+1. Criar migracao SQL para limpar duplicatas e adicionar UNIQUE constraint
+2. Corrigir webhook para usar UPSERT (previne futuras duplicatas)
+3. Corrigir ChatSidebar para limpar estado quando API retorna vazio
+4. Adicionar deduplicacao no fallback do edge function
+5. Deploy do edge function
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/uazapi-api/index.ts` | Adicionar logs no fetch-chats, corrigir parsing de resposta, corrigir mapeamento de timestamp no fetch-messages, adicionar fallback para conversations |
-| `src/components/whatsapp/ChatSidebar.tsx` | Adicionar fallback para buscar conversations do Supabase se API retornar vazio |
-| `src/components/whatsapp/ChatWindow.tsx` | Filtrar mensagens com timestamp invalido, garantir sort correto |
-
-**Ordem de implementacao:**
-1. Adicionar logs + corrigir parsing no edge function (diagnostico + fix)
-2. Corrigir mapeamento de timestamp (mensagens fora de ordem)
-3. Adicionar fallback para conversations do Supabase (garantir que algo aparece)
-4. Deploy e verificacao dos logs
-
+| Nova migracao SQL | Limpar duplicatas + UNIQUE constraint |
+| `evolution-webhook/index.ts` | UPSERT em vez de SELECT+INSERT |
+| `ChatSidebar.tsx` | Forcar limpeza quando API retorna vazio |
+| `uazapi-api/index.ts` | Deduplicar no fallback DB |
