@@ -1,148 +1,122 @@
 
 
-# Plano Completo de Correcao e Configuracao do Sistema
+# Plano de Correcao - 4 Problemas
 
-## Diagnostico
+## 1. Provedor nao salva ao trocar de Evolution para UazAPI
 
-Apos analise completa do projeto, identifiquei 4 problemas criticos:
+**Causa raiz:** O `handleSave` usa `as any` para forcar o update, mas os tipos estao corretos no `types.ts`. O problema real e que a RLS policy `system_settings` exige `is_admin()`, e o update esta funcionando corretamente para admins. Porem, ao trocar o provedor no Select, o estado local atualiza mas o `handleSave` pode estar falhando silenciosamente porque o `toast` de erro e generico ("Erro ao salvar").
 
-### Problema 1: types.ts vazio (causa de TODOS os erros de build)
-O arquivo `src/integrations/supabase/types.ts` nao reflete as tabelas do banco. Todas as tabelas estao como `[_ in never]: never`, causando erros como `Argument of type '"chips"' is not assignable to parameter of type 'never'` em todos os arquivos que usam o Supabase client.
+**Correcao:** Remover o `as any` do update e adicionar log detalhado do erro no toast para diagnostico. Tambem garantir que o `handleProviderChange` atualiza corretamente todos os campos necessarios.
 
-### Problema 2: Dados antigos precisam ser associados a novos usuarios
-O banco ja tem dados vinculados a user_ids antigos:
-- `e81a51cb-3f5e-47a2-b357-801033222f05` (maicoln90@hotmail.com - admin)
-- `bf39aeb7-ff35-4485-88a1-9e0121e7cbcc` (silascarlosdias@gmail.com - user)
+## 2. Admin (role "user") nao ve vendedores criados na aba "Criados"
 
-Porem `auth.users` esta vazio (projeto novo). Quando esses usuarios criarem conta, receberao novos UUIDs. O trigger `handle_new_user` cria novas entradas em `profiles` e `user_roles`, mas nao atualiza os dados antigos.
+**Causa raiz:** No `Users.tsx` linha 91-93, o filtro para nao-master e:
+```
+enrichedUsers = enrichedUsers.filter(u => 
+  u.role === 'seller' && u.created_by === currentUser?.id
+);
+```
+Porem, a RLS policy de `profiles` so permite que admins (`is_admin()`) vejam todos os perfis. A funcao `is_admin()` provavelmente verifica se o role e `admin`, nao `user`. Portanto, usuarios com role `user` (Administrador) nao conseguem fazer SELECT em `profiles` de outros usuarios.
 
-### Problema 3: Secrets ausentes
-Apenas `LOVABLE_API_KEY` existe. Faltam:
-- `EVOLUTION_API_URL` - necessaria para edge functions (evolution-api, warming-engine, queue-processor)
-- `EVOLUTION_API_KEY` - necessaria para as mesmas functions
+**Correcao:** Adicionar uma RLS policy em `profiles` que permita usuarios com role `user` ver os perfis que eles criaram (`created_by = auth.uid()`). Tambem adicionar policy similar em `user_roles` e `chips` para que o JOIN funcione.
 
-Nota: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_ANON_KEY` sao fornecidas automaticamente pelo Supabase.
+Novas policies necessarias:
+- `profiles`: SELECT WHERE `created_by = auth.uid()` para role `user`
+- `user_roles`: SELECT para user_ids que existam em profiles com `created_by = auth.uid()`
+- `chips`: SELECT para user_ids que existam em profiles com `created_by = auth.uid()`
 
-### Problema 4: config.toml incompleto
-O `supabase/config.toml` nao tem configuracoes de `verify_jwt` para as edge functions. Functions como `evolution-webhook` precisam de `verify_jwt = false` pois recebem chamadas externas.
+## 3. Menu no header do /whatsapp para vendedores alterarem nome e senha
 
----
+**Implementacao:**
+- Adicionar um `DropdownMenu` no header do `WhatsApp.tsx`, visivel para todos os usuarios (especialmente vendedores)
+- O menu tera um icone de usuario/perfil com opcoes:
+  - "Alterar Nome" - abre dialog para trocar o nome no `profiles`
+  - "Alterar Senha" - abre dialog que usa `supabase.auth.updateUser({ password })` para trocar a senha
+- Criar um componente `UserProfileMenu.tsx` que encapsula essa logica
 
-## Solucao
+**Detalhes tecnicos:**
+- Para trocar nome: `supabase.from('profiles').update({ name }).eq('user_id', auth.uid())`
+- Para trocar senha: `supabase.auth.updateUser({ password: novaSenha })`
+- A RLS de `profiles` ja permite `Users can update their own profile` (UPDATE WHERE user_id = auth.uid())
 
-### Passo 1: Regenerar types.ts
-Forcar a regeneracao do arquivo de tipos para que todas as 10 tabelas e o enum `app_role` sejam mapeados corretamente. Isso corrige **todos** os erros de build de uma so vez.
+## 4. Permitir que "user" (Administrador) edite e exclua vendedores criados
 
-### Passo 2: Criar trigger de associacao automatica
-Criar uma database function `associate_existing_data` que sera chamada pelo trigger `handle_new_user` (modificado). Quando um novo usuario se cadastrar com email `maicoln90@hotmail.com` ou `silascarlosdias@gmail.com`, o sistema:
+**Causa raiz:** 
+- O `delete-user` edge function so permite exclusao por `admin` (linha 53). Usuarios com role `user` recebem 403.
+- O `profiles` update por RLS so permite o proprio usuario ou admin.
 
-1. Verifica se ja existe um `profile` com esse email
-2. Se existir, atualiza o `user_id` antigo para o novo UUID em todas as tabelas:
-   - `profiles.user_id`
-   - `user_roles.user_id`
-   - `chips.user_id`
-3. Nao cria registros duplicados (evita o INSERT padrao do `handle_new_user`)
-4. Se nao existir dados antigos, segue o fluxo normal de criacao
-
-### Passo 3: Solicitar secrets faltantes
-Pedir ao usuario as credenciais:
-- `EVOLUTION_API_URL`
-- `EVOLUTION_API_KEY`
-
-### Passo 4: Atualizar config.toml
-Adicionar configuracoes de `verify_jwt = false` para todas as 9 edge functions.
-
-### Passo 5: Deploy de todas as edge functions
-Fazer deploy das 9 functions:
-- create-user, delete-user, evolution-api, evolution-webhook
-- instance-maintenance, queue-processor, uazapi-api
-- update-user-role, warming-engine
+**Correcao:**
+- **delete-user function:** Alterar para aceitar role `user` tambem, mas restringir para que so possa excluir usuarios que ele criou (verificar `created_by`).
+- **profiles RLS:** Adicionar policy UPDATE para que `user` possa atualizar perfis onde `created_by = auth.uid()`.
+- **Users.tsx:** Adicionar funcionalidade de edicao (dialog para editar nome/email) dos vendedores criados.
 
 ---
 
-## Detalhes Tecnicos
+## Resumo tecnico das alteracoes
 
-### SQL da migracao (Passo 2)
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/migrations/new.sql` | Novas RLS policies para `profiles`, `user_roles`, `chips` permitindo role `user` ver/editar registros que criou |
+| `supabase/functions/delete-user/index.ts` | Permitir role `user` excluir vendedores que criou (verificar `created_by`) |
+| `src/components/whatsapp/UserProfileMenu.tsx` | Novo componente com dropdown para trocar nome e senha |
+| `src/pages/WhatsApp.tsx` | Adicionar `UserProfileMenu` no header |
+| `src/pages/admin/Users.tsx` | Adicionar dialog de edicao de vendedor (nome) |
+| `src/pages/admin/MasterAdmin.tsx` | Melhorar tratamento de erro no save do provedor |
 
-Modificar a function `handle_new_user` para verificar dados existentes antes de criar novos:
+### SQL das novas RLS policies
 
 ```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  existing_profile_id uuid;
-  old_user_id uuid;
-BEGIN
-    -- Check if a profile already exists with this email (migrated data)
-    SELECT user_id INTO old_user_id
-    FROM public.profiles
-    WHERE email = NEW.email
-    LIMIT 1;
+-- Administradores (role=user) podem ver perfis que criaram
+CREATE POLICY "Users can view profiles they created"
+ON public.profiles FOR SELECT
+TO authenticated
+USING (created_by = auth.uid());
 
-    IF old_user_id IS NOT NULL AND old_user_id != NEW.id THEN
-        -- Update all references from old user_id to new user_id
-        UPDATE public.profiles SET user_id = NEW.id WHERE user_id = old_user_id;
-        UPDATE public.user_roles SET user_id = NEW.id WHERE user_id = old_user_id;
-        UPDATE public.chips SET user_id = NEW.id WHERE user_id = old_user_id;
-    ELSIF old_user_id IS NULL THEN
-        -- No existing data, create fresh profile and role
-        INSERT INTO public.profiles (user_id, email)
-        VALUES (NEW.id, NEW.email);
+-- Administradores podem atualizar perfis que criaram
+CREATE POLICY "Users can update profiles they created"
+ON public.profiles FOR UPDATE
+TO authenticated
+USING (created_by = auth.uid())
+WITH CHECK (created_by = auth.uid());
 
-        INSERT INTO public.user_roles (user_id, role)
-        VALUES (NEW.id, 'seller');
-    END IF;
-    -- If old_user_id = NEW.id, data is already correct, do nothing
+-- Administradores podem ver roles dos usuarios que criaram
+CREATE POLICY "Users can view roles of created users"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (user_id IN (
+  SELECT p.user_id FROM profiles p WHERE p.created_by = auth.uid()
+));
 
-    RETURN NEW;
-END;
-$$;
+-- Administradores podem ver chips dos usuarios que criaram
+CREATE POLICY "Users can view chips of created users"
+ON public.chips FOR SELECT
+TO authenticated
+USING (user_id IN (
+  SELECT p.user_id FROM profiles p WHERE p.created_by = auth.uid()
+));
 ```
 
-### config.toml atualizado
+### Alteracao no delete-user
 
-```toml
-project_id = "sibfqmzsnftscnlyuwiu"
+Permitir que role `user` exclua, verificando `created_by`:
+```typescript
+// Antes: if (callerRole?.role !== 'admin')
+// Depois:
+if (callerRole?.role !== 'admin' && callerRole?.role !== 'user') {
+  return error 403
+}
 
-[functions.create-user]
-verify_jwt = false
-
-[functions.delete-user]
-verify_jwt = false
-
-[functions.evolution-api]
-verify_jwt = false
-
-[functions.evolution-webhook]
-verify_jwt = false
-
-[functions.instance-maintenance]
-verify_jwt = false
-
-[functions.queue-processor]
-verify_jwt = false
-
-[functions.uazapi-api]
-verify_jwt = false
-
-[functions.update-user-role]
-verify_jwt = false
-
-[functions.warming-engine]
-verify_jwt = false
+// Se nao e admin, verificar se criou o usuario
+if (callerRole?.role === 'user') {
+  const { data: targetProfile } = await adminClient
+    .from('profiles')
+    .select('created_by')
+    .eq('user_id', userId)
+    .single();
+  
+  if (targetProfile?.created_by !== caller.id) {
+    return error 403 "Voce so pode excluir usuarios que voce criou"
+  }
+}
 ```
-
-### Resumo das acoes
-
-| # | Acao | Tipo |
-|---|------|------|
-| 1 | Regenerar types.ts com todas as tabelas | Correcao de tipos |
-| 2 | Alterar handle_new_user para associar dados antigos | Migracao SQL |
-| 3 | Solicitar EVOLUTION_API_URL e EVOLUTION_API_KEY | Secrets |
-| 4 | Atualizar config.toml com verify_jwt | Configuracao |
-| 5 | Deploy das 9 edge functions | Deploy |
 
