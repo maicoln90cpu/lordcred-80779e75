@@ -220,7 +220,7 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
   return loading ? <LoadingSkeleton className="w-32 h-8 rounded-md" /> : (
     <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
       <Download className="w-4 h-4" />
-      <span>{error ? '⚠️ Erro' : `📎 Mídia (${type})`}</span>
+      <span>{error ? '📎 Mídia indisponível' : `📎 Mídia (${type})`}</span>
     </button>
   );
 }

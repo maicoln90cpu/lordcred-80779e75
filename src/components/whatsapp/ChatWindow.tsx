@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
-import MessageContextMenu, { type MessageData } from './MessageContextMenu';
+import ForwardDialog from './ForwardDialog';
+import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +31,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<MessageData | null>(null);
+  const [forwardMsg, setForwardMsg] = useState<MessageData | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -123,6 +125,12 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           };
 
           setMessages(prev => {
+            // Replace temp messages with real ones for outgoing
+            if (newMsg.fromMe) {
+              const withoutTemp = prev.filter(m => !m.id.startsWith('temp-') || (new Date(newMsg.timestamp).getTime() - new Date(m.timestamp).getTime()) > 10000);
+              if (withoutTemp.some(m => m.id === newMsg.id)) return withoutTemp;
+              return [...withoutTemp, newMsg];
+            }
             if (prev.some(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
@@ -222,9 +230,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const handleReact = useCallback((_msg: MessageData) => {
     toast({ title: 'Em breve', description: 'Reações estarão disponíveis em breve.' });
   }, [toast]);
-  const handleForward = useCallback((_msg: MessageData) => {
-    toast({ title: 'Em breve', description: 'Encaminhamento estará disponível em breve.' });
-  }, [toast]);
+  const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
   const handleDownload = useCallback((msg: MessageData) => {
     if (msg.messageId && msg.chipId) {
       supabase.functions.invoke('uazapi-api', {
@@ -293,17 +299,18 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         ) : (
           <div className="space-y-2 max-w-3xl mx-auto">
             {messages.map((msg) => (
-              <MessageContextMenu
+              <MessageBubble
                 key={msg.id}
-                message={{
-                  id: msg.id,
-                  text: msg.text,
-                  fromMe: msg.fromMe,
-                  messageId: msg.messageId,
-                  mediaType: msg.mediaType,
-                  hasMedia: msg.hasMedia,
-                  chipId: chipId || undefined,
-                }}
+                text={msg.text}
+                time={formatTime(msg.timestamp)}
+                fromMe={msg.fromMe}
+                messageType={msg.messageType}
+                mediaType={msg.mediaType}
+                hasMedia={msg.hasMedia}
+                messageId={msg.messageId}
+                chipId={chipId || undefined}
+                senderName={msg.senderName}
+                isGroup={chat?.isGroup}
                 onReply={handleReply}
                 onReact={handleReact}
                 onForward={handleForward}
@@ -311,22 +318,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
                 onPin={handlePin}
                 onFavorite={handleFavorite}
                 onDelete={handleDelete}
-              >
-                <div>
-                  <MessageBubble
-                    text={msg.text}
-                    time={formatTime(msg.timestamp)}
-                    fromMe={msg.fromMe}
-                    messageType={msg.messageType}
-                    mediaType={msg.mediaType}
-                    hasMedia={msg.hasMedia}
-                    messageId={msg.messageId}
-                    chipId={chipId || undefined}
-                    senderName={msg.senderName}
-                    isGroup={chat?.isGroup}
-                  />
-                </div>
-              </MessageContextMenu>
+              />
             ))}
           </div>
         )}
@@ -339,6 +331,13 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         disabled={sending}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
+      />
+
+      <ForwardDialog
+        open={!!forwardMsg}
+        onClose={() => setForwardMsg(null)}
+        message={forwardMsg}
+        chipId={chipId}
       />
     </div>
   );
