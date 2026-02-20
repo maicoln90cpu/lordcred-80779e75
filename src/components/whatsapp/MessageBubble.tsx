@@ -72,7 +72,8 @@ function formatWhatsAppText(text: string): React.ReactNode[] {
   });
 }
 
-const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document', 'ptv', 'myaudio'];
+const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document', 'ptv', 'myaudio',
+  'audiomessage', 'pttmessage', 'imagemessage', 'videomessage', 'documentmessage', 'stickermessage'];
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
@@ -134,7 +135,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
   return (
     <div ref={ref} className={cn("flex", fromMe ? "justify-end" : "justify-start")}>
       <div
-        className="relative group max-w-[75%]"
+        className={cn("flex items-start gap-1 max-w-[75%]", fromMe && "flex-row-reverse")}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
@@ -161,25 +162,25 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
           <p className="text-[10px] mt-1 text-right text-muted-foreground">{time}</p>
         </div>
 
-        {/* Hover chevron for dropdown menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "absolute top-1 flex items-center justify-center w-6 h-6 rounded-full bg-background/80 shadow-sm transition-opacity",
-                fromMe ? "left-[-8px]" : "right-[-8px]",
-                hovered ? "opacity-100" : "opacity-0"
-              )}
-            >
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align={fromMe ? "end" : "start"} className="w-48">
-            {menuContent}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+
+      {/* Hover chevron for dropdown menu - posicionado ao lado da bolha */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className={cn(
+              "self-start mt-1 flex items-center justify-center w-6 h-6 rounded-full bg-background/80 shadow-sm transition-opacity shrink-0",
+              hovered ? "opacity-100" : "opacity-0"
+            )}
+          >
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={fromMe ? "end" : "start"} className="w-48">
+          {menuContent}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  </div>
   );
 });
 

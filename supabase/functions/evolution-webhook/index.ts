@@ -21,6 +21,19 @@ function safeString(val: unknown): string {
   return ''
 }
 
+// Normaliza messageType PascalCase da UazAPI para tipo simples
+function normalizeMessageType(raw: string): string {
+  if (!raw) return ''
+  const lower = raw.toLowerCase().replace('message', '')
+  const map: Record<string, string> = {
+    'image': 'image', 'audio': 'audio', 'ptt': 'ptt',
+    'video': 'video', 'document': 'document', 'sticker': 'sticker',
+    'conversation': 'text', 'chat': 'text', 'text': 'text',
+    'ptv': 'ptv', 'myaudio': 'myaudio',
+  }
+  return map[lower] || ''
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -121,8 +134,9 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   const recipientPhone = remoteJid.split('@')[0].replace(/\D/g, '')
   const senderName = safeString(msg.senderName) || safeString(chat?.name) || ''
 
-  // Determine display text for sidebar
-  const mediaType = safeString(msg.mediaType)
+  // Determine display text for sidebar — fallback para messageType normalizado
+  const rawMediaType = safeString(msg.mediaType)
+  const mediaType = rawMediaType || normalizeMessageType(safeString(msg.messageType))
   const isMedia = mediaType && mediaType !== 'text' && mediaType !== 'chat'
   const displayText = isMedia ? getMediaLabel(mediaType) : messageContent
 

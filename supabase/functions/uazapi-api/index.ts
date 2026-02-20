@@ -5,6 +5,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// Normaliza messageType PascalCase da UazAPI para tipo simples
+function normalizeMessageType(raw: string): string {
+  if (!raw) return ''
+  const lower = raw.toLowerCase().replace('message', '')
+  const map: Record<string, string> = {
+    'image': 'image', 'audio': 'audio', 'ptt': 'ptt',
+    'video': 'video', 'document': 'document', 'sticker': 'sticker',
+    'conversation': 'text', 'chat': 'text', 'text': 'text',
+    'ptv': 'ptv', 'myaudio': 'myaudio',
+  }
+  return map[lower] || ''
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -331,14 +344,23 @@ Deno.serve(async (req) => {
         const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document', 'ptv', 'myaudio']
 
         const normalizedMessages = messages.map((m: any) => {
-          let detectedMediaType = m.mediaType || m.type || m.messageType || ''
+          // Prioridade: mediaType (já simples) > normalizeMessageType(messageType PascalCase) > type
+          let detectedMediaType = m.mediaType || normalizeMessageType(m.messageType) || m.type || ''
+          
+          // Normalizar caso o valor ainda esteja em PascalCase
+          if (detectedMediaType && !MEDIA_KEYWORDS.includes(detectedMediaType.toLowerCase())) {
+            const normalized = normalizeMessageType(detectedMediaType)
+            if (normalized) detectedMediaType = normalized
+          }
+          detectedMediaType = detectedMediaType.toLowerCase()
+
           let text = typeof m.text === 'string' ? m.text : ''
           
-          // If text is exactly a media keyword and no mediaType detected, treat as media
+          // Se o texto é exatamente uma keyword de mídia e não temos tipo detectado
           if (!detectedMediaType || detectedMediaType === 'text' || detectedMediaType === 'chat') {
             if (MEDIA_KEYWORDS.includes(text.toLowerCase().trim())) {
               detectedMediaType = text.toLowerCase().trim()
-              text = '' // clear the raw keyword from display
+              text = ''
             }
           }
 
