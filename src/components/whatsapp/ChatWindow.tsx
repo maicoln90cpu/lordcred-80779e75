@@ -3,11 +3,12 @@ import { MessageSquare, Loader2 } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
-import ReactionPicker from './ReactionPicker';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 interface ChatMessage {
@@ -37,6 +45,8 @@ interface ChatWindowProps {
   chipId: string | null;
 }
 
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
 export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +56,8 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [forwardMsg, setForwardMsg] = useState<MessageData | null>(null);
   const [deleteMsg, setDeleteMsg] = useState<MessageData | null>(null);
   const [reactMsg, setReactMsg] = useState<MessageData | null>(null);
+  const [editMsg, setEditMsg] = useState<MessageData | null>(null);
+  const [editText, setEditText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -305,11 +317,37 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     }
   }, [chipId, chat]);
 
-  // === REAL CONTEXT MENU HANDLERS ===
+  // === CONTEXT MENU HANDLERS ===
 
   const handleReply = useCallback((msg: MessageData) => setReplyTo(msg), []);
-
   const handleReact = useCallback((msg: MessageData) => setReactMsg(msg), []);
+  const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
+  const handleDelete = useCallback((msg: MessageData) => setDeleteMsg(msg), []);
+
+  const handleEdit = useCallback((msg: MessageData) => {
+    setEditMsg(msg);
+    setEditText(msg.text || '');
+  }, []);
+
+  const confirmEdit = useCallback(async () => {
+    if (!editMsg || !chipId || !editText.trim()) return;
+    try {
+      const res = await supabase.functions.invoke('uazapi-api', {
+        body: { action: 'edit-message', chipId, messageId: editMsg.messageId, newText: editText.trim() },
+      });
+      if (res.data?.success) {
+        setMessages(prev => prev.map(m =>
+          (m.messageId === editMsg.messageId || m.id === editMsg.id) ? { ...m, text: editText.trim() } : m
+        ));
+        toast({ title: 'Mensagem editada' });
+      } else {
+        toast({ title: 'Erro', description: 'Não foi possível editar.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Erro', description: 'Falha ao editar mensagem.', variant: 'destructive' });
+    }
+    setEditMsg(null);
+  }, [editMsg, chipId, editText, toast]);
 
   const handleReactEmoji = useCallback(async (emoji: string) => {
     if (!reactMsg || !chipId || !chat) return;
@@ -323,8 +361,6 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     }
     setReactMsg(null);
   }, [reactMsg, chipId, chat, toast]);
-
-  const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
 
   const handleDownload = useCallback((msg: MessageData) => {
     if (msg.messageId && msg.chipId) {
@@ -380,8 +416,6 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
       toast({ title: 'Erro', description: 'Não foi possível favoritar.', variant: 'destructive' });
     }
   }, [chipId, chat, toast]);
-
-  const handleDelete = useCallback((msg: MessageData) => setDeleteMsg(msg), []);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteMsg || !chipId) return;
@@ -453,40 +487,29 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           </div>
         ) : (
           <div className="space-y-2 max-w-3xl mx-auto">
-            {messages.map((msg) => {
-              const bubble = (
-                <MessageBubble
-                  key={msg.id}
-                  text={msg.text}
-                  time={formatTime(msg.timestamp)}
-                  fromMe={msg.fromMe}
-                  messageType={msg.messageType}
-                  mediaType={msg.mediaType}
-                  hasMedia={msg.hasMedia}
-                  messageId={msg.messageId}
-                  chipId={chipId || undefined}
-                  senderName={msg.senderName}
-                  isGroup={chat?.isGroup}
-                  onReply={handleReply}
-                  onReact={handleReact}
-                  onForward={handleForward}
-                  onDownload={handleDownload}
-                  onPin={handlePin}
-                  onFavorite={handleFavorite}
-                  onDelete={handleDelete}
-                />
-              );
-
-              // If this message has the reaction picker open, wrap it
-              if (reactMsg && (reactMsg.messageId === msg.messageId || reactMsg.id === msg.id)) {
-                return (
-                  <ReactionPicker key={msg.id} onSelect={handleReactEmoji}>
-                    {bubble}
-                  </ReactionPicker>
-                );
-              }
-              return bubble;
-            })}
+            {messages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                text={msg.text}
+                time={formatTime(msg.timestamp)}
+                fromMe={msg.fromMe}
+                messageType={msg.messageType}
+                mediaType={msg.mediaType}
+                hasMedia={msg.hasMedia}
+                messageId={msg.messageId}
+                chipId={chipId || undefined}
+                senderName={msg.senderName}
+                isGroup={chat?.isGroup}
+                onReply={handleReply}
+                onReact={handleReact}
+                onForward={handleForward}
+                onDownload={handleDownload}
+                onPin={handlePin}
+                onFavorite={handleFavorite}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -506,6 +529,45 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         message={forwardMsg}
         chipId={chipId}
       />
+
+      {/* Reaction picker overlay */}
+      <Dialog open={!!reactMsg} onOpenChange={(open) => !open && setReactMsg(null)}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Reagir à mensagem</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center gap-2 py-4">
+            {QUICK_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReactEmoji(emoji)}
+                className="text-2xl hover:scale-125 transition-transform p-2 rounded-lg hover:bg-muted"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit message dialog */}
+      <Dialog open={!!editMsg} onOpenChange={(open) => !open && setEditMsg(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar mensagem</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
+            className="mt-2"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMsg(null)}>Cancelar</Button>
+            <Button onClick={confirmEdit}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteMsg} onOpenChange={(open) => !open && setDeleteMsg(null)}>

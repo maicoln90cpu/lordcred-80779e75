@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
+import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
 
 export interface ChatContact {
   id: string;
@@ -19,11 +20,13 @@ export interface ChatContact {
   lastMessageAt: string | null;
   unreadCount: number;
   isGroup: boolean;
+  isPinned?: boolean;
 }
 
 export default function WhatsApp() {
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const { isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -49,6 +52,9 @@ export default function WhatsApp() {
         </div>
         <div className="flex items-center gap-2 ml-4">
           <UserProfileMenu />
+          <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
+            <Star className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground">
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
@@ -80,6 +86,13 @@ export default function WhatsApp() {
 
         </main>
       </div>
+
+      <FavoritesPanel
+        open={favoritesOpen}
+        onClose={() => setFavoritesOpen(false)}
+        chipId={selectedChipId}
+        onOpenChat={(chat) => { setSelectedChat(chat); setFavoritesOpen(false); }}
+      />
     </div>);
 
 }
