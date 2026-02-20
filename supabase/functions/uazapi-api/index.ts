@@ -41,10 +41,42 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
+    const body = await req.json()
+    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId } = body
+
+    // Handle test-connection before requiring settings
+    if (action === 'test-connection') {
+      const testUrl = (apiUrl || '').replace(/\/$/, '')
+      const testKey = apiKey || ''
+      if (!testUrl || !testKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'URL and API Key are required' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const testResponse = await fetch(`${testUrl}/instance/all`, {
+        method: 'GET',
+        headers: { 'admintoken': testKey },
+      })
+      if (testResponse.ok) {
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } else {
+        const errData = await testResponse.text()
+        return new Response(
+          JSON.stringify({ success: false, error: `Status ${testResponse.status}: ${errData}` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     const { data: settings } = await adminClient
       .from('system_settings')
       .select('provider_api_url, provider_api_key, uazapi_api_url, uazapi_api_key')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     const baseUrl = ((settings as any)?.uazapi_api_url || settings?.provider_api_url || '').replace(/\/$/, '')
     const adminToken = (settings as any)?.uazapi_api_key || settings?.provider_api_key || ''
@@ -56,36 +88,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const body = await req.json()
-    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId } = body
-
     switch (action) {
-      case 'test-connection': {
-        const testUrl = (apiUrl || '').replace(/\/$/, '')
-        const testKey = apiKey || ''
-        if (!testUrl || !testKey) {
-          return new Response(
-            JSON.stringify({ success: false, error: 'URL and API Key are required' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-        const testResponse = await fetch(`${testUrl}/instance/all`, {
-          method: 'GET',
-          headers: { 'admintoken': testKey },
-        })
-        if (testResponse.ok) {
-          return new Response(
-            JSON.stringify({ success: true }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        } else {
-          const errData = await testResponse.text()
-          return new Response(
-            JSON.stringify({ success: false, error: `Status ${testResponse.status}: ${errData}` }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      }
 
       case 'create-instance': {
         const response = await fetch(`${baseUrl}/instance/init`, {
