@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Loader2 } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Loader2, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -144,35 +144,47 @@ export default function ChipSelector({ selectedChipId, onSelectChip }: ChipSelec
     <>
       <div className="flex items-center gap-1 overflow-x-auto">
         {chips.map((chip) => (
-          <DropdownMenu key={chip.id}>
-            <DropdownMenuTrigger asChild>
-              <button
-                onClick={() => onSelectChip(chip.id)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors",
-                  selectedChipId === chip.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
-                )}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>{(chip as any).nickname || chip.phone_number || chip.instance_name}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {chip.phone_number || 'Sem número'}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
-                onClick={() => handleDisconnectClick(chip)}
-              >
-                <WifiOff className="w-4 h-4 mr-2" />
-                Desconectar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div key={chip.id} className="flex items-center">
+            <button
+              onClick={() => onSelectChip(chip.id)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-l-lg text-sm whitespace-nowrap transition-colors",
+                selectedChipId === chip.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+              )}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{(chip as any).nickname || chip.phone_number || chip.instance_name}</span>
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "px-1 py-1.5 rounded-r-lg text-sm transition-colors border-l",
+                    selectedChipId === chip.id
+                      ? "bg-primary/80 text-primary-foreground border-primary-foreground/20"
+                      : "bg-secondary/50 text-muted-foreground hover:bg-secondary border-border/50"
+                  )}
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  {chip.phone_number || 'Sem número'}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                  onClick={() => handleDisconnectClick(chip)}
+                >
+                  <WifiOff className="w-4 h-4 mr-2" />
+                  Desconectar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ))}
         {chips.length === 0 && (
           <span className="text-sm text-muted-foreground">Nenhum chip conectado</span>

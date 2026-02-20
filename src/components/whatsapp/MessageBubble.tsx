@@ -71,11 +71,17 @@ function formatWhatsAppText(text: string): React.ReactNode[] {
   });
 }
 
+const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document', 'ptv', 'myaudio'];
+
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup }, ref
 ) {
-  const isMedia = hasMedia && messageId && chipId && mediaType && mediaType !== 'text' && mediaType !== 'chat';
-  const formattedText = useMemo(() => formatWhatsAppText(text), [text]);
+  // Detect media even if hasMedia is false but text is a known media keyword
+  const fallbackMediaType = (!hasMedia && text && MEDIA_KEYWORDS.includes(text.toLowerCase().trim())) ? text.toLowerCase().trim() : null;
+  const effectiveMediaType = mediaType || fallbackMediaType;
+  const isMedia = !!(effectiveMediaType && effectiveMediaType !== 'text' && effectiveMediaType !== 'chat' && messageId && chipId);
+  const displayText = fallbackMediaType ? '' : text; // clear raw keyword
+  const formattedText = useMemo(() => formatWhatsAppText(displayText), [displayText]);
   const senderColor = useMemo(() => senderName ? nameToColor(senderName) : '', [senderName]);
 
   return (
@@ -93,17 +99,17 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
             {senderName}
           </p>
         )}
-        {isMedia && (
+        {isMedia && messageId && chipId && (
           <div className="mb-1">
             <MediaRenderer
               messageId={messageId}
-              mediaType={mediaType}
+              mediaType={effectiveMediaType!}
               chipId={chipId}
-              caption={text || undefined}
+              caption={displayText || undefined}
             />
           </div>
         )}
-        {!isMedia && text && <p className="break-words whitespace-pre-wrap">{formattedText}</p>}
+        {!isMedia && displayText && <p className="break-words whitespace-pre-wrap">{formattedText}</p>}
         <p className={cn(
           "text-[10px] mt-1 text-right",
           "text-muted-foreground"

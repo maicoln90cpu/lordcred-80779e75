@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
+import MessageContextMenu, { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
+import { useToast } from '@/hooks/use-toast';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 interface ChatMessage {
@@ -27,7 +29,9 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<MessageData | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const fetchMessages = useCallback(async () => {
     if (!chipId || !chat) return;
@@ -70,6 +74,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
 
   useEffect(() => {
     if (chat) {
+      setReplyTo(null);
       fetchMessages();
     } else {
       setMessages([]);
@@ -151,6 +156,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
       messageType: 'text',
     };
     setMessages(prev => [...prev, tempMsg]);
+    setReplyTo(null);
 
     try {
       supabase.functions.invoke('uazapi-api', {
@@ -211,6 +217,34 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     }
   }, [chipId, chat]);
 
+  // Context menu handlers
+  const handleReply = useCallback((msg: MessageData) => setReplyTo(msg), []);
+  const handleReact = useCallback((_msg: MessageData) => {
+    toast({ title: 'Em breve', description: 'Reações estarão disponíveis em breve.' });
+  }, [toast]);
+  const handleForward = useCallback((_msg: MessageData) => {
+    toast({ title: 'Em breve', description: 'Encaminhamento estará disponível em breve.' });
+  }, [toast]);
+  const handleDownload = useCallback((msg: MessageData) => {
+    if (msg.messageId && msg.chipId) {
+      supabase.functions.invoke('uazapi-api', {
+        body: { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
+      }).then(res => {
+        if (res.data?.fileURL) window.open(res.data.fileURL, '_blank');
+        else toast({ title: 'Erro', description: 'Não foi possível baixar a mídia.', variant: 'destructive' });
+      });
+    }
+  }, [toast]);
+  const handlePin = useCallback((_msg: MessageData) => {
+    toast({ title: 'Em breve', description: 'Fixar mensagens estará disponível em breve.' });
+  }, [toast]);
+  const handleFavorite = useCallback((_msg: MessageData) => {
+    toast({ title: 'Em breve', description: 'Favoritar mensagens estará disponível em breve.' });
+  }, [toast]);
+  const handleDelete = useCallback((_msg: MessageData) => {
+    toast({ title: 'Em breve', description: 'Apagar mensagens estará disponível em breve.' });
+  }, [toast]);
+
   const formatTime = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -259,26 +293,53 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         ) : (
           <div className="space-y-2 max-w-3xl mx-auto">
             {messages.map((msg) => (
-              <MessageBubble
+              <MessageContextMenu
                 key={msg.id}
-                text={msg.text}
-                time={formatTime(msg.timestamp)}
-                fromMe={msg.fromMe}
-                messageType={msg.messageType}
-                mediaType={msg.mediaType}
-                hasMedia={msg.hasMedia}
-                messageId={msg.messageId}
-                chipId={chipId || undefined}
-                senderName={msg.senderName}
-                isGroup={chat?.isGroup}
-              />
+                message={{
+                  id: msg.id,
+                  text: msg.text,
+                  fromMe: msg.fromMe,
+                  messageId: msg.messageId,
+                  mediaType: msg.mediaType,
+                  hasMedia: msg.hasMedia,
+                  chipId: chipId || undefined,
+                }}
+                onReply={handleReply}
+                onReact={handleReact}
+                onForward={handleForward}
+                onDownload={handleDownload}
+                onPin={handlePin}
+                onFavorite={handleFavorite}
+                onDelete={handleDelete}
+              >
+                <div>
+                  <MessageBubble
+                    text={msg.text}
+                    time={formatTime(msg.timestamp)}
+                    fromMe={msg.fromMe}
+                    messageType={msg.messageType}
+                    mediaType={msg.mediaType}
+                    hasMedia={msg.hasMedia}
+                    messageId={msg.messageId}
+                    chipId={chipId || undefined}
+                    senderName={msg.senderName}
+                    isGroup={chat?.isGroup}
+                  />
+                </div>
+              </MessageContextMenu>
             ))}
           </div>
         )}
       </div>
 
       {/* Input area */}
-      <ChatInput onSend={handleSend} onSendMedia={handleSendMedia} disabled={sending} />
+      <ChatInput
+        onSend={handleSend}
+        onSendMedia={handleSendMedia}
+        disabled={sending}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+      />
     </div>
   );
 }
