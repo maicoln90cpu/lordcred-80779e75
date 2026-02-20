@@ -204,9 +204,23 @@ export default function Dashboard() {
   const toggleWarming = async () => {
     if (!settings?.id) {
       console.error('toggleWarming: settings not loaded or missing id', settings);
-      toast({ title: 'Erro', description: 'Configurações não carregadas. Recarregue a página.', variant: 'destructive' });
+      toast({
+        title: 'Configurações não encontradas',
+        description: 'As configurações do sistema ainda não foram carregadas. Aguarde um momento e tente novamente, ou recarregue a página.',
+        variant: 'destructive',
+      });
       return;
     }
+
+    if (chipStats.connected === 0) {
+      toast({
+        title: 'Nenhum chip conectado',
+        description: 'Conecte pelo menos um chip antes de iniciar o aquecimento. Acesse "Meus Chips" para conectar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsTogglingWarming(true);
 
     try {
@@ -222,18 +236,29 @@ export default function Dashboard() {
 
       console.log('toggleWarming result:', { error, data });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+          throw new Error('Você não tem permissão para alterar esta configuração. Apenas administradores master podem controlar o aquecimento.');
+        }
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('Não foi possível atualizar. Verifique suas permissões ou recarregue a página.');
+      }
 
       setSettings({ ...settings, is_warming_active: newState });
       toast({
-        title: newState ? 'Aquecimento ativado' : 'Aquecimento pausado',
-        description: newState ? 'O sistema começará a enviar mensagens automaticamente' : 'O envio automático foi pausado',
+        title: newState ? '✅ Aquecimento ativado' : '⏸️ Aquecimento pausado',
+        description: newState
+          ? 'O sistema começará a enviar mensagens automaticamente para os chips conectados.'
+          : 'O envio automático foi pausado. Nenhuma mensagem será enviada até reativar.',
       });
     } catch (error: any) {
       console.error('Error toggling warming:', error);
       toast({
-        title: 'Erro ao alterar status',
-        description: error?.message || error?.details || JSON.stringify(error),
+        title: 'Não foi possível alterar o aquecimento',
+        description: error?.message || 'Ocorreu um erro inesperado. Tente novamente ou entre em contato com o suporte.',
         variant: 'destructive',
       });
     } finally {
@@ -242,11 +267,25 @@ export default function Dashboard() {
   };
 
   const runManualWarming = async () => {
+    if (chipStats.connected === 0) {
+      toast({
+        title: 'Nenhum chip conectado',
+        description: 'Conecte pelo menos um chip antes de executar o aquecimento.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsRunningManual(true);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
+
+      if (!token) {
+        toast({ title: 'Sessão expirada', description: 'Faça login novamente para continuar.', variant: 'destructive' });
+        return;
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warming-engine`,
@@ -259,25 +298,34 @@ export default function Dashboard() {
         }
       );
 
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Warming engine error:', response.status, errorBody);
+        if (response.status === 403 || response.status === 401) {
+          throw new Error('Sem permissão para executar o aquecimento. Apenas administradores podem usar esta função.');
+        }
+        throw new Error(`Erro do servidor (${response.status}). Tente novamente em alguns minutos.`);
+      }
+
       const result = await response.json();
 
       if (result.messagesSent > 0) {
         toast({
-          title: 'Aquecimento executado',
-          description: `${result.messagesSent} mensagem(ns) enviada(s)`,
+          title: '✅ Aquecimento executado',
+          description: `${result.messagesSent} mensagem(ns) enviada(s) com sucesso.`,
         });
         fetchData();
       } else {
         toast({
           title: 'Nenhuma mensagem enviada',
-          description: result.message || 'Verifique as condições do sistema',
+          description: result.message || 'Possíveis razões: todos os chips atingiram o limite diário, horário fora da janela configurada, ou não há números disponíveis.',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error running manual warming:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível executar o aquecimento',
+        title: 'Erro ao executar aquecimento',
+        description: error?.message || 'Não foi possível executar. Verifique sua conexão e tente novamente.',
         variant: 'destructive',
       });
     } finally {
