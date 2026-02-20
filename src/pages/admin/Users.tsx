@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2, Pencil } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,11 @@ export default function Users() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -396,6 +400,13 @@ export default function Users() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditDialogOpen(true); }}
+                          >
+                            <Pencil className="w-4 h-4 mr-1" />Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
                             className="text-destructive hover:text-destructive"
                           >
@@ -434,6 +445,46 @@ export default function Users() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+              <DialogDescription>Alterar nome de {userToEdit?.email}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label htmlFor="edit-name">Nome</Label>
+              <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do usuário" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+              <Button
+                disabled={isEditing}
+                onClick={async () => {
+                  if (!userToEdit) return;
+                  setIsEditing(true);
+                  try {
+                    const { error } = await supabase
+                      .from('profiles')
+                      .update({ name: editName.trim() || null })
+                      .eq('user_id', userToEdit.user_id);
+                    if (error) throw error;
+                    toast({ title: 'Usuário atualizado' });
+                    setEditDialogOpen(false);
+                    fetchUsers();
+                  } catch (error: any) {
+                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                  } finally {
+                    setIsEditing(false);
+                  }
+                }}
+              >
+                {isEditing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
