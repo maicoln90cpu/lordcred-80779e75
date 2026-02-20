@@ -21,14 +21,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
   const fetchChats = useCallback(async () => {
     if (!chipId) return;
 
-    // 1. Load from cache instantly
+    // 1. Load from cache instantly — never clear existing chats
     const cached = getCachedChats(chipId);
     if (cached && cached.length > 0) {
       setChats(cached);
     }
 
-    // 2. Fetch from API
-    setLoading(cached ? false : true);
+    // 2. Fetch from API — only show spinner if no cached data at all
+    const hasCachedOrExisting = (cached && cached.length > 0);
+    setLoading(hasCachedOrExisting ? false : true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;

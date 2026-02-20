@@ -550,6 +550,30 @@ Deno.serve(async (req) => {
         )
       }
 
+      case 'forward-message': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const targetNumber = (chatId || '').split('@')[0].replace(/\D/g, '')
+        if (!targetNumber) throw new Error('Target chatId required')
+
+        // Forward text message (re-send with forward flag if supported)
+        const fwdText = body.text || message || ''
+        if (!fwdText && !messageId) throw new Error('Nothing to forward')
+
+        const fwdBody: any = { number: targetNumber, text: fwdText }
+        const response = await fetch(`${baseUrl}/send/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(fwdBody),
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.message || 'Failed to forward')
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),

@@ -99,7 +99,21 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
 
   if (!msg || !msg.chatid) return
   if (msg.chatid === 'status@broadcast') return
-  if (msg.wasSentByApi === true) return
+
+  // Deduplication: skip if message_id already exists
+  const existingMsgId = msg.messageid || msg.id || null
+  if (existingMsgId) {
+    const { data: existingMsg } = await adminClient
+      .from('message_history')
+      .select('id')
+      .eq('chip_id', chip.id)
+      .eq('message_id', existingMsgId)
+      .maybeSingle()
+    if (existingMsg) {
+      console.log(`Skipping duplicate message: ${existingMsgId}`)
+      return
+    }
+  }
 
   const messageContent = safeString(msg.text)
   const isFromMe = msg.fromMe === true
