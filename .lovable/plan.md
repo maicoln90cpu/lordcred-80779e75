@@ -1,148 +1,148 @@
 
 
-# Painel de Exportacao e Migracao no Master Admin
+# Plano Completo de Correcao e Configuracao do Sistema
 
-## Visao Geral
+## Diagnostico
 
-Adicionar duas novas abas dentro da pagina Master Admin:
-1. **Exportar Dados (CSV)** - Exportar todos os dados de cada tabela em CSV
-2. **SQL de Migracao** - SQL completo para recriar o sistema em outro projeto, organizado por categorias
+Apos analise completa do projeto, identifiquei 4 problemas criticos:
 
----
+### Problema 1: types.ts vazio (causa de TODOS os erros de build)
+O arquivo `src/integrations/supabase/types.ts` nao reflete as tabelas do banco. Todas as tabelas estao como `[_ in never]: never`, causando erros como `Argument of type '"chips"' is not assignable to parameter of type 'never'` em todos os arquivos que usam o Supabase client.
 
-## Aba 1: Exportar Dados CSV
+### Problema 2: Dados antigos precisam ser associados a novos usuarios
+O banco ja tem dados vinculados a user_ids antigos:
+- `e81a51cb-3f5e-47a2-b357-801033222f05` (maicoln90@hotmail.com - admin)
+- `bf39aeb7-ff35-4485-88a1-9e0121e7cbcc` (silascarlosdias@gmail.com - user)
 
-Um painel com botoes para exportar cada tabela individualmente como CSV. Tambem um botao "Exportar Tudo" que gera todos os CSVs de uma vez.
+Porem `auth.users` esta vazio (projeto novo). Quando esses usuarios criarem conta, receberao novos UUIDs. O trigger `handle_new_user` cria novas entradas em `profiles` e `user_roles`, mas nao atualiza os dados antigos.
 
-### Tabelas disponiveis para exportacao (10 tabelas):
-- chip_lifecycle_logs
-- chips
-- conversations
-- external_numbers
-- message_history
-- message_queue
-- profiles
-- system_settings
-- user_roles
-- warming_messages
+### Problema 3: Secrets ausentes
+Apenas `LOVABLE_API_KEY` existe. Faltam:
+- `EVOLUTION_API_URL` - necessaria para edge functions (evolution-api, warming-engine, queue-processor)
+- `EVOLUTION_API_KEY` - necessaria para as mesmas functions
 
-### Funcionamento
-- Cada botao faz uma query `supabase.from('tabela').select('*')` e gera um CSV no navegador
-- Botao "Exportar Tudo" gera um zip ou faz download sequencial de cada tabela
-- Para tabelas grandes (message_history, message_queue), paginar a busca usando `.range()` em blocos de 1000
+Nota: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_ANON_KEY` sao fornecidas automaticamente pelo Supabase.
+
+### Problema 4: config.toml incompleto
+O `supabase/config.toml` nao tem configuracoes de `verify_jwt` para as edge functions. Functions como `evolution-webhook` precisam de `verify_jwt = false` pois recebem chamadas externas.
 
 ---
 
-## Aba 2: SQL de Migracao
+## Solucao
 
-Exibir blocos de SQL copiavel, organizados em categorias com botao "Copiar" para cada bloco. Todo o SQL sera gerado estaticamente no frontend baseado no schema atual do banco.
+### Passo 1: Regenerar types.ts
+Forcar a regeneracao do arquivo de tipos para que todas as 10 tabelas e o enum `app_role` sejam mapeados corretamente. Isso corrige **todos** os erros de build de uma so vez.
 
-### Categorias de SQL:
+### Passo 2: Criar trigger de associacao automatica
+Criar uma database function `associate_existing_data` que sera chamada pelo trigger `handle_new_user` (modificado). Quando um novo usuario se cadastrar com email `maicoln90@hotmail.com` ou `silascarlosdias@gmail.com`, o sistema:
 
-**1. Tipos e Enums**
+1. Verifica se ja existe um `profile` com esse email
+2. Se existir, atualiza o `user_id` antigo para o novo UUID em todas as tabelas:
+   - `profiles.user_id`
+   - `user_roles.user_id`
+   - `chips.user_id`
+3. Nao cria registros duplicados (evita o INSERT padrao do `handle_new_user`)
+4. Se nao existir dados antigos, segue o fluxo normal de criacao
+
+### Passo 3: Solicitar secrets faltantes
+Pedir ao usuario as credenciais:
+- `EVOLUTION_API_URL`
+- `EVOLUTION_API_KEY`
+
+### Passo 4: Atualizar config.toml
+Adicionar configuracoes de `verify_jwt = false` para todas as 9 edge functions.
+
+### Passo 5: Deploy de todas as edge functions
+Fazer deploy das 9 functions:
+- create-user, delete-user, evolution-api, evolution-webhook
+- instance-maintenance, queue-processor, uazapi-api
+- update-user-role, warming-engine
+
+---
+
+## Detalhes Tecnicos
+
+### SQL da migracao (Passo 2)
+
+Modificar a function `handle_new_user` para verificar dados existentes antes de criar novos:
+
 ```sql
-CREATE TYPE public.app_role AS ENUM ('seller', 'user', 'admin');
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  existing_profile_id uuid;
+  old_user_id uuid;
+BEGIN
+    -- Check if a profile already exists with this email (migrated data)
+    SELECT user_id INTO old_user_id
+    FROM public.profiles
+    WHERE email = NEW.email
+    LIMIT 1;
+
+    IF old_user_id IS NOT NULL AND old_user_id != NEW.id THEN
+        -- Update all references from old user_id to new user_id
+        UPDATE public.profiles SET user_id = NEW.id WHERE user_id = old_user_id;
+        UPDATE public.user_roles SET user_id = NEW.id WHERE user_id = old_user_id;
+        UPDATE public.chips SET user_id = NEW.id WHERE user_id = old_user_id;
+    ELSIF old_user_id IS NULL THEN
+        -- No existing data, create fresh profile and role
+        INSERT INTO public.profiles (user_id, email)
+        VALUES (NEW.id, NEW.email);
+
+        INSERT INTO public.user_roles (user_id, role)
+        VALUES (NEW.id, 'seller');
+    END IF;
+    -- If old_user_id = NEW.id, data is already correct, do nothing
+
+    RETURN NEW;
+END;
+$$;
 ```
 
-**2. Tabelas (10 tabelas)**
-SQL completo de CREATE TABLE com todas as colunas, tipos, defaults, constraints e unique indexes para:
-- chip_lifecycle_logs, chips, conversations, external_numbers, message_history, message_queue, profiles, system_settings, user_roles, warming_messages
+### config.toml atualizado
 
-**3. Indexes**
-Todos os indexes adicionais (nao-PK, nao-unique-constraint):
-- idx_message_queue_status
-- idx_message_queue_scheduled_at
-- idx_message_queue_chip_id
+```toml
+project_id = "sibfqmzsnftscnlyuwiu"
 
-**4. RLS (Row Level Security)**
-Enable RLS + todas as 30+ policies para cada tabela
+[functions.create-user]
+verify_jwt = false
 
-**5. Database Functions (6 funcoes)**
-- handle_new_user
-- has_role
-- is_admin
-- promote_master_user
-- reset_daily_message_count
-- update_updated_at_column
+[functions.delete-user]
+verify_jwt = false
 
-**6. Triggers (5 triggers)**
-- update_conversations_updated_at
-- update_profiles_updated_at
-- update_chips_updated_at
-- update_system_settings_updated_at
-- trigger_promote_master_user
+[functions.evolution-api]
+verify_jwt = false
 
-**7. Realtime**
-Habilitar realtime para as 5 tabelas configuradas:
-- chips, message_history, message_queue, conversations, chip_lifecycle_logs
+[functions.evolution-webhook]
+verify_jwt = false
 
-**8. Edge Functions**
-Lista das 9 edge functions com instrucao para copiar os arquivos:
-- create-user, delete-user, evolution-api, evolution-webhook, instance-maintenance, queue-processor, uazapi-api, update-user-role, warming-engine
+[functions.instance-maintenance]
+verify_jwt = false
 
-E o config.toml com verify_jwt = false para cada uma
+[functions.queue-processor]
+verify_jwt = false
 
-**9. Dados iniciais (seed)**
-SQL de INSERT para system_settings com os valores default
+[functions.uazapi-api]
+verify_jwt = false
 
----
+[functions.update-user-role]
+verify_jwt = false
 
-## Aba 3 (dentro da aba SQL): Secrets Necessarias
-
-Lista clara de todas as secrets que precisam ser configuradas no novo projeto:
-
-| Secret | Descricao |
-|---|---|
-| EVOLUTION_API_KEY | Chave da Evolution API |
-| EVOLUTION_API_URL | URL da Evolution API |
-| SUPABASE_URL | URL do projeto Supabase (auto-gerada) |
-| SUPABASE_ANON_KEY | Chave anonima do Supabase (auto-gerada) |
-| SUPABASE_SERVICE_ROLE_KEY | Chave de servico do Supabase (auto-gerada) |
-| SUPABASE_DB_URL | URL do banco de dados (auto-gerada) |
-| SUPABASE_PUBLISHABLE_KEY | Chave publicavel (auto-gerada) |
-
-Nota: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL e SUPABASE_PUBLISHABLE_KEY sao geradas automaticamente pelo novo projeto. Apenas EVOLUTION_API_KEY e EVOLUTION_API_URL precisam ser configuradas manualmente.
-
----
-
-## Implementacao Tecnica
-
-### Arquivo: `src/pages/admin/MasterAdmin.tsx`
-
-Transformar a pagina em um layout com Tabs:
-- Tab "Provedor" (conteudo atual - provedor, credenciais, webhook)
-- Tab "Exportar Dados" (novo - exportacao CSV)
-- Tab "SQL Migracao" (novo - blocos SQL copiaveis + secrets)
-
-### Componentes auxiliares:
-- Funcao utilitaria `downloadCSV(data, filename)` que converte array de objetos em CSV e dispara download
-- Componente `CopyableSQL` que exibe um bloco de codigo com botao copiar
-- Cada categoria de SQL sera um Accordion ou Card expansivel
-
-### Logica de exportacao CSV:
-```typescript
-const exportTable = async (tableName: string) => {
-  let allData = [];
-  let from = 0;
-  const batchSize = 1000;
-  while (true) {
-    const { data } = await supabase.from(tableName).select('*').range(from, from + batchSize - 1);
-    if (!data || data.length === 0) break;
-    allData.push(...data);
-    if (data.length < batchSize) break;
-    from += batchSize;
-  }
-  downloadCSV(allData, `${tableName}.csv`);
-};
+[functions.warming-engine]
+verify_jwt = false
 ```
 
-### SQL de migracao:
-Todo o SQL sera hardcoded/pre-gerado baseado na auditoria completa do banco que fiz. Os blocos serao strings constantes no componente, organizados em cards por categoria.
+### Resumo das acoes
 
-### Arquivos a criar/editar:
-| Arquivo | Acao |
-|---|---|
-| `src/pages/admin/MasterAdmin.tsx` | Refatorar com Tabs + adicionar abas de exportacao e SQL |
-
-Nenhuma migracao de banco necessaria - tudo e frontend.
+| # | Acao | Tipo |
+|---|------|------|
+| 1 | Regenerar types.ts com todas as tabelas | Correcao de tipos |
+| 2 | Alterar handle_new_user para associar dados antigos | Migracao SQL |
+| 3 | Solicitar EVOLUTION_API_URL e EVOLUTION_API_KEY | Secrets |
+| 4 | Atualizar config.toml com verify_jwt | Configuracao |
+| 5 | Deploy das 9 edge functions | Deploy |
 
