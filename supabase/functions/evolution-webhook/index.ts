@@ -155,36 +155,27 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   const contactName = safeString(chat?.name) || safeString(chat?.wa_name) || senderName || recipientPhone
   const contactPhone = safeString(chat?.phone) || recipientPhone
 
+  // Get current unread count for increment
   const { data: existing } = await adminClient
     .from('conversations')
     .select('id, unread_count')
     .eq('chip_id', chip.id)
     .eq('remote_jid', remoteJid)
-    .single()
+    .maybeSingle()
 
-  if (existing) {
-    const updateData: any = {
-      last_message_text: displayText,
-      last_message_at: new Date().toISOString(),
-      contact_name: contactName,
-      contact_phone: contactPhone,
-    }
-    if (!isFromMe) {
-      updateData.unread_count = (existing.unread_count || 0) + 1
-    }
-    await adminClient.from('conversations').update(updateData).eq('id', existing.id)
-  } else {
-    await adminClient.from('conversations').insert({
-      chip_id: chip.id,
-      remote_jid: remoteJid,
-      contact_name: contactName,
-      contact_phone: contactPhone,
-      last_message_text: displayText,
-      last_message_at: new Date().toISOString(),
-      unread_count: isFromMe ? 0 : 1,
-      is_group: msg.isGroup || false,
-    })
-  }
+  const newUnread = isFromMe ? (existing?.unread_count || 0) : (existing?.unread_count || 0) + 1
+
+  // UPSERT to prevent race condition duplicates
+  await adminClient.from('conversations').upsert({
+    chip_id: chip.id,
+    remote_jid: remoteJid,
+    contact_name: contactName,
+    contact_phone: contactPhone,
+    last_message_text: displayText,
+    last_message_at: new Date().toISOString(),
+    unread_count: newUnread,
+    is_group: msg.isGroup || false,
+  }, { onConflict: 'chip_id,remote_jid' })
 
   console.log(`UazAPI message saved: ${isFromMe ? 'outgoing' : 'incoming'} from ${senderName}`)
 }
@@ -197,41 +188,12 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   const contactName = safeString(chat.name) || safeString(chat.wa_name) || ''
   const contactPhone = safeString(chat.phone) || remoteJid.split('@')[0]
 
-  const { data: existing } = await adminClient
-    .from('conversations')
-    .select('id')
-    .eq('chip_id', chip.id)
-    .eq('remote_jid', remoteJid)
-    .single()
-
-  const lastMessageText = safeString(chat.wa_lastMessageTextVote)
-  // Detect media types from wa_lastMessageType
-  const waType = safeString(chat.wa_lastMessageType).toLowerCase()
-  let displayText = lastMessageText
-  if (waType.includes('image')) displayText = lastMessageText || '📷 Imagem'
-  else if (waType.includes('video')) displayText = lastMessageText || '🎬 Vídeo'
-  else if (waType.includes('audio') || waType.includes('ptt')) displayText = lastMessageText || '🎤 Áudio'
-  else if (waType.includes('document')) displayText = lastMessageText || '📄 Documento'
-  else if (waType.includes('sticker')) displayText = lastMessageText || '🎨 Sticker'
-
-  const conversationData: any = {
-    contact_name: contactName,
-    contact_phone: contactPhone,
-    last_message_text: displayText,
-    last_message_at: chat.wa_lastMsgTimestamp ? new Date(chat.wa_lastMsgTimestamp).toISOString() : new Date().toISOString(),
-    unread_count: chat.wa_unreadCount || 0,
-    is_group: chat.wa_isGroup || false,
-  }
-
-  if (existing) {
-    await adminClient.from('conversations').update(conversationData).eq('id', existing.id)
-  } else {
-    await adminClient.from('conversations').insert({
-      chip_id: chip.id,
-      remote_jid: remoteJid,
-      ...conversationData,
-    })
-  }
+  // UPSERT to prevent race condition duplicates
+  await adminClient.from('conversations').upsert({
+    chip_id: chip.id,
+    remote_jid: remoteJid,
+    ...conversationData,
+  }, { onConflict: 'chip_id,remote_jid' })
 }
 
 async function handleConnectionUpdate(adminClient: any, chip: any, payload: any) {
