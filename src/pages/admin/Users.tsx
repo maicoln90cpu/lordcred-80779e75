@@ -1,0 +1,440 @@
+import { useEffect, useState } from 'react';
+import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { supabase } from '@/integrations/supabase/client';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
+
+interface UserProfile {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string | null;
+  is_blocked: boolean;
+  created_at: string;
+  created_by: string | null;
+  chip_count: number;
+  role: string;
+}
+
+export default function Users() {
+  const { toast } = useToast();
+  const { user: currentUser, isAdmin, userRole } = useAuth();
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'user' | 'seller'>('seller');
+
+  const isMaster = isAdmin; // role === 'admin'
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      const { data: rolesData } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      const { data: chipsData } = await supabase
+        .from('chips')
+        .select('user_id');
+
+      const chipCounts = (chipsData || []).reduce((acc, chip) => {
+        acc[chip.user_id] = (acc[chip.user_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const rolesMap = (rolesData || []).reduce((acc, r) => {
+        acc[r.user_id] = r.role;
+        return acc;
+      }, {} as Record<string, string>);
+
+      let enrichedUsers = (profilesData || []).map(profile => ({
+        ...profile,
+        chip_count: chipCounts[profile.user_id] || 0,
+        role: rolesMap[profile.user_id] || 'seller',
+      }));
+
+      // Filter based on caller's role
+      if (isMaster) {
+        // Master sees all non-admin users (users + sellers), excluding self
+        enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin');
+      } else {
+        // Administrador sees only sellers they created
+        enrichedUsers = enrichedUsers.filter(u => 
+          u.role === 'seller' && u.created_by === currentUser?.id
+        );
+      }
+
+      setUsers(enrichedUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      toast({ title: 'Erro', description: 'Preencha email e senha', variant: 'destructive' });
+      return;
+    }
+    if (newUserPassword.length < 6) {
+      toast({ title: 'Erro', description: 'Senha deve ter pelo menos 6 caracteres', variant: 'destructive' });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Sessão expirada');
+
+      // Administrador always creates sellers; Master can choose
+      const roleToCreate = isMaster ? newUserRole : 'seller';
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: newUserEmail,
+            password: newUserPassword,
+            name: newUserName || null,
+            role: roleToCreate,
+          }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro ao criar usuário');
+
+      toast({ title: 'Usuário criado', description: 'O usuário foi criado com sucesso' });
+      setDialogOpen(false);
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserName('');
+      setNewUserRole('seller');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      toast({ title: 'Erro ao criar usuário', description: error.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleToggleBlock = async (userId: string, currentBlocked: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_blocked: !currentBlocked })
+        .eq('user_id', userId);
+      if (error) throw error;
+      toast({
+        title: currentBlocked ? 'Usuário desbloqueado' : 'Usuário bloqueado',
+        description: `O acesso foi ${currentBlocked ? 'liberado' : 'bloqueado'}`,
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error toggling block:', error);
+      toast({ title: 'Erro', description: 'Não foi possível alterar o status', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error('Sessão expirada');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ userId: userToDelete.user_id }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro ao excluir usuário');
+
+      toast({ title: 'Usuário excluído', description: 'O usuário foi removido permanentemente' });
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast({ title: 'Erro ao excluir usuário', description: error.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Master';
+      case 'user': return 'Administrador';
+      case 'seller': return 'Vendedor';
+      default: return role;
+    }
+  };
+
+  const pageTitle = isMaster ? 'Gerenciar Usuários' : 'Gerenciar Vendedores';
+  const pageDescription = isMaster
+    ? 'Crie e gerencie administradores e vendedores'
+    : 'Crie e gerencie os vendedores da sua equipe';
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{pageTitle}</h1>
+            <p className="text-muted-foreground">{pageDescription}</p>
+          </div>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                {isMaster ? 'Novo Usuário' : 'Novo Vendedor'}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{isMaster ? 'Criar Novo Usuário' : 'Criar Novo Vendedor'}</DialogTitle>
+                <DialogDescription>
+                  Preencha os dados para criar uma nova conta
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome (opcional)</Label>
+                  <Input id="name" placeholder="Nome do usuário" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" placeholder="email@exemplo.com" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input id="password" type="password" placeholder="Mínimo 6 caracteres" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} />
+                </div>
+                {/* Only Master sees role selection; Administrador always creates sellers */}
+                {isMaster && (
+                  <div className="space-y-3">
+                    <Label>Tipo de Usuário</Label>
+                    <RadioGroup
+                      value={newUserRole}
+                      onValueChange={(value) => setNewUserRole(value as 'user' | 'seller')}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="seller" id="role-seller" />
+                        <Label htmlFor="role-seller" className="cursor-pointer">Vendedor</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="user" id="role-user" />
+                        <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleCreateUser} disabled={isCreating}>
+                  {isCreating ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</>
+                  ) : (
+                    isMaster ? 'Criar Usuário' : 'Criar Vendedor'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UsersIcon className="w-5 h-5" />
+              {isMaster ? 'Usuários Cadastrados' : 'Meus Vendedores'}
+            </CardTitle>
+            <CardDescription>
+              {users.length} usuário(s) encontrado(s)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">Nenhum usuário cadastrado</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuário</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Chips</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{user.name || user.email}</p>
+                          {user.name && <p className="text-sm text-muted-foreground">{user.email}</p>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isMaster && user.role !== 'admin' ? (
+                          <Select
+                            value={user.role}
+                            onValueChange={async (value) => {
+                              try {
+                                const { data: sessionData } = await supabase.auth.getSession();
+                                const token = sessionData?.session?.access_token;
+                                if (!token) throw new Error('Sessão expirada');
+                                const response = await fetch(
+                                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user-role`,
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                    body: JSON.stringify({ targetUserId: user.user_id, newRole: value }),
+                                  }
+                                );
+                                const result = await response.json();
+                                if (!response.ok) throw new Error(result.error);
+                                toast({ title: 'Role atualizada', description: `${user.email} agora é ${getRoleLabel(value)}` });
+                                fetchUsers();
+                              } catch (error: any) {
+                                toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-[140px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">Administrador</SelectItem>
+                              <SelectItem value="seller">Vendedor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline">{getRoleLabel(user.role)}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <Smartphone className="w-4 h-4 text-muted-foreground" />
+                          <span>{user.chip_count}/5</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={user.is_blocked ? 'destructive' : 'outline'}>
+                          {user.is_blocked ? 'Bloqueado' : 'Ativo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleBlock(user.user_id, user.is_blocked)}
+                            className={cn(
+                              user.is_blocked
+                                ? "text-primary hover:text-primary"
+                                : "text-destructive hover:text-destructive"
+                            )}
+                          >
+                            {user.is_blocked ? (
+                              <><Shield className="w-4 h-4 mr-1" />Desbloquear</>
+                            ) : (
+                              <><ShieldOff className="w-4 h-4 mr-1" />Bloquear</>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />Excluir
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir permanentemente o usuário{' '}
+                <span className="font-medium text-foreground">{userToDelete?.name || userToDelete?.email}</span>?
+                <br /><br />
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Excluindo...</>) : 'Excluir Permanentemente'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </DashboardLayout>
+  );
+}

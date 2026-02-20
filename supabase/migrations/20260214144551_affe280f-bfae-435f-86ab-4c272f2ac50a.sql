@@ -1,0 +1,1 @@
+ALTER TABLE public.chips ADD COLUMN chip_type text NOT NULL DEFAULT 'warming';

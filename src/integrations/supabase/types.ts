@@ -1,0 +1,652 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      chip_lifecycle_logs: {
+        Row: {
+          chip_id: string | null
+          created_at: string
+          details: string | null
+          event: string
+          id: string
+        }
+        Insert: {
+          chip_id?: string | null
+          created_at?: string
+          details?: string | null
+          event: string
+          id?: string
+        }
+        Update: {
+          chip_id?: string | null
+          created_at?: string
+          details?: string | null
+          event?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chip_lifecycle_logs_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chips: {
+        Row: {
+          activated_at: string | null
+          chip_type: string
+          created_at: string
+          id: string
+          instance_name: string
+          instance_token: string | null
+          last_connection_attempt: string | null
+          last_message_at: string | null
+          messages_sent_today: number
+          nickname: string | null
+          phone_number: string | null
+          slot_number: number
+          status: string
+          updated_at: string
+          user_id: string
+          warming_phase: string
+        }
+        Insert: {
+          activated_at?: string | null
+          chip_type?: string
+          created_at?: string
+          id?: string
+          instance_name: string
+          instance_token?: string | null
+          last_connection_attempt?: string | null
+          last_message_at?: string | null
+          messages_sent_today?: number
+          nickname?: string | null
+          phone_number?: string | null
+          slot_number: number
+          status?: string
+          updated_at?: string
+          user_id: string
+          warming_phase?: string
+        }
+        Update: {
+          activated_at?: string | null
+          chip_type?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          instance_token?: string | null
+          last_connection_attempt?: string | null
+          last_message_at?: string | null
+          messages_sent_today?: number
+          nickname?: string | null
+          phone_number?: string | null
+          slot_number?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+          warming_phase?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          chip_id: string
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          is_group: boolean | null
+          last_message_at: string | null
+          last_message_text: string | null
+          remote_jid: string
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          chip_id: string
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_group?: boolean | null
+          last_message_at?: string | null
+          last_message_text?: string | null
+          remote_jid: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          chip_id?: string
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_group?: boolean | null
+          last_message_at?: string | null
+          last_message_text?: string | null
+          remote_jid?: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_numbers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string | null
+          phone_number: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          phone_number: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          phone_number?: string
+        }
+        Relationships: []
+      }
+      message_history: {
+        Row: {
+          chip_id: string
+          created_at: string
+          direction: string
+          id: string
+          media_filename: string | null
+          media_mimetype: string | null
+          media_type: string | null
+          media_url: string | null
+          message_content: string
+          message_id: string | null
+          recipient_phone: string | null
+          remote_jid: string | null
+          sender_name: string | null
+          status: string
+        }
+        Insert: {
+          chip_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          media_filename?: string | null
+          media_mimetype?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message_content: string
+          message_id?: string | null
+          recipient_phone?: string | null
+          remote_jid?: string | null
+          sender_name?: string | null
+          status?: string
+        }
+        Update: {
+          chip_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          media_filename?: string | null
+          media_mimetype?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message_content?: string
+          message_id?: string | null
+          recipient_phone?: string | null
+          remote_jid?: string | null
+          sender_name?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_history_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_queue: {
+        Row: {
+          attempts: number
+          chip_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          max_attempts: number
+          message_content: string
+          priority: number
+          processed_at: string | null
+          recipient_phone: string
+          scheduled_at: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          chip_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_attempts?: number
+          message_content: string
+          priority?: number
+          processed_at?: string | null
+          recipient_phone: string
+          scheduled_at: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          chip_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_attempts?: number
+          message_content?: string
+          priority?: number
+          processed_at?: string | null
+          recipient_phone?: string
+          scheduled_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_queue_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          id: string
+          is_blocked: boolean
+          name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: string
+          is_blocked?: boolean
+          name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: string
+          is_blocked?: boolean
+          name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          auto_phase_progression: boolean
+          batch_pause_seconds: number
+          batch_size: number
+          consecutive_message_limit: number
+          cooldown_after_error: number
+          created_at: string
+          days_phase_aquecido: number
+          days_phase_crescimento: number
+          days_phase_iniciante: number
+          days_phase_novo: number
+          end_hour: number
+          evolution_api_key: string | null
+          evolution_api_url: string | null
+          global_message_cursor: number | null
+          human_pattern_mode: boolean
+          id: string
+          is_warming_active: boolean
+          max_interval_seconds: number
+          max_messages_per_hour: number
+          messages_day_1_3: number
+          messages_day_4_7: number
+          messages_day_8_plus: number
+          messages_day_aquecido: number
+          messages_day_novo: number
+          min_interval_seconds: number
+          night_mode_reduction: number
+          online_offline_simulation: boolean
+          provider_api_key: string | null
+          provider_api_url: string | null
+          random_delay_variation: number
+          read_delay_seconds: number
+          start_hour: number
+          timezone: string | null
+          typing_simulation: boolean
+          typing_speed_chars_sec: number
+          uazapi_api_key: string | null
+          uazapi_api_url: string | null
+          updated_at: string
+          warming_mode: string
+          weekend_reduction_percent: number
+          whatsapp_provider: string
+        }
+        Insert: {
+          auto_phase_progression?: boolean
+          batch_pause_seconds?: number
+          batch_size?: number
+          consecutive_message_limit?: number
+          cooldown_after_error?: number
+          created_at?: string
+          days_phase_aquecido?: number
+          days_phase_crescimento?: number
+          days_phase_iniciante?: number
+          days_phase_novo?: number
+          end_hour?: number
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          global_message_cursor?: number | null
+          human_pattern_mode?: boolean
+          id?: string
+          is_warming_active?: boolean
+          max_interval_seconds?: number
+          max_messages_per_hour?: number
+          messages_day_1_3?: number
+          messages_day_4_7?: number
+          messages_day_8_plus?: number
+          messages_day_aquecido?: number
+          messages_day_novo?: number
+          min_interval_seconds?: number
+          night_mode_reduction?: number
+          online_offline_simulation?: boolean
+          provider_api_key?: string | null
+          provider_api_url?: string | null
+          random_delay_variation?: number
+          read_delay_seconds?: number
+          start_hour?: number
+          timezone?: string | null
+          typing_simulation?: boolean
+          typing_speed_chars_sec?: number
+          uazapi_api_key?: string | null
+          uazapi_api_url?: string | null
+          updated_at?: string
+          warming_mode?: string
+          weekend_reduction_percent?: number
+          whatsapp_provider?: string
+        }
+        Update: {
+          auto_phase_progression?: boolean
+          batch_pause_seconds?: number
+          batch_size?: number
+          consecutive_message_limit?: number
+          cooldown_after_error?: number
+          created_at?: string
+          days_phase_aquecido?: number
+          days_phase_crescimento?: number
+          days_phase_iniciante?: number
+          days_phase_novo?: number
+          end_hour?: number
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          global_message_cursor?: number | null
+          human_pattern_mode?: boolean
+          id?: string
+          is_warming_active?: boolean
+          max_interval_seconds?: number
+          max_messages_per_hour?: number
+          messages_day_1_3?: number
+          messages_day_4_7?: number
+          messages_day_8_plus?: number
+          messages_day_aquecido?: number
+          messages_day_novo?: number
+          min_interval_seconds?: number
+          night_mode_reduction?: number
+          online_offline_simulation?: boolean
+          provider_api_key?: string | null
+          provider_api_url?: string | null
+          random_delay_variation?: number
+          read_delay_seconds?: number
+          start_hour?: number
+          timezone?: string | null
+          typing_simulation?: boolean
+          typing_speed_chars_sec?: number
+          uazapi_api_key?: string | null
+          uazapi_api_url?: string | null
+          updated_at?: string
+          warming_mode?: string
+          weekend_reduction_percent?: number
+          whatsapp_provider?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      warming_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          message_order: number | null
+          source_file: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_order?: number | null
+          source_file?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_order?: number | null
+          source_file?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: never; Returns: boolean }
+      reset_daily_message_count: { Args: never; Returns: undefined }
+    }
+    Enums: {
+      app_role: "admin" | "user" | "seller"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "user", "seller"],
+    },
+  },
+} as const
