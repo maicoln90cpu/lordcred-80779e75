@@ -70,9 +70,12 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
         if (apiChats.length < 200) setHasMore(false);
 
         if (pageNum === 1 && !append) {
+          // Always update state: if API returns empty, clear stale data
+          setChats(apiChats);
           if (apiChats.length > 0) {
-            setChats(apiChats);
             setCachedChats(requestChipId, apiChats);
+          } else {
+            setCachedChats(requestChipId, []);
           }
         } else if (append && apiChats.length > 0) {
           setChats(prev => {
