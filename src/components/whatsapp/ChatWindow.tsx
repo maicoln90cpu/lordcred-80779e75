@@ -65,10 +65,18 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const activeChipRef = useRef(chipId);
+  const activeChatRef = useRef(chat?.remoteJid);
   const { toast } = useToast();
+
+  // Keep refs in sync
+  useEffect(() => { activeChipRef.current = chipId; }, [chipId]);
+  useEffect(() => { activeChatRef.current = chat?.remoteJid; }, [chat?.remoteJid]);
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId || !chat) return;
+    const requestChipId = chipId;
+    const requestChatJid = chat.remoteJid;
 
     // 1. Load from cache instantly (only on first page)
     if (pageNum === 1 && !append) {
@@ -88,8 +96,11 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
 
     try {
       const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'fetch-messages', chipId, chatId: chat.remoteJid, limit: 50, page: pageNum },
+        body: { action: 'fetch-messages', chipId: requestChipId, chatId: requestChatJid, limit: 50, page: pageNum },
       });
+
+      // Stale request guard
+      if (activeChipRef.current !== requestChipId || activeChatRef.current !== requestChatJid) return;
 
       if (response.data?.success && response.data.messages) {
         const apiMessages: ChatMessage[] = response.data.messages;
@@ -97,8 +108,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         if (apiMessages.length < 50) setHasMore(false);
 
         if (pageNum === 1 && !append) {
-          // First page: merge with cache
-          const cached = getCachedMessages<ChatMessage>(chipId, chat.remoteJid);
+          const cached = getCachedMessages<ChatMessage>(requestChipId, requestChatJid);
           if (apiMessages.length > 0) {
             if (cached && cached.length > 0) {
               const apiIds = new Set(apiMessages.map(m => m.id));
@@ -107,15 +117,13 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
                 (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
               );
               setMessages(merged);
-              setCachedMessages(chipId, chat.remoteJid, merged);
+              setCachedMessages(requestChipId, requestChatJid, merged);
             } else {
               setMessages(apiMessages);
-              setCachedMessages(chipId, chat.remoteJid, apiMessages);
+              setCachedMessages(requestChipId, requestChatJid, apiMessages);
             }
           }
-          // If API returns empty, keep whatever cache/state we already have
         } else if (append && apiMessages.length > 0) {
-          // Older messages: prepend
           setMessages(prev => {
             const existingIds = new Set(prev.map(m => m.id));
             const newOlder = apiMessages.filter(m => !existingIds.has(m.id));
@@ -125,17 +133,15 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           });
         }
       }
-      // If API fails/empty but we have cache, we already set it above — don't clear
     } catch (error) {
       console.error('Error fetching messages:', error);
-      // On error: try loading from message_history table as fallback
-      if (pageNum === 1) {
+      if (pageNum === 1 && activeChipRef.current === requestChipId && activeChatRef.current === requestChatJid) {
         try {
           const { data: dbMessages } = await supabase
             .from('message_history')
             .select('*')
-            .eq('chip_id', chipId)
-            .eq('remote_jid', chat.remoteJid)
+            .eq('chip_id', requestChipId)
+            .eq('remote_jid', requestChatJid)
             .order('created_at', { ascending: true })
             .limit(50);
           if (dbMessages && dbMessages.length > 0) {
@@ -155,8 +161,10 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         } catch {}
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (activeChipRef.current === requestChipId && activeChatRef.current === requestChatJid) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [chipId, chat?.remoteJid]);
 
