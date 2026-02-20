@@ -1,0 +1,1 @@
+DELETE FROM public.system_settings WHERE id = '470b67e2-a747-4210-b3c2-a5db65df0cca';
