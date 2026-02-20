@@ -328,18 +328,35 @@ Deno.serve(async (req) => {
         
         console.log(`fetch-messages: parsed ${messages.length} messages`)
         
-        const normalizedMessages = messages.map((m: any) => ({
-          id: m.id || m.messageid || crypto.randomUUID(),
-          text: typeof m.text === 'string' ? m.text : '',
-          fromMe: m.fromMe === true,
-          timestamp: m.messageTimestamp ? new Date(m.messageTimestamp).toISOString() : new Date().toISOString(),
-          senderName: m.senderName || '',
-          messageType: m.messageType || m.type || 'text',
-          mediaType: m.mediaType || '',
-          messageId: m.messageid || m.id || '',
-          hasMedia: !!(m.mediaType && m.mediaType !== 'text' && m.mediaType !== 'chat'),
-          chatId: m.chatid || chatId,
-        }))
+        const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document', 'ptv', 'myaudio']
+
+        const normalizedMessages = messages.map((m: any) => {
+          let detectedMediaType = m.mediaType || m.type || m.messageType || ''
+          let text = typeof m.text === 'string' ? m.text : ''
+          
+          // If text is exactly a media keyword and no mediaType detected, treat as media
+          if (!detectedMediaType || detectedMediaType === 'text' || detectedMediaType === 'chat') {
+            if (MEDIA_KEYWORDS.includes(text.toLowerCase().trim())) {
+              detectedMediaType = text.toLowerCase().trim()
+              text = '' // clear the raw keyword from display
+            }
+          }
+
+          const isMedia = !!(detectedMediaType && detectedMediaType !== 'text' && detectedMediaType !== 'chat')
+
+          return {
+            id: m.id || m.messageid || crypto.randomUUID(),
+            text,
+            fromMe: m.fromMe === true,
+            timestamp: m.messageTimestamp ? new Date(m.messageTimestamp).toISOString() : new Date().toISOString(),
+            senderName: m.senderName || '',
+            messageType: detectedMediaType || 'text',
+            mediaType: detectedMediaType || '',
+            messageId: m.messageid || m.id || '',
+            hasMedia: isMedia,
+            chatId: m.chatid || chatId,
+          }
+        })
 
         return new Response(
           JSON.stringify({ success: true, messages: normalizedMessages }),

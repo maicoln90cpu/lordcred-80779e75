@@ -4,14 +4,18 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import EmojiPicker from './EmojiPicker';
+import type { MessageData } from './MessageContextMenu';
 
 interface ChatInputProps {
   onSend: (text: string) => void;
   onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => void;
   disabled?: boolean;
+  replyTo?: MessageData | null;
+  onCancelReply?: () => void;
 }
 
-export default function ChatInput({ onSend, onSendMedia, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -167,8 +171,26 @@ export default function ChatInput({ onSend, onSendMedia, disabled }: ChatInputPr
     setMediaPreview(null);
   };
 
+  const handleEmojiSelect = (emoji: string) => {
+    setMessage(prev => prev + emoji);
+  };
+
   return (
     <div className="border-t border-border/50 bg-card/50">
+      {/* Reply preview */}
+      {replyTo && (
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center gap-3 p-2 rounded-lg bg-primary/10 border-l-4 border-primary">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-primary">{replyTo.fromMe ? 'Você' : 'Contato'}</p>
+              <p className="text-sm truncate text-muted-foreground">{replyTo.text || '📎 Mídia'}</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={onCancelReply} className="shrink-0 h-6 w-6">
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Media Preview */}
       {mediaPreview && (
         <div className="px-4 pt-3 pb-1">
@@ -236,6 +258,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled }: ChatInputPr
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled || isRecording} />
 
         <Input
           placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite uma mensagem..."}
