@@ -21,6 +21,7 @@ export interface ChatContact {
   unreadCount: number;
   isGroup: boolean;
   isPinned?: boolean;
+  profilePicUrl?: string;
 }
 
 export default function WhatsApp() {

@@ -235,7 +235,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
                   selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50"
                 )}
               >
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                {chat.profilePicUrl ? (
+                  <img src={chat.profilePicUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                ) : null}
+                <div className={cn("w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0", chat.profilePicUrl && "hidden")}>
                   <span className="text-sm font-medium text-primary">
                     {chat.name.charAt(0).toUpperCase()}
                   </span>
