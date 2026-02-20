@@ -21,9 +21,11 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const prevChipRef = useRef<string | null>(null);
+  const activeChipRef = useRef<string | null>(chipId);
 
   // Immediately clear chats when chip changes
   useEffect(() => {
+    activeChipRef.current = chipId;
     if (chipId !== prevChipRef.current) {
       prevChipRef.current = chipId;
       if (chipId) {
@@ -43,6 +45,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
 
   const fetchChats = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId) return;
+    const requestChipId = chipId; // capture for stale detection
 
     if (pageNum === 1 && !append) {
       const cached = getCachedChats(chipId);
@@ -56,8 +59,11 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
       if (!session) return;
 
       const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'fetch-chats', chipId, limit: 200, page: pageNum },
+        body: { action: 'fetch-chats', chipId: requestChipId, limit: 200, page: pageNum },
       });
+
+      // Stale request guard: discard if chip changed during fetch
+      if (activeChipRef.current !== requestChipId) return;
 
       if (response.data?.success && response.data.chats) {
         const apiChats: ChatContact[] = response.data.chats;
@@ -66,15 +72,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
         if (pageNum === 1 && !append) {
           if (apiChats.length > 0) {
             setChats(apiChats);
-            setCachedChats(chipId, apiChats);
+            setCachedChats(requestChipId, apiChats);
           }
-          // If empty, keep cache
         } else if (append && apiChats.length > 0) {
           setChats(prev => {
             const existingJids = new Set(prev.map(c => c.remoteJid));
             const newChats = apiChats.filter(c => !existingJids.has(c.remoteJid));
             const merged = [...prev, ...newChats];
-            setCachedChats(chipId, merged);
+            setCachedChats(requestChipId, merged);
             return merged;
           });
         }
@@ -82,8 +87,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
     } catch (error) {
       console.error('Error fetching chats:', error);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (activeChipRef.current === requestChipId) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [chipId]);
 
