@@ -171,12 +171,72 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
 
   useRealtimeChips(handleRealtimeUpdate, user?.id);
 
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const hasSyncedOnMount = useRef(false);
+
+  const handleSyncAllChips = useCallback(async (chipsToSync: Chip[]) => {
+    const activeChips = chipsToSync.filter(c => c.instance_name);
+    if (activeChips.length === 0) return;
+
+    setIsSyncingAll(true);
+    let updatedCount = 0;
+
+    for (const chip of activeChips) {
+      try {
+        const statusResult = await callProviderApi('check-status', { instanceName: chip.instance_name });
+        
+        let newStatus = 'disconnected';
+        if (statusResult.state === 'open' || statusResult.state === 'connected') {
+          newStatus = 'connected';
+        } else if (statusResult.state === 'connecting' || statusResult.state === 'qr') {
+          newStatus = 'connecting';
+        }
+
+        let phoneNumber = chip.phone_number;
+        if (statusResult.jid) {
+          phoneNumber = statusResult.jid.split('@')[0].split(':')[0].replace(/\D/g, '');
+        } else if (statusResult.wid) {
+          phoneNumber = statusResult.wid.split('@')[0].split(':')[0].replace(/\D/g, '');
+        } else if (statusResult.instance?.wuid) {
+          phoneNumber = statusResult.instance.wuid.split('@')[0].split(':')[0].replace(/\D/g, '');
+        }
+
+        if (newStatus !== chip.status || phoneNumber !== chip.phone_number) {
+          await supabase
+            .from('chips')
+            .update({
+              status: newStatus,
+              phone_number: phoneNumber || chip.phone_number,
+              ...(newStatus === 'connected' && !chip.activated_at ? { activated_at: new Date().toISOString() } : {})
+            })
+            .eq('id', chip.id);
+          updatedCount++;
+        }
+      } catch (e) {
+        console.log(`Sync failed for chip ${chip.instance_name}:`, e);
+      }
+    }
+
+    if (updatedCount > 0) {
+      fetchChips();
+    }
+    setIsSyncingAll(false);
+  }, [settings, fetchChips]);
+
   useEffect(() => {
     fetchChips();
     supabase.from('system_settings').select('start_hour, end_hour, messages_day_novo, messages_day_1_3, messages_day_4_7, messages_day_aquecido, messages_day_8_plus, whatsapp_provider').limit(1).single().then(({ data }) => {
       if (data) setSettings(data as unknown as SystemSettings);
     });
   }, [fetchChips]);
+
+  // Auto-sync all chip statuses on page mount
+  useEffect(() => {
+    if (!hasSyncedOnMount.current && chips.length > 0 && settings) {
+      hasSyncedOnMount.current = true;
+      handleSyncAllChips(chips);
+    }
+  }, [chips, settings, handleSyncAllChips]);
 
   // Cleanup polling on unmount or dialog close
   useEffect(() => {
@@ -549,11 +609,19 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Meus Chips</h1>
-          <p className="text-muted-foreground">
-            Gerencie seus números WhatsApp para aquecimento (máximo 15 chips)
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Meus Chips</h1>
+            <p className="text-muted-foreground">
+              Gerencie seus números WhatsApp para aquecimento (máximo 15 chips)
+            </p>
+          </div>
+          {chips.length > 0 && (
+            <Button variant="outline" onClick={() => handleSyncAllChips(chips)} disabled={isSyncingAll}>
+              {isSyncingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Sincronizar Todos
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

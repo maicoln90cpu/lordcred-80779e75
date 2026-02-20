@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2, Pencil } from 'lucide-react';
+import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2, Pencil, Eye, EyeOff } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ export default function Users() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'user' | 'seller'>('seller');
+  const [showPassword, setShowPassword] = useState(false);
 
   const isMaster = isAdmin; // role === 'admin'
 
@@ -200,9 +201,9 @@ export default function Users() {
       if (!response.ok) throw new Error(result.error || 'Erro ao excluir usuário');
 
       toast({ title: 'Usuário excluído', description: 'O usuário foi removido permanentemente' });
+      setUsers(prev => prev.filter(u => u.user_id !== userToDelete.user_id));
       setDeleteDialogOpen(false);
       setUserToDelete(null);
-      fetchUsers();
     } catch (error: any) {
       console.error('Error deleting user:', error);
       toast({ title: 'Erro ao excluir usuário', description: error.message || 'Tente novamente', variant: 'destructive' });
@@ -258,7 +259,12 @@ export default function Users() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
-                  <Input id="password" type="password" placeholder="Mínimo 6 caracteres" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} />
+                  <div className="relative">
+                    <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="Mínimo 6 caracteres" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="pr-10" />
+                    <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
+                    </Button>
+                  </div>
                 </div>
                 {/* Only Master sees role selection; Administrador always creates sellers */}
                 {isMaster && (
@@ -436,7 +442,10 @@ export default function Users() {
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleDeleteUser}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDeleteUser();
+                }}
                 disabled={isDeleting}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
