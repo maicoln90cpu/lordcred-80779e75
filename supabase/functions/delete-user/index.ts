@@ -102,8 +102,6 @@ Deno.serve(async (req) => {
     if (deleteError) {
       if (deleteError.status === 404 || deleteError.message?.includes('not found')) {
         console.log('Auth user not found, cleaning up profile data only');
-        await adminClient.from('user_roles').delete().eq('user_id', userId);
-        await adminClient.from('profiles').delete().eq('user_id', userId);
       } else {
         console.error('Error deleting user:', deleteError);
         return new Response(
@@ -112,6 +110,10 @@ Deno.serve(async (req) => {
         );
       }
     }
+
+    // Always clean up profile and role data
+    await adminClient.from('user_roles').delete().eq('user_id', userId);
+    await adminClient.from('profiles').delete().eq('user_id', userId);
 
     return new Response(
       JSON.stringify({ success: true, message: 'User deleted successfully' }),
