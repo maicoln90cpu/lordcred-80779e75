@@ -96,14 +96,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Try to delete from auth - may not exist for migrated users
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
 
     if (deleteError) {
-      console.error('Error deleting user:', deleteError);
-      return new Response(
-        JSON.stringify({ error: deleteError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (deleteError.status === 404 || deleteError.message?.includes('not found')) {
+        console.log('Auth user not found, cleaning up profile data only');
+        await adminClient.from('user_roles').delete().eq('user_id', userId);
+        await adminClient.from('profiles').delete().eq('user_id', userId);
+      } else {
+        console.error('Error deleting user:', deleteError);
+        return new Response(
+          JSON.stringify({ error: deleteError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
