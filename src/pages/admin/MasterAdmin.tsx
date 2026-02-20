@@ -94,23 +94,25 @@ export default function MasterAdmin() {
     if (!settings) return;
     setIsSaving(true);
     try {
+      const updateData = {
+        whatsapp_provider: settings.whatsapp_provider,
+        provider_api_url: getCurrentUrl() || null,
+        provider_api_key: getCurrentKey() || null,
+        evolution_api_url: settings.evolution_api_url || null,
+        evolution_api_key: settings.evolution_api_key || null,
+        uazapi_api_url: settings.uazapi_api_url || null,
+        uazapi_api_key: settings.uazapi_api_key || null,
+      };
+      console.log('Saving settings:', { ...updateData, provider_api_key: '***', evolution_api_key: '***', uazapi_api_key: '***' });
       const { error } = await supabase
         .from('system_settings')
-        .update({
-          whatsapp_provider: settings.whatsapp_provider,
-          provider_api_url: getCurrentUrl() || null,
-          provider_api_key: getCurrentKey() || null,
-          evolution_api_url: settings.evolution_api_url,
-          evolution_api_key: settings.evolution_api_key,
-          uazapi_api_url: settings.uazapi_api_url,
-          uazapi_api_key: settings.uazapi_api_key,
-        } as any)
+        .update(updateData)
         .eq('id', settings.id);
       if (error) throw error;
-      toast({ title: 'Configurações salvas', description: 'As credenciais do provedor foram atualizadas' });
+      toast({ title: 'Configurações salvas', description: `Provedor ${settings.whatsapp_provider === 'uazapi' ? 'UazAPI' : 'Evolution API'} configurado com sucesso` });
     } catch (error) {
       console.error('Error saving:', error);
-      toast({ title: 'Erro ao salvar', variant: 'destructive' });
+      toast({ title: 'Erro ao salvar', description: (error as any)?.message || String(error), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }

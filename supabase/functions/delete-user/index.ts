@@ -6,13 +6,11 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -21,20 +19,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create clients
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Client for verifying the caller
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Admin client for deleting the user
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify caller is authenticated
     const { data: { user: caller }, error: authError } = await userClient.auth.getUser();
     if (authError || !caller) {
       return new Response(
@@ -43,21 +37,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if caller is admin
     const { data: callerRole } = await adminClient
       .from('user_roles')
       .select('role')
       .eq('user_id', caller.id)
       .single();
 
-    if (callerRole?.role !== 'admin') {
+    // Allow admin and user (Administrador) roles
+    if (callerRole?.role !== 'admin' && callerRole?.role !== 'user') {
       return new Response(
-        JSON.stringify({ error: 'Only admins can delete users' }),
+        JSON.stringify({ error: 'Permissão negada' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get the user ID to delete from request body
     const { userId } = await req.json();
 
     if (!userId) {
@@ -67,7 +60,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prevent deleting yourself
     if (userId === caller.id) {
       return new Response(
         JSON.stringify({ error: 'You cannot delete yourself' }),
@@ -75,7 +67,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if target user is also an admin
     const { data: targetRole } = await adminClient
       .from('user_roles')
       .select('role')
@@ -84,12 +75,27 @@ Deno.serve(async (req) => {
 
     if (targetRole?.role === 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Cannot delete other admin users' }),
+        JSON.stringify({ error: 'Cannot delete admin users' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Delete the user using Admin API
+    // If caller is 'user' (Administrador), verify they created the target
+    if (callerRole?.role === 'user') {
+      const { data: targetProfile } = await adminClient
+        .from('profiles')
+        .select('created_by')
+        .eq('user_id', userId)
+        .single();
+
+      if (targetProfile?.created_by !== caller.id) {
+        return new Response(
+          JSON.stringify({ error: 'Você só pode excluir usuários que você criou' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
 
     if (deleteError) {

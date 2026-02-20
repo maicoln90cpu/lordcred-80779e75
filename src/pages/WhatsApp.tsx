@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, LogOut, Sun, Moon } from 'lucide-react';
+import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,6 +48,7 @@ export default function WhatsApp() {
           <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} />
         </div>
         <div className="flex items-center gap-2 ml-4">
+          <UserProfileMenu />
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground">
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
