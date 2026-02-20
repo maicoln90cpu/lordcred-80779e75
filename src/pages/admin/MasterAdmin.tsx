@@ -44,8 +44,10 @@ export default function MasterAdmin() {
       const { data, error } = await supabase
         .from('system_settings')
         .select('id, whatsapp_provider, provider_api_url, provider_api_key, evolution_api_url, evolution_api_key, uazapi_api_url, uazapi_api_key')
-        .single();
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('No settings found');
       setSettings(data as unknown as ProviderSettings);
     } catch (error) {
       console.error('Error fetching settings:', error);
