@@ -68,7 +68,7 @@ export default function MessageContextMenu({
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onPin?.(message)}>
           <Pin className="w-4 h-4 mr-2" />
-          Fixar
+          Fixar conversa
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onFavorite?.(message)}>
           <Star className="w-4 h-4 mr-2" />
@@ -77,7 +77,7 @@ export default function MessageContextMenu({
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onDelete?.(message)} className="text-destructive focus:text-destructive">
           <Trash2 className="w-4 h-4 mr-2" />
-          Apagar
+          Apagar para todos
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

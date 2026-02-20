@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     })
 
     const body = await req.json()
-    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId } = body
+    const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId, emoji } = body
 
     // Handle test-connection before requiring settings
     if (action === 'test-connection') {
@@ -590,6 +590,62 @@ Deno.serve(async (req) => {
         })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Failed to forward')
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'react-message': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!messageId) throw new Error('messageId is required')
+        if (emoji === undefined) throw new Error('emoji is required')
+
+        const response = await fetch(`${baseUrl}/message/react`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({
+            id: messageId,
+            number: chatId || '',
+            text: emoji, // empty string "" removes reaction
+          }),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'delete-message': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!messageId) throw new Error('messageId is required')
+
+        const response = await fetch(`${baseUrl}/message/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ id: messageId }),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'pin-chat': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+
+        const response = await fetch(`${baseUrl}/chat/pin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ chatid: chatId }),
+        })
+        const data = await response.json()
         return new Response(
           JSON.stringify({ success: true, data }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
