@@ -1,87 +1,189 @@
 
-
-## Plano: Corrigir 3 Bugs Criticos no WhatsApp
-
-### Bug 1: Conversas duplicadas (cada mensagem cria um novo chat)
-
-**Causa raiz**: O webhook `handleUazapiMessage` no `evolution-webhook/index.ts` faz:
-```text
-.select('id').eq('chip_id', chip.id).eq('remote_jid', remoteJid).single()
-```
-Quando duas mensagens chegam simultaneamente, ambas nao encontram registro existente e ambas fazem INSERT. Nao existe constraint UNIQUE em `(chip_id, remote_jid)` na tabela `conversations`.
-
-**Resultado no banco**: Nilso tem **25 linhas duplicadas** para o mesmo chip+remoteJid. Ju tem 10 duplicatas.
-
-**Correcao**:
-1. Adicionar constraint UNIQUE em `(chip_id, remote_jid)` na tabela `conversations` via migracao
-2. Antes da migracao, limpar duplicatas mantendo apenas o registro mais recente por `(chip_id, remote_jid)`
-3. No webhook, trocar `.single()` por `.maybeSingle()` e usar UPSERT (`onConflict: 'chip_id,remote_jid'`) em vez de INSERT separado
-
-### Bug 2: Sidebar mostra chats de outro chip
-
-**Causa raiz**: No `ChatSidebar.tsx`, quando `fetch-chats` retorna `apiChats.length === 0` (linhas 72-76), o codigo NAO limpa o estado `chats`. Os chats do chip anterior permanecem visiveis.
-
-O fluxo:
-1. Usuario seleciona chip 2 -> chats do chip 2 carregam corretamente
-2. Usuario troca para chip 1 -> useEffect (linha 27) tenta carregar cache do chip 1
-3. Cache do chip 1 esta vazio -> `setChats([])` executa (correto)
-4. `fetchChats()` chama API -> API retorna 0 chats da UazAPI -> fallback DB retorna 2 conversas
-5. Mas... o `apiChats.length > 0` (2 chats) deveria funcionar. O problema real e que o chip 1 (554898119529) tem apenas 2 conversas no banco mas a sidebar mostra Ju, Nilso etc que pertencem ao chip 2
-
-Investigacao adicional: o `getChipToken` no edge function busca o token pelo `chipId`. Se os dois chips compartilham o mesmo token ou se o chipId esta sendo enviado incorretamente, a API retorna dados do chip errado.
-
-**Correcao**: Forcar `setChats([])` quando `apiChats.length === 0` na linha 73 do `ChatSidebar.tsx`, para garantir que dados antigos sejam limpos mesmo que a API retorne vazio.
-
-### Bug 3: Mensagens fora de contexto dentro do chat
-
-**Causa raiz**: Consequencia direta do Bug 1 e 2. Se o chat selecionado pertence ao chip errado, o `fetch-messages` busca mensagens usando o `remoteJid` correto mas o `chipId` errado, mostrando "sem mensagens" ou mensagens de outra conversa.
+## Plano: 8 Funcionalidades WhatsApp - Analise e Implementacao
 
 ---
 
-### Detalhes Tecnicos
+### Resumo da Viabilidade por Item
 
-**Migracao SQL** (nova migracao):
-```text
--- Limpar duplicatas: manter apenas o mais recente por (chip_id, remote_jid)
-DELETE FROM conversations 
-WHERE id NOT IN (
-  SELECT DISTINCT ON (chip_id, remote_jid) id 
-  FROM conversations 
-  ORDER BY chip_id, remote_jid, last_message_at DESC NULLS LAST
-);
-
--- Adicionar constraint unica
-ALTER TABLE conversations 
-ADD CONSTRAINT conversations_chip_remote_unique 
-UNIQUE (chip_id, remote_jid);
-```
-
-**Arquivo: `supabase/functions/evolution-webhook/index.ts`**:
-- Trocar a logica de SELECT + INSERT/UPDATE por UPSERT:
-  - Usar `adminClient.from('conversations').upsert({ chip_id, remote_jid, ... }, { onConflict: 'chip_id,remote_jid' })`
-  - Isso elimina a race condition completamente
-- Aplicar o mesmo pattern em `handleUazapiChat`
-
-**Arquivo: `src/components/whatsapp/ChatSidebar.tsx`**:
-- Linha 72-76: quando `apiChats.length === 0`, forcar `setChats([])` e limpar cache para o chip
-- Isso garante que ao trocar de chip, se o novo chip nao tem conversas, a sidebar fica vazia em vez de mostrar dados do chip anterior
-
-**Arquivo: `supabase/functions/uazapi-api/index.ts`** (fetch-chats DB fallback):
-- Adicionar deduplicacao no fallback: agrupar por `remote_jid` e pegar apenas o mais recente (para funcionar mesmo antes da migracao rodar)
+| # | Funcionalidade | UazAPI Suporta? | Viabilidade |
+|---|---------------|-----------------|-------------|
+| 1 | Historico via banco de dados | Sim (`/message/find` com `messageTimestamp` int ms) | Alta |
+| 2 | Marcar como lido ao clicar | Sim (`POST /chat/read` com `chatid`) | Alta |
+| 3 | Arquivar/desarquivar conversas | Sim (`POST /chat/archive`) | Alta |
+| 4 | Etiquetar conversas | Sim (`POST /chat/labels`, `GET /labels`, `POST /label/edit`) | Alta |
+| 5 | Gravacao de audio estilo WhatsApp Web | N/A (frontend only) | Alta |
+| 6 | Sync historico ao logar (10 dias) | Sim (`/message/find` + `/chat/find`) | Media |
+| 7 | Badge de mensagens nao lidas no chip | N/A (frontend + banco) | Alta |
+| 8 | Alterar nome/foto do perfil | Sim (`POST /profile/name`, `POST /profile/image`) | Alta |
 
 ---
 
-### Ordem de implementacao
+### Item 1: Persistir Historico no Banco de Dados
 
-1. Criar migracao SQL para limpar duplicatas e adicionar UNIQUE constraint
-2. Corrigir webhook para usar UPSERT (previne futuras duplicatas)
-3. Corrigir ChatSidebar para limpar estado quando API retorna vazio
-4. Adicionar deduplicacao no fallback do edge function
-5. Deploy do edge function
+**Analise da sua proposta**: A sua ideia e excelente e resolve os problemas na raiz.
 
-| Arquivo | Alteracao |
+**Pros**:
+- Renderizacao 100% previsivel: tudo vem do Supabase com timestamps ISO, ordenado por `created_at`
+- Elimina dependencia da UazAPI para leitura (que pode retornar formatos inconsistentes)
+- Performance: queries locais sao mais rapidas que chamadas API externas
+- Funciona offline (dados ja estao no banco)
+- Facilita busca de mensagens, favoritos, exportacao
+- O webhook ja salva mensagens na tabela `message_history` com `created_at` automatico
+
+**Contras**:
+- Mensagens anteriores a conexao do sistema nao existem no banco (precisa sync inicial - item 6)
+- Storage no Supabase aumenta com volume de mensagens
+- Se o usuario deletar mensagem no WhatsApp, nosso banco nao reflete automaticamente (precisa tratar webhook `messages_update`)
+
+**Implementacao**: Alterar `ChatWindow.tsx` para buscar mensagens EXCLUSIVAMENTE da tabela `message_history` (query Supabase direto), em vez de chamar a edge function `fetch-messages`. O realtime subscription ja existe e continuara adicionando novas mensagens em tempo real.
+
+**Detalhes tecnicos**:
+- `ChatWindow.tsx`: substituir chamada `fetch-messages` por query direta:
+  ```text
+  supabase.from('message_history')
+    .select('*')
+    .eq('chip_id', chipId)
+    .eq('remote_jid', remoteJid)
+    .order('created_at', { ascending: true })
+    .limit(50)
+  ```
+- Manter paginacao via scroll infinito com `.range(offset, offset + limit)`
+- `ChatSidebar.tsx`: substituir chamada `fetch-chats` por query direta na tabela `conversations`
+- Remover dependencia do edge function para leitura (manter apenas para sync e envio)
+
+---
+
+### Item 2: Marcar como Lido ao Clicar no Chat
+
+**Documentacao UazAPI confirmada**: `POST /chat/read` com body `{ "chatid": "numero@s.whatsapp.net" }` marca como lido tanto no sistema quanto no WhatsApp.
+
+**Implementacao**:
+- No `ChatSidebar.tsx`, ao selecionar um chat, chamar a edge function com action `mark-read` (ja existe no edge function, linha 492-508)
+- Apos marcar como lido, atualizar `conversations.unread_count = 0` no Supabase
+- Atualizar o estado local do chat para refletir unread = 0 imediatamente
+
+---
+
+### Item 3: Arquivar/Desarquivar Conversas
+
+**Documentacao UazAPI confirmada**: `POST /chat/archive` com body `{ "chatid": "numero@s.whatsapp.net", "archive": true/false }`.
+
+**Implementacao**:
+- Adicionar coluna `is_archived` (boolean, default false) na tabela `conversations` via migracao
+- Criar action `archive-chat` no edge function `uazapi-api` que:
+  1. Chama `POST /chat/archive` na UazAPI
+  2. Atualiza `conversations.is_archived` no banco
+- No `ChatSidebar.tsx`:
+  - Filtrar conversas arquivadas da lista principal (`WHERE is_archived = false`)
+  - Adicionar botao "Arquivadas" que mostra conversas com `is_archived = true`
+  - Menu de contexto no chat com opcao "Arquivar"/"Desarquivar"
+
+---
+
+### Item 4: Etiquetar Conversas
+
+**Documentacao UazAPI confirmada**:
+- `GET /labels` - listar etiquetas existentes (retorna array de `Label` com id, name, color, colorHex, labelid)
+- `POST /label/edit` - criar/editar etiqueta (name, color, delete)
+- `POST /chat/labels` - associar labels a um chat (add_labelid, remove_labelid, ou labelids para definir todas)
+
+**Implementacao**:
+- Criar tabela `labels` no Supabase para cachear as etiquetas do WhatsApp (id, chip_id, label_id, name, color_hex)
+- Criar action `fetch-labels` no edge function para buscar e sincronizar labels
+- Criar action `set-chat-labels` para associar/remover labels de um chat
+- No frontend:
+  - Componente `LabelBadge` com cores do WhatsApp
+  - Menu no chat para adicionar/remover etiquetas
+  - Filtro na sidebar para mostrar apenas chats com determinada etiqueta
+- Adicionar coluna `labels` (text[] ou jsonb) na tabela `conversations`
+
+---
+
+### Item 5: Gravacao de Audio Estilo WhatsApp Web
+
+**Referencia visual**: A imagem do WhatsApp Web mostra a gravacao com:
+- Icone de lixeira (descartar) a esquerda
+- Ponto vermelho + cronometro ao centro
+- Waveform/visualizador de ondas sonoras
+- Botao de pause
+- Botao de enviar (seta azul) a direita
+
+**Implementacao** (apenas frontend, `ChatInput.tsx`):
+- Redesenhar a barra de gravacao para ficar similar ao WhatsApp Web:
+  - Substituir o layout atual (barra vermelha em cima) por uma barra inline
+  - Lixeira a esquerda para cancelar
+  - Indicador de gravacao com ponto vermelho pulsante + timer
+  - Visualizador de waveform simples (barras animadas CSS)
+  - Botao de envio circular azul a direita
+- Manter a mesma logica de MediaRecorder e conversao para base64
+
+---
+
+### Item 6: Sync de Historico ao Logar (ate 10 dias)
+
+**Documentacao UazAPI confirmada**: `POST /message/find` com `{ "chatid": "...", "limit": 100 }` retorna mensagens com `messageTimestamp` (int ms).
+
+**Implementacao em duas fases**:
+
+**Fase 1 - Sync imediato (ultimas conversas)**:
+- Ao selecionar um chip, chamar `POST /chat/find` para buscar os 50 chats mais recentes
+- Para cada chat, inserir/atualizar na tabela `conversations`
+- Para o chat aberto, buscar ultimas 50 mensagens via `/message/find` e fazer UPSERT na `message_history`
+
+**Fase 2 - Sync em background (10 dias)**:
+- Criar edge function `sync-history` que:
+  1. Para cada chat do chip, chama `/message/find` com paginacao
+  2. Filtra mensagens dos ultimos 10 dias
+  3. Faz UPSERT na `message_history` usando `message_id` como chave de deduplicacao
+- Executar em background apos login (nao bloqueia a UI)
+- Guardar `last_sync_at` na tabela `chips` para nao repetir sync desnecessariamente
+
+---
+
+### Item 7: Badge de Mensagens Nao Lidas no Chip
+
+**Implementacao** (frontend + banco):
+- No `ChipSelector.tsx`, alem de mostrar o nome/numero do chip, adicionar um badge vermelho com contador
+- Query: `SELECT SUM(unread_count) FROM conversations WHERE chip_id = ?`
+- Atualizar via realtime subscription na tabela `conversations`
+- Badge vermelho circular no canto superior direito do botao do chip, similar ao da imagem enviada
+
+---
+
+### Item 8: Alterar Nome/Foto do Perfil via API
+
+**Documentacao UazAPI confirmada**:
+- `POST /profile/name` com body `{ "name": "Novo Nome" }` - altera nome do perfil
+- `POST /profile/image` com body contendo URL ou base64 da imagem (JPEG 640x640)
+
+**Implementacao**:
+- Criar actions `update-profile-name` e `update-profile-image` no edge function
+- No frontend, adicionar secao de "Configuracoes do WhatsApp" acessivel pelo menu do chip ou header:
+  - Campo de texto para nome do perfil
+  - Upload de imagem para foto de perfil
+  - Preview da imagem antes de enviar
+
+---
+
+### Ordem de Implementacao Recomendada
+
+1. **Item 1** (banco) + **Item 6** (sync) - Fundacao: mudar para leitura via banco
+2. **Item 2** (marcar lido) - Rapido e melhora UX imediatamente
+3. **Item 7** (badge) - Complementa o item 2
+4. **Item 5** (audio) - Visual, melhora UX
+5. **Item 3** (arquivar) - Organizacao
+6. **Item 4** (etiquetas) - Mais complexo, depende de migracao + sync
+7. **Item 8** (perfil) - Complementar
+
+### Detalhes Tecnicos - Arquivos a Modificar
+
+| Arquivo | Alteracoes |
 |---------|-----------|
-| Nova migracao SQL | Limpar duplicatas + UNIQUE constraint |
-| `evolution-webhook/index.ts` | UPSERT em vez de SELECT+INSERT |
-| `ChatSidebar.tsx` | Forcar limpeza quando API retorna vazio |
-| `uazapi-api/index.ts` | Deduplicar no fallback DB |
+| `src/components/whatsapp/ChatWindow.tsx` | Buscar mensagens do Supabase direto em vez de edge function |
+| `src/components/whatsapp/ChatSidebar.tsx` | Buscar conversas do Supabase direto, marcar como lido, filtro de arquivados |
+| `src/components/whatsapp/ChatInput.tsx` | Redesign da gravacao de audio estilo WhatsApp Web |
+| `src/components/whatsapp/ChipSelector.tsx` | Badge de unread count por chip |
+| `supabase/functions/uazapi-api/index.ts` | Novas actions: archive-chat, fetch-labels, set-chat-labels, update-profile-name, update-profile-image |
+| Nova migracao SQL | Adicionar `is_archived` em conversations, tabela `labels`, `last_sync_at` em chips |
+| Nova edge function `sync-history` | Sync de mensagens em background (ate 10 dias) |
+| Novos componentes | `LabelBadge.tsx`, `ProfileSettings.tsx`, `ArchivedChats.tsx` |
