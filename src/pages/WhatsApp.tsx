@@ -204,8 +204,17 @@ export default function WhatsApp() {
   const handleSyncHistory = useCallback(async (chipId: string) => {
     setIsSyncing(true);
     try {
-      await supabase.functions.invoke('sync-history', { body: { chipId } });
-      toast({ title: 'Sincronização concluída' });
+      const { data } = await supabase.functions.invoke('sync-history', { body: { chipId } });
+      const chats = data?.chats || 0;
+      const synced = data?.synced || 0;
+      const reason = data?.reason || '';
+      if (reason === 'recently synced') {
+        toast({ title: 'Sincronizado recentemente', description: 'Aguarde 1 minuto para sincronizar novamente' });
+      } else if (synced > 0) {
+        toast({ title: `${chats} conversas, ${synced} mensagens sincronizadas` });
+      } else {
+        toast({ title: `${chats} conversas verificadas`, description: 'Nenhuma mensagem nova encontrada' });
+      }
     } catch {
       toast({ title: 'Erro na sincronização', variant: 'destructive' });
     } finally {
