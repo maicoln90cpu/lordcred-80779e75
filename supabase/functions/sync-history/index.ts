@@ -62,12 +62,17 @@ function resolveJid(chat: any): { canonicalJid: string; apiJid: string } {
     const phone = chat.phone || ''
     // Clean phone: remove non-digits
     const cleanPhone = phone.replace(/\D/g, '')
-    if (cleanPhone && cleanPhone.length >= 8) {
+    if (cleanPhone && cleanPhone.length >= 10) {
       const phoneJid = `${cleanPhone}@s.whatsapp.net`
       return { canonicalJid: phoneJid, apiJid: rawJid } // use LID for API, phone for storage
     }
-    // Can't resolve - skip this chat
-    return { canonicalJid: '', apiJid: rawJid }
+    // Also try wa_chatlid if available — sometimes phone is in the LID field
+    const lidPhone = (chat.wa_chatlid || '').split('@')[0].replace(/\D/g, '')
+    if (lidPhone && lidPhone.length >= 10) {
+      return { canonicalJid: `${lidPhone}@s.whatsapp.net`, apiJid: rawJid }
+    }
+    // Can't resolve - use LID as-is (will be auto-corrected by webhook later)
+    return { canonicalJid: rawJid, apiJid: rawJid }
   }
   
   // Unknown format

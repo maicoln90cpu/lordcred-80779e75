@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface ChatContact {
   id: string;
   remoteJid: string;
+  alternateJid?: string;
   name: string;
   phone: string;
   lastMessage: string;
