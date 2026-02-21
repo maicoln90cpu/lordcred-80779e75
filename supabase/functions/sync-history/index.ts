@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       const resp = await fetch(`${baseUrl}/chat/find`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'token': chipToken },
-        body: JSON.stringify({ limit: 50 }),
+        body: JSON.stringify({ limit: 200 }),
       })
       
       if (!resp.ok) {
@@ -144,23 +144,29 @@ Deno.serve(async (req) => {
       console.error('[sync-history] Failed to fetch chats:', e)
     }
 
-    // ========== Phase 2: Archive orphan conversations ==========
+    // ========== Phase 2: Archive orphan conversations (safe logic) ==========
     if (rawChats.length > 0) {
       const activeJids = new Set(rawChats.map(c => c.wa_chatid || c.chatid || c.jid || '').filter(Boolean))
       
       const { data: existingConvos } = await adminClient
         .from('conversations')
-        .select('remote_jid')
+        .select('remote_jid, last_message_at')
         .eq('chip_id', chipId)
         .or('is_archived.is.null,is_archived.eq.false')
 
       if (existingConvos) {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         const orphanJids = existingConvos
-          .filter(c => !activeJids.has(c.remote_jid))
+          .filter(c => {
+            if (activeJids.has(c.remote_jid)) return false
+            // Don't archive if it has recent activity (last 7 days)
+            if (c.last_message_at && c.last_message_at > sevenDaysAgo) return false
+            return true
+          })
           .map(c => c.remote_jid)
 
         if (orphanJids.length > 0) {
-          console.log(`[sync-history] Archiving ${orphanJids.length} orphan conversations`)
+          console.log(`[sync-history] Archiving ${orphanJids.length} orphan conversations (no recent activity)`)
           await adminClient
             .from('conversations')
             .update({ is_archived: true } as any)
@@ -179,6 +185,19 @@ Deno.serve(async (req) => {
     for (const chat of rawChats) {
       const remoteJid = chat.wa_chatid || chat.chatid || chat.jid || ''
       if (!remoteJid || remoteJid.includes('status@')) continue
+
+      const isGroup = chat.wa_isGroup || remoteJid.includes('@g.us') || false
+      const isGroupMember = chat.wa_isGroup_member !== false // default true if field missing
+
+      // Archive groups that user has left
+      if (isGroup && !isGroupMember) {
+        console.log(`[sync-history] Archiving left group: ${remoteJid}`)
+        await adminClient.from('conversations')
+          .update({ is_archived: true } as any)
+          .eq('chip_id', chipId)
+          .eq('remote_jid', remoteJid)
+        continue
+      }
 
       const contactName = chat.wa_contactName || chat.name || remoteJid.split('@')[0]
       const waName = chat.wa_name || ''
@@ -224,8 +243,8 @@ Deno.serve(async (req) => {
         last_message_text: chat.wa_lastMessageTextVote || chat.lastMessage || '',
         last_message_at: lastMsgAt || new Date().toISOString(),
         unread_count: unreadCount,
-        is_group: chat.wa_isGroup || remoteJid.includes('@g.us') || false,
-        is_archived: false, // If returned by /chat/find, it's active
+        is_group: isGroup,
+        is_archived: false, // If returned by /chat/find and user is member, it's active
       }
       if (waName) convData.wa_name = waName
       if (profilePicUrl) convData.profile_pic_url = profilePicUrl
