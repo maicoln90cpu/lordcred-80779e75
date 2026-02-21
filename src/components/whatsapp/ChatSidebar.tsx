@@ -158,9 +158,18 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
       const mapped = (dbConvos || []).map((r: any) => {
         const displayName = r.contact_name || r.wa_name || formatPhoneNumber(r.contact_phone || r.remote_jid?.split('@')[0] || '');
+        // Build alternateJid for @lid conversations with valid phone
+        let alternateJid: string | undefined;
+        if (r.remote_jid?.includes('@lid') && r.contact_phone) {
+          const cleanPhone = (r.contact_phone || '').replace(/\D/g, '');
+          if (cleanPhone.length >= 10) {
+            alternateJid = `${cleanPhone}@s.whatsapp.net`;
+          }
+        }
         return {
           id: r.id,
           remoteJid: r.remote_jid,
+          alternateJid,
           name: displayName || 'Desconhecido',
           phone: r.contact_phone || r.remote_jid?.split('@')[0] || '',
           lastMessage: r.last_message_text || '',

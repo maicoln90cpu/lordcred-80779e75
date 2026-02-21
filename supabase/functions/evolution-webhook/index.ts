@@ -183,6 +183,36 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   // UPSERT to prevent race condition duplicates
   await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
 
+  // Auto-correct: if remoteJid is @s.whatsapp.net and no conversation found,
+  // check for @lid conversation with matching contact_phone and update it
+  if (remoteJid.includes('@s.whatsapp.net')) {
+    const { data: existingConvo } = await adminClient
+      .from('conversations')
+      .select('id, remote_jid')
+      .eq('chip_id', chip.id)
+      .eq('remote_jid', remoteJid)
+      .maybeSingle()
+
+    if (!existingConvo) {
+      // Look for @lid conversation where contact_phone matches
+      const { data: lidConvo } = await adminClient
+        .from('conversations')
+        .select('id, remote_jid')
+        .eq('chip_id', chip.id)
+        .like('remote_jid', '%@lid')
+        .eq('contact_phone', recipientPhone)
+        .maybeSingle()
+
+      if (lidConvo) {
+        console.log(`Auto-correcting conversation JID: ${lidConvo.remote_jid} -> ${remoteJid}`)
+        await adminClient
+          .from('conversations')
+          .update({ remote_jid: remoteJid })
+          .eq('id', lidConvo.id)
+      }
+    }
+  }
+
   console.log(`UazAPI message saved: ${isFromMe ? 'outgoing' : 'incoming'} from ${senderName}`)
 }
 

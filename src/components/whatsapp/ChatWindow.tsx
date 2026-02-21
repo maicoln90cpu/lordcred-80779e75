@@ -112,11 +112,23 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
       const from = (pageNum - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
+      // Build list of JIDs to search (dual query for @lid chats)
+      const jidsToSearch = [requestChatJid];
+      if (requestChatJid.includes('@lid') && chat.phone) {
+        const cleanPhone = chat.phone.replace(/\D/g, '');
+        if (cleanPhone.length >= 10) {
+          jidsToSearch.push(`${cleanPhone}@s.whatsapp.net`);
+        }
+      }
+      if (chat.alternateJid && !jidsToSearch.includes(chat.alternateJid)) {
+        jidsToSearch.push(chat.alternateJid);
+      }
+
       const { data: dbMessages, error } = await supabase
         .from('message_history')
         .select('*')
         .eq('chip_id', requestChipId)
-        .eq('remote_jid', requestChatJid)
+        .in('remote_jid', jidsToSearch)
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -195,7 +207,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
         },
         (payload) => {
           const record = payload.new as any;
-          if (!record || record.remote_jid !== chat.remoteJid) return;
+          if (!record) return;
+          // Match both primary and alternate JIDs
+          const matchJids = [chat.remoteJid];
+          if (chat.alternateJid) matchJids.push(chat.alternateJid);
+          if (chat.remoteJid.includes('@lid') && chat.phone) {
+            const pJid = `${chat.phone.replace(/\D/g, '')}@s.whatsapp.net`;
+            if (!matchJids.includes(pJid)) matchJids.push(pJid);
+          }
+          if (!matchJids.includes(record.remote_jid)) return;
 
           const rawContent = record.message_content;
           const safeText = typeof rawContent === 'string' ? rawContent : '';
@@ -236,7 +256,14 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
         },
         (payload) => {
           const record = payload.new as any;
-          if (!record || record.remote_jid !== chat.remoteJid) return;
+          if (!record) return;
+          const matchJids2 = [chat.remoteJid];
+          if (chat.alternateJid) matchJids2.push(chat.alternateJid);
+          if (chat.remoteJid.includes('@lid') && chat.phone) {
+            const pJid2 = `${chat.phone.replace(/\D/g, '')}@s.whatsapp.net`;
+            if (!matchJids2.includes(pJid2)) matchJids2.push(pJid2);
+          }
+          if (!matchJids2.includes(record.remote_jid)) return;
           // Update status of existing message
           setMessages(prev => prev.map(m =>
             (m.id === record.id || (m.messageId && m.messageId === record.message_id))
