@@ -1,73 +1,78 @@
 
 
-## Correcao do sync-history - 5 Erros Encontrados
+## Correcao Completa - 6 Problemas Identificados
 
-### Resultado da Auditoria
+### Diagnostico dos Logs
 
-A funcao `sync-history` existe e a UazAPI **SIM possui** os endpoints necessarios para buscar historico:
-
-- `POST /chat/find` - Busca chats com filtros (retorna lista de objetos Chat)
-- `POST /message/find` - Busca mensagens de um chat (retorna lista de objetos Message com paginacao)
-
-Porem a funcao possui **5 erros criticos** que impedem o funcionamento:
+Os logs confirmam: `/chat/find` retorna 50 chats com sucesso, mas `/message/find` retorna **0 mensagens para TODOS os chats**. Isso significa que o parsing da resposta de `/message/find` esta falhando silenciosamente. A resposta da UazAPI provavelmente usa formato paginado (`{ messages: [...], total: N }`) ou outro formato que `extractArray` nao captura corretamente, OU a API retorna dados mas o campo `chatid` no body precisa ser em formato diferente.
 
 ---
 
-### Erro 1: Coluna `last_sync_at` nao existe na tabela `chips`
+### 1. Filtro por Conversas Normais vs Grupos
 
-A funcao tenta ler e gravar `chips.last_sync_at` (linhas 59 e 203), mas essa coluna **nunca foi criada** no banco de dados. Isso causa erro silencioso no SELECT ou no UPDATE.
+**Arquivo**: `ChatSidebar.tsx`
+- Adicionar botoes de filtro "Pessoas" e "Grupos" na barra de filtros existente (ao lado de "Nao lidas", "Favoritas", etc.)
+- Filtrar por `isGroup === true` ou `isGroup === false`
+- Quando "Grupos" ativo, mostrar apenas conversas com `@g.us`
+- Quando "Pessoas" ativo, excluir grupos
 
-**Correcao**: Criar a coluna via migration SQL.
+### 2. Grupos que nao existem mais (COMPRA E VENDA)
 
-### Erro 2: Metodo `getClaims()` nao existe no Supabase JS v2
+**Problema**: Conversas deletadas no WhatsApp real continuam aparecendo porque a tabela `conversations` do Supabase mantem os dados antigos. O sync so faz upsert (adiciona/atualiza), nunca remove.
 
-Linha 42: `userClient.auth.getClaims(token)` - este metodo nao existe no `@supabase/supabase-js@2`. Isso causa um erro imediato e a funcao retorna 401 ou 500 sem fazer nenhum trabalho.
+**Correcao no `sync-history/index.ts`**:
+- Apos buscar os chats da UazAPI, coletar todos os `remote_jid` retornados
+- Comparar com as conversas existentes no banco para esse chip
+- Marcar como arquivadas (ou deletar) as conversas que nao foram retornadas pela UazAPI (exceto se forem muito antigas, pois o `/chat/find` tem limite)
+- Para ser seguro: marcar `is_archived = true` em vez de deletar, com um campo `stale_since` para tracking
 
-**Correcao**: Substituir por `userClient.auth.getUser()` que e o metodo correto para validar o token.
+### 3. Fotos de perfil nao carregam
 
-### Erro 3: Parsing da resposta do `/chat/find` pode falhar
+**Problema**: O campo `profile_pic_url` esta sendo preenchido com `chat.imagePreview || chat.image` no sync-history e webhook, mas:
+- O Chat schema da UazAPI mostra campos `image` (URL da imagem) e `imagePreview` (URL da miniatura)
+- Porem o `/chat/find` pode nao retornar esses campos preenchidos por padrao
+- A UazAPI tem o endpoint `POST /chat/details` que retorna dados completos incluindo URLs de imagem em dois tamanhos
 
-A funcao tenta `chatsResponse?.chats || chatsResponse?.data` mas a UazAPI pode retornar a lista diretamente como array, ou usar a chave `results`. A documentacao mostra que o schema Chat tem campos como `wa_chatid`, `wa_contactName`, etc.
+**Correcao**:
+- No `sync-history`, apos obter a lista de chats, para cada chat que NAO tem `imagePreview` ou `image`, fazer uma chamada a `POST /chat/details` com `{ number: remoteJid }` para obter a foto
+- Limitar a 20 chamadas de detalhes por sync para nao sobrecarregar
+- Salvar `profile_pic_url` no banco com a URL retornada
 
-**Correcao**: Adicionar mais fallbacks na extracao do array: `chatsResponse?.results || chatsResponse?.items`.
+### 4 e 5. Mensagens nao aparecem no chat (0 messages em TODOS os chats)
 
-### Erro 4: Parsing da resposta do `/message/find` pode falhar
+**Problema principal confirmado pelos logs**: O `/message/find` retorna dados, mas o parsing falha. A resposta paginada da UazAPI provavelmente tem formato `{ results: [...], total: N, page: N }` ou similar que `extractArray` nao captura. Tambem e possivel que o campo `chatid` precise estar em formato JID completo.
 
-Similar ao erro 3 - a funcao tenta `msgData?.messages || msgData?.data` mas a UazAPI retorna "Lista de mensagens encontradas com metadados de paginacao". A chave real pode ser diferente.
+**10 possiveis erros identificados**:
 
-**Correcao**: Adicionar fallbacks e logs detalhados para debug: `msgData?.results || msgData?.items`.
+1. **Resposta paginada nao parseada**: `/message/find` retorna objeto com metadata (`total`, `page`, `limit`) e as mensagens em uma chave que `extractArray` nao encontra (ex: `records`, `rows`, `list`)
+2. **Campo `chatid` vs `number`**: A documentacao mostra `chatid` como campo de busca, mas pode ser `number` ou `chat_id` dependendo da versao
+3. **Sem log do response body**: O codigo nao loga o corpo da resposta quando `messages.length === 0`, tornando impossivel debugar o formato real
+4. **O campo `text` pode ser vazio**: Mensagens de midia tem `text` vazio, e o codigo filtra `typeof m.text === 'string'` mas nao considera `m.content`
+5. **`messageid` pode ser nulo**: Para mensagens antigas, o `messageid` pode vir vazio, e o codigo faz `if (!msgId) continue` descartando-as
+6. **Timestamp filtering muito agressivo**: `tenDaysAgo` descarta mensagens com timestamp errado ou em formato inesperado
+7. **O campo `fromMe` pode ser string**: `m.fromMe` pode ser `"true"` (string) em vez de `true` (boolean)
+8. **Rate limiting da UazAPI**: 50 chats x 100 messages = 50 requests sequenciais, pode causar throttling
+9. **`message_id` unique constraint**: Se o `message_id` ja existe de outra fonte (webhook), `ignoreDuplicates: true` ignora a mensagem silenciosamente - mas isso deveria funcionar
+10. **Token expirado durante sync**: O token da instancia pode expirar ou ser invalidado durante o loop de 50 chats
 
-### Erro 5: `messageTimestamp` pode estar em segundos vs milissegundos
+**Correcao principal no `sync-history/index.ts`**:
+- Adicionar log do response body bruto de `/message/find` para o PRIMEIRO chat (para debug)
+- Adicionar mais chaves ao `extractArray`: `records`, `rows`, `list`, `result`
+- Testar se a resposta e um objeto com uma unica chave que contem o array
+- Se `extractArray` retorna vazio, logar as chaves do objeto de resposta
+- Tratar `fromMe` como string ou boolean
 
-A documentacao diz `messageTimestamp integer - Timestamp original da mensagem em milissegundos`, mas na pratica a UazAPI pode retornar em segundos. O codigo ja tenta tratar isso (linha 163-164) mas o threshold `10000000000` pode nao ser robusto o suficiente.
+### 6. Badge +99 nao lidas incorreto
 
-**Correcao**: Manter a logica mas adicionar log para debug.
+**Problema**: O `unread_count` na tabela `conversations` esta inflado porque:
+- O webhook incrementa `unread_count` para cada mensagem incoming
+- O sync-history faz upsert com `chat.wa_unreadCount` que pode ser um valor alto da UazAPI
+- Nunca ha limpeza/recalculo correto
 
----
-
-### Plano de Correcao
-
-#### 1. Migration SQL - Adicionar coluna `last_sync_at`
-
-```text
-ALTER TABLE public.chips ADD COLUMN IF NOT EXISTS last_sync_at timestamptz DEFAULT NULL;
-```
-
-#### 2. Reescrever `sync-history/index.ts`
-
-Alteracoes:
-- Substituir `getClaims(token)` por `getUser()` para validacao de autenticacao
-- Adicionar logs detalhados em cada etapa (fetch chats, parse response, fetch messages, upsert)
-- Adicionar fallbacks robustos para extrair arrays de respostas: tentar array direto, depois `results`, `items`, `chats`, `data`, `messages`
-- Logar a quantidade de chats/mensagens encontradas em cada passo
-- Logar erros de HTTP da UazAPI (status code, body de erro)
-- Remover o skip de 5 minutos para permitir sincronizacao manual via botao (ou reduzir para 1 minuto)
-
-#### 3. Atualizar frontend para mostrar resultado detalhado
-
-No `WhatsApp.tsx`, ao receber resposta do sync, mostrar toast com detalhes:
-- "X conversas e Y mensagens sincronizadas" em vez de apenas "Sincronizacao concluida"
-- Se synced = 0, mostrar "Nenhuma mensagem nova encontrada" ou o motivo real
+**Correcao**:
+- No `sync-history`, usar `chat.wa_unreadCount` diretamente da UazAPI (que reflete o estado real do WhatsApp)
+- No frontend, ao abrir um chat, garantir que o `unread_count` e zerado tanto no banco quanto na UazAPI
+- Adicionar botao "Marcar tudo como lido" no header do chip
 
 ---
 
@@ -75,6 +80,9 @@ No `WhatsApp.tsx`, ao receber resposta do sync, mostrar toast com detalhes:
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | Migration SQL | `ALTER TABLE chips ADD COLUMN last_sync_at` |
-| 2 | `sync-history/index.ts` | Corrigir auth (`getUser`), adicionar logs, fallbacks de parsing, remover skip de 5min para sync manual |
-| 3 | `WhatsApp.tsx` | Mostrar resultado detalhado do sync no toast |
+| 1 | `ChatSidebar.tsx` | Adicionar filtros "Pessoas" e "Grupos" |
+| 2 | `sync-history/index.ts` | Marcar conversas orfas como arquivadas |
+| 3 | `sync-history/index.ts` | Chamar `/chat/details` para buscar fotos de perfil |
+| 4-5 | `sync-history/index.ts` | Adicionar logs detalhados do response body, expandir `extractArray`, tratar edge cases |
+| 6 | `sync-history/index.ts` + `WhatsApp.tsx` | Corrigir unread_count com valor real da UazAPI |
+
