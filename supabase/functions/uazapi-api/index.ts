@@ -632,25 +632,34 @@ Deno.serve(async (req) => {
       case 'logout-instance': {
         const chipToken = instanceToken || await getInstanceToken(adminClient, instanceName)
         // Log lifecycle
-        const { data: chipForLog } = await adminClient.from('chips').select('id').eq('instance_name', instanceName).single()
-        if (chipForLog) {
-          await adminClient.from('chip_lifecycle_logs').insert({ chip_id: chipForLog.id, event: 'disconnected', details: `Graceful logout: ${instanceName}` })
-        }
+        try {
+          const { data: chipForLog } = await adminClient.from('chips').select('id').eq('instance_name', instanceName).single()
+          if (chipForLog) {
+            await adminClient.from('chip_lifecycle_logs').insert({ chip_id: chipForLog.id, event: 'disconnected', details: `Graceful logout: ${instanceName}` })
+          }
+        } catch {}
         if (!chipToken) {
           return new Response(
             JSON.stringify({ success: true }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
-        const response = await fetch(`${baseUrl}/instance/disconnect`, {
-          method: 'POST',
-          headers: { 'token': chipToken },
-        })
-        const data = await response.json()
-        return new Response(
-          JSON.stringify({ success: true, data }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          const response = await fetch(`${baseUrl}/instance/disconnect`, {
+            method: 'POST',
+            headers: { 'token': chipToken },
+          })
+          const data = await response.json().catch(() => ({}))
+          return new Response(
+            JSON.stringify({ success: true, data }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (logoutErr) {
+          return new Response(
+            JSON.stringify({ success: true, warning: 'Instance may already be disconnected' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
 
       case 'forward-message': {
