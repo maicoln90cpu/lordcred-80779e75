@@ -1,92 +1,83 @@
 
 
-## Plano de Correcoes - 3 Problemas Criticos
+## Plano de Correcoes - 5 Itens
 
-### Problema 1: Etiquetas criadas mas nao aparecem
+### 1. Fluxo de Cancelar/Reconectar no dialog de chip desconectado
 
-**Causa raiz encontrada**: A tabela `labels` NAO EXISTE no banco de dados. Todas as queries a `labels` estao falhando silenciosamente porque usam `(supabase as any)`. O toast "Etiqueta criada" aparece porque a chamada ao endpoint `/label/edit` da UazAPI pode retornar sucesso, mas o armazenamento local falha completamente.
-
-Alem disso, a coluna `label_ids` NAO EXISTE na tabela `conversations`, entao a associacao de etiquetas a chats tambem nao funciona.
+**Problema atual**: Ao clicar em um chip offline, aparece o dialog "Chip Desconectado". O botao "Cancelar" fecha o dialog sem fazer nada. O botao "Reconectar" navega para `/chips` e mostra um toast generico.
 
 **Correcao**:
-1. Criar a tabela `labels` com colunas: `id` (uuid), `chip_id` (uuid), `label_id` (text), `name` (text), `color_hex` (text), `created_at` (timestamptz) e UNIQUE constraint em `(chip_id, label_id)`
-2. Adicionar coluna `label_ids` (text[]) na tabela `conversations`
-3. Adicionar RLS policies para que usuarios vejam labels dos seus chips
-4. Adicionar coluna `is_archived` na tabela `conversations` (necessaria tambem para o problema 3)
+- **Cancelar**: Ao clicar, selecionar o chip mesmo assim (permitir ver conversas do banco), mas marcar o chip como offline internamente. O `ChatWindow` deve detectar que o chip esta offline e desabilitar o campo de envio, mostrando uma barra no lugar do input: "Reconecte para atualizar conversas e enviar mensagens" com botao de reconectar.
+- **Reconectar**: Em vez de navegar para `/chips`, abrir o `ChipConnectDialog` diretamente passando a instancia existente para gerar QR code na propria tela do WhatsApp.
+
+**Arquivos**:
+- `ChipSelector.tsx`: Alterar o "Cancelar" para chamar `onSelectChip(chip.id)` e fechar o dialog. Alterar o "Reconectar" para abrir `ChipConnectDialog` com o nome da instancia existente (modo reconexao, sem criar nova instancia).
+- `ChipConnectDialog.tsx`: Adicionar prop `reconnectInstanceName` para pular o step de formulario e ir direto ao QR code.
+- `ChatWindow.tsx`: Verificar `chip.status` ao carregar e se offline, desabilitar input e mostrar barra de reconexao.
 
 ---
 
-### Problema 2: Chips desconectados sem feedback
+### 2. Dropdown de chips offline - opcoes Remover e Reconectar
 
-**Causa raiz encontrada**: O `ChipSelector.tsx` (linha 61) filtra chips com `.eq('status', 'connected')`, entao chips desconectados simplesmente desaparecem do seletor. O usuario nao recebe nenhum aviso. O banner de desconectado no `ChatWindow` so aparece quando uma mensagem falha ao enviar.
+**Problema atual**: O dropdown (seta para baixo) de chips offline mostra "Configuracoes" e "Desconectar" - opcoes que nao fazem sentido para um chip ja offline.
 
-**Correcao**:
-1. No `ChipSelector.tsx`, remover o filtro `.eq('status', 'connected')` e mostrar TODOS os chips do tipo whatsapp
-2. Ao clicar em um chip que nao esta connected, mostrar um dialog informando que esta desconectado com opcoes de "Reconectar (Gerar QR Code)" ou "Cancelar"
-3. Chips desconectados terao um indicador visual (icone ou cor diferente) no seletor
+**Correcao**: Quando o chip NAO esta conectado, mostrar opcoes diferentes:
+- **Reconectar**: Abre o `ChipConnectDialog` com a instancia existente para gerar QR code direto
+- **Remover chip**: Remove o chip do header (deleta do banco via `supabase.from('chips').delete()`)
 
----
-
-### Problema 3: Arquivamento nao persiste entre trocas de chip
-
-**Causa raiz encontrada**: A coluna `is_archived` NAO EXISTE na tabela `conversations`. A query `UPDATE conversations SET is_archived = ...` falha silenciosamente. Quando o usuario troca de chip e volta, os dados sao carregados do banco sem o campo, entao todas aparecem como nao-arquivadas.
-
-**Correcao**:
-1. Adicionar coluna `is_archived` (boolean, default false) na tabela `conversations`
-2. Verificar que o endpoint `archive-chat` no `uazapi-api` esta enviando o body correto para a UazAPI (`chatid` e `archive` fields)
+**Arquivos**: `ChipSelector.tsx`
 
 ---
 
-### Detalhes Tecnicos - Implementacao
+### 3. Carregamento de mensagens antigas (sync-history)
 
-**Migration SQL** (uma unica migracao):
+**Problema atual**: Ao conectar um novo chip, so aparecem mensagens trocadas apos a integracao. O `sync-history` existe mas NAO e chamado automaticamente ao conectar um chip.
 
-```text
--- 1. Criar tabela labels
-CREATE TABLE public.labels (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  chip_id uuid NOT NULL,
-  label_id text NOT NULL,
-  name text NOT NULL DEFAULT '',
-  color_hex text,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(chip_id, label_id)
-);
+**Correcao**: 
+- No `ChatSidebar.tsx` ou `WhatsApp.tsx`, ao detectar que um chip acabou de ser conectado (ou ao selecionar um chip pela primeira vez), chamar `supabase.functions.invoke('sync-history', { body: { chipId } })` em background.
+- Mostrar um indicador sutil no topo da sidebar: "Sincronizando mensagens anteriores..." com spinner, que desaparece quando o sync termina.
+- O `sync-history` ja busca os ultimos 10 dias de mensagens e faz upsert no banco.
 
-ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
+**Arquivos**: 
+- `ChatSidebar.tsx`: Adicionar chamada ao `sync-history` ao montar com novo chip e indicador visual de sincronizacao.
 
--- RLS: usuarios veem labels dos seus chips
-CREATE POLICY "Users can view their chip labels"
-  ON public.labels FOR SELECT
-  USING (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()));
+---
 
-CREATE POLICY "Users can manage their chip labels"
-  ON public.labels FOR ALL
-  USING (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()));
+### 4. Arquivamento nao sincroniza com WhatsApp
 
-CREATE POLICY "Admins can manage all labels"
-  ON public.labels FOR ALL
-  USING (is_admin());
+**Problema atual**: O sistema arquiva localmente (coluna `is_archived` no banco) e chama `archive-chat` no `uazapi-api` que faz `POST /chat/archive`. Porem a conversa nao aparece arquivada no celular. Possivelmente o endpoint ou formato do body esta incorreto.
 
--- 2. Adicionar colunas faltantes em conversations
-ALTER TABLE public.conversations
-  ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;
+**Correcao**:
+- Adicionar log detalhado no `archive-chat` para ver a resposta da UazAPI
+- Verificar se o `chatid` esta sendo enviado no formato correto (deve ser `numero@s.whatsapp.net`)
+- Se o endpoint retorna erro, mostrar feedback ao usuario no frontend
 
-ALTER TABLE public.conversations
-  ADD COLUMN IF NOT EXISTS label_ids text[] DEFAULT '{}';
-```
+**Arquivos**: `uazapi-api/index.ts` (action `archive-chat`)
 
-**Alteracoes em arquivos frontend**:
+---
+
+### 5. Criacao de etiquetas com erro
+
+**Causa raiz encontrada nos logs**: O endpoint `POST /label/edit` retorna `500: "No session"`. Isso significa que o chip usado para criar a etiqueta (`2f0980a5-35cd-4f75-9cb8-edb6acca75aa`) NAO tem uma sessao ativa no WhatsApp. A criacao de etiquetas requer um chip conectado.
+
+**Correcao**:
+- No `ManageLabelsDialog.tsx`, antes de tentar criar/editar etiqueta, verificar se o chip esta conectado (`chips.status = 'connected'`). Se nao estiver, mostrar mensagem informando que o chip precisa estar conectado.
+- Melhorar a mensagem de erro: em vez de "Erro ao criar etiqueta" generico, mostrar "Chip desconectado - conecte o WhatsApp para gerenciar etiquetas".
+- Remover os casts `as any` das queries de labels (a tabela agora existe no schema).
+
+**Arquivos**: `ManageLabelsDialog.tsx`
+
+---
+
+### Detalhes Tecnicos
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | `src/components/whatsapp/ChipSelector.tsx` | Remover filtro `status='connected'`; mostrar todos os chips whatsapp; ao clicar em chip desconectado, abrir dialog com opcao de reconectar (gerar QR) ou cancelar |
-| 2 | `src/components/whatsapp/ChatSidebar.tsx` | Remover cast `as any` para queries de labels (tabela agora existe); queries de `is_archived` agora funcionam |
-| 3 | `src/components/whatsapp/ManageLabelsDialog.tsx` | Remover cast `as any` para queries de labels |
-
-**Alteracoes em edge functions**:
-
-| # | Arquivo | Alteracao |
-|---|---------|-----------|
-| 1 | `supabase/functions/uazapi-api/index.ts` | No `archive-chat`, verificar se o response da UazAPI indica sucesso real antes de atualizar o DB; adicionar log do response |
+| 1a | `ChipSelector.tsx` | Cancelar: seleciona o chip offline; Reconectar: abre ChipConnectDialog em modo reconexao |
+| 1b | `ChipConnectDialog.tsx` | Nova prop `reconnectInstanceName` para pular form e ir direto ao QR |
+| 1c | `ChatWindow.tsx` | Se chip offline, substituir ChatInput por barra de "Reconecte para enviar mensagens" |
+| 2 | `ChipSelector.tsx` | Dropdown offline: "Reconectar" e "Remover chip" em vez de "Configuracoes"/"Desconectar" |
+| 3 | `ChatSidebar.tsx` | Chamar sync-history ao selecionar chip, mostrar indicador de sincronizacao |
+| 4 | `uazapi-api/index.ts` | Adicionar logs no archive-chat e validar formato do chatid |
+| 5 | `ManageLabelsDialog.tsx` | Verificar status do chip antes de criar label; melhorar mensagens de erro |
 
