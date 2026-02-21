@@ -1,80 +1,77 @@
 
+## Diagnostico Definitivo: Mismatch de JID (@lid vs @s.whatsapp.net)
 
-## Correcao de 5 Problemas Criticos - Diagnostico dos Logs
+### Problema Raiz Confirmado
 
-### Diagnostico Completo
+Analise direta do banco de dados revelou:
 
-#### Problema Raiz 1: UNIQUE CONSTRAINT faltando (causa de 0 mensagens sincronizadas)
-Os logs mostram claramente o erro:
-```
-Upsert error for 5511999136884@s.whatsapp.net: there is no unique or exclusion constraint matching the ON CONFLICT specification
-```
-A migration anterior criou um **indice parcial** (`CREATE UNIQUE INDEX ... WHERE message_id IS NOT NULL`) mas o Supabase JS `upsert({ onConflict: 'chip_id,message_id' })` requer uma **UNIQUE CONSTRAINT real** na tabela, nao apenas um indice parcial. Resultado: **TODAS as mensagens do sync-history falham no upsert**, zero mensagens sincronizadas.
+- **Tabela conversations**: 337 conversas usam formato `@lid` (novo formato WhatsApp), 768 usam `@s.whatsapp.net`
+- **Tabela message_history**: ZERO mensagens com `@lid`. Todas as 90 mensagens usam `@s.whatsapp.net` ou `@g.us`
 
-#### Problema Raiz 2: Conversas validas arquivadas incorretamente (116 arquivadas)
-A logica de orfaos compara as conversas do banco contra apenas 50 chats retornados pelo `/chat/find`. Qualquer conversa que existe no banco mas nao esta nos 50 primeiros chats e marcada como arquivada. Com 150+ conversas no banco e apenas 50 retornadas, ~100 conversas validas foram arquivadas erroneamente.
+O webhook recebe mensagens com `msg.chatid` = `5511999136884@s.whatsapp.net` (formato telefone). Mas o `/chat/find` retorna `wa_chatid` = `79710449049664@lid` (formato LID). O sync-history cria conversas com o JID LID, mas as mensagens chegam via webhook com JID telefone. **Resultado: o ChatWindow busca por `@lid` mas as mensagens estao armazenadas com `@s.whatsapp.net` - zero resultados.**
 
-#### Problema Raiz 3: Grupos deletados (COMPRA E VENDA) nao arquivados
-Esses grupos ESTAO nos 50 chats retornados pela UazAPI (a UazAPI mantem o historico mesmo apos o usuario sair). O campo `wa_isGroup_member: false` indica que o usuario nao esta mais no grupo, mas a logica atual ignora esse campo.
+Exemplo concreto do banco:
+- Conversa "Maicoln Douglas Gomes" com `remote_jid = 5511999136884@s.whatsapp.net` tem **86 mensagens** (funciona!)
+- Conversa "79710449049664" com `remote_jid = 79710449049664@lid` tem **0 mensagens** (quebrado!)
 
-#### Problema Raiz 4: mark-read falhando ("Missing number in payload")
-Os logs de rede mostram:
-```
-Response: {"success":true,"data":{"error":"Missing number in payload"}}
-```
-O codigo envia `{ chatid: chatId }` para `/chat/read`, mas a UazAPI espera `{ number: chatId }`. Sem mark-read funcionando, o `unread_count` nunca e resetado na UazAPI.
+### Plano de Correcao (3 frentes)
 
-#### Problema Raiz 5: Badge +99 incorreto
-Combinacao dos problemas 2 e 4: o `unread_count` nunca e zerado (mark-read falha) e o sync importa contagens altas da UazAPI sem correcao.
+#### 1. Refazer sync-history com resolucao LID-para-PN
 
----
+**Arquivo**: `supabase/functions/sync-history/index.ts` (reescrita significativa)
 
-### Plano de Correcao
+A UazAPI retorna tanto `wa_chatid` quanto `wa_chatlid` no Chat schema. Alem disso, o endpoint `/chat/details` pode resolver o numero de telefone real para contatos LID.
 
-#### 1. Migration SQL: Criar UNIQUE CONSTRAINT real
+Mudancas:
+- Para cada chat retornado pelo `/chat/find`:
+  - Se `wa_chatid` for `@s.whatsapp.net` ou `@g.us`: usar diretamente
+  - Se `wa_chatid` for `@lid`: tentar resolver via `chat.phone` (se for numero valido) ou consultar `/chat/details` para obter o numero real
+  - Salvar a conversa com o JID `@s.whatsapp.net` quando possivel
+- Implementar mapeamento LID -> PN em memoria durante o sync
+- Para `/message/find`: se o chatid original (`wa_chatid`) for `@lid`, enviar o LID para a API (pois a API interna usa LID), mas salvar as mensagens com o JID `@s.whatsapp.net` resolvido
 
-Remover o indice parcial e criar uma constraint UNIQUE real em `(chip_id, message_id)`.
+#### 2. Sync em etapas (staged) para evitar timeout
 
-```text
--- Drop the partial index that doesn't work with upsert
-DROP INDEX IF EXISTS idx_message_history_chip_msgid;
+**Arquivo**: `supabase/functions/sync-history/index.ts`
 
--- Create a real UNIQUE constraint
-ALTER TABLE public.message_history 
-  ADD CONSTRAINT message_history_chip_message_unique 
-  UNIQUE (chip_id, message_id);
-```
+Edge Functions tem limite de tempo. Com 200 chats e chamadas sequenciais, o sync pode expirar.
 
-Nota: mensagens com `message_id = NULL` nao serao afetadas pela constraint (NULLs sao sempre unicos em PostgreSQL).
+Mudancas:
+- Processar no maximo **30 chats por invocacao**
+- Usar campo `last_sync_cursor` na tabela `chips` para rastrear progresso (indice do chat atual)
+- O frontend chama o sync em loop ate receber `hasMore: false`
+- Cada etapa retorna `{ hasMore: true/false, processed: N, total: N }`
+- Adicionar delay de 200ms entre chamadas API para evitar rate limiting
 
-#### 2. sync-history: Corrigir logica de orfaos
+#### 3. Limpeza de conversas @lid duplicadas
 
-- Aumentar o limite de `/chat/find` para 200 (ou nao limitar) para capturar mais chats
-- Antes de arquivar, verificar se a conversa tem atividade recente (ultimos 7 dias) - se sim, NAO arquivar mesmo que nao esteja na lista
-- Para grupos: verificar `wa_isGroup_member === false` e marcar como arquivado
+**Migration SQL**:
+- Para cada conversa `@lid`, verificar se existe uma conversa `@s.whatsapp.net` para o mesmo chip
+- Se existir duplicata, mover dados relevantes (notes, labels, pins) para a versao `@s.whatsapp.net` e deletar a `@lid`
+- Se nao existir duplicata mas o telefone for resolvivel, atualizar o `remote_jid` para `@s.whatsapp.net`
 
-#### 3. sync-history: Detectar grupos que o usuario saiu
+#### 4. Atualizar frontend para sync em etapas
 
-Ao processar cada chat da UazAPI, verificar:
-- Se `wa_isGroup === true` E `wa_isGroup_member === false` -> marcar como `is_archived = true`
-- Nao fazer upsert como conversa ativa
+**Arquivo**: `src/pages/WhatsApp.tsx`
 
-#### 4. uazapi-api: Corrigir mark-read
+Mudancas no `handleSyncHistory` e `handleSelectChip`:
+- Chamar sync-history em loop ate `hasMore === false`
+- Mostrar progresso real (ex: "Sincronizando... 30/200 chats")
+- Adicionar delay de 1s entre chamadas para nao sobrecarregar
 
-Mudar o body de `{ chatid: chatId }` para `{ number: chatId }` conforme esperado pela UazAPI.
+#### 5. Debug logging agressivo
 
-#### 5. Desarquivar conversas validas
+**Arquivo**: `supabase/functions/sync-history/index.ts`
 
-A migration deve desarquivar conversas que foram arquivadas erroneamente na ultima sincronizacao.
-
----
+- Logar o body bruto de `/message/find` para os PRIMEIROS 3 chats (antes de qualquer parsing)
+- Logar todos os campos do chat retornado pelo `/chat/find` para os primeiros 3 chats (wa_chatid, wa_chatlid, phone, etc)
+- Logar o JID resolvido vs JID original
 
 ### Detalhes Tecnicos
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | Migration SQL | DROP partial index, ADD UNIQUE constraint, desarquivar conversas |
-| 2 | `sync-history/index.ts` | Aumentar limit para 200, corrigir logica orfaos com verificacao de atividade recente, detectar grupos que o usuario saiu |
-| 3 | `uazapi-api/index.ts` | Corrigir mark-read: `chatid` -> `number` |
-| 4 | Deploy edge functions | Redeployar sync-history e uazapi-api |
-
+| 1 | `sync-history/index.ts` | Reescrita: resolucao LID->PN, sync em etapas (30 chats/call), debug logging |
+| 2 | `WhatsApp.tsx` | Loop de sync com progresso visual |
+| 3 | Migration SQL | Limpeza de conversas @lid duplicadas |
+| 4 | `chips` table | Adicionar coluna `last_sync_cursor` (integer, default 0) |
