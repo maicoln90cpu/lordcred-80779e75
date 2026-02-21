@@ -46,9 +46,20 @@ export default function WhatsAppProfileDialog({ open, onOpenChange, chipId }: Wh
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile>({});
   const [isLoadingBusiness, setIsLoadingBusiness] = useState(false);
 
-  // Load privacy settings when dialog opens
+  // Load profile name, privacy and business when dialog opens
   useEffect(() => {
     if (!open || !chipId) return;
+
+    // Load profile name
+    supabase.functions.invoke('uazapi-api', {
+      body: { action: 'get-profile-name', chipId },
+    }).then(({ data }) => {
+      if (data?.profileName) {
+        setProfileName(data.profileName);
+      }
+    }).catch(() => {});
+
+    // Load privacy settings
     setIsLoadingPrivacy(true);
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'get-privacy', chipId },
@@ -67,7 +78,7 @@ export default function WhatsAppProfileDialog({ open, onOpenChange, chipId }: Wh
       }
     }).catch(() => {}).finally(() => setIsLoadingPrivacy(false));
 
-    // Try loading business profile
+    // Load business profile
     setIsLoadingBusiness(true);
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'get-business-profile', chipId },

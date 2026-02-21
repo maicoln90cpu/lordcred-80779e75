@@ -9,6 +9,7 @@ import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import LabelBadge from './LabelBadge';
+import ManageLabelsDialog from './ManageLabelsDialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import type { ChatContact } from '@/pages/WhatsApp';
 
@@ -58,6 +59,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [filterUnread, setFilterUnread] = useState(false);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
+  const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const prevChipRef = useRef<string | null>(null);
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
@@ -416,9 +418,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   ))
                 ) : (
                   <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                    Nenhuma etiqueta sincronizada
+                    Nenhuma etiqueta encontrada
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setManageLabelsOpen(true)}>
+                  <Tag className="w-3.5 h-3.5 mr-2" />
+                  Gerenciar Etiquetas
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -550,6 +557,23 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           </div>
         )}
       </ScrollArea>
+
+      <ManageLabelsDialog
+        open={manageLabelsOpen}
+        onOpenChange={setManageLabelsOpen}
+        chipId={chipId}
+        onLabelsUpdated={() => {
+          // Re-fetch labels
+          if (!chipId) return;
+          (supabase as any)
+            .from('labels')
+            .select('label_id, name, color_hex')
+            .eq('chip_id', chipId)
+            .then(({ data }: any) => {
+              if (data) setLabels(data);
+            });
+        }}
+      />
     </div>
   );
 }

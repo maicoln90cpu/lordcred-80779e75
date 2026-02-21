@@ -921,6 +921,56 @@ Deno.serve(async (req) => {
         )
       }
 
+      case 'edit-label': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const { labelId, labelName, labelColor, deleteLbl } = body
+        const labelBody: any = {}
+        if (labelId) labelBody.id = labelId
+        if (labelName) labelBody.name = labelName
+        if (labelColor) labelBody.color = labelColor
+        if (deleteLbl) labelBody.delete = true
+        const response = await fetch(`${baseUrl}/label/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(labelBody),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: response.ok, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'get-profile-name': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        // Get chip nickname from DB as fallback
+        const { data: chipData } = await adminClient
+          .from('chips')
+          .select('nickname, phone_number, instance_name')
+          .eq('id', chipId)
+          .single()
+        // Try to get profile name from UazAPI
+        try {
+          const response = await fetch(`${baseUrl}/instance/status`, {
+            method: 'GET',
+            headers: { 'token': chipToken },
+          })
+          const statusData = await response.json()
+          const profileName = statusData?.instance?.profileName || statusData?.profileName || chipData?.nickname || ''
+          return new Response(
+            JSON.stringify({ success: true, profileName, chipData }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch {
+          return new Response(
+            JSON.stringify({ success: true, profileName: chipData?.nickname || '', chipData }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
