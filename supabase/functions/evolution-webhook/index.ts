@@ -192,7 +192,9 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   await adminClient.from('conversations').upsert({
     chip_id: chip.id,
     remote_jid: remoteJid,
-    ...conversationData,
+    contact_name: contactName,
+    contact_phone: contactPhone,
+    is_group: chat.wa_isGroup || remoteJid.includes('@g.us') || false,
   }, { onConflict: 'chip_id,remote_jid' })
 }
 

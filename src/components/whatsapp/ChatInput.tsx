@@ -1,9 +1,9 @@
-import { useState, useRef, useCallback } from 'react';
-import { Send, Plus, Mic, MicOff, Image, Video, FileText, X, Loader2 } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Send, Plus, Mic, Trash2, Pause, Play, Image, Video, FileText, X, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+
 import EmojiPicker from './EmojiPicker';
 import type { MessageData } from './MessageContextMenu';
 
@@ -18,14 +18,18 @@ interface ChatInputProps {
 export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string } | null>(null);
   const [isSendingMedia, setIsSendingMedia] = useState(false);
+  const [waveformBars, setWaveformBars] = useState<number[]>(new Array(30).fill(4));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const fileTypeRef = useRef<string>('image');
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   const handleSend = () => {
     if (mediaPreview) {
@@ -101,9 +105,32 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     input.click();
   };
 
+  const updateWaveform = useCallback(() => {
+    if (!analyserRef.current) return;
+    const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(data);
+    const bars = [];
+    const step = Math.floor(data.length / 30);
+    for (let i = 0; i < 30; i++) {
+      const val = data[i * step] || 0;
+      bars.push(Math.max(4, (val / 255) * 28));
+    }
+    setWaveformBars(bars);
+    animFrameRef.current = requestAnimationFrame(updateWaveform);
+  }, []);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Set up analyser for waveform
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
@@ -114,6 +141,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        audioCtx.close();
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        analyserRef.current = null;
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onload = () => {
@@ -125,13 +155,35 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
       recorder.start();
       setIsRecording(true);
+      setIsPaused(false);
       setRecordingTime(0);
+      setWaveformBars(new Array(30).fill(4));
 
       timerRef.current = window.setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
+
+      updateWaveform();
     } catch (e) {
       console.error('Failed to start recording:', e);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      if (isPaused) {
+        mediaRecorderRef.current.resume();
+        timerRef.current = window.setInterval(() => {
+          setRecordingTime(prev => prev + 1);
+        }, 1000);
+        updateWaveform();
+        setIsPaused(false);
+      } else {
+        mediaRecorderRef.current.pause();
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
+        setIsPaused(true);
+      }
     }
   };
 
@@ -139,10 +191,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      setIsPaused(false);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
     }
   };
 
@@ -152,13 +203,21 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       mediaRecorderRef.current = null;
       chunksRef.current = [];
       setIsRecording(false);
+      setIsPaused(false);
       setRecordingTime(0);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
+      analyserRef.current = null;
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -219,73 +278,95 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
         </div>
       )}
 
-      {/* Recording indicator */}
+      {/* Recording indicator - WhatsApp Web style inline */}
       {isRecording && (
-        <div className="px-4 pt-3 pb-1">
-          <div className="flex items-center gap-3 p-2 rounded-lg bg-destructive/10">
-            <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-            <span className="text-sm font-medium text-destructive">Gravando {formatTime(recordingTime)}</span>
-            <div className="flex-1" />
-            <Button variant="ghost" size="sm" onClick={cancelRecording} className="text-destructive">
-              <X className="w-4 h-4 mr-1" />Cancelar
-            </Button>
-            <Button size="sm" onClick={stopRecording} className="bg-destructive text-destructive-foreground">
-              <MicOff className="w-4 h-4 mr-1" />Parar
-            </Button>
+        <div className="flex items-center gap-3 px-4 py-3">
+          {/* Trash / Cancel */}
+          <Button variant="ghost" size="icon" onClick={cancelRecording} className="text-muted-foreground hover:text-destructive shrink-0">
+            <Trash2 className="w-5 h-5" />
+          </Button>
+
+          {/* Recording dot + timer */}
+          <div className="flex items-center gap-2 min-w-[60px]">
+            {!isPaused && <div className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />}
+            <span className="text-sm font-mono text-foreground">{formatTime(recordingTime)}</span>
           </div>
+
+          {/* Waveform visualization */}
+          <div className="flex-1 flex items-center justify-center gap-[2px] h-8 overflow-hidden">
+            {waveformBars.map((h, i) => (
+              <div
+                key={i}
+                className="w-[3px] rounded-full bg-primary/70 transition-all duration-75"
+                style={{ height: `${isPaused ? 4 : h}px` }}
+              />
+            ))}
+          </div>
+
+          {/* Pause/Resume */}
+          <Button variant="ghost" size="icon" onClick={pauseRecording} className="text-muted-foreground hover:text-foreground shrink-0">
+            {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+          </Button>
+
+          {/* Send */}
+          <Button size="icon" onClick={stopRecording} className="shrink-0 bg-primary hover:bg-primary/90 rounded-full">
+            <Send className="w-4 h-4" />
+          </Button>
         </div>
       )}
 
-      {/* Input bar */}
-      <div className="flex items-center gap-2 px-4 py-3">
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground shrink-0" disabled={disabled || isRecording}>
-              <Plus className="w-5 h-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start">
-            <DropdownMenuItem onClick={() => openFilePicker('image')}>
-              <Image className="w-4 h-4 mr-2" />Imagem
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openFilePicker('video')}>
-              <Video className="w-4 h-4 mr-2" />Vídeo
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openFilePicker('document')}>
-              <FileText className="w-4 h-4 mr-2" />Documento
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      {/* Input bar - hidden during recording */}
+      {!isRecording && (
+        <div className="flex items-center gap-2 px-4 py-3">
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground shrink-0" disabled={disabled}>
+                <Plus className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start">
+              <DropdownMenuItem onClick={() => openFilePicker('image')}>
+                <Image className="w-4 h-4 mr-2" />Imagem
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openFilePicker('video')}>
+                <Video className="w-4 h-4 mr-2" />Vídeo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openFilePicker('document')}>
+                <FileText className="w-4 h-4 mr-2" />Documento
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled || isRecording} />
+          <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled} />
 
-        <Input
-          placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite uma mensagem..."}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          className="bg-secondary/50 border-0 h-10"
-          disabled={disabled || isRecording}
-        />
-
-        {message.trim() || mediaPreview ? (
-          <Button size="icon" onClick={handleSend} className="shrink-0" disabled={disabled || isSendingMedia}>
-            {isSendingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn("shrink-0", isRecording ? "text-destructive" : "text-muted-foreground hover:text-foreground")}
-            onClick={isRecording ? stopRecording : startRecording}
+          <Input
+            placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite uma mensagem..."}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            className="bg-secondary/50 border-0 h-10"
             disabled={disabled}
-          >
-            <Mic className="w-5 h-5" />
-          </Button>
-        )}
-      </div>
+          />
+
+          {message.trim() || mediaPreview ? (
+            <Button size="icon" onClick={handleSend} className="shrink-0" disabled={disabled || isSendingMedia}>
+              {isSendingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={startRecording}
+              disabled={disabled}
+            >
+              <Mic className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

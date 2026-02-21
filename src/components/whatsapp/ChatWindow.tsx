@@ -73,100 +73,76 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   useEffect(() => { activeChipRef.current = chipId; }, [chipId]);
   useEffect(() => { activeChatRef.current = chat?.remoteJid; }, [chat?.remoteJid]);
 
+  const mapDbRow = useCallback((r: any): ChatMessage => ({
+    id: r.id,
+    text: typeof r.message_content === 'string' ? r.message_content : '',
+    fromMe: r.direction === 'outgoing',
+    timestamp: r.created_at,
+    senderName: r.sender_name || '',
+    messageType: r.media_type || 'text',
+    mediaType: r.media_type || undefined,
+    hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat'),
+    messageId: r.message_id || undefined,
+  }), []);
+
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId || !chat) return;
     const requestChipId = chipId;
     const requestChatJid = chat.remoteJid;
+    const PAGE_SIZE = 50;
 
-    // 1. Load from cache instantly (only on first page)
     if (pageNum === 1 && !append) {
       const cached = getCachedMessages<ChatMessage>(chipId, chat.remoteJid);
-      if (cached && cached.length > 0) {
-        setMessages(cached);
-      }
-    }
-
-    // 2. Fetch from API in background
-    if (pageNum === 1 && !append) {
-      const cached = getCachedMessages<ChatMessage>(chipId, chat.remoteJid);
-      setLoading(cached ? false : true);
+      if (cached && cached.length > 0) setMessages(cached);
+      setLoading(!cached || cached.length === 0);
     } else {
       setLoadingMore(true);
     }
 
     try {
-      const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'fetch-messages', chipId: requestChipId, chatId: requestChatJid, limit: 50, page: pageNum },
-      });
+      // Database-first: query Supabase directly
+      const from = (pageNum - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data: dbMessages, error } = await supabase
+        .from('message_history')
+        .select('*')
+        .eq('chip_id', requestChipId)
+        .eq('remote_jid', requestChatJid)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       // Stale request guard
       if (activeChipRef.current !== requestChipId || activeChatRef.current !== requestChatJid) return;
 
-      if (response.data?.success && response.data.messages) {
-        const apiMessages: ChatMessage[] = response.data.messages;
+      if (error) {
+        console.error('Error fetching messages from DB:', error);
+        return;
+      }
 
-        if (apiMessages.length < 50) setHasMore(false);
+      const mapped = (dbMessages || []).map(mapDbRow).reverse(); // reverse to ascending order
 
-        if (pageNum === 1 && !append) {
-          const cached = getCachedMessages<ChatMessage>(requestChipId, requestChatJid);
-          if (apiMessages.length > 0) {
-            if (cached && cached.length > 0) {
-              const apiIds = new Set(apiMessages.map(m => m.id));
-              const uniqueCached = cached.filter(m => !apiIds.has(m.id) && !m.id.startsWith('temp-'));
-              const merged = [...uniqueCached, ...apiMessages]
-                .filter(m => m.timestamp && !isNaN(new Date(m.timestamp).getTime()))
-                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-              setMessages(merged);
-              setCachedMessages(requestChipId, requestChatJid, merged);
-            } else {
-              setMessages(apiMessages);
-              setCachedMessages(requestChipId, requestChatJid, apiMessages);
-            }
-          }
-        } else if (append && apiMessages.length > 0) {
-          setMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const newOlder = apiMessages.filter(m => !existingIds.has(m.id));
-            return [...newOlder, ...prev]
-              .filter(m => m.timestamp && !isNaN(new Date(m.timestamp).getTime()))
-              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          });
-        }
+      if (mapped.length < PAGE_SIZE) setHasMore(false);
+
+      if (pageNum === 1 && !append) {
+        setMessages(mapped);
+        setCachedMessages(requestChipId, requestChatJid, mapped);
+      } else if (append && mapped.length > 0) {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newOlder = mapped.filter(m => !existingIds.has(m.id));
+          return [...newOlder, ...prev];
+        });
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
-      if (pageNum === 1 && activeChipRef.current === requestChipId && activeChatRef.current === requestChatJid) {
-        try {
-          const { data: dbMessages } = await supabase
-            .from('message_history')
-            .select('*')
-            .eq('chip_id', requestChipId)
-            .eq('remote_jid', requestChatJid)
-            .order('created_at', { ascending: true })
-            .limit(50);
-          if (dbMessages && dbMessages.length > 0) {
-            const mapped: ChatMessage[] = dbMessages.map(r => ({
-              id: r.id,
-              text: typeof r.message_content === 'string' ? r.message_content : '',
-              fromMe: r.direction === 'outgoing',
-              timestamp: r.created_at,
-              senderName: r.sender_name || '',
-              messageType: r.media_type || 'text',
-              mediaType: r.media_type || undefined,
-              hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat'),
-              messageId: r.message_id || undefined,
-            }));
-            setMessages(prev => prev.length > 0 ? prev : mapped);
-          }
-        } catch {}
-      }
     } finally {
       if (activeChipRef.current === requestChipId && activeChatRef.current === requestChatJid) {
         setLoading(false);
         setLoadingMore(false);
       }
     }
-  }, [chipId, chat?.remoteJid]);
+  }, [chipId, chat?.remoteJid, mapDbRow]);
 
   useEffect(() => {
     if (chat) {
@@ -179,12 +155,20 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     }
   }, [fetchMessages, chat?.remoteJid]);
 
-  // Mark as read when opening chat
+  // Mark as read when opening chat - both WhatsApp and DB
   useEffect(() => {
     if (!chipId || !chat || chat.unreadCount === 0) return;
+    // Mark read on WhatsApp via UazAPI
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'mark-read', chipId, chatId: chat.remoteJid },
     }).catch(() => {});
+    // Update DB immediately
+    supabase
+      .from('conversations')
+      .update({ unread_count: 0 })
+      .eq('chip_id', chipId)
+      .eq('remote_jid', chat.remoteJid)
+      .then(() => {});
   }, [chipId, chat?.remoteJid]);
 
   // Realtime: listen for new messages

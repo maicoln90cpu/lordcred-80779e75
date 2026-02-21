@@ -10,6 +10,7 @@ import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
 import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatContact {
   id: string;
@@ -28,6 +29,7 @@ export default function WhatsApp() {
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const { isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -40,6 +42,27 @@ export default function WhatsApp() {
   const handleSelectChip = useCallback((id: string) => {
     setSelectedChipId(id);
     setSelectedChat(null);
+    // Trigger background sync for this chip
+    if (id) {
+      supabase.functions.invoke('sync-history', {
+        body: { chipId: id },
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleSelectChat = useCallback((chat: ChatContact) => {
+    setSelectedChat(chat);
+    // Optimistically clear unread in sidebar state
+    if (chat.unreadCount > 0 && selectedChipId) {
+      setUnreadCounts(prev => ({
+        ...prev,
+        [selectedChipId]: Math.max(0, (prev[selectedChipId] || 0) - chat.unreadCount),
+      }));
+    }
+  }, [selectedChipId]);
+
+  const handleUnreadUpdate = useCallback((chipId: string, totalUnread: number) => {
+    setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
   }, []);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -49,7 +72,7 @@ export default function WhatsApp() {
       <header className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card">
         <div className="flex items-center gap-3">
           <img src={logoExtended} alt="Cred" className="h-20 object-contain" />
-          <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} />
+          <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} unreadCounts={unreadCounts} />
         </div>
         <div className="flex items-center gap-2 ml-4">
           <UserProfileMenu />
@@ -75,16 +98,16 @@ export default function WhatsApp() {
         <aside className="w-96 border-r border-border/50 bg-card/30 hidden md:flex flex-col">
           <ChatSidebar
             selectedChatId={selectedChat?.remoteJid || null}
-            onSelectChat={setSelectedChat}
-            chipId={selectedChipId} />
-
+            onSelectChat={handleSelectChat}
+            chipId={selectedChipId}
+            onUnreadUpdate={handleUnreadUpdate}
+          />
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0">
           <ChatWindow
             chat={selectedChat}
             chipId={selectedChipId} />
-
         </main>
       </div>
 
@@ -95,5 +118,4 @@ export default function WhatsApp() {
         onOpenChat={(chat) => { setSelectedChat(chat); setFavoritesOpen(false); }}
       />
     </div>);
-
 }

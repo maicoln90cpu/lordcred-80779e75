@@ -11,9 +11,10 @@ interface ChatSidebarProps {
   selectedChatId: string | null;
   onSelectChat: (chat: ChatContact) => void;
   chipId: string | null;
+  onUnreadUpdate?: (chipId: string, totalUnread: number) => void;
 }
 
-export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: ChatSidebarProps) {
+export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate }: ChatSidebarProps) {
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ChatContact[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,47 +46,61 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
 
   const fetchChats = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId) return;
-    const requestChipId = chipId; // capture for stale detection
+    const requestChipId = chipId;
+    const PAGE_SIZE = 200;
 
     if (pageNum === 1 && !append) {
       const cached = getCachedChats(chipId);
-      setLoading(cached && cached.length > 0 ? false : true);
+      setLoading(!cached || cached.length === 0);
     } else {
       setLoadingMore(true);
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      // Database-first: query conversations table directly
+      const from = (pageNum - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-      const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'fetch-chats', chipId: requestChipId, limit: 200, page: pageNum },
-      });
+      const { data: dbConvos, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('chip_id', requestChipId)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .range(from, to);
 
-      // Stale request guard: discard if chip changed during fetch
       if (activeChipRef.current !== requestChipId) return;
 
-      if (response.data?.success && response.data.chats) {
-        const apiChats: ChatContact[] = response.data.chats;
-        if (apiChats.length < 200) setHasMore(false);
+      if (error) {
+        console.error('Error fetching chats from DB:', error);
+        return;
+      }
 
-        if (pageNum === 1 && !append) {
-          // Always update state: if API returns empty, clear stale data
-          setChats(apiChats);
-          if (apiChats.length > 0) {
-            setCachedChats(requestChipId, apiChats);
-          } else {
-            setCachedChats(requestChipId, []);
-          }
-        } else if (append && apiChats.length > 0) {
-          setChats(prev => {
-            const existingJids = new Set(prev.map(c => c.remoteJid));
-            const newChats = apiChats.filter(c => !existingJids.has(c.remoteJid));
-            const merged = [...prev, ...newChats];
-            setCachedChats(requestChipId, merged);
-            return merged;
-          });
-        }
+      const mapped: ChatContact[] = (dbConvos || []).map((r: any) => ({
+        id: r.id,
+        remoteJid: r.remote_jid,
+        name: r.contact_name || r.contact_phone || r.remote_jid?.split('@')[0] || 'Desconhecido',
+        phone: r.contact_phone || r.remote_jid?.split('@')[0] || '',
+        lastMessage: r.last_message_text || '',
+        lastMessageAt: r.last_message_at,
+        unreadCount: r.unread_count || 0,
+        isGroup: r.is_group || false,
+        isPinned: false,
+        profilePicUrl: null,
+      }));
+
+      if (mapped.length < PAGE_SIZE) setHasMore(false);
+
+      if (pageNum === 1 && !append) {
+        setChats(mapped);
+        setCachedChats(requestChipId, mapped);
+      } else if (append && mapped.length > 0) {
+        setChats(prev => {
+          const existingJids = new Set(prev.map(c => c.remoteJid));
+          const newChats = mapped.filter(c => !existingJids.has(c.remoteJid));
+          const merged = [...prev, ...newChats];
+          setCachedChats(requestChipId, merged);
+          return merged;
+        });
       }
     } catch (error) {
       console.error('Error fetching chats:', error);
@@ -150,6 +165,13 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
             });
 
             setCachedChats(chipId, newChats);
+
+            // Notify parent about total unread count
+            if (onUnreadUpdate) {
+              const totalUnread = newChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+              onUnreadUpdate(chipId, totalUnread);
+            }
+
             return newChats;
           });
         }
@@ -157,7 +179,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId }: Ch
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [chipId]);
+  }, [chipId, onUnreadUpdate]);
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(search.toLowerCase()) ||

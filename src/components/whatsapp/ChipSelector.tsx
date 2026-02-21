@@ -37,9 +37,10 @@ interface Chip {
 interface ChipSelectorProps {
   selectedChipId: string | null;
   onSelectChip: (chipId: string) => void;
+  unreadCounts?: Record<string, number>;
 }
 
-export default function ChipSelector({ selectedChipId, onSelectChip }: ChipSelectorProps) {
+export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {} }: ChipSelectorProps) {
   const [chips, setChips] = useState<Chip[]>([]);
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
@@ -143,8 +144,10 @@ export default function ChipSelector({ selectedChipId, onSelectChip }: ChipSelec
   return (
     <>
       <div className="flex items-center gap-1 overflow-x-auto">
-        {chips.map((chip) => (
-          <div key={chip.id} className="flex items-center">
+        {chips.map((chip) => {
+          const unread = unreadCounts[chip.id] || 0;
+          return (
+          <div key={chip.id} className="flex items-center relative">
             <button
               onClick={() => onSelectChip(chip.id)}
               className={cn(
@@ -156,6 +159,11 @@ export default function ChipSelector({ selectedChipId, onSelectChip }: ChipSelec
             >
               <Smartphone className="w-3.5 h-3.5" />
               <span>{(chip as any).nickname || chip.phone_number || chip.instance_name}</span>
+              {unread > 0 && (
+                <span className="ml-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -185,7 +193,8 @@ export default function ChipSelector({ selectedChipId, onSelectChip }: ChipSelec
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        ))}
+          );
+        })}
         {chips.length === 0 && (
           <span className="text-sm text-muted-foreground">Nenhum chip conectado</span>
         )}
