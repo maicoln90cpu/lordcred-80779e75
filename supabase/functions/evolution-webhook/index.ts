@@ -152,8 +152,10 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     media_type: mediaType || null,
   })
 
-  const contactName = safeString(chat?.name) || safeString(chat?.wa_name) || senderName || recipientPhone
+  const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || senderName || recipientPhone
+  const waName = safeString(chat?.wa_name) || ''
   const contactPhone = safeString(chat?.phone) || recipientPhone
+  const profilePicUrl = safeString(chat?.imagePreview) || safeString(chat?.image) || null
 
   // Get current unread count for increment
   const { data: existing } = await adminClient
@@ -165,8 +167,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
 
   const newUnread = isFromMe ? (existing?.unread_count || 0) : (existing?.unread_count || 0) + 1
 
-  // UPSERT to prevent race condition duplicates
-  await adminClient.from('conversations').upsert({
+  const upsertData: any = {
     chip_id: chip.id,
     remote_jid: remoteJid,
     contact_name: contactName,
@@ -175,7 +176,12 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     last_message_at: new Date().toISOString(),
     unread_count: newUnread,
     is_group: msg.isGroup || false,
-  }, { onConflict: 'chip_id,remote_jid' })
+  }
+  if (waName) upsertData.wa_name = waName
+  if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
+
+  // UPSERT to prevent race condition duplicates
+  await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
 
   console.log(`UazAPI message saved: ${isFromMe ? 'outgoing' : 'incoming'} from ${senderName}`)
 }
@@ -185,17 +191,23 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   if (!chat || !chat.wa_chatid) return
 
   const remoteJid = chat.wa_chatid
-  const contactName = safeString(chat.name) || safeString(chat.wa_name) || ''
+  const contactName = safeString(chat.wa_contactName) || safeString(chat.name) || ''
+  const waName = safeString(chat.wa_name) || ''
   const contactPhone = safeString(chat.phone) || remoteJid.split('@')[0]
+  const profilePicUrl = safeString(chat.imagePreview) || safeString(chat.image) || null
 
-  // UPSERT to prevent race condition duplicates
-  await adminClient.from('conversations').upsert({
+  const upsertData: any = {
     chip_id: chip.id,
     remote_jid: remoteJid,
     contact_name: contactName,
     contact_phone: contactPhone,
     is_group: chat.wa_isGroup || remoteJid.includes('@g.us') || false,
-  }, { onConflict: 'chip_id,remote_jid' })
+  }
+  if (waName) upsertData.wa_name = waName
+  if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
+
+  // UPSERT to prevent race condition duplicates
+  await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
 }
 
 async function handleConnectionUpdate(adminClient: any, chip: any, payload: any) {

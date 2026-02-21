@@ -859,6 +859,68 @@ Deno.serve(async (req) => {
         )
       }
 
+      case 'get-privacy': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const response = await fetch(`${baseUrl}/instance/privacy`, {
+          method: 'GET',
+          headers: { 'token': chipToken },
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'set-privacy': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const { privacy } = body
+        if (!privacy) throw new Error('privacy settings are required')
+        const response = await fetch(`${baseUrl}/instance/privacy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(privacy),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'get-business-profile': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const response = await fetch(`${baseUrl}/business/get`, {
+          method: 'GET',
+          headers: { 'token': chipToken },
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'update-business-profile': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const { businessProfile } = body
+        if (!businessProfile) throw new Error('businessProfile is required')
+        const response = await fetch(`${baseUrl}/business/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(businessProfile),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),

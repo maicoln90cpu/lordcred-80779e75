@@ -113,9 +113,11 @@ export type Database = {
           is_group: boolean | null
           last_message_at: string | null
           last_message_text: string | null
+          profile_pic_url: string | null
           remote_jid: string
           unread_count: number | null
           updated_at: string | null
+          wa_name: string | null
         }
         Insert: {
           chip_id: string
@@ -126,9 +128,11 @@ export type Database = {
           is_group?: boolean | null
           last_message_at?: string | null
           last_message_text?: string | null
+          profile_pic_url?: string | null
           remote_jid: string
           unread_count?: number | null
           updated_at?: string | null
+          wa_name?: string | null
         }
         Update: {
           chip_id?: string
@@ -139,9 +143,11 @@ export type Database = {
           is_group?: boolean | null
           last_message_at?: string | null
           last_message_text?: string | null
+          profile_pic_url?: string | null
           remote_jid?: string
           unread_count?: number | null
           updated_at?: string | null
+          wa_name?: string | null
         }
         Relationships: [
           {

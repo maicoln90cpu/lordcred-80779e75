@@ -115,8 +115,10 @@ Deno.serve(async (req) => {
       const remoteJid = chat.wa_chatid || chat.chatid || chat.jid || ''
       if (!remoteJid || remoteJid.includes('status@')) continue
 
-      const contactName = chat.name || chat.wa_name || chat.wa_contactName || remoteJid.split('@')[0]
+      const contactName = chat.wa_contactName || chat.name || remoteJid.split('@')[0]
+      const waName = chat.wa_name || ''
       const contactPhone = chat.phone || remoteJid.split('@')[0]
+      const profilePicUrl = chat.imagePreview || chat.image || null
 
       let lastMsgAt: string | null = null
       if (chat.wa_lastMsgTimestamp) {
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
       }
 
       // Upsert conversation
-      await adminClient.from('conversations').upsert({
+      const convData: any = {
         chip_id: chipId,
         remote_jid: remoteJid,
         contact_name: contactName,
@@ -135,7 +137,11 @@ Deno.serve(async (req) => {
         last_message_at: lastMsgAt || new Date().toISOString(),
         unread_count: chat.wa_unreadCount || 0,
         is_group: chat.wa_isGroup || remoteJid.includes('@g.us') || false,
-      }, { onConflict: 'chip_id,remote_jid' })
+      }
+      if (waName) convData.wa_name = waName
+      if (profilePicUrl) convData.profile_pic_url = profilePicUrl
+
+      await adminClient.from('conversations').upsert(convData, { onConflict: 'chip_id,remote_jid' })
 
       // Phase 2: Sync messages for this chat (up to 100 most recent, within 10 days)
       try {
