@@ -1,23 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import LabelBadge from './LabelBadge';
 import ManageLabelsDialog from './ManageLabelsDialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 function formatPhoneNumber(raw: string): string {
   if (!raw) return '';
   const digits = raw.replace(/\D/g, '');
   if (digits.length >= 12) {
-    // +55 48 98119529 -> +55 48 9811-9529
     const cc = digits.slice(0, 2);
     const ddd = digits.slice(2, 4);
     const rest = digits.slice(4);
@@ -48,23 +48,43 @@ interface LabelItem {
   color_hex: string | null;
 }
 
+type ConversationStatus = null | 'aguardando' | 'em_andamento' | 'finalizado' | 'urgente';
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  aguardando: { label: 'Aguardando', color: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },
+  em_andamento: { label: 'Em andamento', color: 'bg-blue-500/20 text-blue-700 dark:text-blue-400' },
+  finalizado: { label: 'Finalizado', color: 'bg-green-500/20 text-green-700 dark:text-green-400' },
+  urgente: { label: 'Urgente', color: 'bg-red-500/20 text-red-700 dark:text-red-400' },
+};
+
+interface ExtendedChat extends ChatContact {
+  is_archived?: boolean;
+  label_ids?: string[];
+  is_pinned?: boolean;
+  is_starred?: boolean;
+  custom_status?: ConversationStatus;
+}
+
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate }: ChatSidebarProps) {
   const [search, setSearch] = useState('');
-  const [chats, setChats] = useState<(ChatContact & { is_archived?: boolean; label_ids?: string[] })[]>([]);
+  const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [filterUnread, setFilterUnread] = useState(false);
+  const [filterStarred, setFilterStarred] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
+  const [editingContactJid, setEditingContactJid] = useState<string | null>(null);
+  const [editContactName, setEditContactName] = useState('');
   const prevChipRef = useRef<string | null>(null);
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
 
-  // Immediately clear chats when chip changes and force fresh fetch
   useEffect(() => {
     activeChipRef.current = chipId;
     if (chipId !== prevChipRef.current) {
@@ -83,35 +103,24 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       setHasMore(true);
       setShowArchived(false);
       setFilterLabel(null);
-      // Force a fresh DB fetch to ensure unread counts are up-to-date
+      setFilterStarred(false);
+      setFilterStatus(null);
       if (chipId) {
         setTimeout(() => fetchChats(1, false), 100);
       }
     }
   }, [chipId]);
 
-  // Fetch labels for this chip
+  // Fetch labels locally
   useEffect(() => {
     if (!chipId) return;
     supabase
-      .from('labels' as any)
+      .from('labels')
       .select('label_id, name, color_hex')
       .eq('chip_id', chipId)
       .then(({ data }: any) => {
         if (data) setLabels(data);
       });
-    // Also trigger a sync from UazAPI
-    supabase.functions.invoke('uazapi-api', {
-      body: { action: 'fetch-labels', chipId },
-    }).then(() => {
-      supabase
-        .from('labels' as any)
-        .select('label_id, name, color_hex')
-        .eq('chip_id', chipId)
-        .then(({ data: fresh }: any) => {
-          if (fresh) setLabels(fresh);
-        });
-    }).catch(() => {});
   }, [chipId]);
 
   const fetchChats = useCallback(async (pageNum = 1, append = false) => {
@@ -155,9 +164,11 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           lastMessageAt: r.last_message_at,
           unreadCount: r.unread_count || 0,
           isGroup: r.is_group || false,
-          isPinned: false,
+          isPinned: r.is_pinned || false,
           profilePicUrl: r.profile_pic_url || null,
           is_archived: r.is_archived || false,
+          is_starred: r.is_starred || false,
+          custom_status: r.custom_status || null,
           label_ids: r.label_ids || [],
         };
       });
@@ -190,7 +201,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (chipId) fetchChats();
   }, [fetchChats, chipId]);
 
-  // Subscribe to conversations realtime updates
+  // Realtime
   useEffect(() => {
     if (!chipId) return;
 
@@ -198,12 +209,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       .channel(`conversations-${chipId}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversations',
-          filter: `chip_id=eq.${chipId}`,
-        },
+        { event: '*', schema: 'public', table: 'conversations', filter: `chip_id=eq.${chipId}` },
         (payload) => {
           const record = payload.new as any;
           if (!record) return;
@@ -212,7 +218,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
           setChats(prev => {
             const existing = prev.findIndex(c => c.remoteJid === record.remote_jid);
-            const updated: any = {
+            const updated: ExtendedChat = {
               id: record.id,
               remoteJid: record.remote_jid,
               name: displayName || 'Desconhecido',
@@ -222,6 +228,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
               unreadCount: record.unread_count || 0,
               isGroup: record.is_group || false,
               is_archived: record.is_archived || false,
+              is_pinned: record.is_pinned || false,
+              is_starred: record.is_starred || false,
+              custom_status: record.custom_status || null,
               label_ids: record.label_ids || [],
               profilePicUrl: record.profile_pic_url || null,
             };
@@ -235,8 +244,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             }
 
             newChats.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
+              if (a.is_pinned && !b.is_pinned) return -1;
+              if (!a.is_pinned && b.is_pinned) return 1;
               const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
               const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
               return tb - ta;
@@ -260,18 +269,121 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     return () => { supabase.removeChannel(channel); };
   }, [chipId, onUnreadUpdate]);
 
-  const handleArchive = async (chat: ChatContact & { is_archived?: boolean }, archive: boolean) => {
+  // === LOCAL HANDLERS ===
+
+  const handleArchive = async (chat: ExtendedChat, archive: boolean) => {
     if (!chipId) return;
     try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'archive-chat', chipId, chatId: chat.remoteJid, archive },
+      await supabase
+        .from('conversations')
+        .update({ is_archived: archive } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, is_archived: archive } : c
+      ));
+      toast({ title: archive ? 'Conversa arquivada' : 'Conversa desarquivada' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
+
+  const handlePin = async (chat: ExtendedChat) => {
+    if (!chipId) return;
+    const newVal = !chat.is_pinned;
+    try {
+      await supabase
+        .from('conversations')
+        .update({ is_pinned: newVal } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => {
+        const updated = prev.map(c =>
+          c.remoteJid === chat.remoteJid ? { ...c, is_pinned: newVal, isPinned: newVal } : c
+        );
+        updated.sort((a, b) => {
+          if (a.is_pinned && !b.is_pinned) return -1;
+          if (!a.is_pinned && b.is_pinned) return 1;
+          const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+          const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+          return tb - ta;
+        });
+        return updated;
       });
-      if (res.data?.success) {
-        setChats(prev => prev.map(c =>
-          c.remoteJid === chat.remoteJid ? { ...c, is_archived: archive } : c
-        ));
-        toast({ title: archive ? 'Conversa arquivada' : 'Conversa desarquivada' });
-      }
+      toast({ title: newVal ? 'Conversa fixada' : 'Conversa desafixada' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
+
+  const handleStar = async (chat: ExtendedChat) => {
+    if (!chipId) return;
+    const newVal = !chat.is_starred;
+    try {
+      await supabase
+        .from('conversations')
+        .update({ is_starred: newVal } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, is_starred: newVal } : c
+      ));
+      toast({ title: newVal ? '⭐ Conversa favorita' : 'Removida dos favoritos' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
+
+  const handleSetStatus = async (chat: ExtendedChat, status: ConversationStatus) => {
+    if (!chipId) return;
+    try {
+      await supabase
+        .from('conversations')
+        .update({ custom_status: status } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, custom_status: status } : c
+      ));
+      toast({ title: status ? `Status: ${STATUS_CONFIG[status]?.label}` : 'Status removido' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleLabel = async (chat: ExtendedChat, labelId: string) => {
+    if (!chipId) return;
+    const hasLabel = chat.label_ids?.includes(labelId);
+    const newLabelIds = hasLabel
+      ? (chat.label_ids || []).filter(id => id !== labelId)
+      : [...(chat.label_ids || []), labelId];
+    try {
+      await supabase
+        .from('conversations')
+        .update({ label_ids: newLabelIds } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, label_ids: newLabelIds } : c
+      ));
+    } catch {
+      toast({ title: 'Erro ao atualizar etiqueta', variant: 'destructive' });
+    }
+  };
+
+  const handleRenameContact = async (chat: ExtendedChat) => {
+    if (!chipId || !editContactName.trim()) return;
+    try {
+      await supabase
+        .from('conversations')
+        .update({ contact_name: editContactName.trim() } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, name: editContactName.trim() } : c
+      ));
+      setEditingContactJid(null);
+      toast({ title: 'Nome atualizado' });
     } catch {
       toast({ title: 'Erro', variant: 'destructive' });
     }
@@ -279,17 +391,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   // Filter chats
   const filteredChats = chats.filter(chat => {
-    // Archive filter
     if (showArchived) {
       if (!chat.is_archived) return false;
     } else {
       if (chat.is_archived) return false;
     }
-    // Unread filter
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
-    // Label filter
+    if (filterStarred && !chat.is_starred) return false;
+    if (filterStatus && chat.custom_status !== filterStatus) return false;
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
-    // Search filter
     if (search) {
       return chat.name.toLowerCase().includes(search.toLowerCase()) || chat.phone.includes(search);
     }
@@ -297,8 +407,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   });
 
   const sortedChats = [...filteredChats].sort((a, b) => {
-    if (a.isPinned && !b.isPinned) return -1;
-    if (!a.isPinned && b.isPinned) return 1;
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
     const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
     const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
     return tb - ta;
@@ -361,28 +471,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         {/* Filter row */}
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {showArchived ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => setShowArchived(false)}
-            >
-              <ChevronLeft className="w-3 h-3 mr-1" />
-              Voltar
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowArchived(false)}>
+              <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
             </Button>
           ) : archivedCount > 0 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs shrink-0 text-muted-foreground"
-              onClick={() => setShowArchived(true)}
-            >
-              <Archive className="w-3 h-3 mr-1" />
-              Arquivadas ({archivedCount})
+            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowArchived(true)}>
+              <Archive className="w-3 h-3 mr-1" /> Arquivadas ({archivedCount})
             </Button>
           ) : null}
 
-          {/* Unread filter */}
           <Button
             variant={filterUnread ? "default" : "ghost"}
             size="sm"
@@ -392,14 +489,43 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             Não lidas
           </Button>
 
-          {/* Labels filter - always show */}
+          <Button
+            variant={filterStarred ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", !filterStarred && "text-muted-foreground")}
+            onClick={() => setFilterStarred(!filterStarred)}
+          >
+            <Star className="w-3 h-3 mr-1" /> Favoritas
+          </Button>
+
+          {/* Status filter */}
+          {filterStatus ? (
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setFilterStatus(null)}>
+              <CircleDot className="w-3 h-3 mr-1" />
+              {STATUS_CONFIG[filterStatus]?.label}
+              <span className="ml-1 text-muted-foreground">✕</span>
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
+                  <CircleDot className="w-3 h-3 mr-1" /> Status
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                  <DropdownMenuItem key={key} onClick={() => setFilterStatus(key)}>
+                    <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
+                    {cfg.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Labels filter */}
           {filterLabel ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => setFilterLabel(null)}
-            >
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setFilterLabel(null)}>
               <Tag className="w-3 h-3 mr-1" />
               {labels.find(l => l.label_id === filterLabel)?.name || 'Etiqueta'}
               <span className="ml-1 text-muted-foreground">✕</span>
@@ -408,27 +534,23 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
-                  <Tag className="w-3 h-3 mr-1" />
-                  Etiquetas
+                  <Tag className="w-3 h-3 mr-1" /> Etiquetas
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {labels.length > 0 ? (
-                  labels.map(label => (
-                    <DropdownMenuItem key={label.label_id} onClick={() => setFilterLabel(label.label_id)}>
-                      <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
-                      {label.name}
-                    </DropdownMenuItem>
-                  ))
-                ) : (
+                {labels.length > 0 ? labels.map(label => (
+                  <DropdownMenuItem key={label.label_id} onClick={() => setFilterLabel(label.label_id)}>
+                    <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
+                    {label.name}
+                  </DropdownMenuItem>
+                )) : (
                   <DropdownMenuItem disabled className="text-xs text-muted-foreground">
                     Nenhuma etiqueta encontrada
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setManageLabelsOpen(true)}>
-                  <Tag className="w-3.5 h-3.5 mr-2" />
-                  Gerenciar Etiquetas
+                  <Tag className="w-3.5 h-3.5 mr-2" /> Gerenciar Etiquetas
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -459,9 +581,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   )}
                 >
                   <Avatar className="w-10 h-10 shrink-0">
-                    {chat.profilePicUrl && (
-                      <AvatarImage src={chat.profilePicUrl} alt={chat.name} />
-                    )}
+                    {chat.profilePicUrl && <AvatarImage src={chat.profilePicUrl} alt={chat.name} />}
                     <AvatarFallback className="bg-primary/20 text-primary text-sm font-medium">
                       {chat.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
@@ -469,7 +589,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 min-w-0">
-                        {chat.isPinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
+                        {chat.is_pinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
+                        {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
                         <span className="text-sm font-medium truncate">{chat.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground shrink-0">
@@ -484,17 +605,18 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         </span>
                       )}
                     </div>
-                    {/* Labels */}
-                    {chat.label_ids && chat.label_ids.length > 0 && (
-                      <div className="flex gap-1 mt-1 overflow-hidden">
-                        {chat.label_ids.slice(0, 3).map(lid => {
-                          const label = getLabelName(lid);
-                          return label ? (
-                            <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} />
-                          ) : null;
-                        })}
-                      </div>
-                    )}
+                    {/* Status + Labels row */}
+                    <div className="flex gap-1 mt-1 overflow-hidden items-center">
+                      {chat.custom_status && STATUS_CONFIG[chat.custom_status] && (
+                        <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4", STATUS_CONFIG[chat.custom_status].color)}>
+                          {STATUS_CONFIG[chat.custom_status].label}
+                        </Badge>
+                      )}
+                      {chat.label_ids && chat.label_ids.slice(0, 3).map(lid => {
+                        const label = getLabelName(lid);
+                        return label ? <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} /> : null;
+                      })}
+                    </div>
                   </div>
                 </button>
 
@@ -506,51 +628,87 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         <MoreVertical className="w-3.5 h-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => handlePin(chat)}>
+                        <Pin className="w-4 h-4 mr-2" />
+                        {chat.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStar(chat)}>
+                        <Star className="w-4 h-4 mr-2" />
+                        {chat.is_starred ? 'Remover favorito' : 'Favoritar'}
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleArchive(chat, !chat.is_archived)}>
                         <Archive className="w-4 h-4 mr-2" />
                         {chat.is_archived ? 'Desarquivar' : 'Arquivar'}
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setEditingContactJid(chat.remoteJid);
+                        setEditContactName(chat.name);
+                      }}>
+                        <Pencil className="w-4 h-4 mr-2" />
+                        Editar nome
+                      </DropdownMenuItem>
+
                       <DropdownMenuSeparator />
+
+                      {/* Status submenu */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <CircleDot className="w-4 h-4 mr-2" /> Status
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                            <DropdownMenuItem
+                              key={key}
+                              onClick={() => handleSetStatus(chat, key as ConversationStatus)}
+                            >
+                              <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
+                              {chat.custom_status === key ? '✓ ' : ''}{cfg.label}
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleSetStatus(chat, null)}>
+                            Remover status
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      <DropdownMenuSeparator />
+
+                      {/* Labels */}
                       {labels.length > 0 && labels.map(label => {
                         const hasLabel = chat.label_ids?.includes(label.label_id);
                         return (
-                          <DropdownMenuItem
-                            key={label.label_id}
-                            onClick={async () => {
-                              if (!chipId) return;
-                              const newLabelIds = hasLabel
-                                ? (chat.label_ids || []).filter(id => id !== label.label_id)
-                                : [...(chat.label_ids || []), label.label_id];
-                              try {
-                                await supabase.functions.invoke('uazapi-api', {
-                                  body: {
-                                    action: 'set-chat-labels',
-                                    chipId,
-                                    chatId: chat.remoteJid,
-                                    ...(hasLabel ? { removeLabelId: label.label_id } : { addLabelId: label.label_id }),
-                                  },
-                                });
-                                setChats(prev => prev.map(c =>
-                                  c.remoteJid === chat.remoteJid ? { ...c, label_ids: newLabelIds } : c
-                                ));
-                              } catch {
-                                toast({ title: 'Erro ao atualizar etiqueta', variant: 'destructive' });
-                              }
-                            }}
-                          >
+                          <DropdownMenuItem key={label.label_id} onClick={() => handleToggleLabel(chat, label.label_id)}>
                             <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
-                            {hasLabel ? `Remover ${label.name}` : label.name}
+                            {hasLabel ? `✓ ${label.name}` : label.name}
                           </DropdownMenuItem>
                         );
                       })}
                       <DropdownMenuItem onClick={() => setManageLabelsOpen(true)}>
-                        <Tag className="w-4 h-4 mr-2" />
-                        Gerenciar Etiquetas
+                        <Tag className="w-4 h-4 mr-2" /> Gerenciar Etiquetas
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
+
+                {/* Inline rename */}
+                {editingContactJid === chat.remoteJid && (
+                  <div className="absolute inset-0 bg-background/95 flex items-center gap-2 px-3 z-10">
+                    <Input
+                      value={editContactName}
+                      onChange={(e) => setEditContactName(e.target.value)}
+                      className="h-8 text-sm flex-1"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameContact(chat);
+                        if (e.key === 'Escape') setEditingContactJid(null);
+                      }}
+                    />
+                    <Button size="sm" className="h-8" onClick={() => handleRenameContact(chat)}>Salvar</Button>
+                    <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditingContactJid(null)}>✕</Button>
+                  </div>
+                )}
               </div>
             ))}
             {loadingMore && (
@@ -567,10 +725,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         onOpenChange={setManageLabelsOpen}
         chipId={chipId}
         onLabelsUpdated={() => {
-          // Re-fetch labels
           if (!chipId) return;
           supabase
-            .from('labels' as any)
+            .from('labels')
             .select('label_id, name, color_hex')
             .eq('chip_id', chipId)
             .then(({ data }: any) => {

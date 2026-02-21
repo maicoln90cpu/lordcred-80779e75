@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -9,6 +9,7 @@ import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import ConversationNotes from './ConversationNotes';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -64,6 +65,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
   const [editText, setEditText] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notesOpen, setNotesOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [chipDisconnected, setChipDisconnected] = useState(false);
@@ -422,16 +424,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
   }, [toast]);
 
   const handlePin = useCallback(async (msg: MessageData) => {
-    if (!chipId || !chat) return;
-    try {
-      await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'pin-chat', chipId, chatId: chat.remoteJid },
-      });
-      toast({ title: 'Conversa fixada', description: 'A conversa foi fixada/desfixada no topo.' });
-    } catch {
-      toast({ title: 'Erro', description: 'Não foi possível fixar a conversa.', variant: 'destructive' });
-    }
-  }, [chipId, chat, toast]);
+    // Pin is now handled at conversation level in ChatSidebar, not per-message
+    toast({ title: 'Use o menu da conversa na barra lateral para fixar/desafixar.' });
+  }, [toast]);
 
   const handleFavorite = useCallback(async (msg: MessageData) => {
     if (!chipId || !chat) return;
@@ -508,7 +503,8 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
     : messages;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full">
+    <div className="flex flex-col flex-1 min-w-0">
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card/50">
         {chat.profilePicUrl ? (
@@ -523,6 +519,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
           <p className="text-sm font-medium">{chat.name}</p>
           <p className="text-xs text-muted-foreground">{chat.phone}</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setNotesOpen(!notesOpen)}
+          className={cn("text-muted-foreground hover:text-foreground", notesOpen && "text-foreground bg-secondary")}
+          title="Notas internas"
+        >
+          <StickyNote className="w-4 h-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -727,6 +732,16 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+    {/* Notes panel */}
+    {chipId && chat && (
+      <ConversationNotes
+        chipId={chipId}
+        remoteJid={chat.remoteJid}
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+      />
+    )}
     </div>
   );
 }
