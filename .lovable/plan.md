@@ -1,84 +1,88 @@
 
+## Correcao do Mismatch LID: Resolucao Definitiva via /chat/details
 
-## Correcao Definitiva: Mensagens Aparecem e Somem
+### Problema Identificado (caso concreto FRANCISCO)
 
-### Resposta a Pergunta 1: LID, @s.whatsapp.net -- tudo da UazAPI
+Dados reais encontrados no banco:
 
-Sim, 100% da UazAPI. Confirmado na documentacao oficial (uazapidoc.md):
+| Tabela | remote_jid | contact_phone | Mensagens |
+|--------|-----------|---------------|-----------|
+| conversations | `79710449049664@lid` | `79710449049664@lid` | 0 (criada pelo sync) |
+| conversations | `558586297491@s.whatsapp.net` | `558586297491` | 1 (criada pelo webhook) |
+| message_history | `558586297491@s.whatsapp.net` | `558586297491` | 1 mensagem real |
 
-- Linha 4413: `wa_chatid` - "ID completo do chat no WhatsApp"
-- Linha 4414: `wa_chatlid` - "LID do chat no WhatsApp (quando disponivel)"
-- Linha 4459: `phone` - "Numero de telefone"
+O usuario ve a conversa `@lid` na sidebar (que tem o texto da ultima mensagem vindo do sync), clica nela, e o ChatWindow busca por `79710449049664@lid` -- 0 resultados. A busca dual falha porque `contact_phone` contem `79710449049664@lid` (numero LID, nao o telefone real).
 
-O formato `@lid` e um identificador interno do WhatsApp (Linked ID) que a UazAPI expoe. O formato `@s.whatsapp.net` e o JID baseado em numero de telefone. **Nenhuma dessas informacoes vem da Evolution API.**
+**Sao 265 conversas nesta mesma situacao.**
 
----
+### Causa Raiz
 
-### Resposta a Pergunta 2: Porque as mensagens aparecem por microsegundos e somem
+1. O `/chat/find` da UazAPI retorna `wa_chatid = 79710449049664@lid` com `phone` vazio para muitos contatos
+2. O `resolveJid()` nao consegue resolver sem `phone`, entao usa o LID como `canonicalJid`
+3. O `contact_phone` e preenchido com `canonicalJid.split('@')[0]` = `79710449049664` (LID, nao telefone)
+4. A auto-correcao no webhook compara `contact_phone == recipientPhone` mas `79710449049664 != 558586297491`
+5. Resultado: duas conversas duplicadas que nunca se conectam
 
-O fluxo exato do bug:
+### Solucao em 3 Partes
 
-1. Usuario clica num chat na sidebar (ex: `remoteJid = 79710449049664@lid`)
-2. `ChatWindow` verifica o cache local -- pode ter dados de antes, mostra por microsegundos
-3. `ChatWindow` faz query no Supabase: `message_history WHERE remote_jid = '79710449049664@lid'`
-4. Resultado: **array vazio** (0 mensagens) -- porque o webhook salva mensagens com `5511999136884@s.whatsapp.net`
-5. O estado `messages` e atualizado para `[]`, apagando o cache anterior
+#### Parte 1: sync-history -- Forcar resolucao via /chat/details para TODOS os chats @lid
 
-Evidencia direta nos logs de rede capturados:
-```
-GET .../message_history?...&remote_jid=eq.79710449049664%40lid
-Response: []
-```
-
-### Porque a migration anterior nao funcionou
-
-A migration tentou converter `@lid` para `@s.whatsapp.net` usando `contact_phone`, mas:
-- Para chats `@lid`, o `contact_phone` foi preenchido com o numero LID (ex: `79710449049664`) em vez do telefone real
-- A condicao `contact_phone ~ '^\d+$'` passou, mas o numero LID nao e um telefone valido
-- Resultado: conversas ficaram com `79710449049664@s.whatsapp.net` (invalido) ou permaneceram com `@lid`
-
-### Plano de Correcao
-
-#### 1. ChatWindow: Busca dupla (LID + phone JID)
-
-Quando o `remoteJid` for `@lid`, o ChatWindow tambem deve buscar mensagens pelo `contact_phone@s.whatsapp.net` da conversa. Isso resolve imediatamente sem esperar sync.
-
-**Arquivo**: `src/components/whatsapp/ChatWindow.tsx`
-
-Mudancas:
-- No `fetchMessages`, se `chat.remoteJid` contem `@lid`, tambem buscar por `chat.phone + '@s.whatsapp.net'`
-- Combinar resultados de ambas as queries
-- Isso garante que mensagens do webhook (`@s.whatsapp.net`) aparecem mesmo que a conversa use `@lid`
-
-#### 2. ChatContact: Adicionar campo alternateJid
-
-**Arquivo**: `src/pages/WhatsApp.tsx` (interface ChatContact)
-
-Adicionar campo `alternateJid?: string` para carregar o JID alternativo quando disponivel.
-
-#### 3. ChatSidebar: Preencher alternateJid
-
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
-
-Ao mapear conversas do banco, se `remote_jid` contem `@lid` e `contact_phone` e um numero de telefone valido (com DDI, 10+ digitos), preencher `alternateJid` com `contact_phone@s.whatsapp.net`.
-
-#### 4. Sync-history: Melhorar resolucao de telefone
+Quando `chat.phone` esta vazio e o `wa_chatid` e `@lid`:
+- SEMPRE chamar `/chat/details` passando o LID como `number`
+- Extrair o campo `phone` da resposta (conforme doc UazAPI, /chat/details retorna "phone" entre os campos)
+- Usar esse phone para construir o JID canonico `phone@s.whatsapp.net`
+- Salvar o phone real no `contact_phone` da conversa
+- Remover o limite de 10 chamadas de `/chat/details` para contatos LID (manter limite para profile pics de contatos normais)
 
 **Arquivo**: `supabase/functions/sync-history/index.ts`
 
-Para chats `@lid` onde `chat.phone` esta vazio ou e invalido:
-- Tentar usar `/chat/details` para resolver o numero real
-- Salvar o numero resolvido no campo `contact_phone` da conversa
-- Usar o JID `@s.whatsapp.net` resolvido como `remote_jid` no banco
+Mudancas especificas:
+- Na funcao `resolveJid`: aceitar um parametro opcional `resolvedPhone` que vem de `/chat/details`
+- No loop de processamento: para cada chat LID sem phone, chamar `/chat/details` ANTES de resolver o JID
+- Separar o contador de profile pic fetches do contador de phone resolution fetches
+- `contactPhone` deve usar o phone resolvido, NUNCA o numero LID
 
-#### 5. Webhook: Criar mapeamento reverso
+#### Parte 2: evolution-webhook -- Corrigir auto-correcao para funcionar sem phone match
+
+A auto-correcao atual falha porque `contact_phone` contem o LID. Nova estrategia:
+
+Quando o webhook recebe uma mensagem com `@s.whatsapp.net` e cria uma conversa:
+- Apos o upsert, verificar se existe uma conversa DUPLICADA `@lid` para o MESMO chip
+- Como nao podemos comparar por phone (LID != phone), comparar por `contact_name`:
+  - Se o webhook recebe `chat.wa_contactName` ou `chat.name`, buscar conversa `@lid` com mesmo nome
+  - Se encontrar match unico, deletar a conversa `@lid` (a `@s.whatsapp.net` ja tem os dados corretos)
+- Alternativa mais segura: nao tentar auto-corrigir no webhook, deixar o sync-history resolver
 
 **Arquivo**: `supabase/functions/evolution-webhook/index.ts`
 
-Quando o webhook recebe uma mensagem com `chatid = 5511999136884@s.whatsapp.net`:
-- Verificar se existe uma conversa com esse `remote_jid` 
-- Se NAO existir, verificar se existe uma conversa `@lid` com `contact_phone` correspondente
-- Se encontrar, atualizar o `remote_jid` da conversa de `@lid` para `@s.whatsapp.net` (auto-correcao)
+Mudanca: remover a auto-correcao por `contact_phone` (que nunca funciona) e manter a logica simples de upsert por `remote_jid`.
+
+#### Parte 3: Migration SQL -- Limpar as 265 conversas @lid duplicadas
+
+Para cada conversa `@lid`, verificar se ja existe uma conversa `@s.whatsapp.net` para o mesmo chip com mensagens reais. Se sim, deletar a `@lid` (que nao tem mensagens). Se nao, manter e deixar o sync-history resolver na proxima execucao.
+
+```text
+-- Delete @lid conversations that have a duplicate @s.whatsapp.net 
+-- conversation for the same chip (the @s.whatsapp.net one has the real messages)
+DELETE FROM conversations 
+WHERE remote_jid LIKE '%@lid' 
+AND EXISTS (
+  SELECT 1 FROM message_history m 
+  WHERE m.chip_id = conversations.chip_id 
+  AND m.remote_jid LIKE '%@s.whatsapp.net'
+  AND m.remote_jid != conversations.remote_jid
+  -- match by looking if any message exists for the same chip
+  -- that was created around the same time as the @lid conversation
+);
+
+-- More targeted: for remaining @lid convos, strip the @lid suffix 
+-- from contact_phone to not pollute dual-query logic
+UPDATE conversations 
+SET contact_phone = REPLACE(contact_phone, '@lid', '')
+WHERE contact_phone LIKE '%@lid';
+```
+
+A migracao real sera mais conservadora: so deletar `@lid` convos que comprovadamente tem duplicata.
 
 ---
 
@@ -86,9 +90,6 @@ Quando o webhook recebe uma mensagem com `chatid = 5511999136884@s.whatsapp.net`
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | `ChatWindow.tsx` | Busca dupla: se remoteJid e @lid, tambem buscar por phone@s.whatsapp.net |
-| 2 | `WhatsApp.tsx` | Adicionar `alternateJid` ao ChatContact |
-| 3 | `ChatSidebar.tsx` | Preencher alternateJid para conversas @lid com telefone valido |
-| 4 | `sync-history/index.ts` | Usar /chat/details como fallback para resolver telefone de chats @lid |
-| 5 | `evolution-webhook/index.ts` | Auto-corrigir remote_jid de @lid para @s.whatsapp.net quando webhook recebe mensagem |
-
+| 1 | `sync-history/index.ts` | Forcar `/chat/details` para TODOS os chats @lid sem phone; usar phone resolvido como canonicalJid e contact_phone |
+| 2 | `evolution-webhook/index.ts` | Remover auto-correcao quebrada por contact_phone; simplificar |
+| 3 | Migration SQL | Deletar conversas @lid duplicadas; limpar contact_phone removendo sufixo @lid |
