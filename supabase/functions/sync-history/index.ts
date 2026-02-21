@@ -44,38 +44,35 @@ function delay(ms: number) {
  * If wa_chatid is @lid, try to resolve using the `phone` field.
  * Returns { canonicalJid, apiJid } where apiJid is what to send to /message/find.
  */
-function resolveJid(chat: any): { canonicalJid: string; apiJid: string } {
+/**
+ * Resolve a chat's canonical JID.
+ * @param resolvedPhone - optional phone from /chat/details (already cleaned digits)
+ */
+function resolveJid(chat: any, resolvedPhone?: string): { canonicalJid: string; apiJid: string } {
   const rawJid = chat.wa_chatid || chat.chatid || chat.jid || ''
   
-  // Groups: keep as-is
   if (rawJid.includes('@g.us')) {
     return { canonicalJid: rawJid, apiJid: rawJid }
   }
   
-  // Already phone format
   if (rawJid.includes('@s.whatsapp.net')) {
     return { canonicalJid: rawJid, apiJid: rawJid }
   }
   
-  // LID format: try to resolve phone number
   if (rawJid.includes('@lid')) {
-    const phone = chat.phone || ''
-    // Clean phone: remove non-digits
-    const cleanPhone = phone.replace(/\D/g, '')
-    if (cleanPhone && cleanPhone.length >= 10) {
-      const phoneJid = `${cleanPhone}@s.whatsapp.net`
-      return { canonicalJid: phoneJid, apiJid: rawJid } // use LID for API, phone for storage
+    // Priority 1: resolvedPhone from /chat/details
+    if (resolvedPhone && resolvedPhone.length >= 10) {
+      return { canonicalJid: `${resolvedPhone}@s.whatsapp.net`, apiJid: rawJid }
     }
-    // Also try wa_chatlid if available — sometimes phone is in the LID field
-    const lidPhone = (chat.wa_chatlid || '').split('@')[0].replace(/\D/g, '')
-    if (lidPhone && lidPhone.length >= 10) {
-      return { canonicalJid: `${lidPhone}@s.whatsapp.net`, apiJid: rawJid }
+    // Priority 2: chat.phone from /chat/find
+    const phone = (chat.phone || '').replace(/\D/g, '')
+    if (phone && phone.length >= 10) {
+      return { canonicalJid: `${phone}@s.whatsapp.net`, apiJid: rawJid }
     }
-    // Can't resolve - use LID as-is (will be auto-corrected by webhook later)
+    // Can't resolve - use LID as-is
     return { canonicalJid: rawJid, apiJid: rawJid }
   }
   
-  // Unknown format
   if (rawJid) {
     return { canonicalJid: rawJid, apiJid: rawJid }
   }
@@ -264,34 +261,66 @@ Deno.serve(async (req) => {
     let syncedMessages = 0
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000
     let profilePicFetches = 0
-    const MAX_PROFILE_PIC_FETCHES = 10 // per batch
+    const MAX_PROFILE_PIC_FETCHES = 10 // per batch (for non-LID profile pics only)
 
     for (let i = 0; i < batchChats.length; i++) {
       const chat = batchChats[i]
       const chatIndex = batchStart + i
+      const rawJid = chat.wa_chatid || chat.chatid || chat.jid || ''
 
-      const { canonicalJid, apiJid } = resolveJid(chat)
+      // === LID PHONE RESOLUTION via /chat/details ===
+      // For @lid chats without a valid phone, ALWAYS call /chat/details to resolve
+      let resolvedPhone: string | undefined
+      const chatPhone = (chat.phone || '').replace(/\D/g, '')
+      const isLid = rawJid.includes('@lid')
+      
+      if (isLid && (!chatPhone || chatPhone.length < 10)) {
+        try {
+          const detailsResp = await fetch(`${baseUrl}/chat/details`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            body: JSON.stringify({ number: rawJid }),
+          })
+          if (detailsResp.ok) {
+            const details = await detailsResp.json()
+            const detailPhone = (details.phone || '').replace(/\D/g, '')
+            if (detailPhone && detailPhone.length >= 10) {
+              resolvedPhone = detailPhone
+              console.log(`[sync-history] LID resolved: ${rawJid} -> ${resolvedPhone} via /chat/details`)
+            }
+            // Also grab profile pic while we're here
+            if (!chat.imagePreview && !chat.image) {
+              chat._resolvedPic = details.imagePreview || details.image || null
+            }
+          }
+        } catch (e) {
+          console.error(`[sync-history] /chat/details failed for ${rawJid}:`, e)
+        }
+        await delay(API_DELAY_MS)
+      }
+
+      const { canonicalJid, apiJid } = resolveJid(chat, resolvedPhone)
       if (!canonicalJid) {
-        console.log(`[sync-history] Skipping unresolvable LID: ${chat.wa_chatid || 'unknown'}`)
+        console.log(`[sync-history] Skipping unresolvable LID: ${rawJid}`)
         continue
       }
 
       const isGroup = chat.wa_isGroup || canonicalJid.includes('@g.us') || false
       const isGroupMember = chat.wa_isGroup_member !== false
-      if (isGroup && !isGroupMember) continue // already archived above
+      if (isGroup && !isGroupMember) continue
 
-      // Debug: log first 3 chats in detail
       if (chatIndex < 3) {
-        console.log(`[sync-history] DEBUG chat[${chatIndex}]: wa_chatid=${chat.wa_chatid}, wa_chatlid=${chat.wa_chatlid}, phone=${chat.phone}, canonicalJid=${canonicalJid}, apiJid=${apiJid}`)
+        console.log(`[sync-history] DEBUG chat[${chatIndex}]: wa_chatid=${rawJid}, phone=${chat.phone}, resolvedPhone=${resolvedPhone || 'none'}, canonicalJid=${canonicalJid}, apiJid=${apiJid}`)
       }
 
       const contactName = chat.wa_contactName || chat.name || canonicalJid.split('@')[0]
       const waName = chat.wa_name || ''
-      const contactPhone = chat.phone || canonicalJid.split('@')[0]
-      let profilePicUrl = chat.imagePreview || chat.image || null
+      // CRITICAL: use resolvedPhone or chat.phone, NEVER the LID number
+      const contactPhone = resolvedPhone || chatPhone || (isLid ? '' : canonicalJid.split('@')[0])
+      let profilePicUrl = chat.imagePreview || chat.image || chat._resolvedPic || null
 
-      // Fetch profile pic if missing
-      if (!profilePicUrl && profilePicFetches < MAX_PROFILE_PIC_FETCHES) {
+      // Fetch profile pic for non-LID chats if missing (uses separate counter)
+      if (!profilePicUrl && !isLid && profilePicFetches < MAX_PROFILE_PIC_FETCHES) {
         try {
           const detailsResp = await fetch(`${baseUrl}/chat/details`, {
             method: 'POST',
