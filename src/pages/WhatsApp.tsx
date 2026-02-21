@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2 } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
@@ -36,9 +37,13 @@ export default function WhatsApp() {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [whatsappProfileOpen, setWhatsappProfileOpen] = useState(false);
   const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { user, isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
 
   const handleSignOut = async () => {
     await signOut();
@@ -96,10 +101,15 @@ export default function WhatsApp() {
       setSelectedChipStatus(chip?.status || 'disconnected');
       setSelectedChipInstanceName(chip?.instance_name || null);
 
-      // Trigger background sync
+      // Trigger background sync with visual indicator
+      setIsSyncing(true);
       supabase.functions.invoke('sync-history', {
         body: { chipId: id },
-      }).catch(() => {});
+      }).then(() => {
+        setIsSyncing(false);
+      }).catch(() => {
+        setIsSyncing(false);
+      });
     } else {
       setSelectedChipStatus('disconnected');
       setSelectedChipInstanceName(null);
@@ -126,6 +136,83 @@ export default function WhatsApp() {
     }
   }, [selectedChipInstanceName]);
 
+  const handleRefreshAllChips = useCallback(async () => {
+    if (!user || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const { data: chips } = await supabase
+        .from('chips')
+        .select('id, instance_name, instance_token, status')
+        .eq('user_id', user.id);
+      if (!chips || chips.length === 0) {
+        toast({ title: 'Nenhum chip encontrado' });
+        setIsRefreshing(false);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setIsRefreshing(false); return; }
+
+      let connected = 0, offline = 0;
+      for (const chip of chips) {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ action: 'check-status', instanceName: chip.instance_name, instanceToken: chip.instance_token }),
+          });
+          const data = await res.json();
+          const newStatus = data.state === 'connected' ? 'connected' : 'disconnected';
+          if (newStatus !== chip.status) {
+            await supabase.from('chips').update({ status: newStatus }).eq('id', chip.id);
+          }
+          if (newStatus === 'connected') connected++; else offline++;
+        } catch {
+          offline++;
+        }
+      }
+
+      // Update selected chip status
+      if (selectedChipId) {
+        const updated = chips.find(c => c.id === selectedChipId);
+        if (updated) {
+          const res2 = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ action: 'check-status', instanceName: updated.instance_name, instanceToken: updated.instance_token }),
+          });
+          const d2 = await res2.json();
+          setSelectedChipStatus(d2.state === 'connected' ? 'connected' : 'disconnected');
+        }
+      }
+
+      setRefreshTrigger(prev => prev + 1);
+      toast({ title: `${chips.length} chips verificados`, description: `${connected} conectado(s), ${offline} offline` });
+    } catch (err: any) {
+      toast({ title: 'Erro ao atualizar', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [user, isRefreshing, selectedChipId, toast]);
+
+  const handleSyncHistory = useCallback(async (chipId: string) => {
+    setIsSyncing(true);
+    try {
+      await supabase.functions.invoke('sync-history', { body: { chipId } });
+      toast({ title: 'Sincronização concluída' });
+    } catch {
+      toast({ title: 'Erro na sincronização', variant: 'destructive' });
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [toast]);
+
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
   return (
@@ -133,10 +220,13 @@ export default function WhatsApp() {
       <header className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card">
         <div className="flex items-center gap-3">
           <img src={logoExtended} alt="Cred" className="h-20 object-contain" />
-          <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} unreadCounts={unreadCounts} onOpenSettings={(chipId) => { setSelectedChipId(chipId); setWhatsappProfileOpen(true); }} />
+          <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} unreadCounts={unreadCounts} onOpenSettings={(chipId) => { setSelectedChipId(chipId); setWhatsappProfileOpen(true); }} onSyncHistory={handleSyncHistory} refreshTrigger={refreshTrigger} />
         </div>
         <div className="flex items-center gap-2 ml-4">
           <UserProfileMenu />
+          <Button variant="ghost" size="icon" onClick={handleRefreshAllChips} disabled={isRefreshing} className="text-muted-foreground hover:text-foreground" title="Atualizar status dos chips">
+            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
@@ -156,12 +246,13 @@ export default function WhatsApp() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-96 border-r border-border/50 bg-card/30 hidden md:flex flex-col">
+        <aside className="w-[420px] border-r border-border/50 bg-card/30 hidden md:flex flex-col">
           <ChatSidebar
             selectedChatId={selectedChat?.remoteJid || null}
             onSelectChat={handleSelectChat}
             chipId={selectedChipId}
             onUnreadUpdate={handleUnreadUpdate}
+            isSyncing={isSyncing}
           />
         </aside>
 

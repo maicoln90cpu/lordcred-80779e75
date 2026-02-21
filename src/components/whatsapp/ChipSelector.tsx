@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -40,9 +40,11 @@ interface ChipSelectorProps {
   onSelectChip: (chipId: string) => void;
   unreadCounts?: Record<string, number>;
   onOpenSettings?: (chipId: string) => void;
+  onSyncHistory?: (chipId: string) => void;
+  refreshTrigger?: number;
 }
 
-export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {}, onOpenSettings }: ChipSelectorProps) {
+export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {}, onOpenSettings, onSyncHistory, refreshTrigger }: ChipSelectorProps) {
   const [chips, setChips] = useState<Chip[]>([]);
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [reconnectInstanceName, setReconnectInstanceName] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
 
   useEffect(() => {
     fetchChips();
-  }, [user]);
+  }, [user, refreshTrigger]);
 
   const handleAddChip = () => {
     if (isSeller) {
@@ -229,6 +231,10 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                     <DropdownMenuItem onClick={() => onOpenSettings?.(chip.id)}>
                       <Settings className="w-4 h-4 mr-2" />
                       Configurações
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onSyncHistory?.(chip.id)}>
+                      <History className="w-4 h-4 mr-2" />
+                      Sincronizar mensagens
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

@@ -40,6 +40,7 @@ interface ChatSidebarProps {
   onSelectChat: (chat: ChatContact) => void;
   chipId: string | null;
   onUnreadUpdate?: (chipId: string, totalUnread: number) => void;
+  isSyncing?: boolean;
 }
 
 interface LabelItem {
@@ -65,7 +66,7 @@ interface ExtendedChat extends ChatContact {
   custom_status?: ConversationStatus;
 }
 
-export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate }: ChatSidebarProps) {
+export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing }: ChatSidebarProps) {
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -456,6 +457,13 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   return (
     <div className="flex flex-col h-full">
+      {/* Sync indicator */}
+      {isSyncing && (
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground bg-muted/50 border-b border-border/50 animate-pulse">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Sincronizando mensagens...
+        </div>
+      )}
       {/* Header with search and filters */}
       <div className="p-3 space-y-2">
         <div className="relative">
@@ -469,7 +477,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         </div>
 
         {/* Filter row */}
-        <div className="flex items-center gap-1.5 overflow-x-auto">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {showArchived ? (
             <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowArchived(false)}>
               <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
