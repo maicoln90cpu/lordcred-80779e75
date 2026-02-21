@@ -212,17 +212,35 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
 
 async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
   // Handle message status updates (sent, delivered, read)
-  console.log('messages_update payload:', JSON.stringify(payload))
+  console.log('messages_update FULL payload:', JSON.stringify(payload))
   
-  const updates = payload.updates || payload.data || payload.message ? [payload.message] : []
-  const rawList = Array.isArray(updates) ? updates : [updates]
-  // Also check if payload itself contains status info
-  const updateList = rawList.length > 0 ? rawList : [payload]
+  // UazAPI sends messages_update with message object at root or nested
+  // Try to build update list from various formats
+  let updateList: any[] = []
+  
+  if (payload.message && payload.message.messageid) {
+    // Most common: message object with status info at root
+    updateList = [payload.message]
+  } else if (payload.updates && Array.isArray(payload.updates)) {
+    updateList = payload.updates
+  } else if (payload.data && Array.isArray(payload.data)) {
+    updateList = payload.data
+  } else if (payload.messageid) {
+    // Status fields directly on payload root
+    updateList = [payload]
+  } else {
+    updateList = [payload]
+  }
 
   for (const update of updateList) {
     if (!update) continue
-    const messageId = update?.messageid || update?.key?.id || update?.id || payload?.messageid
-    const state = update?.state || update?.status || update?.ack || payload?.state || payload?.ack
+    // Try multiple field names for message ID
+    const messageId = update?.messageid || update?.message?.messageid || update?.key?.id || update?.id || payload?.messageid
+    // Try multiple field names for state/status
+    const state = update?.state || update?.status || update?.ack || update?.message?.status || payload?.state || payload?.ack
+    
+    console.log(`messages_update: extracted messageId=${messageId}, state=${state} (type: ${typeof state})`)
+    
     if (!messageId || state === undefined || state === null) continue
 
     // Map UazAPI states to our status — comprehensive mapping

@@ -50,14 +50,36 @@ export default function WhatsAppProfileDialog({ open, onOpenChange, chipId }: Wh
   useEffect(() => {
     if (!open || !chipId) return;
 
-    // Load profile name
+    // Load profile name and profile picture
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'get-profile-name', chipId },
     }).then(({ data }) => {
       if (data?.profileName) {
         setProfileName(data.profileName);
       }
+      // Try to get profile pic from instance status data
+      const picUrl = data?.profilePicUrl || data?.instance?.profilePicUrl || data?.chipData?.profile_pic_url;
+      if (picUrl) {
+        setImagePreview(picUrl);
+      }
     }).catch(() => {});
+
+    // Also try to get profile pic from conversations table (own number)
+    (async () => {
+      try {
+        const { data: chipData } = await (supabase as any).from('chips').select('phone_number').eq('id', chipId).maybeSingle();
+        if (chipData?.phone_number) {
+          const { data: convo } = await (supabase as any).from('conversations')
+            .select('profile_pic_url')
+            .eq('chip_id', chipId)
+            .eq('remote_jid', `${chipData.phone_number}@s.whatsapp.net`)
+            .maybeSingle();
+          if (convo?.profile_pic_url) {
+            setImagePreview(convo.profile_pic_url);
+          }
+        }
+      } catch {}
+    })();
 
     // Load privacy settings
     setIsLoadingPrivacy(true);

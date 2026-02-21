@@ -903,9 +903,10 @@ Deno.serve(async (req) => {
       case 'get-business-profile': {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
-        const response = await fetch(`${baseUrl}/business/get`, {
-          method: 'GET',
-          headers: { 'token': chipToken },
+        const response = await fetch(`${baseUrl}/business/get/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({}),
         })
         const data = await response.json()
         return new Response(
@@ -919,7 +920,7 @@ Deno.serve(async (req) => {
         if (!chipToken) throw new Error('Chip token not found')
         const { businessProfile } = body
         if (!businessProfile) throw new Error('businessProfile is required')
-        const response = await fetch(`${baseUrl}/business/update`, {
+        const response = await fetch(`${baseUrl}/business/update/profile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
           body: JSON.stringify(businessProfile),
@@ -938,18 +939,59 @@ Deno.serve(async (req) => {
         const labelBody: any = {}
         if (labelId) labelBody.id = labelId
         if (labelName) labelBody.name = labelName
-        if (labelColor) labelBody.color = labelColor
+        // UazAPI expects color as integer index (0-19), not hex
+        if (labelColor) {
+          const colorMap: Record<string, number> = {
+            '#61bd4f': 0, '#f2d600': 1, '#ff9f1a': 2, '#eb5a46': 3,
+            '#c377e0': 4, '#0079bf': 5, '#00c2e0': 6, '#51e898': 7,
+            '#ff78cb': 8, '#344563': 9,
+          }
+          labelBody.color = colorMap[labelColor] ?? 0
+        }
         if (deleteLbl) labelBody.delete = true
-        const response = await fetch(`${baseUrl}/label/edit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify(labelBody),
-        })
-        const data = await response.json()
-        return new Response(
-          JSON.stringify({ success: response.ok, data }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          console.log(`edit-label: calling ${baseUrl}/label/edit with body:`, JSON.stringify(labelBody))
+          const response = await fetch(`${baseUrl}/label/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            body: JSON.stringify(labelBody),
+          })
+          const data = await response.json().catch(() => ({}))
+          console.log(`edit-label: response status=${response.status}, data=`, JSON.stringify(data))
+          return new Response(
+            JSON.stringify({ success: response.ok, data }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (labelErr) {
+          console.error('edit-label error:', labelErr)
+          return new Response(
+            JSON.stringify({ success: false, error: labelErr.message || 'Label operation failed' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
+      case 'connect-instance': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        try {
+          const response = await fetch(`${baseUrl}/instance/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          })
+          const data = await response.json().catch(() => ({}))
+          console.log(`connect-instance: status=${response.status}`)
+          return new Response(
+            JSON.stringify({ success: true, data }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (connErr) {
+          console.error('connect-instance error:', connErr)
+          return new Response(
+            JSON.stringify({ success: false, error: connErr.message || 'Failed to connect' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
 
       case 'get-profile-name': {
@@ -961,7 +1003,7 @@ Deno.serve(async (req) => {
           .select('nickname, phone_number, instance_name')
           .eq('id', chipId)
           .single()
-        // Try to get profile name from UazAPI
+        // Try to get profile name and pic from UazAPI
         try {
           const response = await fetch(`${baseUrl}/instance/status`, {
             method: 'GET',
@@ -969,8 +1011,9 @@ Deno.serve(async (req) => {
           })
           const statusData = await response.json()
           const profileName = statusData?.instance?.profileName || statusData?.profileName || chipData?.nickname || ''
+          const profilePicUrl = statusData?.instance?.profilePicUrl || statusData?.profilePicUrl || null
           return new Response(
-            JSON.stringify({ success: true, profileName, chipData }),
+            JSON.stringify({ success: true, profileName, profilePicUrl, chipData, instance: statusData?.instance }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         } catch {
