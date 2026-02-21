@@ -56,6 +56,7 @@ export type Database = {
           instance_token: string | null
           last_connection_attempt: string | null
           last_message_at: string | null
+          last_sync_at: string | null
           messages_sent_today: number
           nickname: string | null
           phone_number: string | null
@@ -74,6 +75,7 @@ export type Database = {
           instance_token?: string | null
           last_connection_attempt?: string | null
           last_message_at?: string | null
+          last_sync_at?: string | null
           messages_sent_today?: number
           nickname?: string | null
           phone_number?: string | null
@@ -92,6 +94,7 @@ export type Database = {
           instance_token?: string | null
           last_connection_attempt?: string | null
           last_message_at?: string | null
+          last_sync_at?: string | null
           messages_sent_today?: number
           nickname?: string | null
           phone_number?: string | null
