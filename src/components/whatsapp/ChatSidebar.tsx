@@ -64,7 +64,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
 
-  // Immediately clear chats when chip changes
+  // Immediately clear chats when chip changes and force fresh fetch
   useEffect(() => {
     activeChipRef.current = chipId;
     if (chipId !== prevChipRef.current) {
@@ -83,6 +83,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       setHasMore(true);
       setShowArchived(false);
       setFilterLabel(null);
+      // Force a fresh DB fetch to ensure unread counts are up-to-date
+      if (chipId) {
+        setTimeout(() => fetchChats(1, false), 100);
+      }
     }
   }, [chipId]);
 
@@ -507,43 +511,43 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         <Archive className="w-4 h-4 mr-2" />
                         {chat.is_archived ? 'Desarquivar' : 'Arquivar'}
                       </DropdownMenuItem>
-                      {labels.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator />
-                          {labels.map(label => {
-                            const hasLabel = chat.label_ids?.includes(label.label_id);
-                            return (
-                              <DropdownMenuItem
-                                key={label.label_id}
-                                onClick={async () => {
-                                  if (!chipId) return;
-                                  const newLabelIds = hasLabel
-                                    ? (chat.label_ids || []).filter(id => id !== label.label_id)
-                                    : [...(chat.label_ids || []), label.label_id];
-                                  try {
-                                    await supabase.functions.invoke('uazapi-api', {
-                                      body: {
-                                        action: 'set-chat-labels',
-                                        chipId,
-                                        chatId: chat.remoteJid,
-                                        ...(hasLabel ? { removeLabelId: label.label_id } : { addLabelId: label.label_id }),
-                                      },
-                                    });
-                                    setChats(prev => prev.map(c =>
-                                      c.remoteJid === chat.remoteJid ? { ...c, label_ids: newLabelIds } : c
-                                    ));
-                                  } catch {
-                                    toast({ title: 'Erro ao atualizar etiqueta', variant: 'destructive' });
-                                  }
-                                }}
-                              >
-                                <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
-                                {hasLabel ? `Remover ${label.name}` : label.name}
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </>
-                      )}
+                      <DropdownMenuSeparator />
+                      {labels.length > 0 && labels.map(label => {
+                        const hasLabel = chat.label_ids?.includes(label.label_id);
+                        return (
+                          <DropdownMenuItem
+                            key={label.label_id}
+                            onClick={async () => {
+                              if (!chipId) return;
+                              const newLabelIds = hasLabel
+                                ? (chat.label_ids || []).filter(id => id !== label.label_id)
+                                : [...(chat.label_ids || []), label.label_id];
+                              try {
+                                await supabase.functions.invoke('uazapi-api', {
+                                  body: {
+                                    action: 'set-chat-labels',
+                                    chipId,
+                                    chatId: chat.remoteJid,
+                                    ...(hasLabel ? { removeLabelId: label.label_id } : { addLabelId: label.label_id }),
+                                  },
+                                });
+                                setChats(prev => prev.map(c =>
+                                  c.remoteJid === chat.remoteJid ? { ...c, label_ids: newLabelIds } : c
+                                ));
+                              } catch {
+                                toast({ title: 'Erro ao atualizar etiqueta', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
+                            {hasLabel ? `Remover ${label.name}` : label.name}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      <DropdownMenuItem onClick={() => setManageLabelsOpen(true)}>
+                        <Tag className="w-4 h-4 mr-2" />
+                        Gerenciar Etiquetas
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

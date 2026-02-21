@@ -41,7 +41,7 @@ export default function WhatsApp() {
     navigate('/login');
   };
 
-  // Global unread count fetch for ALL chips
+  // Global unread count fetch for ALL chips (exclude archived)
   const fetchAllUnreadCounts = useCallback(async () => {
     if (!user) return;
     const { data: chips } = await supabase
@@ -51,10 +51,11 @@ export default function WhatsApp() {
     if (!chips || chips.length === 0) return;
 
     const chipIds = chips.map(c => c.id);
-    const { data: convos } = await supabase
+    const { data: convos } = await (supabase as any)
       .from('conversations')
       .select('chip_id, unread_count')
-      .in('chip_id', chipIds);
+      .in('chip_id', chipIds)
+      .or('is_archived.is.null,is_archived.eq.false');
     if (!convos) return;
 
     const counts: Record<string, number> = {};
