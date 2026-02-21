@@ -47,10 +47,10 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
   useEffect(() => {
     if (!open || !chipId) return;
     setLoading(true);
-    (supabase as any)
-      .from('labels')
+    (supabase
+      .from('labels' as any)
       .select('label_id, name, color_hex')
-      .eq('chip_id', chipId)
+      .eq('chip_id', chipId) as any)
       .then(({ data }: any) => {
         if (data) setLabels(data);
       })
@@ -71,10 +71,10 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
         await supabase.functions.invoke('uazapi-api', {
           body: { action: 'fetch-labels', chipId },
         });
-        const { data: fresh } = await (supabase as any)
-          .from('labels')
+        const { data: fresh } = await supabase
+          .from('labels' as any)
           .select('label_id, name, color_hex')
-          .eq('chip_id', chipId);
+          .eq('chip_id', chipId) as any;
         if (fresh) setLabels(fresh);
         onLabelsUpdated?.();
       } else {
@@ -100,10 +100,10 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
         await supabase.functions.invoke('uazapi-api', {
           body: { action: 'fetch-labels', chipId },
         });
-        const { data: fresh } = await (supabase as any)
-          .from('labels')
+        const { data: fresh } = await supabase
+          .from('labels' as any)
           .select('label_id, name, color_hex')
-          .eq('chip_id', chipId);
+          .eq('chip_id', chipId) as any;
         if (fresh) setLabels(fresh);
         onLabelsUpdated?.();
       } else {
@@ -125,7 +125,7 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
       });
       if (res.data?.success) {
         setLabels(prev => prev.filter(l => l.label_id !== labelId));
-        await (supabase as any).from('labels').delete().eq('chip_id', chipId).eq('label_id', labelId);
+        await (supabase as any).from('labels' as any).delete().eq('chip_id', chipId).eq('label_id', labelId);
         toast({ title: 'Etiqueta excluída' });
         onLabelsUpdated?.();
       } else {

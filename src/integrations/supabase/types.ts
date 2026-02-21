@@ -110,7 +110,9 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           id: string
+          is_archived: boolean | null
           is_group: boolean | null
+          label_ids: string[] | null
           last_message_at: string | null
           last_message_text: string | null
           profile_pic_url: string | null
@@ -125,7 +127,9 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           id?: string
+          is_archived?: boolean | null
           is_group?: boolean | null
+          label_ids?: string[] | null
           last_message_at?: string | null
           last_message_text?: string | null
           profile_pic_url?: string | null
@@ -140,7 +144,9 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           id?: string
+          is_archived?: boolean | null
           is_group?: boolean | null
+          label_ids?: string[] | null
           last_message_at?: string | null
           last_message_text?: string | null
           profile_pic_url?: string | null
@@ -180,6 +186,33 @@ export type Database = {
           is_active?: boolean
           name?: string | null
           phone_number?: string
+        }
+        Relationships: []
+      }
+      labels: {
+        Row: {
+          chip_id: string
+          color_hex: string | null
+          created_at: string | null
+          id: string
+          label_id: string
+          name: string
+        }
+        Insert: {
+          chip_id: string
+          color_hex?: string | null
+          created_at?: string | null
+          id?: string
+          label_id: string
+          name?: string
+        }
+        Update: {
+          chip_id?: string
+          color_hex?: string | null
+          created_at?: string | null
+          id?: string
+          label_id?: string
+          name?: string
         }
         Relationships: []
       }

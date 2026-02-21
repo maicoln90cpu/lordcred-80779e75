@@ -93,8 +93,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   // Fetch labels for this chip
   useEffect(() => {
     if (!chipId) return;
-    (supabase as any)
-      .from('labels')
+    supabase
+      .from('labels' as any)
       .select('label_id, name, color_hex')
       .eq('chip_id', chipId)
       .then(({ data }: any) => {
@@ -104,8 +104,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'fetch-labels', chipId },
     }).then(() => {
-      (supabase as any)
-        .from('labels')
+      supabase
+        .from('labels' as any)
         .select('label_id, name, color_hex')
         .eq('chip_id', chipId)
         .then(({ data: fresh }: any) => {
@@ -569,8 +569,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         onLabelsUpdated={() => {
           // Re-fetch labels
           if (!chipId) return;
-          (supabase as any)
-            .from('labels')
+          supabase
+            .from('labels' as any)
             .select('label_id, name, color_hex')
             .eq('chip_id', chipId)
             .then(({ data }: any) => {

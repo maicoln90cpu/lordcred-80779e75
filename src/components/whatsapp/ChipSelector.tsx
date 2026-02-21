@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Wifi, Loader2, ChevronDown, Settings, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ interface Chip {
   instance_name: string;
   status: string;
   slot_number: number;
+  nickname?: string | null;
 }
 
 interface ChipSelectorProps {
@@ -45,28 +46,31 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
   const [chips, setChips] = useState<Chip[]>([]);
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
+  const [chipToReconnect, setChipToReconnect] = useState<Chip | null>(null);
   const [chipToDisconnect, setChipToDisconnect] = useState<Chip | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const { user, isSeller } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const fetchChips = async () => {
     if (!user) return;
-    const query = supabase
+    const { data } = await (supabase
       .from('chips')
-      .select('id, phone_number, instance_name, status, slot_number')
+      .select('id, phone_number, instance_name, status, slot_number, nickname')
       .eq('user_id', user.id)
-      .eq('status', 'connected')
       .order('slot_number')
-      .limit(5);
-    
-    const { data } = await (query as any).eq('chip_type', 'whatsapp');
+      .limit(5) as any).eq('chip_type', 'whatsapp');
 
     if (data && data.length > 0) {
       setChips(data);
       if (!selectedChipId) {
-        onSelectChip(data[0].id);
+        // Auto-select first connected chip
+        const connected = data.find((c: Chip) => c.status === 'connected');
+        if (connected) onSelectChip(connected.id);
+        else onSelectChip(data[0].id);
       }
     } else {
       setChips([]);
@@ -147,20 +151,37 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
       <div className="flex items-center gap-1 overflow-x-auto">
         {chips.map((chip) => {
           const unread = unreadCounts[chip.id] || 0;
+          const isConnected = chip.status === 'connected';
           return (
           <div key={chip.id} className="flex items-center relative">
             <button
-              onClick={() => onSelectChip(chip.id)}
+              onClick={() => {
+                if (!isConnected) {
+                  setChipToReconnect(chip);
+                  setReconnectDialogOpen(true);
+                } else {
+                  onSelectChip(chip.id);
+                }
+              }}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-l-lg text-sm whitespace-nowrap transition-colors",
-                selectedChipId === chip.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                !isConnected
+                  ? "bg-destructive/10 text-destructive border border-destructive/20"
+                  : selectedChipId === chip.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
               )}
             >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>{(chip as any).nickname || chip.phone_number || chip.instance_name}</span>
-              {unread > 0 && (
+              {isConnected ? (
+                <Smartphone className="w-3.5 h-3.5" />
+              ) : (
+                <WifiOff className="w-3.5 h-3.5" />
+              )}
+              <span>{chip.nickname || chip.phone_number || chip.instance_name}</span>
+              {!isConnected && (
+                <span className="text-[10px] font-medium">(offline)</span>
+              )}
+              {isConnected && unread > 0 && (
                 <span className="ml-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
                   {unread > 99 ? '99+' : unread}
                 </span>
@@ -234,6 +255,44 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
             >
               {isDisconnecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <WifiOff className="w-4 h-4 mr-2" />}
               Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reconnect Dialog for disconnected chips */}
+      <AlertDialog open={reconnectDialogOpen} onOpenChange={setReconnectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <WifiOff className="w-5 h-5 text-destructive" />
+              Chip Desconectado
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O chip <strong>{chipToReconnect?.nickname || chipToReconnect?.phone_number || chipToReconnect?.instance_name}</strong> está desconectado e não pode enviar ou receber mensagens.
+              Deseja reconectar gerando um novo QR Code?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReconnecting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!chipToReconnect) return;
+                setIsReconnecting(true);
+                try {
+                  // Navigate to chips page for QR code scanning
+                  navigate('/chips');
+                  toast({ title: 'Reconectar Chip', description: 'Gere um novo QR Code na página de chips para reconectar.' });
+                } finally {
+                  setIsReconnecting(false);
+                  setReconnectDialogOpen(false);
+                  setChipToReconnect(null);
+                }
+              }}
+              disabled={isReconnecting}
+            >
+              {isReconnecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
+              Reconectar (QR Code)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
