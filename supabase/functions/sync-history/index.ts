@@ -20,8 +20,20 @@ function normalizeMessageType(raw: string): string {
 function extractArray(response: any): any[] {
   if (Array.isArray(response)) return response
   if (response && typeof response === 'object') {
-    for (const key of ['results', 'items', 'chats', 'data', 'messages']) {
+    // Check known keys first
+    for (const key of ['results', 'items', 'chats', 'data', 'messages', 'records', 'rows', 'list', 'result']) {
       if (Array.isArray(response[key])) return response[key]
+    }
+    // Fallback: if the object has exactly one key and it's an array, use it
+    const keys = Object.keys(response)
+    if (keys.length === 1 && Array.isArray(response[keys[0]])) {
+      return response[keys[0]]
+    }
+    // Check any key that holds an array (skip metadata keys)
+    for (const key of keys) {
+      if (Array.isArray(response[key]) && response[key].length > 0) {
+        return response[key]
+      }
     }
   }
   return []
@@ -44,13 +56,11 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    // Validate user with getUser (correct method for supabase-js v2)
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     })
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) {
-      console.error('Auth error:', userError?.message)
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -77,17 +87,15 @@ Deno.serve(async (req) => {
     }
 
     if (!chip || !chip.instance_token) {
-      console.log('[sync-history] No chip or no token found')
       return new Response(JSON.stringify({ success: true, synced: 0, chats: 0, reason: 'no token' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Reduce throttle to 1 minute for manual sync
+    // Throttle: 1 minute
     if (chip.last_sync_at) {
       const lastSync = new Date(chip.last_sync_at).getTime()
       if (Date.now() - lastSync < 60 * 1000) {
-        console.log('[sync-history] Skipped: synced less than 1 minute ago')
         return new Response(JSON.stringify({ success: true, synced: 0, chats: 0, reason: 'recently synced' }), {
           status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
@@ -105,7 +113,6 @@ Deno.serve(async (req) => {
     const chipToken = chip.instance_token
 
     if (!baseUrl) {
-      console.error('[sync-history] UazAPI URL not configured')
       return new Response(JSON.stringify({ success: false, error: 'UazAPI not configured' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -113,7 +120,7 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-history] Using UazAPI: ${baseUrl}, token length: ${chipToken.length}`)
 
-    // Phase 1: Fetch chats
+    // ========== Phase 1: Fetch chats ==========
     let rawChats: any[] = []
     try {
       const resp = await fetch(`${baseUrl}/chat/find`, {
@@ -128,7 +135,7 @@ Deno.serve(async (req) => {
       } else {
         const chatsResponse = await resp.json()
         rawChats = extractArray(chatsResponse)
-        console.log(`[sync-history] /chat/find returned ${rawChats.length} chats. Response type: ${typeof chatsResponse}, isArray: ${Array.isArray(chatsResponse)}`)
+        console.log(`[sync-history] /chat/find returned ${rawChats.length} chats`)
         if (rawChats.length > 0) {
           console.log(`[sync-history] Sample chat keys: ${Object.keys(rawChats[0]).join(', ')}`)
         }
@@ -137,8 +144,37 @@ Deno.serve(async (req) => {
       console.error('[sync-history] Failed to fetch chats:', e)
     }
 
+    // ========== Phase 2: Archive orphan conversations ==========
+    if (rawChats.length > 0) {
+      const activeJids = new Set(rawChats.map(c => c.wa_chatid || c.chatid || c.jid || '').filter(Boolean))
+      
+      const { data: existingConvos } = await adminClient
+        .from('conversations')
+        .select('remote_jid')
+        .eq('chip_id', chipId)
+        .or('is_archived.is.null,is_archived.eq.false')
+
+      if (existingConvos) {
+        const orphanJids = existingConvos
+          .filter(c => !activeJids.has(c.remote_jid))
+          .map(c => c.remote_jid)
+
+        if (orphanJids.length > 0) {
+          console.log(`[sync-history] Archiving ${orphanJids.length} orphan conversations`)
+          await adminClient
+            .from('conversations')
+            .update({ is_archived: true } as any)
+            .eq('chip_id', chipId)
+            .in('remote_jid', orphanJids)
+        }
+      }
+    }
+
+    // ========== Phase 3: Upsert conversations + fetch profile pics ==========
     let syncedMessages = 0
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000
+    let profilePicFetches = 0
+    const MAX_PROFILE_PIC_FETCHES = 20
 
     for (const chat of rawChats) {
       const remoteJid = chat.wa_chatid || chat.chatid || chat.jid || ''
@@ -147,7 +183,28 @@ Deno.serve(async (req) => {
       const contactName = chat.wa_contactName || chat.name || remoteJid.split('@')[0]
       const waName = chat.wa_name || ''
       const contactPhone = chat.phone || remoteJid.split('@')[0]
-      const profilePicUrl = chat.imagePreview || chat.image || null
+      let profilePicUrl = chat.imagePreview || chat.image || null
+
+      // Fetch profile pic from /chat/details if missing
+      if (!profilePicUrl && profilePicFetches < MAX_PROFILE_PIC_FETCHES) {
+        try {
+          const detailsResp = await fetch(`${baseUrl}/chat/details`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            body: JSON.stringify({ number: remoteJid }),
+          })
+          if (detailsResp.ok) {
+            const details = await detailsResp.json()
+            profilePicUrl = details.imagePreview || details.image || null
+            if (profilePicUrl && profilePicFetches === 0) {
+              console.log(`[sync-history] Got profile pic from /chat/details for ${remoteJid}`)
+            }
+          }
+          profilePicFetches++
+        } catch {
+          profilePicFetches++
+        }
+      }
 
       let lastMsgAt: string | null = null
       if (chat.wa_lastMsgTimestamp) {
@@ -156,7 +213,9 @@ Deno.serve(async (req) => {
         lastMsgAt = new Date(msTs).toISOString()
       }
 
-      // Upsert conversation
+      // Use wa_unreadCount directly from UazAPI (real WhatsApp state)
+      const unreadCount = typeof chat.wa_unreadCount === 'number' ? chat.wa_unreadCount : 0
+
       const convData: any = {
         chip_id: chipId,
         remote_jid: remoteJid,
@@ -164,8 +223,9 @@ Deno.serve(async (req) => {
         contact_phone: contactPhone,
         last_message_text: chat.wa_lastMessageTextVote || chat.lastMessage || '',
         last_message_at: lastMsgAt || new Date().toISOString(),
-        unread_count: chat.wa_unreadCount || 0,
+        unread_count: unreadCount,
         is_group: chat.wa_isGroup || remoteJid.includes('@g.us') || false,
+        is_archived: false, // If returned by /chat/find, it's active
       }
       if (waName) convData.wa_name = waName
       if (profilePicUrl) convData.profile_pic_url = profilePicUrl
@@ -175,7 +235,7 @@ Deno.serve(async (req) => {
         console.error(`[sync-history] Conversation upsert error for ${remoteJid}:`, convError.message)
       }
 
-      // Phase 2: Fetch messages for this chat
+      // ========== Phase 4: Fetch messages for this chat ==========
       try {
         const msgResp = await fetch(`${baseUrl}/message/find`, {
           method: 'POST',
@@ -192,9 +252,18 @@ Deno.serve(async (req) => {
         const msgData = await msgResp.json()
         const messages = extractArray(msgData)
         
-        if (messages.length > 0 && rawChats.indexOf(chat) === 0) {
-          console.log(`[sync-history] Sample message keys: ${Object.keys(messages[0]).join(', ')}`)
+        // Debug: log raw response for first chat if no messages found
+        if (rawChats.indexOf(chat) === 0) {
+          console.log(`[sync-history] FIRST CHAT raw /message/find response type: ${typeof msgData}, isArray: ${Array.isArray(msgData)}`)
+          if (messages.length === 0 && msgData && typeof msgData === 'object') {
+            console.log(`[sync-history] FIRST CHAT response keys: ${Object.keys(msgData).join(', ')}`)
+            console.log(`[sync-history] FIRST CHAT raw body preview: ${JSON.stringify(msgData).substring(0, 500)}`)
+          }
+          if (messages.length > 0) {
+            console.log(`[sync-history] Sample message keys: ${Object.keys(messages[0]).join(', ')}`)
+          }
         }
+        
         console.log(`[sync-history] ${remoteJid}: ${messages.length} messages found`)
 
         const rows = []
@@ -210,13 +279,17 @@ Deno.serve(async (req) => {
           if (ts > 0 && ts < tenDaysAgo) continue
 
           const mediaType = m.mediaType || normalizeMessageType(m.messageType || '') || ''
-          const text = typeof m.text === 'string' ? m.text : ''
+          // Handle text: could be in m.text or m.content (for media messages text may be empty)
+          const text = typeof m.text === 'string' ? m.text : (typeof m.content === 'string' ? m.content : '')
+          
+          // Handle fromMe as boolean or string
+          const fromMe = m.fromMe === true || m.fromMe === 'true'
 
           rows.push({
             chip_id: chipId,
             message_id: msgId,
             message_content: text,
-            direction: m.fromMe ? 'outgoing' : 'incoming',
+            direction: fromMe ? 'outgoing' : 'incoming',
             status: 'delivered',
             recipient_phone: remoteJid.split('@')[0].replace(/\D/g, '') || null,
             remote_jid: remoteJid,
@@ -245,7 +318,7 @@ Deno.serve(async (req) => {
     // Update last_sync_at
     await adminClient.from('chips').update({ last_sync_at: new Date().toISOString() }).eq('id', chipId)
 
-    console.log(`[sync-history] Complete: ${rawChats.length} chats, ${syncedMessages} messages synced`)
+    console.log(`[sync-history] Complete: ${rawChats.length} chats, ${syncedMessages} messages synced, ${profilePicFetches} profile pics fetched`)
 
     return new Response(JSON.stringify({
       success: true,
