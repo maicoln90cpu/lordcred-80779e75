@@ -475,13 +475,20 @@ Deno.serve(async (req) => {
         const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
         if (!targetNumber || !message) throw new Error('Target and message required')
 
+        console.log(`send-chat-message: sending to ${targetNumber}, text length=${message.length}, token=${chipToken?.substring(0,8)}...`)
+        const sendPayload = { number: targetNumber, text: message }
         const response = await fetch(`${baseUrl}/send/text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ number: targetNumber, text: message }),
+          body: JSON.stringify(sendPayload),
         })
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.message || 'Failed to send message')
+        const responseText = await response.text()
+        console.log(`send-chat-message: UazAPI status=${response.status}, body=${responseText.substring(0, 500)}`)
+        
+        let data: any = {}
+        try { data = JSON.parse(responseText) } catch { data = { raw: responseText } }
+        
+        if (!response.ok) throw new Error(data.message || data.error || `UazAPI returned ${response.status}: ${responseText.substring(0, 200)}`)
 
         return new Response(
           JSON.stringify({ success: true, data }),
