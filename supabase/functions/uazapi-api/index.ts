@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json()
     const { action, instanceName, phoneNumber, message, instanceToken, apiUrl, apiKey, chipId, chatId, limit, page, mediaType, mediaBase64, mediaCaption, mediaFileName, messageId, emoji, newText } = body
+    console.log(`uazapi-api: action=${action}, chipId=${chipId}, instanceName=${instanceName}`)
 
     // Handle test-connection before requiring settings
     if (action === 'test-connection') {
