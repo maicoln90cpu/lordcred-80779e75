@@ -766,17 +766,25 @@ Deno.serve(async (req) => {
         if (!chipToken) throw new Error('Chip token not found')
         if (!chatId) throw new Error('chatId is required')
         const { archive } = body
+        
+        // Ensure chatid is in correct JID format
+        const archiveChatId = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`
+        console.log(`archive-chat: chipId=${chipId}, chatId=${archiveChatId}, archive=${archive !== false}`)
+        
         const response = await fetch(`${baseUrl}/chat/archive`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ chatid: chatId, archive: archive !== false }),
+          body: JSON.stringify({ chatid: archiveChatId, archive: archive !== false }),
         })
         const data = await response.json()
-        // Update DB
+        console.log(`archive-chat: UazAPI response status=${response.status}, data=${JSON.stringify(data)}`)
+        
+        // Update DB regardless (local state should reflect user intent)
         await adminClient.from('conversations')
           .update({ is_archived: archive !== false })
           .eq('chip_id', chipId)
           .eq('remote_jid', chatId)
+          
         return new Response(
           JSON.stringify({ success: true, data }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

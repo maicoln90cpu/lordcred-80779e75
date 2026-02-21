@@ -24,6 +24,7 @@ interface ManageLabelsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   chipId: string | null;
+  chipStatus?: string;
   onLabelsUpdated?: () => void;
 }
 
@@ -33,7 +34,7 @@ const PRESET_COLORS = [
   '#ff78cb', '#344563',
 ];
 
-export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabelsUpdated }: ManageLabelsDialogProps) {
+export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipStatus, onLabelsUpdated }: ManageLabelsDialogProps) {
   const { toast } = useToast();
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,8 +58,14 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
       .finally(() => setLoading(false));
   }, [open, chipId]);
 
+  const isOffline = chipStatus && chipStatus !== 'connected';
+
   const handleCreate = async () => {
     if (!chipId || !newName.trim()) return;
+    if (isOffline) {
+      toast({ title: 'Chip desconectado', description: 'Conecte o WhatsApp para gerenciar etiquetas', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
       const res = await supabase.functions.invoke('uazapi-api', {
@@ -67,7 +74,6 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
       if (res.data?.success) {
         toast({ title: 'Etiqueta criada' });
         setNewName('');
-        // Re-sync labels
         await supabase.functions.invoke('uazapi-api', {
           body: { action: 'fetch-labels', chipId },
         });
@@ -78,10 +84,10 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabel
         if (fresh) setLabels(fresh);
         onLabelsUpdated?.();
       } else {
-        toast({ title: 'Erro ao criar etiqueta', variant: 'destructive' });
+        toast({ title: 'Erro ao criar etiqueta', description: res.data?.error || 'Verifique se o chip está conectado', variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Erro ao criar etiqueta', variant: 'destructive' });
+      toast({ title: 'Erro ao criar etiqueta', description: 'Verifique se o chip está conectado', variant: 'destructive' });
     } finally {
       setSaving(false);
     }

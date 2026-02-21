@@ -45,11 +45,13 @@ interface ChatMessage {
 interface ChatWindowProps {
   chat: ChatContact | null;
   chipId: string | null;
+  chipStatus?: string;
+  onReconnect?: () => void;
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
+export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -640,14 +642,27 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
         </div>
       )}
 
-      {/* Input area */}
-      <ChatInput
-        onSend={handleSend}
-        onSendMedia={handleSendMedia}
-        disabled={sending}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-      />
+      {/* Input area - disabled when chip is offline */}
+      {chipStatus && chipStatus !== 'connected' ? (
+        <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">
+          <WifiOff className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground">Reconecte para atualizar conversas e enviar mensagens</span>
+          {onReconnect && (
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onReconnect}>
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Reconectar
+            </Button>
+          )}
+        </div>
+      ) : (
+        <ChatInput
+          onSend={handleSend}
+          onSendMedia={handleSendMedia}
+          disabled={sending}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+        />
+      )}
 
       <ForwardDialog
         open={!!forwardMsg}

@@ -13,9 +13,10 @@ interface ChipConnectDialogProps {
   onOpenChange: (open: boolean) => void;
   onChipConnected: () => void;
   chipType?: 'warming' | 'whatsapp';
+  reconnectInstanceName?: string | null;
 }
 
-export default function ChipConnectDialog({ open, onOpenChange, onChipConnected, chipType = 'whatsapp' }: ChipConnectDialogProps) {
+export default function ChipConnectDialog({ open, onOpenChange, onChipConnected, chipType = 'whatsapp', reconnectInstanceName }: ChipConnectDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState<'form' | 'qr'>('form');
@@ -40,6 +41,9 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
       setInstanceName('');
       setQrAttempts(0);
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    } else if (reconnectInstanceName) {
+      // Reconnect mode: skip form, go directly to QR
+      handleReconnect(reconnectInstanceName);
     }
   }, [open]);
 
@@ -52,11 +56,7 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     const token = await getAuthToken();
     if (!token) throw new Error('Sessão expirada');
 
-    const { data: settings } = await supabase.from('system_settings').select('whatsapp_provider').limit(1).single();
-    const provider = settings?.whatsapp_provider || 'evolution';
-    const fn = provider === 'uazapi' ? 'uazapi-api' : 'evolution-api';
-
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fn}`, {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ action, ...data }),
@@ -66,11 +66,59 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     return result;
   };
 
+  const handleReconnect = async (instName: string) => {
+    if (!user) return;
+    setIsCreating(true);
+    setStep('qr');
+
+    try {
+      // Find existing chip for this instance
+      const { data: existingChip } = await supabase
+        .from('chips')
+        .select('id, instance_name')
+        .eq('user_id', user.id)
+        .eq('instance_name', instName)
+        .single();
+
+      if (existingChip) {
+        setChipId(existingChip.id);
+        await supabase.from('chips').update({ 
+          status: 'connecting',
+          last_connection_attempt: new Date().toISOString(),
+        }).eq('id', existingChip.id);
+      }
+
+      // Get QR code for existing instance
+      let gotQr = false;
+      for (let i = 0; i < 5; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 2000));
+        try {
+          const result = await callApi('get-qrcode', { instanceName: instName });
+          if (result.qrcode && result.qrcode.length > 10) {
+            const qrImg = result.qrcode.startsWith('data:') ? result.qrcode : `data:image/png;base64,${result.qrcode}`;
+            setQrCode(qrImg);
+            gotQr = true;
+            break;
+          }
+        } catch { /* retry */ }
+      }
+
+      setQrAttempts(0);
+      if (existingChip) {
+        startPolling(instName, existingChip.id);
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro ao reconectar', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleCreate = async () => {
     if (!user) return;
     setIsCreating(true);
 
-    // Rate limiting: check last_connection_attempt
+    // Rate limiting
     const { data: recentChips } = await supabase
       .from('chips')
       .select('last_connection_attempt')
@@ -88,7 +136,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
       }
     }
 
-    // Find next available slot based on chip type
     const slotStart = chipType === 'whatsapp' ? 101 : 1;
     const slotEnd = chipType === 'whatsapp' ? 105 : 15;
     const maxChips = chipType === 'whatsapp' ? 5 : 15;
@@ -102,7 +149,7 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     
     const { data: existing } = await (existingQuery as any).eq('chip_type', chipType);
 
-    const usedSlots = new Set((existing || []).map(c => c.slot_number));
+    const usedSlots = new Set((existing || []).map((c: any) => c.slot_number));
     let slot = slotStart;
     while (usedSlots.has(slot) && slot <= slotEnd) slot++;
     if (slot > slotEnd) {
@@ -114,12 +161,10 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     const name = instanceName.trim() || `chip_${user.id.slice(0, 8)}_slot${slot}`;
 
     try {
-      // Pre-check: verify if instance already exists
       let instanceExists = false;
       try {
         const statusResult = await callApi('check-status', { instanceName: name });
         if (statusResult.state === 'connected') {
-          // Instance already connected, just update DB
           toast({ title: 'Instância já conectada', description: 'Vinculando ao seu chip...' });
           const { data: newChip, error } = await supabase
             .from('chips')
@@ -139,7 +184,7 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
         }
         instanceExists = statusResult.state !== 'unknown';
       } catch {
-        // Instance doesn't exist, proceed with creation
+        // Instance doesn't exist
       }
 
       const { data: newChip, error } = await supabase
@@ -160,7 +205,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
         await new Promise(r => setTimeout(r, 3000));
       }
 
-      // Fetch QR with retries
       let gotQr = false;
       for (let i = 0; i < 5; i++) {
         if (i > 0) await new Promise(r => setTimeout(r, 2000));
@@ -213,42 +257,43 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
   };
 
   const handleRefreshQr = async () => {
-    if (!chipId) return;
+    const activeChipId = chipId;
+    const instName = reconnectInstanceName;
+    
+    if (!activeChipId && !instName) return;
 
     const newAttempts = qrAttempts + 1;
     setQrAttempts(newAttempts);
 
-    // After 3 failed attempts, recreate instance
+    // Determine instance name
+    let targetInstance = instName;
+    if (!targetInstance && activeChipId) {
+      const { data: chip } = await supabase.from('chips').select('instance_name').eq('id', activeChipId).single();
+      targetInstance = chip?.instance_name;
+    }
+    if (!targetInstance) return;
+
     if (newAttempts >= 3) {
       toast({ title: 'QR Code expirado', description: 'Recriando instância...' });
-      const { data: chip } = await supabase.from('chips').select('instance_name').eq('id', chipId).single();
-      if (!chip) return;
-
       try {
-        // Delete old instance
-        try { await callApi('delete-instance', { instanceName: chip.instance_name }); } catch { /* ok */ }
-        // Recreate
-        await callApi('create-instance', { instanceName: chip.instance_name });
+        try { await callApi('delete-instance', { instanceName: targetInstance }); } catch { /* ok */ }
+        await callApi('create-instance', { instanceName: targetInstance });
         await new Promise(r => setTimeout(r, 3000));
-        // Get new QR
-        const result = await callApi('get-qrcode', { instanceName: chip.instance_name });
+        const result = await callApi('get-qrcode', { instanceName: targetInstance });
         if (result.qrcode && result.qrcode.length > 10) {
           const qrImg = result.qrcode.startsWith('data:') ? result.qrcode : `data:image/png;base64,${result.qrcode}`;
           setQrCode(qrImg);
         }
         setQrAttempts(0);
-        startPolling(chip.instance_name, chipId);
+        if (activeChipId) startPolling(targetInstance, activeChipId);
       } catch (e) {
         toast({ title: 'Erro ao recriar instância', variant: 'destructive' });
       }
       return;
     }
 
-    // Normal refresh
-    const { data: chip } = await supabase.from('chips').select('instance_name').eq('id', chipId).single();
-    if (!chip) return;
     try {
-      const result = await callApi('get-qrcode', { instanceName: chip.instance_name });
+      const result = await callApi('get-qrcode', { instanceName: targetInstance });
       if (result.qrcode && result.qrcode.length > 10) {
         const qrImg = result.qrcode.startsWith('data:') ? result.qrcode : `data:image/png;base64,${result.qrcode}`;
         setQrCode(qrImg);
@@ -264,12 +309,14 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="w-5 h-5" />
-            Conectar Chip
+            {reconnectInstanceName ? 'Reconectar Chip' : 'Conectar Chip'}
           </DialogTitle>
-          <DialogDescription>Conecte seu WhatsApp escaneando o QR Code</DialogDescription>
+          <DialogDescription>
+            {reconnectInstanceName ? 'Escaneie o QR Code para reconectar' : 'Conecte seu WhatsApp escaneando o QR Code'}
+          </DialogDescription>
         </DialogHeader>
 
-        {step === 'form' && (
+        {step === 'form' && !reconnectInstanceName && (
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Nome da instância (opcional)</Label>
@@ -285,7 +332,7 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
           </div>
         )}
 
-        {step === 'qr' && (
+        {(step === 'qr' || reconnectInstanceName) && (
           <div className="flex flex-col items-center gap-4 py-4">
             {qrCode ? (
               <img src={qrCode} alt="QR Code" className="w-64 h-64 rounded-lg border" />

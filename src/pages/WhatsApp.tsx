@@ -11,6 +11,7 @@ import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
 import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
+import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatContact {
@@ -28,10 +29,13 @@ export interface ChatContact {
 
 export default function WhatsApp() {
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
+  const [selectedChipStatus, setSelectedChipStatus] = useState<string>('disconnected');
+  const [selectedChipInstanceName, setSelectedChipInstanceName] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [whatsappProfileOpen, setWhatsappProfileOpen] = useState(false);
+  const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
   const { user, isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -65,7 +69,6 @@ export default function WhatsApp() {
     setUnreadCounts(counts);
   }, [user]);
 
-  // Fetch unread on mount and subscribe globally
   useEffect(() => {
     fetchAllUnreadCounts();
 
@@ -79,20 +82,32 @@ export default function WhatsApp() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllUnreadCounts]);
 
-  const handleSelectChip = useCallback((id: string) => {
+  const handleSelectChip = useCallback(async (id: string) => {
     setSelectedChipId(id);
     setSelectedChat(null);
-    // Trigger background sync for this chip
+    
     if (id) {
+      // Fetch chip status and instance name
+      const { data: chip } = await supabase
+        .from('chips')
+        .select('status, instance_name')
+        .eq('id', id)
+        .single();
+      setSelectedChipStatus(chip?.status || 'disconnected');
+      setSelectedChipInstanceName(chip?.instance_name || null);
+
+      // Trigger background sync
       supabase.functions.invoke('sync-history', {
         body: { chipId: id },
       }).catch(() => {});
+    } else {
+      setSelectedChipStatus('disconnected');
+      setSelectedChipInstanceName(null);
     }
   }, []);
 
   const handleSelectChat = useCallback((chat: ChatContact) => {
     setSelectedChat(chat);
-    // Optimistically clear unread in sidebar state
     if (chat.unreadCount > 0 && selectedChipId) {
       setUnreadCounts(prev => ({
         ...prev,
@@ -104,6 +119,12 @@ export default function WhatsApp() {
   const handleUnreadUpdate = useCallback((chipId: string, totalUnread: number) => {
     setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
   }, []);
+
+  const handleReconnectFromChat = useCallback(() => {
+    if (selectedChipInstanceName) {
+      setReconnectDialogOpen(true);
+    }
+  }, [selectedChipInstanceName]);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
@@ -147,7 +168,10 @@ export default function WhatsApp() {
         <main className="flex-1 flex flex-col min-w-0">
           <ChatWindow
             chat={selectedChat}
-            chipId={selectedChipId} />
+            chipId={selectedChipId}
+            chipStatus={selectedChipStatus}
+            onReconnect={handleReconnectFromChat}
+          />
         </main>
       </div>
 
@@ -162,6 +186,17 @@ export default function WhatsApp() {
         open={whatsappProfileOpen}
         onOpenChange={setWhatsappProfileOpen}
         chipId={selectedChipId}
+      />
+
+      {/* Reconnect dialog triggered from ChatWindow */}
+      <ChipConnectDialog
+        open={reconnectDialogOpen}
+        onOpenChange={setReconnectDialogOpen}
+        onChipConnected={() => {
+          // Refresh chip status
+          if (selectedChipId) handleSelectChip(selectedChipId);
+        }}
+        reconnectInstanceName={selectedChipInstanceName}
       />
     </div>);
 }
