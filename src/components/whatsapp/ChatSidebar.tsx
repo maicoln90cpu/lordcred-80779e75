@@ -9,7 +9,30 @@ import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import LabelBadge from './LabelBadge';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import type { ChatContact } from '@/pages/WhatsApp';
+
+function formatPhoneNumber(raw: string): string {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 12) {
+    // +55 48 98119529 -> +55 48 9811-9529
+    const cc = digits.slice(0, 2);
+    const ddd = digits.slice(2, 4);
+    const rest = digits.slice(4);
+    if (rest.length === 9) return `+${cc} ${ddd} ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    if (rest.length === 8) return `+${cc} ${ddd} ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    return `+${cc} ${ddd} ${rest}`;
+  }
+  if (digits.length >= 10) {
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+    if (rest.length === 9) return `+55 ${ddd} ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    if (rest.length === 8) return `+55 ${ddd} ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    return `+55 ${ddd} ${rest}`;
+  }
+  return raw;
+}
 
 interface ChatSidebarProps {
   selectedChatId: string | null;
@@ -114,20 +137,23 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         return;
       }
 
-      const mapped = (dbConvos || []).map((r: any) => ({
-        id: r.id,
-        remoteJid: r.remote_jid,
-        name: r.contact_name || r.contact_phone || r.remote_jid?.split('@')[0] || 'Desconhecido',
-        phone: r.contact_phone || r.remote_jid?.split('@')[0] || '',
-        lastMessage: r.last_message_text || '',
-        lastMessageAt: r.last_message_at,
-        unreadCount: r.unread_count || 0,
-        isGroup: r.is_group || false,
-        isPinned: false,
-        profilePicUrl: null,
-        is_archived: r.is_archived || false,
-        label_ids: r.label_ids || [],
-      }));
+      const mapped = (dbConvos || []).map((r: any) => {
+        const displayName = r.contact_name || r.wa_name || formatPhoneNumber(r.contact_phone || r.remote_jid?.split('@')[0] || '');
+        return {
+          id: r.id,
+          remoteJid: r.remote_jid,
+          name: displayName || 'Desconhecido',
+          phone: r.contact_phone || r.remote_jid?.split('@')[0] || '',
+          lastMessage: r.last_message_text || '',
+          lastMessageAt: r.last_message_at,
+          unreadCount: r.unread_count || 0,
+          isGroup: r.is_group || false,
+          isPinned: false,
+          profilePicUrl: r.profile_pic_url || null,
+          is_archived: r.is_archived || false,
+          label_ids: r.label_ids || [],
+        };
+      });
 
       if (mapped.length < PAGE_SIZE) setHasMore(false);
 
@@ -175,12 +201,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           const record = payload.new as any;
           if (!record) return;
 
+          const displayName = record.contact_name || record.wa_name || formatPhoneNumber(record.contact_phone || record.remote_jid?.split('@')[0] || '');
+
           setChats(prev => {
             const existing = prev.findIndex(c => c.remoteJid === record.remote_jid);
             const updated: any = {
               id: record.id,
               remoteJid: record.remote_jid,
-              name: record.contact_name || record.contact_phone || 'Desconhecido',
+              name: displayName || 'Desconhecido',
               phone: record.contact_phone || '',
               lastMessage: record.last_message_text || '',
               lastMessageAt: record.last_message_at,
@@ -188,6 +216,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
               isGroup: record.is_group || false,
               is_archived: record.is_archived || false,
               label_ids: record.label_ids || [],
+              profilePicUrl: record.profile_pic_url || null,
             };
 
             let newChats;
@@ -344,38 +373,41 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             </Button>
           ) : null}
 
-          {labels.length > 0 && (
-            <>
-              {filterLabel ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs shrink-0"
-                  onClick={() => setFilterLabel(null)}
-                >
+          {/* Labels filter - always show */}
+          {filterLabel ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => setFilterLabel(null)}
+            >
+              <Tag className="w-3 h-3 mr-1" />
+              {labels.find(l => l.label_id === filterLabel)?.name || 'Etiqueta'}
+              <span className="ml-1 text-muted-foreground">✕</span>
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
                   <Tag className="w-3 h-3 mr-1" />
-                  {labels.find(l => l.label_id === filterLabel)?.name || 'Etiqueta'}
-                  <span className="ml-1 text-muted-foreground">✕</span>
+                  Etiquetas
                 </Button>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
-                      <Tag className="w-3 h-3 mr-1" />
-                      Etiquetas
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {labels.map(label => (
-                      <DropdownMenuItem key={label.label_id} onClick={() => setFilterLabel(label.label_id)}>
-                        <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
-                        {label.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {labels.length > 0 ? (
+                  labels.map(label => (
+                    <DropdownMenuItem key={label.label_id} onClick={() => setFilterLabel(label.label_id)}>
+                      <LabelBadge name={label.name} colorHex={label.color_hex} className="mr-2" />
+                      {label.name}
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                    Nenhuma etiqueta sincronizada
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -402,14 +434,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50"
                   )}
                 >
-                  {chat.profilePicUrl ? (
-                    <img src={chat.profilePicUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-                  ) : null}
-                  <div className={cn("w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0", chat.profilePicUrl && "hidden")}>
-                    <span className="text-sm font-medium text-primary">
+                  <Avatar className="w-10 h-10 shrink-0">
+                    {chat.profilePicUrl && (
+                      <AvatarImage src={chat.profilePicUrl} alt={chat.name} />
+                    )}
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm font-medium">
                       {chat.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 min-w-0">
