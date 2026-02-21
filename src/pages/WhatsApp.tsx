@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star, Smartphone } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
+import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +31,7 @@ export default function WhatsApp() {
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [whatsappProfileOpen, setWhatsappProfileOpen] = useState(false);
   const { isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -76,6 +78,11 @@ export default function WhatsApp() {
         </div>
         <div className="flex items-center gap-2 ml-4">
           <UserProfileMenu />
+          {selectedChipId && (
+            <Button variant="ghost" size="icon" onClick={() => setWhatsappProfileOpen(true)} className="text-muted-foreground hover:text-foreground" title="Configurações do WhatsApp">
+              <Smartphone className="w-4 h-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
@@ -116,6 +123,12 @@ export default function WhatsApp() {
         onClose={() => setFavoritesOpen(false)}
         chipId={selectedChipId}
         onOpenChat={(chat) => { setSelectedChat(chat); setFavoritesOpen(false); }}
+      />
+
+      <WhatsAppProfileDialog
+        open={whatsappProfileOpen}
+        onOpenChange={setWhatsappProfileOpen}
+        chipId={selectedChipId}
       />
     </div>);
 }
