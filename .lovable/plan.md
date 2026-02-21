@@ -1,47 +1,73 @@
 
-## Plano de Correcoes - 3 Itens
 
-### 1. Aumentar largura da coluna de conversas
+## Correcao do sync-history - 5 Erros Encontrados
 
-A sidebar atual tem `w-96` (384px) no `WhatsApp.tsx` linha 159. Os filtros (Nao lidas, Favoritas, Status, Etiquetas) estao com scroll horizontal porque nao cabem. Tambem os filtros usam `overflow-x-auto` na linha 472 do `ChatSidebar.tsx`.
+### Resultado da Auditoria
 
-**Correcao**:
-- Alterar `w-96` para `w-[420px]` no `WhatsApp.tsx` (sidebar aside)
-- Ajustar os botoes de filtro para serem mais compactos (remover texto em alguns, usar apenas icones com tooltip, ou reduzir padding) para garantir que todos caibam sem scroll horizontal
-- Remover `overflow-x-auto` e usar `flex-wrap` nos filtros para que quebrem linha se necessario
+A funcao `sync-history` existe e a UazAPI **SIM possui** os endpoints necessarios para buscar historico:
 
-### 2. Corrigir sincronizacao de status do chip (botao Atualizar)
+- `POST /chat/find` - Busca chats com filtros (retorna lista de objetos Chat)
+- `POST /message/find` - Busca mensagens de um chat (retorna lista de objetos Message com paginacao)
 
-**Problema**: Apos reconectar um chip via QR Code, o frontend mantem o status antigo (`disconnected`) porque o state `selectedChipStatus` no `WhatsApp.tsx` so e atualizado quando `handleSelectChip` e chamado. O `ChipSelector` tambem le o status do banco na carga inicial e nao atualiza depois.
+Porem a funcao possui **5 erros criticos** que impedem o funcionamento:
 
-**Correcao**:
-- Adicionar um botao "Atualizar status" (icone RefreshCw) no header do `WhatsApp.tsx`, ao lado dos botoes existentes
-- Ao clicar, ele:
-  1. Busca todos os chips do usuario no banco (`chips.status`)
-  2. Para cada chip, chama a UazAPI `GET /instance/status` via edge function para verificar o status real
-  3. Atualiza o banco com o status correto
-  4. Atualiza o state local (`selectedChipStatus` e forca re-render do `ChipSelector`)
-  5. Mostra toast com resultado ("3 chips atualizados - 1 conectado, 2 offline")
-- Tambem garantir que apos o `ChipConnectDialog` fechar com sucesso, o `handleSelectChip` e chamado para atualizar o status
+---
 
-**Arquivos**: 
-- `WhatsApp.tsx`: Adicionar botao e funcao `handleRefreshAllChips`
-- `ChipSelector.tsx`: Expor funcao `fetchChips` via callback ou adicionar prop `refreshTrigger`
+### Erro 1: Coluna `last_sync_at` nao existe na tabela `chips`
 
-### 3. Botao "Sincronizar historico" no dropdown do chip + indicador visual
+A funcao tenta ler e gravar `chips.last_sync_at` (linhas 59 e 203), mas essa coluna **nunca foi criada** no banco de dados. Isso causa erro silencioso no SELECT ou no UPDATE.
 
-**Problema**: O `sync-history` e chamado em background ao selecionar chip, mas sem feedback visual. O usuario nao sabe se esta sincronizando ou se ja terminou. Alem disso, no dropdown do chip nao ha opcao para forcar sincronizacao.
+**Correcao**: Criar a coluna via migration SQL.
 
-**Correcao**:
+### Erro 2: Metodo `getClaims()` nao existe no Supabase JS v2
 
-**3a - Dropdown do chip (ChipSelector.tsx)**:
-- Adicionar opcao "Sincronizar mensagens" no dropdown de chips conectados (abaixo de "Configuracoes")
-- Ao clicar, chama `sync-history` e mostra toast com resultado
+Linha 42: `userClient.auth.getClaims(token)` - este metodo nao existe no `@supabase/supabase-js@2`. Isso causa um erro imediato e a funcao retorna 401 ou 500 sem fazer nenhum trabalho.
 
-**3b - Indicador visual de sincronizacao (ChatSidebar.tsx)**:
-- Adicionar estado `isSyncing` no `WhatsApp.tsx` que e passado para `ChatSidebar`
-- Quando `sync-history` e chamado, mostrar uma barra no topo da sidebar: "Sincronizando mensagens..." com spinner
-- Quando termina, atualizar para "X mensagens sincronizadas" por 3 segundos e depois sumir
+**Correcao**: Substituir por `userClient.auth.getUser()` que e o metodo correto para validar o token.
+
+### Erro 3: Parsing da resposta do `/chat/find` pode falhar
+
+A funcao tenta `chatsResponse?.chats || chatsResponse?.data` mas a UazAPI pode retornar a lista diretamente como array, ou usar a chave `results`. A documentacao mostra que o schema Chat tem campos como `wa_chatid`, `wa_contactName`, etc.
+
+**Correcao**: Adicionar mais fallbacks na extracao do array: `chatsResponse?.results || chatsResponse?.items`.
+
+### Erro 4: Parsing da resposta do `/message/find` pode falhar
+
+Similar ao erro 3 - a funcao tenta `msgData?.messages || msgData?.data` mas a UazAPI retorna "Lista de mensagens encontradas com metadados de paginacao". A chave real pode ser diferente.
+
+**Correcao**: Adicionar fallbacks e logs detalhados para debug: `msgData?.results || msgData?.items`.
+
+### Erro 5: `messageTimestamp` pode estar em segundos vs milissegundos
+
+A documentacao diz `messageTimestamp integer - Timestamp original da mensagem em milissegundos`, mas na pratica a UazAPI pode retornar em segundos. O codigo ja tenta tratar isso (linha 163-164) mas o threshold `10000000000` pode nao ser robusto o suficiente.
+
+**Correcao**: Manter a logica mas adicionar log para debug.
+
+---
+
+### Plano de Correcao
+
+#### 1. Migration SQL - Adicionar coluna `last_sync_at`
+
+```text
+ALTER TABLE public.chips ADD COLUMN IF NOT EXISTS last_sync_at timestamptz DEFAULT NULL;
+```
+
+#### 2. Reescrever `sync-history/index.ts`
+
+Alteracoes:
+- Substituir `getClaims(token)` por `getUser()` para validacao de autenticacao
+- Adicionar logs detalhados em cada etapa (fetch chats, parse response, fetch messages, upsert)
+- Adicionar fallbacks robustos para extrair arrays de respostas: tentar array direto, depois `results`, `items`, `chats`, `data`, `messages`
+- Logar a quantidade de chats/mensagens encontradas em cada passo
+- Logar erros de HTTP da UazAPI (status code, body de erro)
+- Remover o skip de 5 minutos para permitir sincronizacao manual via botao (ou reduzir para 1 minuto)
+
+#### 3. Atualizar frontend para mostrar resultado detalhado
+
+No `WhatsApp.tsx`, ao receber resposta do sync, mostrar toast com detalhes:
+- "X conversas e Y mensagens sincronizadas" em vez de apenas "Sincronizacao concluida"
+- Se synced = 0, mostrar "Nenhuma mensagem nova encontrada" ou o motivo real
 
 ---
 
@@ -49,6 +75,6 @@ A sidebar atual tem `w-96` (384px) no `WhatsApp.tsx` linha 159. Os filtros (Nao 
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | `WhatsApp.tsx` | Alterar aside de `w-96` para `w-[420px]`; adicionar botao RefreshCw no header; adicionar `handleRefreshAllChips`; gerenciar estado `isSyncing` |
-| 2 | `ChatSidebar.tsx` | Alterar filtros de `overflow-x-auto` para `flex-wrap`; adicionar prop `isSyncing` com barra de indicacao no topo |
-| 3 | `ChipSelector.tsx` | Adicionar opcao "Sincronizar mensagens" no dropdown de chips conectados; adicionar prop `onSyncHistory` |
+| 1 | Migration SQL | `ALTER TABLE chips ADD COLUMN last_sync_at` |
+| 2 | `sync-history/index.ts` | Corrigir auth (`getUser`), adicionar logs, fallbacks de parsing, remover skip de 5min para sync manual |
+| 3 | `WhatsApp.tsx` | Mostrar resultado detalhado do sync no toast |
