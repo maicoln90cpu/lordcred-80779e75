@@ -504,7 +504,7 @@ Deno.serve(async (req) => {
         const response = await fetch(`${baseUrl}/chat/read`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ chatid: chatId }),
+          body: JSON.stringify({ number: chatId }),
         })
         const data = await response.json()
 
