@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -64,6 +64,8 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [chipDisconnected, setChipDisconnected] = useState(false);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeChipRef = useRef(chipId);
@@ -267,8 +269,27 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     }
   }, [loadingMore, hasMore, currentPage, fetchMessages]);
 
+  const checkChipConnected = useCallback(async (): Promise<boolean> => {
+    if (!chipId) return false;
+    const { data } = await supabase
+      .from('chips')
+      .select('status')
+      .eq('id', chipId)
+      .maybeSingle();
+    return data?.status === 'connected';
+  }, [chipId]);
+
   const handleSend = useCallback(async (text: string) => {
     if (!chipId || !chat || !text.trim()) return;
+
+    // Check chip connection before sending
+    const connected = await checkChipConnected();
+    if (!connected) {
+      setChipDisconnected(true);
+      setFailedMessage(text);
+      return;
+    }
+
     setSending(true);
 
     const tempMsg: ChatMessage = {
@@ -292,15 +313,22 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
       });
 
       if (!response.data?.success) {
+        const errMsg = response.data?.error || '';
+        if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('not connected')) {
+          setChipDisconnected(true);
+          setFailedMessage(text);
+        }
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       }
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      setChipDisconnected(true);
+      setFailedMessage(text);
     } finally {
       setSending(false);
     }
-  }, [chipId, chat]);
+  }, [chipId, chat, checkChipConnected]);
 
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
     if (!chipId || !chat) return;
@@ -569,6 +597,48 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           </div>
         )}
       </div>
+
+      {/* Disconnected chip banner */}
+      {chipDisconnected && (
+        <div className="flex items-center justify-center gap-3 px-4 py-3 bg-destructive/10 border-t border-destructive/20">
+          <WifiOff className="w-5 h-5 text-destructive shrink-0" />
+          <span className="text-sm text-destructive font-medium">Este chip está desconectado</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+            onClick={async () => {
+              if (!chipId) return;
+              try {
+                await supabase.functions.invoke('uazapi-api', {
+                  body: { action: 'connect-instance', chipId },
+                });
+                toast({ title: 'Reconectando...', description: 'Aguarde alguns segundos.' });
+                setChipDisconnected(false);
+                // Retry sending the failed message after a short delay
+                if (failedMessage) {
+                  const msg = failedMessage;
+                  setFailedMessage(null);
+                  setTimeout(() => handleSend(msg), 3000);
+                }
+              } catch {
+                toast({ title: 'Erro ao reconectar', variant: 'destructive' });
+              }
+            }}
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            Reconectar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground"
+            onClick={() => { setChipDisconnected(false); setFailedMessage(null); }}
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
 
       {/* Input area */}
       <ChatInput

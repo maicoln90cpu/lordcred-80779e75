@@ -188,7 +188,7 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
           </div>
           <div className="flex-1 flex flex-col gap-0.5 min-w-0">
             <div className="h-1.5 bg-muted rounded-full w-full" />
-            <span className="text-[10px] text-muted-foreground">Áudio indisponível</span>
+            <span className="text-[10px] text-muted-foreground">Mídia indisponível — conteúdo anterior à integração</span>
           </div>
         </div>
       );
@@ -237,7 +237,7 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
   return loading ? <LoadingSkeleton className="w-32 h-8 rounded-md" /> : (
     <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
       <Download className="w-4 h-4" />
-      <span>{error ? '📎 Mídia indisponível' : `📎 Mídia (${type})`}</span>
+      <span>{error ? '📎 Mídia indisponível — conteúdo anterior à integração' : `📎 Mídia (${type})`}</span>
     </button>
   );
 }

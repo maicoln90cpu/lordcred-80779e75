@@ -212,22 +212,36 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
 
 async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
   // Handle message status updates (sent, delivered, read)
-  const updates = payload.updates || payload.data || []
-  const updateList = Array.isArray(updates) ? updates : [updates]
+  console.log('messages_update payload:', JSON.stringify(payload))
+  
+  const updates = payload.updates || payload.data || payload.message ? [payload.message] : []
+  const rawList = Array.isArray(updates) ? updates : [updates]
+  // Also check if payload itself contains status info
+  const updateList = rawList.length > 0 ? rawList : [payload]
 
   for (const update of updateList) {
-    const messageId = update?.messageid || update?.key?.id || update?.id
-    const state = update?.state || update?.status || payload.state
-    if (!messageId || !state) continue
+    if (!update) continue
+    const messageId = update?.messageid || update?.key?.id || update?.id || payload?.messageid
+    const state = update?.state || update?.status || update?.ack || payload?.state || payload?.ack
+    if (!messageId || state === undefined || state === null) continue
 
-    // Map UazAPI states to our status
+    // Map UazAPI states to our status — comprehensive mapping
     let newStatus = ''
-    const stateLower = String(state).toLowerCase()
-    if (stateLower === 'read' || stateLower === '4' || state === 4) newStatus = 'read'
-    else if (stateLower === 'delivered' || stateLower === '3' || state === 3) newStatus = 'delivered'
-    else if (stateLower === 'sent' || stateLower === 'server_ack' || stateLower === '2' || state === 2) newStatus = 'sent'
+    const stateStr = String(state).toLowerCase()
+    
+    // Numeric: 0=pending, 1=sent, 2=delivered/server_ack, 3=delivered, 4=read, 5=played
+    if (state === 4 || state === 5 || stateStr === 'read' || stateStr === 'played' || stateStr === 'read_by_me' || stateStr === '4' || stateStr === '5') {
+      newStatus = 'read'
+    } else if (state === 3 || stateStr === 'delivered' || stateStr === 'delivery_ack' || stateStr === '3') {
+      newStatus = 'delivered'
+    } else if (state === 2 || state === 1 || stateStr === 'sent' || stateStr === 'server_ack' || stateStr === '2' || stateStr === '1') {
+      newStatus = 'sent'
+    }
 
-    if (!newStatus) continue
+    if (!newStatus) {
+      console.log(`Unknown message status state: ${state} (type: ${typeof state})`)
+      continue
+    }
 
     const { error } = await adminClient
       .from('message_history')
@@ -236,7 +250,9 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
       .eq('message_id', messageId)
 
     if (!error) {
-      console.log(`Message ${messageId} status updated to ${newStatus}`)
+      console.log(`Message ${messageId} status updated to ${newStatus} (raw state: ${state})`)
+    } else {
+      console.log(`Failed to update message ${messageId}: ${error.message}`)
     }
   }
 }
