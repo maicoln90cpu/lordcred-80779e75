@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Loader2, ChevronDown } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -38,9 +38,10 @@ interface ChipSelectorProps {
   selectedChipId: string | null;
   onSelectChip: (chipId: string) => void;
   unreadCounts?: Record<string, number>;
+  onOpenSettings?: (chipId: string) => void;
 }
 
-export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {} }: ChipSelectorProps) {
+export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {}, onOpenSettings }: ChipSelectorProps) {
   const [chips, setChips] = useState<Chip[]>([]);
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
@@ -182,6 +183,11 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                   {chip.phone_number || 'Sem número'}
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onOpenSettings?.(chip.id)}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Configurações
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive cursor-pointer"

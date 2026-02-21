@@ -39,6 +39,7 @@ interface ChatMessage {
   mediaType?: string;
   hasMedia?: boolean;
   messageId?: string;
+  status?: string;
 }
 
 interface ChatWindowProps {
@@ -83,6 +84,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
     mediaType: r.media_type || undefined,
     hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat'),
     messageId: r.message_id || undefined,
+    status: r.status || 'sent',
   }), []);
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
@@ -157,7 +159,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
 
   // Mark as read when opening chat - both WhatsApp and DB
   useEffect(() => {
-    if (!chipId || !chat || chat.unreadCount === 0) return;
+    if (!chipId || !chat) return;
     // Mark read on WhatsApp via UazAPI
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'mark-read', chipId, chatId: chat.remoteJid },
@@ -171,7 +173,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
       .then(() => {});
   }, [chipId, chat?.remoteJid]);
 
-  // Realtime: listen for new messages
+  // Realtime: listen for new messages and status updates
   useEffect(() => {
     if (!chipId || !chat) return;
 
@@ -202,6 +204,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
             mediaType: record.media_type || undefined,
             hasMedia: !!(record.media_type && record.media_type !== 'text' && record.media_type !== 'chat'),
             messageId: record.message_id || undefined,
+            status: record.status || 'sent',
           };
 
           setMessages(prev => {
@@ -215,6 +218,25 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
           });
 
           addMessageToCache(chipId, chat.remoteJid, newMsg);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'message_history',
+          filter: `chip_id=eq.${chipId}`,
+        },
+        (payload) => {
+          const record = payload.new as any;
+          if (!record || record.remote_jid !== chat.remoteJid) return;
+          // Update status of existing message
+          setMessages(prev => prev.map(m =>
+            (m.id === record.id || (m.messageId && m.messageId === record.message_id))
+              ? { ...m, status: record.status || m.status }
+              : m
+          ));
         }
       )
       .subscribe();
@@ -533,6 +555,7 @@ export default function ChatWindow({ chat, chipId }: ChatWindowProps) {
                 chipId={chipId || undefined}
                 senderName={msg.senderName}
                 isGroup={chat?.isGroup}
+                status={msg.status}
                 onReply={handleReply}
                 onReact={handleReact}
                 onForward={handleForward}
