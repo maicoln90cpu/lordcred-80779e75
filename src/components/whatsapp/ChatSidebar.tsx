@@ -79,6 +79,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'people' | 'groups'>('all');
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [editingContactJid, setEditingContactJid] = useState<string | null>(null);
   const [editContactName, setEditContactName] = useState('');
@@ -401,6 +402,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (filterStarred && !chat.is_starred) return false;
     if (filterStatus && chat.custom_status !== filterStatus) return false;
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
+    if (filterType === 'people' && chat.isGroup) return false;
+    if (filterType === 'groups' && !chat.isGroup) return false;
     if (search) {
       return chat.name.toLowerCase().includes(search.toLowerCase()) || chat.phone.includes(search);
     }
@@ -504,6 +507,24 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             onClick={() => setFilterStarred(!filterStarred)}
           >
             <Star className="w-3 h-3 mr-1" /> Favoritas
+          </Button>
+
+          <Button
+            variant={filterType === 'people' ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", filterType !== 'people' && "text-muted-foreground")}
+            onClick={() => setFilterType(filterType === 'people' ? 'all' : 'people')}
+          >
+            Pessoas
+          </Button>
+
+          <Button
+            variant={filterType === 'groups' ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", filterType !== 'groups' && "text-muted-foreground")}
+            onClick={() => setFilterType(filterType === 'groups' ? 'all' : 'groups')}
+          >
+            Grupos
           </Button>
 
           {/* Status filter */}
