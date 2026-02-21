@@ -171,15 +171,32 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
     if (mediaUrl) {
       return <AudioPlayer src={mediaUrl} />;
     }
-    return loading ? (
-      <div className="flex items-center gap-2 w-full max-w-[280px]">
-        <Skeleton className="w-8 h-8 rounded-full" />
-        <Skeleton className="flex-1 h-2 rounded-full" />
-      </div>
-    ) : (
+    if (loading) {
+      return (
+        <div className="flex items-center gap-2 w-full max-w-[280px]">
+          <Skeleton className="w-8 h-8 rounded-full" />
+          <Skeleton className="flex-1 h-2 rounded-full" />
+        </div>
+      );
+    }
+    // Friendly unavailable state for old audios
+    if (error) {
+      return (
+        <div className="flex items-center gap-2 w-full max-w-[280px] min-w-[200px] opacity-60">
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+            <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+          <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+            <div className="h-1.5 bg-muted rounded-full w-full" />
+            <span className="text-[10px] text-muted-foreground">Áudio indisponível</span>
+          </div>
+        </div>
+      );
+    }
+    return (
       <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
         <Volume2 className="w-4 h-4" />
-        <span>{error ? '⚠️ Erro - clique para tentar' : '🎤 Áudio'}</span>
+        <span>🎤 Áudio</span>
       </button>
     );
   }

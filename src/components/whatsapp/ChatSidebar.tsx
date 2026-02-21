@@ -55,6 +55,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+  const [filterUnread, setFilterUnread] = useState(false);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
   const prevChipRef = useRef<string | null>(null);
@@ -278,6 +279,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     } else {
       if (chat.is_archived) return false;
     }
+    // Unread filter
+    if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     // Label filter
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
     // Search filter
@@ -372,6 +375,16 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
               Arquivadas ({archivedCount})
             </Button>
           ) : null}
+
+          {/* Unread filter */}
+          <Button
+            variant={filterUnread ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", !filterUnread && "text-muted-foreground")}
+            onClick={() => setFilterUnread(!filterUnread)}
+          >
+            Não lidas
+          </Button>
 
           {/* Labels filter - always show */}
           {filterLabel ? (

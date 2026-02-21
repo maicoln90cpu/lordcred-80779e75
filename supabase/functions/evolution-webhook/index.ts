@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     } else if (eventType === 'chats' && payload.chat) {
       await handleUazapiChat(adminClient, chip, payload)
     } else if (eventType === 'messages_update') {
-      console.log('Messages update event (read receipt):', payload.state)
+      await handleMessagesUpdate(adminClient, chip, payload)
     } else if (eventType === 'connection.update' || payload.event === 'connection.update') {
       await handleConnectionUpdate(adminClient, chip, payload)
     } else if (eventType === 'qrcode.updated') {
@@ -208,6 +208,37 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
 
   // UPSERT to prevent race condition duplicates
   await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
+}
+
+async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
+  // Handle message status updates (sent, delivered, read)
+  const updates = payload.updates || payload.data || []
+  const updateList = Array.isArray(updates) ? updates : [updates]
+
+  for (const update of updateList) {
+    const messageId = update?.messageid || update?.key?.id || update?.id
+    const state = update?.state || update?.status || payload.state
+    if (!messageId || !state) continue
+
+    // Map UazAPI states to our status
+    let newStatus = ''
+    const stateLower = String(state).toLowerCase()
+    if (stateLower === 'read' || stateLower === '4' || state === 4) newStatus = 'read'
+    else if (stateLower === 'delivered' || stateLower === '3' || state === 3) newStatus = 'delivered'
+    else if (stateLower === 'sent' || stateLower === 'server_ack' || stateLower === '2' || state === 2) newStatus = 'sent'
+
+    if (!newStatus) continue
+
+    const { error } = await adminClient
+      .from('message_history')
+      .update({ status: newStatus })
+      .eq('chip_id', chip.id)
+      .eq('message_id', messageId)
+
+    if (!error) {
+      console.log(`Message ${messageId} status updated to ${newStatus}`)
+    }
+  }
 }
 
 async function handleConnectionUpdate(adminClient: any, chip: any, payload: any) {

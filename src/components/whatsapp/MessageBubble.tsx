@@ -1,4 +1,5 @@
 import React, { forwardRef, useMemo, useState } from 'react';
+import { Check, CheckCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import MediaRenderer from './MediaRenderer';
@@ -31,6 +32,7 @@ interface MessageBubbleProps {
   onFavorite?: (msg: MessageData) => void;
   onDelete?: (msg: MessageData) => void;
   onEdit?: (msg: MessageData) => void;
+  status?: string;
 }
 
 function nameToColor(name: string): string {
@@ -78,7 +80,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
-    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit }, ref
+    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit, status }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -165,7 +167,18 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
             <p className="text-xs text-muted-foreground italic">Enviando mídia...</p>
           )}
           {!isMedia && !isTempMedia && displayText && <p className="break-words whitespace-pre-wrap">{formattedText}</p>}
-          <p className="text-[10px] mt-1 text-right text-muted-foreground">{time}</p>
+          <div className="flex items-center justify-end gap-1 mt-1">
+            <span className="text-[10px] text-muted-foreground">{time}</span>
+            {fromMe && (
+              status === 'read' ? (
+                <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+              ) : status === 'delivered' ? (
+                <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" />
+              ) : (
+                <Check className="w-3.5 h-3.5 text-muted-foreground" />
+              )
+            )}
+          </div>
         </div>
 
 
