@@ -41,6 +41,7 @@ interface ChatSidebarProps {
   chipId: string | null;
   onUnreadUpdate?: (chipId: string, totalUnread: number) => void;
   isSyncing?: boolean;
+  syncProgress?: string;
 }
 
 interface LabelItem {
@@ -66,7 +67,7 @@ interface ExtendedChat extends ChatContact {
   custom_status?: ConversationStatus;
 }
 
-export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing }: ChatSidebarProps) {
+export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress }: ChatSidebarProps) {
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -464,7 +465,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       {isSyncing && (
         <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground bg-muted/50 border-b border-border/50 animate-pulse">
           <Loader2 className="w-3 h-3 animate-spin" />
-          Sincronizando mensagens...
+          Sincronizando{syncProgress ? ` ${syncProgress}` : '...'}
         </div>
       )}
       {/* Header with search and filters */}

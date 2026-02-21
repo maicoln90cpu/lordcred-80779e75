@@ -87,12 +87,41 @@ export default function WhatsApp() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllUnreadCounts]);
 
+  const [syncProgress, setSyncProgress] = useState<string>('');
+
+  const runStagedSync = useCallback(async (chipId: string) => {
+    setIsSyncing(true);
+    setSyncProgress('Iniciando...');
+    let cursor = 0;
+    let totalSynced = 0;
+    let totalChats = 0;
+    try {
+      while (true) {
+        const { data, error } = await supabase.functions.invoke('sync-history', {
+          body: { chipId, cursor },
+        });
+        if (error) { console.error('sync error:', error); break; }
+        totalChats = data?.total || data?.chats || 0;
+        totalSynced += data?.synced || 0;
+        const processed = data?.processed || 0;
+        setSyncProgress(`${processed}/${totalChats} chats`);
+        if (!data?.hasMore) break;
+        cursor = data.nextCursor || 0;
+        await new Promise(r => setTimeout(r, 1000)); // delay between batches
+      }
+    } catch (err) {
+      console.error('Staged sync error:', err);
+    }
+    setIsSyncing(false);
+    setSyncProgress('');
+    return { totalChats, totalSynced };
+  }, []);
+
   const handleSelectChip = useCallback(async (id: string) => {
     setSelectedChipId(id);
     setSelectedChat(null);
     
     if (id) {
-      // Fetch chip status and instance name
       const { data: chip } = await supabase
         .from('chips')
         .select('status, instance_name')
@@ -101,20 +130,13 @@ export default function WhatsApp() {
       setSelectedChipStatus(chip?.status || 'disconnected');
       setSelectedChipInstanceName(chip?.instance_name || null);
 
-      // Trigger background sync with visual indicator
-      setIsSyncing(true);
-      supabase.functions.invoke('sync-history', {
-        body: { chipId: id },
-      }).then(() => {
-        setIsSyncing(false);
-      }).catch(() => {
-        setIsSyncing(false);
-      });
+      // Trigger staged background sync
+      runStagedSync(id);
     } else {
       setSelectedChipStatus('disconnected');
       setSelectedChipInstanceName(null);
     }
-  }, []);
+  }, [runStagedSync]);
 
   const handleSelectChat = useCallback((chat: ChatContact) => {
     setSelectedChat(chat);
@@ -202,25 +224,13 @@ export default function WhatsApp() {
   }, [user, isRefreshing, selectedChipId, toast]);
 
   const handleSyncHistory = useCallback(async (chipId: string) => {
-    setIsSyncing(true);
-    try {
-      const { data } = await supabase.functions.invoke('sync-history', { body: { chipId } });
-      const chats = data?.chats || 0;
-      const synced = data?.synced || 0;
-      const reason = data?.reason || '';
-      if (reason === 'recently synced') {
-        toast({ title: 'Sincronizado recentemente', description: 'Aguarde 1 minuto para sincronizar novamente' });
-      } else if (synced > 0) {
-        toast({ title: `${chats} conversas, ${synced} mensagens sincronizadas` });
-      } else {
-        toast({ title: `${chats} conversas verificadas`, description: 'Nenhuma mensagem nova encontrada' });
-      }
-    } catch {
-      toast({ title: 'Erro na sincronização', variant: 'destructive' });
-    } finally {
-      setIsSyncing(false);
+    const { totalChats, totalSynced } = await runStagedSync(chipId);
+    if (totalSynced > 0) {
+      toast({ title: `${totalChats} conversas, ${totalSynced} mensagens sincronizadas` });
+    } else {
+      toast({ title: `${totalChats} conversas verificadas`, description: 'Nenhuma mensagem nova encontrada' });
     }
-  }, [toast]);
+  }, [toast, runStagedSync]);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
@@ -262,6 +272,7 @@ export default function WhatsApp() {
             chipId={selectedChipId}
             onUnreadUpdate={handleUnreadUpdate}
             isSyncing={isSyncing}
+            syncProgress={syncProgress}
           />
         </aside>
 
