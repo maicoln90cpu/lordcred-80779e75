@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.warming-engine]
 verify_jwt = false
+
+[functions.sync-history]
+verify_jwt = false

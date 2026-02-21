@@ -751,6 +751,114 @@ Deno.serve(async (req) => {
         )
       }
 
+      case 'archive-chat': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+        const { archive } = body
+        const response = await fetch(`${baseUrl}/chat/archive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ chatid: chatId, archive: archive !== false }),
+        })
+        const data = await response.json()
+        // Update DB
+        await adminClient.from('conversations')
+          .update({ is_archived: archive !== false })
+          .eq('chip_id', chipId)
+          .eq('remote_jid', chatId)
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'fetch-labels': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const response = await fetch(`${baseUrl}/labels`, {
+          method: 'GET',
+          headers: { 'token': chipToken },
+        })
+        const data = await response.json()
+        const labels = Array.isArray(data) ? data : (data?.labels || [])
+        // Sync to DB
+        for (const label of labels) {
+          await adminClient.from('labels').upsert({
+            chip_id: chipId,
+            label_id: String(label.labelid || label.id),
+            name: label.name || '',
+            color_hex: label.colorHex || label.color || null,
+          }, { onConflict: 'chip_id,label_id' })
+        }
+        return new Response(
+          JSON.stringify({ success: true, labels }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'set-chat-labels': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+        const { labelIds, addLabelId, removeLabelId } = body
+        const labelBody: any = { chatid: chatId }
+        if (labelIds) labelBody.labelids = labelIds
+        if (addLabelId) labelBody.add_labelid = addLabelId
+        if (removeLabelId) labelBody.remove_labelid = removeLabelId
+        const response = await fetch(`${baseUrl}/chat/labels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(labelBody),
+        })
+        const data = await response.json()
+        // Update conversation labels in DB
+        if (labelIds) {
+          await adminClient.from('conversations')
+            .update({ label_ids: labelIds })
+            .eq('chip_id', chipId)
+            .eq('remote_jid', chatId)
+        }
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'update-profile-name': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const { profileName } = body
+        if (!profileName) throw new Error('profileName is required')
+        const response = await fetch(`${baseUrl}/profile/name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ name: profileName }),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'update-profile-image': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        const { profileImage } = body
+        if (!profileImage) throw new Error('profileImage is required')
+        const response = await fetch(`${baseUrl}/profile/image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ file: profileImage }),
+        })
+        const data = await response.json()
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
