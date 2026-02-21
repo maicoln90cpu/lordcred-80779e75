@@ -1,76 +1,92 @@
 
-## Plano de Correcoes - 4 Problemas Criticos
 
-### Problema 1: Imagem do perfil nao sendo carregada no dialog de configuracoes
+## Plano de Correcoes - 3 Problemas Criticos
 
-**Causa raiz**: O `WhatsAppProfileDialog.tsx` carrega o nome do perfil via `get-profile-name`, mas nao carrega a foto atual do perfil. Nao existe uma acao para buscar a foto existente. Alem disso, os endpoints de Business estao com URLs erradas:
-- Codigo atual: `GET /business/get` -- Correto: `POST /business/get/profile`
-- Codigo atual: `POST /business/update` -- Correto: `POST /business/update/profile`
+### Problema 1: Etiquetas criadas mas nao aparecem
+
+**Causa raiz encontrada**: A tabela `labels` NAO EXISTE no banco de dados. Todas as queries a `labels` estao falhando silenciosamente porque usam `(supabase as any)`. O toast "Etiqueta criada" aparece porque a chamada ao endpoint `/label/edit` da UazAPI pode retornar sucesso, mas o armazenamento local falha completamente.
+
+Alem disso, a coluna `label_ids` NAO EXISTE na tabela `conversations`, entao a associacao de etiquetas a chats tambem nao funciona.
 
 **Correcao**:
-1. No `WhatsAppProfileDialog.tsx`, ao abrir o dialog, buscar a foto de perfil atual (pode usar o `profile_pic_url` do chip no banco, ou chamar o endpoint de status que retorna dados do perfil)
-2. Corrigir os endpoints de Business no `uazapi-api/index.ts`:
-   - `get-business-profile`: mudar de `GET /business/get` para `POST /business/get/profile`
-   - `update-business-profile`: mudar de `POST /business/update` para `POST /business/update/profile`
-
-**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/WhatsAppProfileDialog.tsx`
+1. Criar a tabela `labels` com colunas: `id` (uuid), `chip_id` (uuid), `label_id` (text), `name` (text), `color_hex` (text), `created_at` (timestamptz) e UNIQUE constraint em `(chip_id, label_id)`
+2. Adicionar coluna `label_ids` (text[]) na tabela `conversations`
+3. Adicionar RLS policies para que usuarios vejam labels dos seus chips
+4. Adicionar coluna `is_archived` na tabela `conversations` (necessaria tambem para o problema 3)
 
 ---
 
-### Problema 2: Icone azul para mensagens lidas nao funcionando
+### Problema 2: Chips desconectados sem feedback
 
-**Causa raiz**: O mapeamento de status no webhook (`evolution-webhook/index.ts`) ja foi expandido com os codigos corretos. Porem a estrutura do payload da UazAPI para `messages_update` pode nao estar sendo parseada corretamente. A linha 217 tenta extrair updates de `payload.updates`, `payload.data`, ou `payload.message`, mas o formato real da UazAPI pode ser diferente (ex: o update pode estar diretamente no `payload` com campo `messageid` e `state`/`ack`).
+**Causa raiz encontrada**: O `ChipSelector.tsx` (linha 61) filtra chips com `.eq('status', 'connected')`, entao chips desconectados simplesmente desaparecem do seletor. O usuario nao recebe nenhum aviso. O banner de desconectado no `ChatWindow` so aparece quando uma mensagem falha ao enviar.
 
 **Correcao**:
-1. Adicionar log mais detalhado no webhook para capturar o payload completo
-2. Melhorar o parsing para tentar mais formatos: verificar se o `messageid` e `state`/`ack` estao diretamente no payload raiz
-3. O codigo ja tem um fallback para `[payload]` na linha 220, mas precisa garantir que os campos estao sendo extraidos corretamente em todos os cenarios
-
-**Arquivos**: `supabase/functions/evolution-webhook/index.ts`
+1. No `ChipSelector.tsx`, remover o filtro `.eq('status', 'connected')` e mostrar TODOS os chips do tipo whatsapp
+2. Ao clicar em um chip que nao esta connected, mostrar um dialog informando que esta desconectado com opcoes de "Reconectar (Gerar QR Code)" ou "Cancelar"
+3. Chips desconectados terao um indicador visual (icone ou cor diferente) no seletor
 
 ---
 
-### Problema 3: Criar etiqueta desconecta o WhatsApp
+### Problema 3: Arquivamento nao persiste entre trocas de chip
 
-**Causa raiz**: O endpoint `POST /label/edit` da UazAPI pode estar retornando um erro quando chamado para CRIAR etiqueta (sem `id`). Se a UazAPI retorna um status 500 (sessao invalida), a edge function propaga esse erro. Mais critico: o `ManageLabelsDialog` apos criar a etiqueta, chama `fetch-labels` que faz `GET /labels`. Se qualquer dessas chamadas falhar com "sessao invalida", pode haver um efeito cascata que marca o chip como desconectado.
-
-O mais provavel e que a criacao de label requer que o campo `name` seja passado, mas o formato pode nao estar correto. Segundo a documentacao, o endpoint exige `name` e opcionalmente `color` e `id`.
+**Causa raiz encontrada**: A coluna `is_archived` NAO EXISTE na tabela `conversations`. A query `UPDATE conversations SET is_archived = ...` falha silenciosamente. Quando o usuario troca de chip e volta, os dados sao carregados do banco sem o campo, entao todas aparecem como nao-arquivadas.
 
 **Correcao**:
-1. Adicionar try-catch robusto no `edit-label` action para que erros da UazAPI nao propaguem como 500
-2. Verificar se o formato do body esta correto conforme a documentacao
-3. No `ManageLabelsDialog`, adicionar tratamento de erro que NAO cause efeitos colaterais no estado de conexao do chip
-4. Proteger a chamada `fetch-labels` pos-criacao com try-catch
-
-**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/ManageLabelsDialog.tsx`
+1. Adicionar coluna `is_archived` (boolean, default false) na tabela `conversations`
+2. Verificar que o endpoint `archive-chat` no `uazapi-api` esta enviando o body correto para a UazAPI (`chatid` e `archive` fields)
 
 ---
 
-### Problema 4: Nenhum feedback sobre chip desconectado + chips param de funcionar
+### Detalhes Tecnicos - Implementacao
 
-**Causa raiz**: O botao "Reconectar" no banner de chip desconectado chama `action: 'connect-instance'`, mas essa acao NAO EXISTE no `uazapi-api/index.ts`. Isso cai no `default` case retornando `400: Invalid action`. Portanto o usuario nunca consegue reconectar.
+**Migration SQL** (uma unica migracao):
 
-Alem disso, apos criar etiquetas (problema 3), se a UazAPI entrar em estado de erro, ambos os chips podem parar de funcionar pois as chamadas subsequentes falham.
+```text
+-- 1. Criar tabela labels
+CREATE TABLE public.labels (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  chip_id uuid NOT NULL,
+  label_id text NOT NULL,
+  name text NOT NULL DEFAULT '',
+  color_hex text,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(chip_id, label_id)
+);
 
-**Correcao**:
-1. Criar a acao `connect-instance` no `uazapi-api/index.ts` que chama `POST /instance/connect` (igual ao flow do QR code mas sem aguardar QR)
-2. Garantir que o banner de desconectado apareca corretamente quando qualquer acao falha com erro de conexao
-3. Adicionar verificacao periodica do status do chip no frontend para detectar desconexoes automaticamente
+ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
 
-**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/ChatWindow.tsx`
+-- RLS: usuarios veem labels dos seus chips
+CREATE POLICY "Users can view their chip labels"
+  ON public.labels FOR SELECT
+  USING (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()));
 
----
+CREATE POLICY "Users can manage their chip labels"
+  ON public.labels FOR ALL
+  USING (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()));
 
-### Detalhes Tecnicos
+CREATE POLICY "Admins can manage all labels"
+  ON public.labels FOR ALL
+  USING (is_admin());
+
+-- 2. Adicionar colunas faltantes em conversations
+ALTER TABLE public.conversations
+  ADD COLUMN IF NOT EXISTS is_archived boolean DEFAULT false;
+
+ALTER TABLE public.conversations
+  ADD COLUMN IF NOT EXISTS label_ids text[] DEFAULT '{}';
+```
+
+**Alteracoes em arquivos frontend**:
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1a | `uazapi-api/index.ts` | Corrigir endpoints Business: `/business/get` para `/business/get/profile` (POST), `/business/update` para `/business/update/profile` (POST) |
-| 1b | `WhatsAppProfileDialog.tsx` | Carregar foto atual do perfil ao abrir (buscar do banco `chips` ou `conversations`) |
-| 2 | `evolution-webhook/index.ts` | Melhorar parsing do payload `messages_update` para cobrir mais formatos |
-| 3a | `uazapi-api/index.ts` | Adicionar try-catch no `edit-label` para nao propagar erros como 500 |
-| 3b | `ManageLabelsDialog.tsx` | Adicionar tratamento de erro robusto nas chamadas de criacao/edicao |
-| 4a | `uazapi-api/index.ts` | Criar acao `connect-instance` que chama `POST /instance/connect` |
-| 4b | `ChatWindow.tsx` | Verificar que a acao de reconexao usa `connect-instance` corretamente |
+| 1 | `src/components/whatsapp/ChipSelector.tsx` | Remover filtro `status='connected'`; mostrar todos os chips whatsapp; ao clicar em chip desconectado, abrir dialog com opcao de reconectar (gerar QR) ou cancelar |
+| 2 | `src/components/whatsapp/ChatSidebar.tsx` | Remover cast `as any` para queries de labels (tabela agora existe); queries de `is_archived` agora funcionam |
+| 3 | `src/components/whatsapp/ManageLabelsDialog.tsx` | Remover cast `as any` para queries de labels |
 
-Apos as alteracoes, a edge function `uazapi-api` e `evolution-webhook` precisarao ser redeployadas.
+**Alteracoes em edge functions**:
+
+| # | Arquivo | Alteracao |
+|---|---------|-----------|
+| 1 | `supabase/functions/uazapi-api/index.ts` | No `archive-chat`, verificar se o response da UazAPI indica sucesso real antes de atualizar o DB; adicionar log do response |
+
