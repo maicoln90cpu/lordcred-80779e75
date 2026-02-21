@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Wifi, Loader2, ChevronDown, Settings, QrCode } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -45,12 +45,15 @@ interface ChipSelectorProps {
 export default function ChipSelector({ selectedChipId, onSelectChip, unreadCounts = {}, onOpenSettings }: ChipSelectorProps) {
   const [chips, setChips] = useState<Chip[]>([]);
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [reconnectInstanceName, setReconnectInstanceName] = useState<string | null>(null);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [chipToReconnect, setChipToReconnect] = useState<Chip | null>(null);
   const [chipToDisconnect, setChipToDisconnect] = useState<Chip | null>(null);
+  const [chipToRemove, setChipToRemove] = useState<Chip | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const { user, isSeller } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -67,7 +70,6 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
     if (data && data.length > 0) {
       setChips(data);
       if (!selectedChipId) {
-        // Auto-select first connected chip
         const connected = data.find((c: Chip) => c.status === 'connected');
         if (connected) onSelectChip(connected.id);
         else onSelectChip(data[0].id);
@@ -83,10 +85,16 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
 
   const handleAddChip = () => {
     if (isSeller) {
+      setReconnectInstanceName(null);
       setConnectDialogOpen(true);
     } else {
       navigate('/chips');
     }
+  };
+
+  const handleReconnectChip = (chip: Chip) => {
+    setReconnectInstanceName(chip.instance_name);
+    setConnectDialogOpen(true);
   };
 
   const handleDisconnectClick = (chip: Chip) => {
@@ -94,26 +102,20 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
     setDisconnectDialogOpen(true);
   };
 
+  const handleRemoveClick = (chip: Chip) => {
+    setChipToRemove(chip);
+    setRemoveDialogOpen(true);
+  };
+
   const handleDisconnect = async () => {
     if (!chipToDisconnect) return;
     setIsDisconnecting(true);
 
     try {
-      // Get provider settings
-      const { data: settings } = await supabase
-        .from('system_settings')
-        .select('whatsapp_provider')
-        .limit(1)
-        .single();
-
-      const provider = settings?.whatsapp_provider || 'evolution';
-      const fn = provider === 'uazapi' ? 'uazapi-api' : 'evolution-api';
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Sessão expirada');
 
-      // Call logout-instance (graceful disconnect)
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fn}`, {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +124,6 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
         body: JSON.stringify({ action: 'logout-instance', instanceName: chipToDisconnect.instance_name }),
       });
 
-      // Update status in database
       await supabase
         .from('chips')
         .update({ status: 'disconnected' })
@@ -130,7 +131,6 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
 
       toast({ title: 'Chip desconectado', description: `${chipToDisconnect.phone_number || chipToDisconnect.instance_name} foi desconectado` });
 
-      // If this was the selected chip, clear selection
       if (selectedChipId === chipToDisconnect.id) {
         onSelectChip('');
       }
@@ -143,6 +143,23 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
       setIsDisconnecting(false);
       setDisconnectDialogOpen(false);
       setChipToDisconnect(null);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!chipToRemove) return;
+    setIsRemoving(true);
+    try {
+      await supabase.from('chips').delete().eq('id', chipToRemove.id);
+      toast({ title: 'Chip removido' });
+      if (selectedChipId === chipToRemove.id) onSelectChip('');
+      fetchChips();
+    } catch (error: any) {
+      toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsRemoving(false);
+      setRemoveDialogOpen(false);
+      setChipToRemove(null);
     }
   };
 
@@ -192,9 +209,11 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                 <button
                   className={cn(
                     "px-1 py-1.5 rounded-r-lg text-sm transition-colors border-l",
-                    selectedChipId === chip.id
-                      ? "bg-primary/80 text-primary-foreground border-primary-foreground/20"
-                      : "bg-secondary/50 text-muted-foreground hover:bg-secondary border-border/50"
+                    !isConnected
+                      ? "bg-destructive/10 text-destructive border-destructive/20"
+                      : selectedChipId === chip.id
+                        ? "bg-primary/80 text-primary-foreground border-primary-foreground/20"
+                        : "bg-secondary/50 text-muted-foreground hover:bg-secondary border-border/50"
                   )}
                 >
                   <ChevronDown className="w-3 h-3" />
@@ -205,18 +224,37 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                   {chip.phone_number || 'Sem número'}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onOpenSettings?.(chip.id)}>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configurações
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive cursor-pointer"
-                  onClick={() => handleDisconnectClick(chip)}
-                >
-                  <WifiOff className="w-4 h-4 mr-2" />
-                  Desconectar
-                </DropdownMenuItem>
+                {isConnected ? (
+                  <>
+                    <DropdownMenuItem onClick={() => onOpenSettings?.(chip.id)}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurações
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                      onClick={() => handleDisconnectClick(chip)}
+                    >
+                      <WifiOff className="w-4 h-4 mr-2" />
+                      Desconectar
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onClick={() => handleReconnectChip(chip)}>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reconectar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                      onClick={() => handleRemoveClick(chip)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remover chip
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -234,6 +272,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
         open={connectDialogOpen}
         onOpenChange={setConnectDialogOpen}
         onChipConnected={fetchChips}
+        reconnectInstanceName={reconnectInstanceName}
       />
 
       {/* Disconnect Confirmation */}
@@ -260,6 +299,30 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Remove chip confirmation */}
+      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover Chip</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover o chip {chipToRemove?.phone_number || chipToRemove?.instance_name}?
+              O chip será removido do sistema e não aparecerá mais no seletor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemoving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemove}
+              disabled={isRemoving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isRemoving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Reconnect Dialog for disconnected chips */}
       <AlertDialog open={reconnectDialogOpen} onOpenChange={setReconnectDialogOpen}>
         <AlertDialogContent>
@@ -270,28 +333,29 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
             </AlertDialogTitle>
             <AlertDialogDescription>
               O chip <strong>{chipToReconnect?.nickname || chipToReconnect?.phone_number || chipToReconnect?.instance_name}</strong> está desconectado e não pode enviar ou receber mensagens.
-              Deseja reconectar gerando um novo QR Code?
+              Deseja reconectar ou visualizar as conversas salvas?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isReconnecting}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => {
+              // Allow viewing saved conversations in read-only mode
+              if (chipToReconnect) {
+                onSelectChip(chipToReconnect.id);
+              }
+              setChipToReconnect(null);
+            }}>
+              Ver conversas (somente leitura)
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={async () => {
-                if (!chipToReconnect) return;
-                setIsReconnecting(true);
-                try {
-                  // Navigate to chips page for QR code scanning
-                  navigate('/chips');
-                  toast({ title: 'Reconectar Chip', description: 'Gere um novo QR Code na página de chips para reconectar.' });
-                } finally {
-                  setIsReconnecting(false);
-                  setReconnectDialogOpen(false);
-                  setChipToReconnect(null);
+              onClick={() => {
+                if (chipToReconnect) {
+                  handleReconnectChip(chipToReconnect);
                 }
+                setReconnectDialogOpen(false);
+                setChipToReconnect(null);
               }}
-              disabled={isReconnecting}
             >
-              {isReconnecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
+              <QrCode className="w-4 h-4 mr-2" />
               Reconectar (QR Code)
             </AlertDialogAction>
           </AlertDialogFooter>
