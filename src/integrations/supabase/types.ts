@@ -103,15 +103,53 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_notes: {
+        Row: {
+          chip_id: string
+          content: string
+          created_at: string | null
+          id: string
+          remote_jid: string
+          user_id: string
+        }
+        Insert: {
+          chip_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          remote_jid: string
+          user_id: string
+        }
+        Update: {
+          chip_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          remote_jid?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_notes_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           chip_id: string
           contact_name: string | null
           contact_phone: string | null
           created_at: string | null
+          custom_status: string | null
           id: string
           is_archived: boolean | null
           is_group: boolean | null
+          is_pinned: boolean | null
+          is_starred: boolean | null
           label_ids: string[] | null
           last_message_at: string | null
           last_message_text: string | null
@@ -126,9 +164,12 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          custom_status?: string | null
           id?: string
           is_archived?: boolean | null
           is_group?: boolean | null
+          is_pinned?: boolean | null
+          is_starred?: boolean | null
           label_ids?: string[] | null
           last_message_at?: string | null
           last_message_text?: string | null
@@ -143,9 +184,12 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          custom_status?: string | null
           id?: string
           is_archived?: boolean | null
           is_group?: boolean | null
+          is_pinned?: boolean | null
+          is_starred?: boolean | null
           label_ids?: string[] | null
           last_message_at?: string | null
           last_message_text?: string | null

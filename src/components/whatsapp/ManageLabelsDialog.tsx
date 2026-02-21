@@ -34,7 +34,7 @@ const PRESET_COLORS = [
   '#ff78cb', '#344563',
 ];
 
-export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipStatus, onLabelsUpdated }: ManageLabelsDialogProps) {
+export default function ManageLabelsDialog({ open, onOpenChange, chipId, onLabelsUpdated }: ManageLabelsDialogProps) {
   const { toast } = useToast();
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,46 +48,36 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipSta
   useEffect(() => {
     if (!open || !chipId) return;
     setLoading(true);
-    (supabase
-      .from('labels' as any)
+    supabase
+      .from('labels')
       .select('label_id, name, color_hex')
-      .eq('chip_id', chipId) as any)
-      .then(({ data }: any) => {
-        if (data) setLabels(data);
-      })
-      .finally(() => setLoading(false));
+      .eq('chip_id', chipId)
+      .then(({ data }) => {
+        if (data) setLabels(data as any);
+        setLoading(false);
+      });
   }, [open, chipId]);
-
-  const isOffline = chipStatus && chipStatus !== 'connected';
 
   const handleCreate = async () => {
     if (!chipId || !newName.trim()) return;
-    if (isOffline) {
-      toast({ title: 'Chip desconectado', description: 'Conecte o WhatsApp para gerenciar etiquetas', variant: 'destructive' });
-      return;
-    }
     setSaving(true);
     try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'edit-label', chipId, labelName: newName.trim(), labelColor: newColor },
-      });
-      if (res.data?.success) {
-        toast({ title: 'Etiqueta criada' });
-        setNewName('');
-        await supabase.functions.invoke('uazapi-api', {
-          body: { action: 'fetch-labels', chipId },
-        });
-        const { data: fresh } = await supabase
-          .from('labels' as any)
-          .select('label_id, name, color_hex')
-          .eq('chip_id', chipId) as any;
-        if (fresh) setLabels(fresh);
-        onLabelsUpdated?.();
-      } else {
-        toast({ title: 'Erro ao criar etiqueta', description: res.data?.error || 'Verifique se o chip está conectado', variant: 'destructive' });
-      }
+      const newLabelId = crypto.randomUUID();
+      const { error } = await supabase
+        .from('labels')
+        .insert({
+          chip_id: chipId,
+          label_id: newLabelId,
+          name: newName.trim(),
+          color_hex: newColor,
+        } as any);
+      if (error) throw error;
+      setLabels(prev => [...prev, { label_id: newLabelId, name: newName.trim(), color_hex: newColor }]);
+      setNewName('');
+      toast({ title: 'Etiqueta criada' });
+      onLabelsUpdated?.();
     } catch {
-      toast({ title: 'Erro ao criar etiqueta', description: 'Verifique se o chip está conectado', variant: 'destructive' });
+      toast({ title: 'Erro ao criar etiqueta', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -97,24 +87,18 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipSta
     if (!chipId || !editName.trim()) return;
     setSaving(true);
     try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'edit-label', chipId, labelId, labelName: editName.trim(), labelColor: editColor },
-      });
-      if (res.data?.success) {
-        toast({ title: 'Etiqueta atualizada' });
-        setEditingId(null);
-        await supabase.functions.invoke('uazapi-api', {
-          body: { action: 'fetch-labels', chipId },
-        });
-        const { data: fresh } = await supabase
-          .from('labels' as any)
-          .select('label_id, name, color_hex')
-          .eq('chip_id', chipId) as any;
-        if (fresh) setLabels(fresh);
-        onLabelsUpdated?.();
-      } else {
-        toast({ title: 'Erro ao atualizar', variant: 'destructive' });
-      }
+      const { error } = await supabase
+        .from('labels')
+        .update({ name: editName.trim(), color_hex: editColor } as any)
+        .eq('chip_id', chipId)
+        .eq('label_id', labelId);
+      if (error) throw error;
+      setLabels(prev => prev.map(l =>
+        l.label_id === labelId ? { ...l, name: editName.trim(), color_hex: editColor } : l
+      ));
+      setEditingId(null);
+      toast({ title: 'Etiqueta atualizada' });
+      onLabelsUpdated?.();
     } catch {
       toast({ title: 'Erro ao atualizar', variant: 'destructive' });
     } finally {
@@ -126,17 +110,29 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipSta
     if (!chipId) return;
     setSaving(true);
     try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'edit-label', chipId, labelId, deleteLbl: true },
-      });
-      if (res.data?.success) {
-        setLabels(prev => prev.filter(l => l.label_id !== labelId));
-        await (supabase as any).from('labels' as any).delete().eq('chip_id', chipId).eq('label_id', labelId);
-        toast({ title: 'Etiqueta excluída' });
-        onLabelsUpdated?.();
-      } else {
-        toast({ title: 'Erro ao excluir', variant: 'destructive' });
+      // Remove label from DB
+      await supabase.from('labels').delete().eq('chip_id', chipId).eq('label_id', labelId);
+      
+      // Remove label_id from all conversations that have it
+      const { data: convos } = await supabase
+        .from('conversations')
+        .select('id, label_ids')
+        .eq('chip_id', chipId);
+      if (convos) {
+        for (const c of convos) {
+          const ids = (c.label_ids as string[]) || [];
+          if (ids.includes(labelId)) {
+            await supabase
+              .from('conversations')
+              .update({ label_ids: ids.filter(id => id !== labelId) } as any)
+              .eq('id', c.id);
+          }
+        }
       }
+      
+      setLabels(prev => prev.filter(l => l.label_id !== labelId));
+      toast({ title: 'Etiqueta excluída' });
+      onLabelsUpdated?.();
     } catch {
       toast({ title: 'Erro ao excluir', variant: 'destructive' });
     } finally {
@@ -157,7 +153,7 @@ export default function ManageLabelsDialog({ open, onOpenChange, chipId, chipSta
           <DialogTitle className="flex items-center gap-2">
             <Tag className="w-4 h-4" /> Gerenciar Etiquetas
           </DialogTitle>
-          <DialogDescription>Crie, edite ou exclua etiquetas do WhatsApp</DialogDescription>
+          <DialogDescription>Crie, edite ou exclua etiquetas internas da plataforma</DialogDescription>
         </DialogHeader>
 
         {/* Create new */}
