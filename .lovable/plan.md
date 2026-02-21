@@ -1,91 +1,76 @@
 
-## Plano de Correcoes - 6 Itens Pendentes
+## Plano de Correcoes - 4 Problemas Criticos
 
-### 1. Chip 2 - notificacao so aparece com filtro "Nao lidas" ativo
+### Problema 1: Imagem do perfil nao sendo carregada no dialog de configuracoes
 
-**Problema**: Na imagem 1 (sem filtro), os chats do chip 2 NAO mostram os badges verdes de unread count. Na imagem 2 (com filtro "Nao lidas"), os badges aparecem corretamente. Isso indica um bug de renderizacao condicional.
-
-**Causa raiz**: Na sidebar (`ChatSidebar.tsx` linha 477), o badge de unread so aparece quando `chat.unreadCount > 0`. O problema e que quando o chip 2 carrega do cache (`getCachedChats`), os dados cacheados podem ter `unreadCount: 0` de uma sessao anterior. O realtime subscription so atualiza se a conversa receber um evento. Mas o bug real e que os badges APARECEM quando o filtro esta ativo - isso sugere que o filtro esta correto mas algo no re-render sem filtro nao esta atualizando.
-
-**Investigacao adicional**: O `fetchChats` busca `unread_count` do banco corretamente (linha 152). O cache pode estar desatualizado. O realtime tambem atualiza (linha 218). Mas o chip 2 so funciona com filtro porque o filtro forca um recalculo do array filtrado.
-
-**Correcao**: Ao selecionar um chip, forcar um `fetchChats()` fresh (ignorando cache) para garantir dados atualizados. Tambem garantir que a subscription global de unread re-fetche os chats periodicamente.
-
-**Arquivos**: `src/components/whatsapp/ChatSidebar.tsx`
-
----
-
-### 2. Badge do chip 2 mostra 99+ mas so tem 10 nao lidas
-
-**Causa raiz**: O `unreadCounts` no `WhatsApp.tsx` (fetchAllUnreadCounts) soma TODOS os `unread_count` de todas as conversations do chip, incluindo conversations muito antigas que nunca foram marcadas como lidas. Pode haver conversas com unread_count alto que foram incrementadas pelo webhook mas nunca resetadas.
-
-**Correcao**: O calculo em `WhatsApp.tsx` esta correto - ele soma o `unread_count` de todas as conversations. O problema real e que existem conversas no banco com `unread_count` inflado (nunca foram abertas/lidas). Isso nao e um bug de codigo, e um problema de dados. Porem, para melhorar a UX, podemos limitar o badge a mostrar o total real baseado nas conversations visiveis (nao arquivadas). Tambem ao abrir o chip, sincronizar os unread counts fazendo um re-fetch.
-
-**Arquivos**: `src/pages/WhatsApp.tsx` (fetchAllUnreadCounts - filtrar `is_archived = false`)
-
----
-
-### 3. Tique azul de leitura nao funciona
-
-**Causa raiz**: O codigo no `MessageBubble.tsx` (linhas 172-179) esta correto visualmente. O problema e que o webhook `handleMessagesUpdate` (evolution-webhook) pode nao estar recebendo os eventos `messages_update` com o estado correto, OU a UazAPI pode estar enviando o status em formato diferente do esperado.
+**Causa raiz**: O `WhatsAppProfileDialog.tsx` carrega o nome do perfil via `get-profile-name`, mas nao carrega a foto atual do perfil. Nao existe uma acao para buscar a foto existente. Alem disso, os endpoints de Business estao com URLs erradas:
+- Codigo atual: `GET /business/get` -- Correto: `POST /business/get/profile`
+- Codigo atual: `POST /business/update` -- Correto: `POST /business/update/profile`
 
 **Correcao**:
-- Adicionar log detalhado no webhook para `messages_update` para ver o payload exato
-- O status `read` pode vir como `PLAYED` para audios, ou como numero `4` ou `READ` - verificar e adicionar mapeamentos
-- Tambem pode ser que o campo na tabela `message_history` nao esta sendo atualizado - adicionar verificacao se o `message_id` bate
-- Garantir que o realtime UPDATE no ChatWindow esta capturando as mudancas
+1. No `WhatsAppProfileDialog.tsx`, ao abrir o dialog, buscar a foto de perfil atual (pode usar o `profile_pic_url` do chip no banco, ou chamar o endpoint de status que retorna dados do perfil)
+2. Corrigir os endpoints de Business no `uazapi-api/index.ts`:
+   - `get-business-profile`: mudar de `GET /business/get` para `POST /business/get/profile`
+   - `update-business-profile`: mudar de `POST /business/update` para `POST /business/update/profile`
+
+**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/WhatsAppProfileDialog.tsx`
+
+---
+
+### Problema 2: Icone azul para mensagens lidas nao funcionando
+
+**Causa raiz**: O mapeamento de status no webhook (`evolution-webhook/index.ts`) ja foi expandido com os codigos corretos. Porem a estrutura do payload da UazAPI para `messages_update` pode nao estar sendo parseada corretamente. A linha 217 tenta extrair updates de `payload.updates`, `payload.data`, ou `payload.message`, mas o formato real da UazAPI pode ser diferente (ex: o update pode estar diretamente no `payload` com campo `messageid` e `state`/`ack`).
+
+**Correcao**:
+1. Adicionar log mais detalhado no webhook para capturar o payload completo
+2. Melhorar o parsing para tentar mais formatos: verificar se o `messageid` e `state`/`ack` estao diretamente no payload raiz
+3. O codigo ja tem um fallback para `[payload]` na linha 220, mas precisa garantir que os campos estao sendo extraidos corretamente em todos os cenarios
 
 **Arquivos**: `supabase/functions/evolution-webhook/index.ts`
 
 ---
 
-### 4. Menu 3 pontos - falta opcao de etiquetas
+### Problema 3: Criar etiqueta desconecta o WhatsApp
 
-**Causa raiz**: O menu de 3 pontos na sidebar (`ChatSidebar.tsx` linhas 505-548) JA TEM as opcoes de etiquetas - mas so aparecem se `labels.length > 0` (linha 510). Se o chip nao tem etiquetas carregadas/sincronizadas, o menu so mostra "Arquivar".
+**Causa raiz**: O endpoint `POST /label/edit` da UazAPI pode estar retornando um erro quando chamado para CRIAR etiqueta (sem `id`). Se a UazAPI retorna um status 500 (sessao invalida), a edge function propaga esse erro. Mais critico: o `ManageLabelsDialog` apos criar a etiqueta, chama `fetch-labels` que faz `GET /labels`. Se qualquer dessas chamadas falhar com "sessao invalida", pode haver um efeito cascata que marca o chip como desconectado.
 
-**Correcao**: Sempre mostrar a opcao de etiquetas no menu, mesmo que nao haja etiquetas criadas. Incluir um item "Gerenciar Etiquetas" no menu de 3 pontos para criar novas. Se o fetch de labels esta falhando (chip desconectado), carregar do banco local independentemente.
-
-**Arquivos**: `src/components/whatsapp/ChatSidebar.tsx`
-
----
-
-### 5. Chip desconectado - mensagem aparece e some
-
-**Causa raiz**: Ao enviar mensagem (`ChatWindow.tsx` handleSend, linhas 270-303), se a UazAPI retorna erro (chip desconectado), o `catch` remove a mensagem temporaria sem dar feedback. O usuario ve a mensagem aparecer e sumir.
+O mais provavel e que a criacao de label requer que o campo `name` seja passado, mas o formato pode nao estar correto. Segundo a documentacao, o endpoint exige `name` e opcionalmente `color` e `id`.
 
 **Correcao**:
-- Antes de enviar, verificar o status do chip no banco (`chips.status`)
-- Se desconectado, mostrar um banner/dialog no centro da tela com:
-  - Mensagem: "Este chip esta desconectado"
-  - Botao "Reconectar" que abre o ChipConnectDialog
-  - Botao "Cancelar"
-- Se a mensagem falhar por qualquer motivo, manter a mensagem temporaria com um icone de erro e opcao de re-enviar
+1. Adicionar try-catch robusto no `edit-label` action para que erros da UazAPI nao propaguem como 500
+2. Verificar se o formato do body esta correto conforme a documentacao
+3. No `ManageLabelsDialog`, adicionar tratamento de erro que NAO cause efeitos colaterais no estado de conexao do chip
+4. Proteger a chamada `fetch-labels` pos-criacao com try-catch
 
-**Arquivos**: `src/components/whatsapp/ChatWindow.tsx`
+**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/ManageLabelsDialog.tsx`
 
 ---
 
-### 6. Midias antigas (antes da implementacao)
+### Problema 4: Nenhum feedback sobre chip desconectado + chips param de funcionar
 
-**Realidade tecnica**: Midias antigas armazenadas no WhatsApp podem ser recuperadas via `POST /message/download` com o `messageid` correto, DESDE QUE o WhatsApp ainda tenha o cache dessas midias no dispositivo/servidor. Midias muito antigas (meses) geralmente sao purgadas pelo WhatsApp e nao estao mais disponiveis.
+**Causa raiz**: O botao "Reconectar" no banner de chip desconectado chama `action: 'connect-instance'`, mas essa acao NAO EXISTE no `uazapi-api/index.ts`. Isso cai no `default` case retornando `400: Invalid action`. Portanto o usuario nunca consegue reconectar.
 
-**O que podemos fazer**: 
-- O `MediaRenderer.tsx` ja tenta baixar e mostra "Audio indisponivel" se falhar
-- Para midias que ainda existem no WhatsApp, o download deve funcionar se tivermos o `message_id` correto no banco
-- Se os registros antigos no `message_history` nao tem `message_id` (foram criados sem), nao ha como recuperar
-- Podemos melhorar a UX mostrando um estado mais informativo: "Midia nao disponivel - conteudo anterior a integracao do sistema"
+Alem disso, apos criar etiquetas (problema 3), se a UazAPI entrar em estado de erro, ambos os chips podem parar de funcionar pois as chamadas subsequentes falham.
 
-**Arquivos**: `src/components/whatsapp/MediaRenderer.tsx`
+**Correcao**:
+1. Criar a acao `connect-instance` no `uazapi-api/index.ts` que chama `POST /instance/connect` (igual ao flow do QR code mas sem aguardar QR)
+2. Garantir que o banner de desconectado apareca corretamente quando qualquer acao falha com erro de conexao
+3. Adicionar verificacao periodica do status do chip no frontend para detectar desconexoes automaticamente
+
+**Arquivos**: `supabase/functions/uazapi-api/index.ts`, `src/components/whatsapp/ChatWindow.tsx`
 
 ---
 
-### Detalhes Tecnicos - Implementacao
+### Detalhes Tecnicos
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | `ChatSidebar.tsx` | Forcar re-fetch ao trocar chip (ignorar cache no primeiro load); garantir badges aparecem sem filtro |
-| 2 | `WhatsApp.tsx` | Filtrar `is_archived = false` no fetchAllUnreadCounts |
-| 3 | `evolution-webhook/index.ts` | Adicionar mais mapeamentos de status (PLAYED, READ, numeric) e logs detalhados; deploy |
-| 4 | `ChatSidebar.tsx` | Sempre mostrar secao de etiquetas no menu 3 pontos + "Gerenciar Etiquetas" |
-| 5 | `ChatWindow.tsx` | Adicionar verificacao de status do chip antes de enviar; mostrar banner de desconectado com opcao de reconectar |
-| 6 | `MediaRenderer.tsx` | Melhorar mensagem para midias indisponiveis com contexto informativo |
+| 1a | `uazapi-api/index.ts` | Corrigir endpoints Business: `/business/get` para `/business/get/profile` (POST), `/business/update` para `/business/update/profile` (POST) |
+| 1b | `WhatsAppProfileDialog.tsx` | Carregar foto atual do perfil ao abrir (buscar do banco `chips` ou `conversations`) |
+| 2 | `evolution-webhook/index.ts` | Melhorar parsing do payload `messages_update` para cobrir mais formatos |
+| 3a | `uazapi-api/index.ts` | Adicionar try-catch no `edit-label` para nao propagar erros como 500 |
+| 3b | `ManageLabelsDialog.tsx` | Adicionar tratamento de erro robusto nas chamadas de criacao/edicao |
+| 4a | `uazapi-api/index.ts` | Criar acao `connect-instance` que chama `POST /instance/connect` |
+| 4b | `ChatWindow.tsx` | Verificar que a acao de reconexao usa `connect-instance` corretamente |
+
+Apos as alteracoes, a edge function `uazapi-api` e `evolution-webhook` precisarao ser redeployadas.
