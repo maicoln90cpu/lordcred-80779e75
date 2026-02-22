@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,16 @@ import LabelBadge from './LabelBadge';
 import ManageLabelsDialog from './ManageLabelsDialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 function formatPhoneNumber(raw: string): string {
@@ -85,6 +95,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [editingContactJid, setEditingContactJid] = useState<string | null>(null);
   const [editContactName, setEditContactName] = useState('');
+  const [deleteChatTarget, setDeleteChatTarget] = useState<ExtendedChat | null>(null);
   const prevChipRef = useRef<string | null>(null);
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
@@ -398,6 +409,45 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     } catch {
       toast({ title: 'Erro ao limpar não lidas', variant: 'destructive' });
     }
+  };
+
+  const handleMuteChat = async (chat: ExtendedChat, duration: number) => {
+    if (!chipId) return;
+    try {
+      await supabase.functions.invoke('uazapi-api', {
+        body: { action: 'mute-chat', chipId, chatId: chat.remoteJid, duration },
+      });
+      const labels: Record<number, string> = { 0: 'Conversa desmutada', 8: 'Silenciado por 8 horas', 168: 'Silenciado por 1 semana', [-1]: 'Silenciado para sempre' };
+      toast({ title: labels[duration] || `Silenciado (${duration}h)` });
+    } catch {
+      toast({ title: 'Erro ao silenciar', variant: 'destructive' });
+    }
+  };
+
+  const handleBlockContact = async (chat: ExtendedChat, block: boolean) => {
+    if (!chipId) return;
+    try {
+      await supabase.functions.invoke('uazapi-api', {
+        body: { action: 'block-contact', chipId, chatId: chat.remoteJid, block },
+      });
+      toast({ title: block ? '🚫 Contato bloqueado' : 'Contato desbloqueado' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteChat = async (chat: ExtendedChat) => {
+    if (!chipId) return;
+    try {
+      await supabase.functions.invoke('uazapi-api', {
+        body: { action: 'delete-chat', chipId, chatId: chat.remoteJid },
+      });
+      setChats(prev => prev.filter(c => c.remoteJid !== chat.remoteJid));
+      toast({ title: 'Conversa excluída' });
+    } catch {
+      toast({ title: 'Erro ao excluir', variant: 'destructive' });
+    }
+    setDeleteChatTarget(null);
   };
 
   const handleMarkUnread = async (chat: ExtendedChat) => {
@@ -756,6 +806,26 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
                       <DropdownMenuSeparator />
 
+                      {/* Mute submenu */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <BellOff className="w-4 h-4 mr-2" /> Silenciar
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem onClick={() => handleMuteChat(chat, 8)}>8 horas</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMuteChat(chat, 168)}>1 semana</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMuteChat(chat, -1)}>Sempre</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleMuteChat(chat, 0)}>Desmutar</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      <DropdownMenuItem onClick={() => handleBlockContact(chat, true)}>
+                        <Ban className="w-4 h-4 mr-2" /> Bloquear contato
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
+
                       {/* Labels */}
                       {labels.length > 0 && labels.map(label => {
                         const hasLabel = chat.label_ids?.includes(label.label_id);
@@ -768,6 +838,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                       })}
                       <DropdownMenuItem onClick={() => setManageLabelsOpen(true)}>
                         <Tag className="w-4 h-4 mr-2" /> Gerenciar Etiquetas
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteChatTarget(chat)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -818,6 +896,27 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             });
         }}
       />
+
+      {/* Delete chat confirmation */}
+      <AlertDialog open={!!deleteChatTarget} onOpenChange={(open) => !open && setDeleteChatTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá excluir a conversa e todas as mensagens do WhatsApp e do banco local. Não é possível desfazer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteChatTarget && handleDeleteChat(deleteChatTarget)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

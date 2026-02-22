@@ -940,6 +940,110 @@ Deno.serve(async (req) => {
         }
       }
 
+      case 'delete-chat': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+
+        // Call UazAPI to delete chat
+        const response = await fetch(`${baseUrl}/chat/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ number: chatId, deleteWhatsApp: true, deleteDB: true, deleteMessages: true }),
+        })
+        const data = await response.json()
+        console.log(`delete-chat: UazAPI response status=${response.status}`, JSON.stringify(data).substring(0, 300))
+
+        // Delete from local DB regardless of API result
+        await adminClient.from('message_history').delete().eq('chip_id', chipId).eq('remote_jid', chatId)
+        await adminClient.from('conversations').delete().eq('chip_id', chipId).eq('remote_jid', chatId)
+
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'mute-chat': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+
+        const duration = body.duration ?? 0
+        const response = await fetch(`${baseUrl}/chat/mute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ number: chatId, duration }),
+        })
+        const data = await response.json()
+        console.log(`mute-chat: duration=${duration}, status=${response.status}`)
+
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'block-contact': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+
+        const block = body.block ?? true
+        const response = await fetch(`${baseUrl}/chat/block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ number: chatId, block }),
+        })
+        const data = await response.json()
+        console.log(`block-contact: block=${block}, status=${response.status}`)
+
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'list-quick-replies': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+
+        const response = await fetch(`${baseUrl}/quickreply/showall`, {
+          method: 'GET',
+          headers: { 'token': chipToken },
+        })
+        const data = await response.json()
+        console.log(`list-quick-replies: status=${response.status}, count=${Array.isArray(data) ? data.length : 'n/a'}`)
+
+        return new Response(
+          JSON.stringify({ success: true, quickReplies: Array.isArray(data) ? data : (data.quickReplies || data.data || []) }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'edit-quick-reply': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+
+        const { shortCut, text, id, delete: deleteFlag, type } = body
+        const payload: any = { shortCut, text }
+        if (id) payload.id = id
+        if (deleteFlag) payload.delete = true
+        if (type) payload.type = type
+
+        const response = await fetch(`${baseUrl}/quickreply/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify(payload),
+        })
+        const data = await response.json()
+
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
