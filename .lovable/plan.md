@@ -1,130 +1,112 @@
 
 
-## Reconstrucao completa: sync-history + exibicao de chats
+## Correcao definitiva: Badge, Horario e Menu de 3 pontos
 
-### Diagnostico final
+### Causa raiz identificada
 
-O problema tem DUAS camadas:
+O console confirma que `unreadCount: 2` ESTA no componente no momento da renderizacao. O nome fica em negrito (prova que o dado chega). Mas badge, horario e 3 pontos NAO aparecem. Isso e 100% problema de CSS/layout.
 
-**Camada 1 - sync-history corrompe dados**: Mesmo com a correcao anterior, o sync-history faz upsert de 342 conversas em sequencia. Cada upsert dispara um evento realtime. O Supabase Realtime pode PERDER eventos quando ha centenas em sequencia rapida. Se o evento do Maicoln (com unread_count=4) for perdido ou substituido por um evento posterior, a sidebar fica com dados desatualizados.
+### 4 conflitos encontrados
 
-**Camada 2 - Sem re-fetch apos sync**: Quando o sync termina, o frontend NAO re-busca os chats do banco. Ele depende 100% dos eventos realtime, que podem ter sido perdidos. Resultado: o estado local fica inconsistente com o banco.
-
-**Por que o filtro "Nao lidas" funciona**: O contador no topo usa `fetchAllUnreadCounts` que re-consulta o banco a cada mudanca. O filtro "Nao lidas" tambem dispara a mesma query. Mas a sidebar geral usa o estado local (`chats`) que ficou desatualizado.
-
-### Plano de reconstrucao (3 partes)
-
----
-
-#### Parte 1: Reconstruir sync-history completamente
-
-**Arquivo**: `supabase/functions/sync-history/index.ts`
-
-Principios da nova versao:
-- NUNCA sobrescrever `unread_count` (remover completamente do upsert)
-- NUNCA sobrescrever `last_message_text` com string vazia
-- NUNCA sobrescrever `is_archived` (remover do upsert — deixar o webhook e acoes manuais controlarem)
-- NUNCA sobrescrever `is_pinned`, `is_starred`, `custom_status`, `label_ids` (campos geridos pelo usuario)
-- Upsert de conversa atualiza APENAS: `contact_name`, `contact_phone`, `wa_name`, `profile_pic_url`, `last_message_at`, `is_group`
-- Para conversas novas (INSERT), os defaults do banco cuidam de `unread_count=0`, `is_archived=false`, etc.
-
-Mudancas especificas:
-```
-convData = {
-  chip_id,
-  remote_jid: canonicalJid,
-  contact_name: contactName,
-  contact_phone: contactPhone,
-  is_group: isGroup,
-}
-
-// Apenas incluir se tiver valor real
-if (lastMsgAt) convData.last_message_at = lastMsgAt
-if (waName) convData.wa_name = waName
-if (profilePicUrl) convData.profile_pic_url = profilePicUrl
-
-// last_message_text: SOMENTE se a UazAPI retornou texto real
-const apiLastMsg = chat.wa_lastMessageTextVote || chat.lastMessage || ''
-if (apiLastMsg.length > 0) convData.last_message_text = apiLastMsg
-
-// unread_count: NUNCA incluir no upsert (preservar valor do webhook/mark-read)
-// is_archived: NUNCA incluir no upsert (preservar estado do usuario)
-```
-
----
-
-#### Parte 2: Adicionar re-fetch apos sync no frontend
-
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
-
-Adicionar uma prop `refreshKey` que, ao mudar, dispara `fetchChats()` novamente:
-
-```typescript
-interface ChatSidebarProps {
-  ...
-  refreshKey?: number; // incrementado apos sync
+**1. App.css com estilos padrao do Vite**
+O arquivo `src/App.css` contem:
+```css
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
 }
 ```
+O `padding: 2rem` adiciona 32px em todos os lados, reduzindo o espaco disponivel. O `text-align: center` e herdado por todos os filhos.
 
-No `useEffect`:
-```typescript
-useEffect(() => {
-  if (chipId) fetchChats();
-}, [fetchChats, chipId, refreshKey]);
+**2. Linha do nome: falta `flex-1` no container do nome**
 ```
-
-**Arquivo**: `src/pages/WhatsApp.tsx`
-
-Apos `runStagedSync` terminar, incrementar `refreshTrigger` e passar como `refreshKey`:
-
-```typescript
-// Em runStagedSync, apos o loop while:
-setRefreshTrigger(prev => prev + 1);
-
-// Na renderizacao:
-<ChatSidebar refreshKey={refreshTrigger} ... />
+<div className="flex items-center gap-1 min-w-0">  // SEM flex-1
+  <span className="truncate">{chat.name}</span>
+</div>
+<span className="shrink-0 ml-2">{timestamp}</span>  // empurrado para fora
 ```
+Sem `flex-1`, o div do nome nao preenche o espaco. Com nomes longos, `justify-between` empurra o timestamp para fora da area visivel.
+
+**3. Linha da mensagem: falta `flex-1 min-w-0` no span da mensagem**
+```
+<span className="truncate">{lastMessage}</span>  // SEM flex-1, SEM min-w-0
+<span className="shrink-0">{badge}</span>  // empurrado para fora
+```
+Sem `min-w-0`, o `truncate` nao consegue encolher. O badge e empurrado para alem do container.
+
+**4. Menu de 3 pontos: `md:opacity-0` + posicao absoluta**
+O menu usa `md:opacity-0 md:group-hover:opacity-100` mas o botao que ocupa toda a area pode nao acionar o `group-hover` corretamente no container pai.
 
 ---
 
-#### Parte 3: Re-executar backfill
+### Plano de correcao (2 arquivos)
 
-**Migracao SQL**: Executar novamente o backfill para corrigir dados que o sync-history corrompeu:
+#### Arquivo 1: `src/App.css`
+Limpar completamente os estilos padrao do Vite que conflitam:
+- Remover `#root { max-width, padding, text-align, margin }`
+- Remover `.logo`, `.card`, `.read-the-docs` e keyframes nao usados
+- Manter apenas o arquivo vazio ou com comentario
 
+#### Arquivo 2: `src/components/whatsapp/ChatSidebar.tsx`
+
+**Correcao na linha do nome (668-676):**
+- Adicionar `flex-1` ao div do nome para preencher o espaco
+- Garantir `overflow-hidden` no div do nome
+
+De:
 ```
-UPDATE conversations c SET
-  last_message_text = sub.message_content,
-  last_message_at = sub.created_at,
-  updated_at = now()
-FROM (
-  SELECT DISTINCT ON (chip_id, remote_jid)
-    chip_id, remote_jid, message_content, created_at
-  FROM message_history
-  WHERE message_content IS NOT NULL
-    AND message_content != ''
-    AND message_content != 'EMPTY'
-    AND remote_jid IS NOT NULL
-  ORDER BY chip_id, remote_jid, created_at DESC
-) sub
-WHERE c.chip_id = sub.chip_id
-  AND c.remote_jid = sub.remote_jid
-  AND (c.last_message_text IS NULL OR c.last_message_text = '')
+<div className="flex items-center gap-1 min-w-0">
 ```
+Para:
+```
+<div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+```
+
+**Correcao na linha da mensagem (678-685):**
+- Adicionar `flex-1 min-w-0` ao span da mensagem para permitir encolhimento
+
+De:
+```
+<span className={cn("text-xs truncate", ...)}>
+```
+Para:
+```
+<span className={cn("text-xs truncate flex-1 min-w-0", ...)}>
+```
+
+**Correcao no menu de 3 pontos (701-702):**
+- Remover `md:opacity-0` — tornar sempre visivel com opacidade reduzida
+- Usar opacidade parcial que aumenta no hover
+
+De:
+```
+<div className="absolute right-2 top-2 z-10 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+```
+Para:
+```
+<div className="absolute right-2 top-2 z-10 opacity-50 group-hover:opacity-100 transition-opacity">
+```
+
+**Remover console.log de debug (linha 650):**
+- Remover a linha de debug `if (chat.unreadCount > 0) console.log(...)` que polui o console
 
 ---
 
 ### Resumo das alteracoes
 
-| Arquivo / Recurso | Alteracao |
+| Arquivo | Alteracao |
 |---|---|
-| `sync-history/index.ts` | Reconstruir inteiro: remover `unread_count`, `is_archived` do upsert, proteger `last_message_text` |
-| `ChatSidebar.tsx` | Adicionar prop `refreshKey` para re-fetch apos sync |
-| `WhatsApp.tsx` | Passar `refreshTrigger` como `refreshKey`, incrementar apos sync |
-| Migracao SQL | Re-executar backfill de `last_message_text` |
+| `src/App.css` | Limpar estilos padrao do Vite (#root padding, text-align, max-width) |
+| `ChatSidebar.tsx` linha 669 | Adicionar `flex-1 overflow-hidden` ao div do nome |
+| `ChatSidebar.tsx` linha 679 | Adicionar `flex-1 min-w-0` ao span da mensagem |
+| `ChatSidebar.tsx` linha 702 | Trocar `md:opacity-0` por `opacity-50` no menu 3 pontos |
+| `ChatSidebar.tsx` linha 650 | Remover console.log de debug |
 
 ### Resultado esperado
 
-- sync-history NUNCA mais corrompe `unread_count`, `last_message_text` ou `is_archived`
-- Apos cada sync, o frontend busca dados frescos do banco, eliminando dependencia de realtime durante sync
-- Badge de nao lidas permanece visivel em TODAS as views (geral, filtrada, topo)
-
+- Horario visivel ao lado do nome em TODAS as conversas
+- Badge verde de nao lidas visivel ao lado da ultima mensagem
+- Menu de 3 pontos sempre visivel (semitransparente, opaco no hover)
+- Layout correto sem padding extra do App.css
