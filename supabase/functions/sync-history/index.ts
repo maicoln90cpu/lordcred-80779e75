@@ -351,11 +351,20 @@ Deno.serve(async (req) => {
         remote_jid: canonicalJid,
         contact_name: contactName,
         contact_phone: contactPhone,
-        last_message_text: chat.wa_lastMessageTextVote || chat.lastMessage || '',
         last_message_at: lastMsgAt || new Date().toISOString(),
-        unread_count: unreadCount,
         is_group: isGroup,
         is_archived: false,
+      }
+
+      // So atualizar last_message_text se a UazAPI retornou texto real
+      const apiLastMsg = chat.wa_lastMessageTextVote || chat.lastMessage || ''
+      if (apiLastMsg.length > 0) {
+        convData.last_message_text = apiLastMsg
+      }
+
+      // So atualizar unread_count se > 0 (preserva contadores do webhook)
+      if (unreadCount > 0) {
+        convData.unread_count = unreadCount
       }
       if (waName) convData.wa_name = waName
       if (profilePicUrl) convData.profile_pic_url = profilePicUrl
