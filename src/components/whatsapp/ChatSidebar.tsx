@@ -76,6 +76,7 @@ interface ExtendedChat extends ChatContact {
   is_pinned?: boolean;
   is_starred?: boolean;
   custom_status?: ConversationStatus;
+  is_blocked?: boolean;
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
@@ -193,6 +194,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           is_starred: r.is_starred || false,
           custom_status: r.custom_status || null,
           label_ids: r.label_ids || [],
+          is_blocked: r.is_blocked || false,
         };
       });
 
@@ -430,7 +432,16 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       await supabase.functions.invoke('uazapi-api', {
         body: { action: 'block-contact', chipId, chatId: chat.remoteJid, block },
       });
-      toast({ title: block ? '🚫 Contato bloqueado' : 'Contato desbloqueado' });
+      // Persist locally
+      await supabase
+        .from('conversations')
+        .update({ is_blocked: block } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, is_blocked: block } : c
+      ));
+      toast({ title: block ? '🚫 Contato bloqueado' : '✅ Contato desbloqueado' });
     } catch {
       toast({ title: 'Erro', variant: 'destructive' });
     }
@@ -716,6 +727,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                        {chat.is_blocked && <Ban className="w-3 h-3 text-destructive shrink-0" />}
                         {chat.is_pinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
                         {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
                         <span className={cn("text-sm truncate", chat.unreadCount > 0 ? "font-bold text-foreground" : "font-medium")}>{chat.name}</span>
@@ -820,8 +832,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
 
-                      <DropdownMenuItem onClick={() => handleBlockContact(chat, true)}>
-                        <Ban className="w-4 h-4 mr-2" /> Bloquear contato
+                      <DropdownMenuItem onClick={() => handleBlockContact(chat, !chat.is_blocked)}>
+                        <Ban className="w-4 h-4 mr-2" />
+                        {chat.is_blocked ? 'Desbloquear contato' : 'Bloquear contato'}
                       </DropdownMenuItem>
 
                       <DropdownMenuSeparator />

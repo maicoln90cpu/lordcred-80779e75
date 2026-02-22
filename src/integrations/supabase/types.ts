@@ -153,6 +153,7 @@ export type Database = {
           custom_status: string | null
           id: string
           is_archived: boolean | null
+          is_blocked: boolean | null
           is_group: boolean | null
           is_pinned: boolean | null
           is_starred: boolean | null
@@ -173,6 +174,7 @@ export type Database = {
           custom_status?: string | null
           id?: string
           is_archived?: boolean | null
+          is_blocked?: boolean | null
           is_group?: boolean | null
           is_pinned?: boolean | null
           is_starred?: boolean | null
@@ -193,6 +195,7 @@ export type Database = {
           custom_status?: string | null
           id?: string
           is_archived?: boolean | null
+          is_blocked?: boolean | null
           is_group?: boolean | null
           is_pinned?: boolean | null
           is_starred?: boolean | null
