@@ -408,6 +408,22 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
   };
 
+  const handleClearAllUnread = async () => {
+    if (!chipId) return;
+    try {
+      await supabase
+        .from('conversations')
+        .update({ unread_count: 0 } as any)
+        .eq('chip_id', chipId)
+        .gt('unread_count', 0);
+      setChats(prev => prev.map(c => ({ ...c, unreadCount: 0 })));
+      if (onUnreadUpdate) onUnreadUpdate(chipId, 0);
+      toast({ title: 'Todas as conversas marcadas como lidas' });
+    } catch {
+      toast({ title: 'Erro ao limpar não lidas', variant: 'destructive' });
+    }
+  };
+
   // Filter chats
   const filteredChats = chats.filter(chat => {
     if (showArchived) {
@@ -530,6 +546,17 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           >
             Não lidas
           </Button>
+
+          {filterUnread && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs shrink-0 text-destructive hover:text-destructive"
+              onClick={handleClearAllUnread}
+            >
+              Limpar todas
+            </Button>
+          )}
 
           <Button
             variant={filterStarred ? "default" : "ghost"}
