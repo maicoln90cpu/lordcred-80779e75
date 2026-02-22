@@ -426,6 +426,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   // Filter chats
   const filteredChats = chats.filter(chat => {
+    // Ocultar conversas sem ultima mensagem
+    if (!chat.lastMessage) return false;
     if (showArchived) {
       if (!chat.is_archived) return false;
     } else {
