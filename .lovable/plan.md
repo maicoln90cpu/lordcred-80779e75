@@ -1,75 +1,90 @@
 
+## Diagnostico: Mensagens no banco mas nao aparecem no chat
 
-## Plano: Leitura bidirecional completa via UazAPI (sem persistencia local de notificacoes)
+### Causas encontradas
 
-### Problema atual
-1. O endpoint `mark-read` na edge function `uazapi-api` envia `{ number: chatId }` mas **nao inclui o campo `read: true`** exigido pela documentacao da UazAPI
-2. O `ChatWindow` atualiza `unread_count` no banco local ao abrir um chat -- isso deve ser removido pois a sincronizacao deve ser 100% via UazAPI
-3. O `ChatSidebar` tem funcao `handleClearAllUnread` que zera unread_count direto no banco -- deve enviar mark-read para UazAPI em cada conversa
-4. O webhook (`evolution-webhook`) incrementa `unread_count` localmente ao receber mensagem -- isso deve ser mantido como fallback ate que a UazAPI retorne o valor real via evento `chats`
+**Causa 1 - Filtro da sidebar esconde conversas validas**
+O filtro que adicionamos na linha 443 do ChatSidebar (`if (!chat.lastMessage) return false`) esta escondendo conversas que possuem mensagens em `message_history` mas cujo campo `last_message_text` na tabela `conversations` esta vazio/null.
 
-### Alteracoes
+Exemplo real do banco: a conversa `559188738747@s.whatsapp.net` tem 5 mensagens em `message_history`, mas `last_message_text` esta vazio na `conversations` — resultado: a conversa nao aparece na sidebar, logo as mensagens nunca sao exibidas.
 
-#### 1. Edge function `uazapi-api` - Corrigir payload do mark-read
+**Causa 2 - `last_message_text` nao e atualizado por todos os fluxos**
+- Mensagens enviadas via `queue-processor` e `warming-engine` inserem em `message_history` mas nem sempre disparam o webhook que atualiza `conversations.last_message_text`
+- O `sync-history` preenche `last_message_text` a partir de metadados do chat UazAPI (`wa_lastMessageTextVote` ou `lastMessage`), que podem estar vazios
+- Resultado: muitas conversas com mensagens reais no historico mas preview vazio na sidebar
 
-**Arquivo**: `supabase/functions/uazapi-api/index.ts`
+**Causa 3 - Mensagens com conteudo "EMPTY"**
+Algumas mensagens outgoing estao armazenadas com `message_content = "EMPTY"` em vez do texto real, provavelmente vindas de envios automaticos que nao retornaram o texto no webhook.
 
-Adicionar o campo `read: true` ao body do POST `/chat/read`:
-```typescript
-body: JSON.stringify({ number: chatId, read: true })
-```
+### Dados do banco confirmando
 
-Alem disso, adicionar nova action `mark-unread` que envia `read: false`:
-```typescript
-case 'mark-unread': {
-  // mesma logica, mas com read: false
-  body: JSON.stringify({ number: chatId, read: false })
-}
-```
+Para o chip `9db50d5b...`:
+- 332 conversas no total, apenas 78 com `last_message_text` preenchido
+- 168 mensagens em `message_history`
+- Muitas conversas com mensagens reais mas `last_message_text` vazio (ex: Paneh, Fernanda)
 
-Tambem atualizar o `unread_count` no banco apos sucesso do mark-read (zerar) e mark-unread (setar para 1):
-```typescript
-// Apos sucesso do mark-read:
-await adminClient.from('conversations').update({ unread_count: 0 }).eq('chip_id', chipId).eq('remote_jid', chatId)
+### Solucao proposta (3 alteracoes)
 
-// Apos sucesso do mark-unread:
-await adminClient.from('conversations').update({ unread_count: 1 }).eq('chip_id', chipId).eq('remote_jid', chatId)
-```
-
-#### 2. ChatWindow - Simplificar mark-read (remover update local duplicado)
-
-**Arquivo**: `src/components/whatsapp/ChatWindow.tsx`
-
-Linhas 178-192: Remover o `supabase.from('conversations').update({ unread_count: 0 })` duplicado. A edge function ja vai cuidar disso apos confirmar com a UazAPI. Manter apenas a chamada `supabase.functions.invoke('uazapi-api', { body: { action: 'mark-read', chipId, chatId } })`.
-
-#### 3. ChatSidebar - Marcar como lido/nao lido via UazAPI
+#### 1. Remover o filtro que esconde conversas sem texto (ChatSidebar)
 
 **Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
 
-- Modificar `handleClearAllUnread` (linha 411) para iterar sobre conversas com unread > 0 e chamar `uazapi-api` com `action: 'mark-read'` para cada uma, em vez de apenas zerar no banco
-- Adicionar botao/opcao no menu de contexto de cada conversa para "Marcar como nao lida" que chama `action: 'mark-unread'`
+Remover a linha 443 (`if (!chat.lastMessage) return false`). Em vez disso, mostrar todas as conversas, usando um fallback visual quando nao ha texto:
+- Se `lastMessage` esta vazio, exibir o numero de telefone ou "Abrir conversa"
+- Isso garante que conversas com mensagens em `message_history` sejam acessiveis
 
-#### 4. Webhook - Manter incremento de unread como fallback
+#### 2. Criar trigger no banco para manter `last_message_text` sincronizado
 
-**Arquivo**: `supabase/functions/evolution-webhook/index.ts`
+**Migracao SQL**: Criar um trigger `AFTER INSERT` na tabela `message_history` que automaticamente atualiza `conversations.last_message_text` e `last_message_at` com o conteudo da mensagem mais recente. Isso resolve o problema na raiz — qualquer mensagem inserida (via webhook, queue, warming, sync) automaticamente atualiza a conversa.
 
-O incremento de `unread_count` ao receber mensagem nova (linha 168) sera **mantido** -- isso garante que o badge apareca imediatamente via Realtime, mesmo antes de qualquer sync. O valor sera corrigido quando o usuario abrir o chat (mark-read via UazAPI).
+```text
+Fluxo:
+message_history INSERT -> trigger -> UPDATE conversations SET last_message_text, last_message_at
+```
 
-### Resumo
+#### 3. Backfill: preencher `last_message_text` para conversas existentes
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `uazapi-api/index.ts` | Corrigir payload mark-read (`read: true`), adicionar `mark-unread` (`read: false`), atualizar DB apos sucesso |
-| `ChatWindow.tsx` | Remover update local de unread_count (linhas 186-191) |
-| `ChatSidebar.tsx` | `handleClearAllUnread` via UazAPI; adicionar opcao "Marcar como nao lida" no menu |
-| `evolution-webhook/index.ts` | Sem alteracao (manter incremento como fallback) |
+**Migracao SQL**: Query unica para preencher `last_message_text` de todas as conversas que estao vazias mas possuem mensagens em `message_history`. Isso corrige os dados existentes imediatamente.
 
-### Secao tecnica
+### Detalhes tecnicos
 
-O fluxo completo bidirecional sera:
+**Trigger SQL (item 2)**:
+```text
+CREATE FUNCTION update_conversation_last_message()
+  AFTER INSERT em message_history:
+  - Busca a conversa (chip_id + remote_jid)
+  - Atualiza last_message_text com NEW.message_content (se nao vazio)
+  - Atualiza last_message_at com NEW.created_at
+  - Cria a conversa se nao existir (upsert)
+```
 
-1. **Abrir chat** -> ChatWindow chama `mark-read` -> edge function envia `POST /chat/read { number, read: true }` -> atualiza `unread_count: 0` no banco -> Realtime propaga para sidebar
-2. **Marcar como nao lida** -> ChatSidebar chama `mark-unread` -> edge function envia `POST /chat/read { number, read: false }` -> atualiza `unread_count: 1` no banco -> Realtime propaga
-3. **Nova mensagem do WhatsApp** -> webhook incrementa unread_count -> Realtime propaga badge
-4. **Limpar todas nao lidas** -> itera conversas com unread > 0 -> chama mark-read para cada -> DB atualizado via edge function
+**Backfill SQL (item 3)**:
+```text
+UPDATE conversations c SET
+  last_message_text = sub.message_content,
+  last_message_at = sub.created_at
+FROM (
+  SELECT DISTINCT ON (chip_id, remote_jid)
+    chip_id, remote_jid, message_content, created_at
+  FROM message_history
+  WHERE message_content IS NOT NULL AND message_content != '' AND message_content != 'EMPTY'
+  ORDER BY chip_id, remote_jid, created_at DESC
+) sub
+WHERE c.chip_id = sub.chip_id AND c.remote_jid = sub.remote_jid
+  AND (c.last_message_text IS NULL OR c.last_message_text = '')
+```
 
+**ChatSidebar (item 1)**:
+- Remover: `if (!chat.lastMessage) return false`
+- Na renderizacao, exibir fallback se `lastMessage` vazio:
+  ```text
+  {chat.lastMessage || chat.phone || 'Abrir conversa'}
+  ```
+
+### Resumo das alteracoes
+
+| Arquivo / Recurso | Alteracao |
+|---|---|
+| `ChatSidebar.tsx` linha 443 | Remover filtro `if (!chat.lastMessage) return false` + fallback visual |
+| Migracao SQL (trigger) | Trigger `AFTER INSERT` em `message_history` para atualizar `conversations` automaticamente |
+| Migracao SQL (backfill) | Preencher `last_message_text` de conversas existentes a partir de `message_history` |
