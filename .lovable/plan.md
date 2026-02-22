@@ -1,57 +1,130 @@
 
 
-## Correcao: sync-history sobrescreve unread_count e last_message_text
+## Reconstrucao completa: sync-history + exibicao de chats
 
-### O problema
+### Diagnostico final
 
-As linhas 354 e 356 do `sync-history/index.ts` estao destruindo dados validos durante a sincronizacao:
+O problema tem DUAS camadas:
 
-- **Linha 354**: `last_message_text: chat.wa_lastMessageTextVote || chat.lastMessage || ''` — quando a UazAPI retorna vazio, sobrescreve o texto que o trigger/backfill preencheu com string vazia
-- **Linha 356**: `unread_count: unreadCount` — quando `wa_unreadCount` e 0, sobrescreve o valor real definido pelo webhook
+**Camada 1 - sync-history corrompe dados**: Mesmo com a correcao anterior, o sync-history faz upsert de 342 conversas em sequencia. Cada upsert dispara um evento realtime. O Supabase Realtime pode PERDER eventos quando ha centenas em sequencia rapida. Se o evento do Maicoln (com unread_count=4) for perdido ou substituido por um evento posterior, a sidebar fica com dados desatualizados.
 
-Resultado: o badge de 2 mensagens do Maicoln desaparece na listagem geral (porque o sync zerou), mas o contador no topo e o filtro ainda capturam o valor correto por timing diferente.
+**Camada 2 - Sem re-fetch apos sync**: Quando o sync termina, o frontend NAO re-busca os chats do banco. Ele depende 100% dos eventos realtime, que podem ter sido perdidos. Resultado: o estado local fica inconsistente com o banco.
 
-### Correcao
+**Por que o filtro "Nao lidas" funciona**: O contador no topo usa `fetchAllUnreadCounts` que re-consulta o banco a cada mudanca. O filtro "Nao lidas" tambem dispara a mesma query. Mas a sidebar geral usa o estado local (`chats`) que ficou desatualizado.
 
-**Arquivo**: `supabase/functions/sync-history/index.ts` (linhas 349-359)
+### Plano de reconstrucao (3 partes)
 
-Montar o `convData` sem incluir `last_message_text` e `unread_count` por padrao. Incluir apenas quando os valores da UazAPI sao reais (texto nao vazio, unread > 0):
+---
 
-```typescript
-const convData: any = {
-  chip_id: chipId,
+#### Parte 1: Reconstruir sync-history completamente
+
+**Arquivo**: `supabase/functions/sync-history/index.ts`
+
+Principios da nova versao:
+- NUNCA sobrescrever `unread_count` (remover completamente do upsert)
+- NUNCA sobrescrever `last_message_text` com string vazia
+- NUNCA sobrescrever `is_archived` (remover do upsert — deixar o webhook e acoes manuais controlarem)
+- NUNCA sobrescrever `is_pinned`, `is_starred`, `custom_status`, `label_ids` (campos geridos pelo usuario)
+- Upsert de conversa atualiza APENAS: `contact_name`, `contact_phone`, `wa_name`, `profile_pic_url`, `last_message_at`, `is_group`
+- Para conversas novas (INSERT), os defaults do banco cuidam de `unread_count=0`, `is_archived=false`, etc.
+
+Mudancas especificas:
+```
+convData = {
+  chip_id,
   remote_jid: canonicalJid,
   contact_name: contactName,
   contact_phone: contactPhone,
-  last_message_at: lastMsgAt || new Date().toISOString(),
   is_group: isGroup,
-  is_archived: false,
 }
 
-// So atualizar last_message_text se a UazAPI retornou texto real
+// Apenas incluir se tiver valor real
+if (lastMsgAt) convData.last_message_at = lastMsgAt
+if (waName) convData.wa_name = waName
+if (profilePicUrl) convData.profile_pic_url = profilePicUrl
+
+// last_message_text: SOMENTE se a UazAPI retornou texto real
 const apiLastMsg = chat.wa_lastMessageTextVote || chat.lastMessage || ''
-if (apiLastMsg.length > 0) {
-  convData.last_message_text = apiLastMsg
-}
+if (apiLastMsg.length > 0) convData.last_message_text = apiLastMsg
 
-// So atualizar unread_count se > 0 (preserva contadores do webhook)
-if (unreadCount > 0) {
-  convData.unread_count = unreadCount
+// unread_count: NUNCA incluir no upsert (preservar valor do webhook/mark-read)
+// is_archived: NUNCA incluir no upsert (preservar estado do usuario)
+```
+
+---
+
+#### Parte 2: Adicionar re-fetch apos sync no frontend
+
+**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
+
+Adicionar uma prop `refreshKey` que, ao mudar, dispara `fetchChats()` novamente:
+
+```typescript
+interface ChatSidebarProps {
+  ...
+  refreshKey?: number; // incrementado apos sync
 }
 ```
 
-### Resultado
+No `useEffect`:
+```typescript
+useEffect(() => {
+  if (chipId) fetchChats();
+}, [fetchChats, chipId, refreshKey]);
+```
 
-- O trigger SQL continua preenchendo `last_message_text` automaticamente em cada INSERT no `message_history`
-- O webhook continua incrementando `unread_count` em mensagens novas
-- O sync-history NAO sobrescreve esses valores com dados vazios/zerados da UazAPI
-- O badge de nao lidas permanece visivel na listagem geral
+**Arquivo**: `src/pages/WhatsApp.tsx`
 
-### Resumo
+Apos `runStagedSync` terminar, incrementar `refreshTrigger` e passar como `refreshKey`:
 
-| Arquivo | Alteracao |
+```typescript
+// Em runStagedSync, apos o loop while:
+setRefreshTrigger(prev => prev + 1);
+
+// Na renderizacao:
+<ChatSidebar refreshKey={refreshTrigger} ... />
+```
+
+---
+
+#### Parte 3: Re-executar backfill
+
+**Migracao SQL**: Executar novamente o backfill para corrigir dados que o sync-history corrompeu:
+
+```
+UPDATE conversations c SET
+  last_message_text = sub.message_content,
+  last_message_at = sub.created_at,
+  updated_at = now()
+FROM (
+  SELECT DISTINCT ON (chip_id, remote_jid)
+    chip_id, remote_jid, message_content, created_at
+  FROM message_history
+  WHERE message_content IS NOT NULL
+    AND message_content != ''
+    AND message_content != 'EMPTY'
+    AND remote_jid IS NOT NULL
+  ORDER BY chip_id, remote_jid, created_at DESC
+) sub
+WHERE c.chip_id = sub.chip_id
+  AND c.remote_jid = sub.remote_jid
+  AND (c.last_message_text IS NULL OR c.last_message_text = '')
+```
+
+---
+
+### Resumo das alteracoes
+
+| Arquivo / Recurso | Alteracao |
 |---|---|
-| `sync-history/index.ts` linhas 349-359 | Remover `last_message_text` e `unread_count` do convData padrao; incluir condicionalmente |
+| `sync-history/index.ts` | Reconstruir inteiro: remover `unread_count`, `is_archived` do upsert, proteger `last_message_text` |
+| `ChatSidebar.tsx` | Adicionar prop `refreshKey` para re-fetch apos sync |
+| `WhatsApp.tsx` | Passar `refreshTrigger` como `refreshKey`, incrementar apos sync |
+| Migracao SQL | Re-executar backfill de `last_message_text` |
 
-Requer redeploy da edge function `sync-history`.
+### Resultado esperado
+
+- sync-history NUNCA mais corrompe `unread_count`, `last_message_text` ou `is_archived`
+- Apos cada sync, o frontend busca dados frescos do banco, eliminando dependencia de realtime durante sync
+- Badge de nao lidas permanece visivel em TODAS as views (geral, filtrada, topo)
 
