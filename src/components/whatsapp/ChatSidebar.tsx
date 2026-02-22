@@ -190,6 +190,13 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       if (pageNum === 1 && !append) {
         setChats(mapped);
         setCachedChats(requestChipId, mapped);
+        // Recalculate unread total from real data
+        if (onUnreadUpdate && requestChipId) {
+          const totalUnread = mapped
+            .filter(c => !c.is_archived)
+            .reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+          onUnreadUpdate(requestChipId, totalUnread);
+        }
       } else if (append && mapped.length > 0) {
         setChats(prev => {
           const existingJids = new Set(prev.map(c => c.remoteJid));
@@ -646,7 +653,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
                         <span className="text-sm font-medium truncate">{chat.name}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0 ml-2">
                         {formatTime(chat.lastMessageAt)}
                       </span>
                     </div>
@@ -674,7 +681,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                 </button>
 
                 {/* Context menu button */}
-                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-6 w-6">
