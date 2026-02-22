@@ -1,95 +1,80 @@
 
-## Correcao do Mismatch LID: Resolucao Definitiva via /chat/details
 
-### Problema Identificado (caso concreto FRANCISCO)
+## Diagnostico Final: Mensagens de Ariany e 500+ contatos nao aparecem
 
-Dados reais encontrados no banco:
+### Problema Raiz Encontrado (com provas do banco de dados)
 
-| Tabela | remote_jid | contact_phone | Mensagens |
-|--------|-----------|---------------|-----------|
-| conversations | `79710449049664@lid` | `79710449049664@lid` | 0 (criada pelo sync) |
-| conversations | `558586297491@s.whatsapp.net` | `558586297491` | 1 (criada pelo webhook) |
-| message_history | `558586297491@s.whatsapp.net` | `558586297491` | 1 mensagem real |
+A cadeia de falhas que leva ao "Nenhuma mensagem ainda":
 
-O usuario ve a conversa `@lid` na sidebar (que tem o texto da ultima mensagem vindo do sync), clica nela, e o ChatWindow busca por `79710449049664@lid` -- 0 resultados. A busca dual falha porque `contact_phone` contem `79710449049664@lid` (numero LID, nao o telefone real).
+1. **Sync antigo** salvou mensagens em `message_history` com JID `@lid` (ex: `79921422553247@lid` = Ariany, com 46 mensagens)
+2. **Migration anterior** converteu conversas de `@lid` para `@s.whatsapp.net`, mas usou o numero LID como se fosse telefone: `79921422553247@s.whatsapp.net` (INVALIDO)
+3. **Sync novo** (com resolucao de LID) resolveu corretamente o telefone real e criou a conversa `554898111929@s.whatsapp.net` (Ariany Lord Cred)
+4. **Resultado**: a sidebar mostra "Ariany Lord Cred" com `remote_jid = 554898111929@s.whatsapp.net`, mas as mensagens estao salvas com `remote_jid = 79921422553247@lid` -- ZERO MATCH
 
-**Sao 265 conversas nesta mesma situacao.**
+Dados concretos do banco para chip `fc818d1f`:
+- 476 conversas totais, das quais **327 sao bogus** (numeros LID usados como telefone)
+- 197 mensagens com `@lid` que nao correspondem a nenhuma conversa
+- A busca dual do ChatWindow NAO funciona porque o `remote_jid` da conversa ja e `@s.whatsapp.net` (nao `@lid`), entao a logica `if (remoteJid.includes('@lid'))` nunca ativa
 
-### Causa Raiz
+### Correcao em 2 Partes
 
-1. O `/chat/find` da UazAPI retorna `wa_chatid = 79710449049664@lid` com `phone` vazio para muitos contatos
-2. O `resolveJid()` nao consegue resolver sem `phone`, entao usa o LID como `canonicalJid`
-3. O `contact_phone` e preenchido com `canonicalJid.split('@')[0]` = `79710449049664` (LID, nao telefone)
-4. A auto-correcao no webhook compara `contact_phone == recipientPhone` mas `79710449049664 != 558586297491`
-5. Resultado: duas conversas duplicadas que nunca se conectam
+#### Parte 1: sync-history -- Migrar mensagens @lid ao resolver LID
 
-### Solucao em 3 Partes
-
-#### Parte 1: sync-history -- Forcar resolucao via /chat/details para TODOS os chats @lid
-
-Quando `chat.phone` esta vazio e o `wa_chatid` e `@lid`:
-- SEMPRE chamar `/chat/details` passando o LID como `number`
-- Extrair o campo `phone` da resposta (conforme doc UazAPI, /chat/details retorna "phone" entre os campos)
-- Usar esse phone para construir o JID canonico `phone@s.whatsapp.net`
-- Salvar o phone real no `contact_phone` da conversa
-- Remover o limite de 10 chamadas de `/chat/details` para contatos LID (manter limite para profile pics de contatos normais)
+Quando o sync resolve `rawJid = 79921422553247@lid` -> `canonicalJid = 554898111929@s.whatsapp.net`:
+- Apos o upsert de conversa, executar UPDATE em `message_history` para migrar `remote_jid` de `rawJid` para `canonicalJid`
+- Deletar conversa bogus `rawLidNumber@s.whatsapp.net` se existir (da migration anterior)
+- Isso garante que mensagens antigas e novas ficam com o mesmo JID
 
 **Arquivo**: `supabase/functions/sync-history/index.ts`
 
-Mudancas especificas:
-- Na funcao `resolveJid`: aceitar um parametro opcional `resolvedPhone` que vem de `/chat/details`
-- No loop de processamento: para cada chat LID sem phone, chamar `/chat/details` ANTES de resolver o JID
-- Separar o contador de profile pic fetches do contador de phone resolution fetches
-- `contactPhone` deve usar o phone resolvido, NUNCA o numero LID
-
-#### Parte 2: evolution-webhook -- Corrigir auto-correcao para funcionar sem phone match
-
-A auto-correcao atual falha porque `contact_phone` contem o LID. Nova estrategia:
-
-Quando o webhook recebe uma mensagem com `@s.whatsapp.net` e cria uma conversa:
-- Apos o upsert, verificar se existe uma conversa DUPLICADA `@lid` para o MESMO chip
-- Como nao podemos comparar por phone (LID != phone), comparar por `contact_name`:
-  - Se o webhook recebe `chat.wa_contactName` ou `chat.name`, buscar conversa `@lid` com mesmo nome
-  - Se encontrar match unico, deletar a conversa `@lid` (a `@s.whatsapp.net` ja tem os dados corretos)
-- Alternativa mais segura: nao tentar auto-corrigir no webhook, deixar o sync-history resolver
-
-**Arquivo**: `supabase/functions/evolution-webhook/index.ts`
-
-Mudanca: remover a auto-correcao por `contact_phone` (que nunca funciona) e manter a logica simples de upsert por `remote_jid`.
-
-#### Parte 3: Migration SQL -- Limpar as 265 conversas @lid duplicadas
-
-Para cada conversa `@lid`, verificar se ja existe uma conversa `@s.whatsapp.net` para o mesmo chip com mensagens reais. Se sim, deletar a `@lid` (que nao tem mensagens). Se nao, manter e deixar o sync-history resolver na proxima execucao.
+Adicionar apos o upsert de conversa (linha ~363):
 
 ```text
--- Delete @lid conversations that have a duplicate @s.whatsapp.net 
--- conversation for the same chip (the @s.whatsapp.net one has the real messages)
-DELETE FROM conversations 
-WHERE remote_jid LIKE '%@lid' 
-AND EXISTS (
-  SELECT 1 FROM message_history m 
-  WHERE m.chip_id = conversations.chip_id 
-  AND m.remote_jid LIKE '%@s.whatsapp.net'
-  AND m.remote_jid != conversations.remote_jid
-  -- match by looking if any message exists for the same chip
-  -- that was created around the same time as the @lid conversation
-);
+// If we resolved a LID to phone, migrate existing messages
+if (rawJid.includes('@lid') && canonicalJid !== rawJid) {
+  // Update messages stored with @lid to use canonical phone JID
+  await adminClient
+    .from('message_history')
+    .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null })
+    .eq('chip_id', chipId)
+    .eq('remote_jid', rawJid)
 
--- More targeted: for remaining @lid convos, strip the @lid suffix 
--- from contact_phone to not pollute dual-query logic
-UPDATE conversations 
-SET contact_phone = REPLACE(contact_phone, '@lid', '')
-WHERE contact_phone LIKE '%@lid';
+  // Delete bogus conversation created by old migration (LID as phone)
+  const bogusJid = rawJid.replace('@lid', '@s.whatsapp.net')
+  await adminClient
+    .from('conversations')
+    .delete()
+    .eq('chip_id', chipId)
+    .eq('remote_jid', bogusJid)
+}
 ```
 
-A migracao real sera mais conservadora: so deletar `@lid` convos que comprovadamente tem duplicata.
+#### Parte 2: Migration SQL -- Limpar dados bogus existentes
 
----
+Deletar as 552 conversas bogus (numeros LID formatados como `@s.whatsapp.net`) que poluem a sidebar e nunca terao mensagens. Tambem deletar as 2 conversas `@lid` restantes. Na proxima sincronizacao, o sync recriara tudo corretamente.
+
+```text
+-- Delete bogus conversations where LID numbers were used as phone
+-- (numbers > 13 digits in @s.whatsapp.net are LIDs, not real phones)
+DELETE FROM conversations 
+WHERE remote_jid LIKE '%@s.whatsapp.net'
+AND LENGTH(REPLACE(remote_jid, '@s.whatsapp.net', '')) > 13;
+
+-- Delete remaining @lid conversations
+DELETE FROM conversations 
+WHERE remote_jid LIKE '%@lid';
+
+-- Delete orphaned @lid messages (will be re-synced with correct JIDs)
+DELETE FROM message_history
+WHERE remote_jid LIKE '%@lid';
+```
 
 ### Detalhes Tecnicos
 
 | # | Arquivo | Alteracao |
 |---|---------|-----------|
-| 1 | `sync-history/index.ts` | Forcar `/chat/details` para TODOS os chats @lid sem phone; usar phone resolvido como canonicalJid e contact_phone |
-| 2 | `evolution-webhook/index.ts` | Remover auto-correcao quebrada por contact_phone; simplificar |
-| 3 | Migration SQL | Deletar conversas @lid duplicadas; limpar contact_phone removendo sufixo @lid |
+| 1 | `sync-history/index.ts` | Apos resolver LID->phone, UPDATE message_history.remote_jid e DELETE conversa bogus |
+| 2 | Migration SQL | Deletar 552 conversas bogus (LID-como-telefone) + 197 mensagens @lid orfas |
+
+Apos a migration e o re-sync, as mensagens da Ariany e dos outros 500+ contatos serao salvas com o JID correto e aparecerao no ChatWindow.
+
