@@ -159,7 +159,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
       const mapped = (dbConvos || []).map((r: any) => {
         const displayName = r.contact_name || r.wa_name || formatPhoneNumber(r.contact_phone || r.remote_jid?.split('@')[0] || '');
-        // Build alternateJid for @lid conversations with valid phone
         let alternateJid: string | undefined;
         if (r.remote_jid?.includes('@lid') && r.contact_phone) {
           const cleanPhone = (r.contact_phone || '').replace(/\D/g, '');
@@ -186,12 +185,17 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         };
       });
 
+      // DEBUG: log unread chats
+      const unreadChats = mapped.filter(c => c.unreadCount > 0);
+      if (unreadChats.length > 0) {
+        console.log('[ChatSidebar] fetchChats: unread chats:', unreadChats.map(c => ({ name: c.name, unread: c.unreadCount, jid: c.remoteJid })));
+      }
+
       if (mapped.length < PAGE_SIZE) setHasMore(false);
 
       if (pageNum === 1 && !append) {
         setChats(mapped);
         setCachedChats(requestChipId, mapped);
-        // Recalculate unread total from real data
         if (onUnreadUpdate && requestChipId) {
           const totalUnread = mapped
             .filter(c => !c.is_archived)
@@ -215,11 +219,21 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         setLoadingMore(false);
       }
     }
-  }, [chipId]);
+  }, [chipId, onUnreadUpdate]);
 
+  // Initial fetch + refreshKey trigger
   useEffect(() => {
     if (chipId) fetchChats();
   }, [fetchChats, chipId, refreshKey]);
+
+  // Polling: re-fetch every 10 seconds as safety net against lost realtime events
+  useEffect(() => {
+    if (!chipId) return;
+    const interval = setInterval(() => {
+      fetchChats(1, false);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [chipId, fetchChats]);
 
   // Realtime: re-fetch completo do banco a cada mudança (evita perda de eventos durante sync em lote)
   useEffect(() => {
