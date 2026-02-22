@@ -259,7 +259,7 @@ Deno.serve(async (req) => {
 
     // ========== Phase 3: Process batch - upsert conversations + messages ==========
     let syncedMessages = 0
-    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
     let profilePicFetches = 0
     const MAX_PROFILE_PIC_FETCHES = 10 // per batch (for non-LID profile pics only)
 
@@ -432,7 +432,7 @@ Deno.serve(async (req) => {
             ts = Number(m.messageTimestamp)
             if (ts < 10000000000) ts = ts * 1000
           }
-          if (ts > 0 && ts < tenDaysAgo) continue
+          if (ts > 0 && ts < oneDayAgo) continue
 
           const mediaType = m.mediaType || normalizeMessageType(m.messageType || '') || ''
           const text = typeof m.text === 'string' ? m.text : (typeof m.content === 'string' ? m.content : '')

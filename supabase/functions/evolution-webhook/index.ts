@@ -275,6 +275,34 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
     let newStatus = ''
     const stateStr = String(state).toLowerCase()
     
+    // Handle deletion (revoked/deleted)
+    if (stateStr === 'revoked' || stateStr === 'deleted' || state === 0) {
+      console.log(`Message ${messageId} was deleted/revoked`)
+      const { error: delError } = await adminClient
+        .from('message_history')
+        .update({ message_content: '[Mensagem apagada]', status: 'deleted' })
+        .eq('chip_id', chip.id)
+        .eq('message_id', messageId)
+      if (!delError) {
+        console.log(`Message ${messageId} marked as deleted in DB`)
+      }
+      continue
+    }
+
+    // Handle edit (edited message text)
+    if (stateStr === 'edited' || update?.editedMessage || update?.message?.editedMessage) {
+      const editedText = update?.editedMessage?.text || update?.message?.editedMessage?.text || update?.editedMessage?.conversation || ''
+      if (editedText) {
+        console.log(`Message ${messageId} was edited: ${editedText.substring(0, 50)}`)
+        await adminClient
+          .from('message_history')
+          .update({ message_content: editedText })
+          .eq('chip_id', chip.id)
+          .eq('message_id', messageId)
+      }
+      continue
+    }
+
     // Numeric: 0=pending, 1=sent, 2=delivered/server_ack, 3=delivered, 4=read, 5=played
     if (state === 4 || state === 5 || stateStr === 'read' || stateStr === 'played' || stateStr === 'read_by_me' || stateStr === '4' || stateStr === '5') {
       newStatus = 'read'

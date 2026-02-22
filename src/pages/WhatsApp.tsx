@@ -131,8 +131,8 @@ export default function WhatsApp() {
       setSelectedChipStatus(chip?.status || 'disconnected');
       setSelectedChipInstanceName(chip?.instance_name || null);
 
-      // Trigger staged background sync
-      runStagedSync(id);
+      // Auto-sync disabled — use manual "Sincronizar mensagens" button
+      // runStagedSync(id);
     } else {
       setSelectedChipStatus('disconnected');
       setSelectedChipInstanceName(null);

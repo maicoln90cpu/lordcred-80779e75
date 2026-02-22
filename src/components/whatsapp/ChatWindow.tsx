@@ -264,10 +264,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
             if (!matchJids2.includes(pJid2)) matchJids2.push(pJid2);
           }
           if (!matchJids2.includes(record.remote_jid)) return;
-          // Update status of existing message
+          // Handle deleted messages from webhook
+          if (record.status === 'deleted') {
+            setMessages(prev => prev.filter(m => m.id !== record.id && m.messageId !== record.message_id));
+            return;
+          }
+          // Update status and text of existing message (handles edits + status ticks)
           setMessages(prev => prev.map(m =>
             (m.id === record.id || (m.messageId && m.messageId === record.message_id))
-              ? { ...m, status: record.status || m.status }
+              ? { ...m, status: record.status || m.status, text: record.message_content || m.text }
               : m
           ));
         }
@@ -413,9 +418,18 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
         body: { action: 'edit-message', chipId, messageId: editMsg.messageId, newText: editText.trim() },
       });
       if (res.data?.success) {
+        const newText = editText.trim();
         setMessages(prev => prev.map(m =>
-          (m.messageId === editMsg.messageId || m.id === editMsg.id) ? { ...m, text: editText.trim() } : m
+          (m.messageId === editMsg.messageId || m.id === editMsg.id) ? { ...m, text: newText } : m
         ));
+        // Update message_history in DB
+        if (editMsg.messageId) {
+          await supabase
+            .from('message_history')
+            .update({ message_content: newText })
+            .eq('chip_id', chipId)
+            .eq('message_id', editMsg.messageId);
+        }
         toast({ title: 'Mensagem editada' });
       } else {
         toast({ title: 'Erro', description: 'Não foi possível editar.', variant: 'destructive' });
@@ -495,6 +509,14 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
       });
       if (res.data?.success) {
         setMessages(prev => prev.filter(m => m.messageId !== deleteMsg.messageId && m.id !== deleteMsg.id));
+        // Mark as deleted in DB (soft delete)
+        if (deleteMsg.messageId) {
+          await supabase
+            .from('message_history')
+            .update({ message_content: '[Mensagem apagada]', status: 'deleted' })
+            .eq('chip_id', chipId)
+            .eq('message_id', deleteMsg.messageId);
+        }
         toast({ title: 'Mensagem apagada para todos' });
       } else {
         toast({ title: 'Erro', description: 'Não foi possível apagar.', variant: 'destructive' });
