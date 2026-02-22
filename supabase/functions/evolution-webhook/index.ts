@@ -228,6 +228,11 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   }
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
+  
+  // Sync unread count from UazAPI when available
+  if (typeof chat.wa_unreadCount === 'number') {
+    upsertData.unread_count = chat.wa_unreadCount
+  }
 
   // UPSERT to prevent race condition duplicates
   await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
