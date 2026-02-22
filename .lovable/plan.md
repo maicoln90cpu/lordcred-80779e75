@@ -1,28 +1,36 @@
 
 
-## Plano: Ocultar conversas sem ultima mensagem
+## Plano: Remover filtro de tempo do sync-history
 
 ### Problema
-Conversas com `last_message_text` nulo/vazio estao aparecendo na sidebar, mesmo sem conteudo para exibir. O campo `last_message_text` da tabela `conversations` e o que deve determinar se a conversa aparece ou nao.
+A edge function `sync-history` tem um filtro na linha 435 que descarta todas as mensagens com mais de 24 horas:
+```
+if (ts > 0 && ts < oneDayAgo) continue
+```
+
+Isso faz com que a tabela `message_history` fique vazia para a maioria dos chats. A sidebar mostra as conversas corretamente (usando `conversations.last_message_text`), mas ao clicar em uma conversa como "Paneh", o `ChatWindow` consulta `message_history` e nao encontra nenhuma mensagem, exibindo "Nenhuma mensagem ainda".
 
 ### Alteracao
 
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
+**Arquivo**: `supabase/functions/sync-history/index.ts`
 
-Adicionar uma condicao no filtro de chats (funcao `filteredChats`, em torno da linha 428) para excluir conversas onde `lastMessage` e vazio (ou seja, `last_message_text` e null no banco):
-
+Remover a linha 435 que filtra mensagens por tempo:
 ```typescript
-// Antes dos demais filtros, excluir conversas sem ultima mensagem
-if (!chat.lastMessage) return false;
+// REMOVER esta linha:
+if (ts > 0 && ts < oneDayAgo) continue
 ```
 
-Isso garante que:
-- Conversas como "Paneh" com `last_message_text = "Kkkkk tnc"` continuam aparecendo normalmente, exibindo esse texto
-- Conversas onde `last_message_text` e NULL ou vazio sao ocultadas da lista
-- A regra se aplica tanto para a visualizacao normal quanto para a visualizacao de arquivadas
-- Novas mensagens recebidas via webhook atualizam `last_message_text` e fazem a conversa aparecer automaticamente via Realtime
+Tambem remover a variavel `oneDayAgo` (linha 262) que nao sera mais utilizada:
+```typescript
+// REMOVER esta linha:
+const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+```
 
-### Detalhes tecnicos
+### Resultado esperado
+- Ao executar "Sincronizar mensagens", TODAS as mensagens retornadas pela UazAPI serao salvas no `message_history`
+- Ao clicar em "Paneh" (ou qualquer conversa), o ChatWindow encontrara as mensagens no banco e as exibira
+- A sidebar continua funcionando normalmente com `last_message_text` da tabela `conversations`
 
-O campo `lastMessage` ja e mapeado a partir de `r.last_message_text || ''` (linha 175). O filtro sera aplicado no array `filteredChats` antes da ordenacao, garantindo que conversas sem texto simplesmente nao sejam renderizadas. Nenhuma alteracao no banco de dados e necessaria.
+### Impacto
+Apenas 2 linhas removidas. Nenhuma outra alteracao necessaria - o ChatWindow ja consulta `message_history` sem filtro de tempo.
 
