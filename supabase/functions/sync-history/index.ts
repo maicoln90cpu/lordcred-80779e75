@@ -367,7 +367,10 @@ Deno.serve(async (req) => {
         convData.last_message_text = apiLastMsg
       }
 
-      // unread_count: NUNCA incluir no upsert (preservar valor do webhook/mark-read)
+      // unread_count: SOMENTE atualizar se UazAPI reporta > 0 (nunca zerar)
+      if (unreadCount > 0) {
+        convData.unread_count = unreadCount
+      }
       // is_archived: NUNCA incluir no upsert (preservar estado do usuario)
 
       const { error: convError } = await adminClient.from('conversations').upsert(convData, { onConflict: 'chip_id,remote_jid' })
