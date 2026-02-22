@@ -411,16 +411,29 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const handleClearAllUnread = async () => {
     if (!chipId) return;
     try {
-      await supabase
-        .from('conversations')
-        .update({ unread_count: 0 } as any)
-        .eq('chip_id', chipId)
-        .gt('unread_count', 0);
-      setChats(prev => prev.map(c => ({ ...c, unreadCount: 0 })));
-      if (onUnreadUpdate) onUnreadUpdate(chipId, 0);
+      const unreadChats = chats.filter(c => (c.unreadCount || 0) > 0 && !c.is_archived);
+      // Send mark-read to UazAPI for each unread chat (edge function updates DB)
+      const promises = unreadChats.map(c =>
+        supabase.functions.invoke('uazapi-api', {
+          body: { action: 'mark-read', chipId, chatId: c.remoteJid },
+        }).catch(() => {})
+      );
+      await Promise.all(promises);
       toast({ title: 'Todas as conversas marcadas como lidas' });
     } catch {
       toast({ title: 'Erro ao limpar não lidas', variant: 'destructive' });
+    }
+  };
+
+  const handleMarkUnread = async (chat: ExtendedChat) => {
+    if (!chipId) return;
+    try {
+      await supabase.functions.invoke('uazapi-api', {
+        body: { action: 'mark-unread', chipId, chatId: chat.remoteJid },
+      });
+      toast({ title: 'Conversa marcada como não lida' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
     }
   };
 
@@ -729,6 +742,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                       <DropdownMenuItem onClick={() => handleArchive(chat, !chat.is_archived)}>
                         <Archive className="w-4 h-4 mr-2" />
                         {chat.is_archived ? 'Desarquivar' : 'Arquivar'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleMarkUnread(chat)}>
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Marcar como não lida
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => {
                         setEditingContactJid(chat.remoteJid);

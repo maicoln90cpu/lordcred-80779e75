@@ -504,9 +504,41 @@ Deno.serve(async (req) => {
         const response = await fetch(`${baseUrl}/chat/read`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ number: chatId }),
+          body: JSON.stringify({ number: chatId, read: true }),
         })
         const data = await response.json()
+
+        // Update unread_count in DB after successful UazAPI call
+        await adminClient
+          .from('conversations')
+          .update({ unread_count: 0 })
+          .eq('chip_id', chipId)
+          .eq('remote_jid', chatId)
+
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'mark-unread': {
+        const chipToken = await getChipToken(adminClient, chipId, instanceToken)
+        if (!chipToken) throw new Error('Chip token not found')
+        if (!chatId) throw new Error('chatId is required')
+
+        const response = await fetch(`${baseUrl}/chat/read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          body: JSON.stringify({ number: chatId, read: false }),
+        })
+        const data = await response.json()
+
+        // Set unread_count to 1 in DB after successful UazAPI call
+        await adminClient
+          .from('conversations')
+          .update({ unread_count: 1 })
+          .eq('chip_id', chipId)
+          .eq('remote_jid', chatId)
 
         return new Response(
           JSON.stringify({ success: true, data }),
