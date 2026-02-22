@@ -646,7 +646,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           </div>
         ) : (
           <div className="divide-y divide-border/30">
-            {sortedChats.map((chat) => (
+            {sortedChats.map((chat) => {
+              if (chat.unreadCount > 0) console.log('[RENDER]', chat.name, 'unread:', chat.unreadCount, 'lastMsg:', chat.lastMessage?.substring(0, 20), 'at:', chat.lastMessageAt);
+              return (
               <div key={chat.remoteJid} className="group relative">
                 <button
                   onClick={() => onSelectChat(chat)}
@@ -789,7 +791,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
+
             {loadingMore && (
               <div className="flex justify-center py-3">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
