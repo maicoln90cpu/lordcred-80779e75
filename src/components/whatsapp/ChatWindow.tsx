@@ -175,20 +175,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
     }
   }, [fetchMessages, chat?.remoteJid]);
 
-  // Mark as read when opening chat - both WhatsApp and DB
+  // Mark as read when opening chat - via UazAPI (edge function updates DB after success)
   useEffect(() => {
     if (!chipId || !chat) return;
-    // Mark read on WhatsApp via UazAPI
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'mark-read', chipId, chatId: chat.remoteJid },
     }).catch(() => {});
-    // Update DB immediately
-    supabase
-      .from('conversations')
-      .update({ unread_count: 0 })
-      .eq('chip_id', chipId)
-      .eq('remote_jid', chat.remoteJid)
-      .then(() => {});
   }, [chipId, chat?.remoteJid]);
 
   // Realtime: listen for new messages and status updates
