@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import ConversationNotes from './ConversationNotes';
+import QuickRepliesManager from './QuickRepliesManager';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -66,6 +67,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
+  const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [chipDisconnected, setChipDisconnected] = useState(false);
@@ -563,6 +565,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => setQuickRepliesOpen(true)}
+          className="text-muted-foreground hover:text-foreground"
+          title="Respostas rápidas"
+        >
+          <Zap className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setNotesOpen(!notesOpen)}
           className={cn("text-muted-foreground hover:text-foreground", notesOpen && "text-foreground bg-secondary")}
           title="Notas internas"
@@ -710,6 +721,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
           chipId={chipId}
         />
       )}
+
+      <QuickRepliesManager
+        open={quickRepliesOpen}
+        onOpenChange={setQuickRepliesOpen}
+        chipId={chipId}
+      />
 
       <ForwardDialog
         open={!!forwardMsg}
