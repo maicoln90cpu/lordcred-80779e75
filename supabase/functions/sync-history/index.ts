@@ -346,28 +346,29 @@ Deno.serve(async (req) => {
 
       const unreadCount = typeof chat.wa_unreadCount === 'number' ? chat.wa_unreadCount : 0
 
+      // SAFE upsert: NUNCA sobrescrever unread_count, is_archived, is_pinned, is_starred, custom_status, label_ids
+      // Esses campos sao geridos pelo webhook/usuario e NUNCA devem ser tocados pelo sync
       const convData: any = {
         chip_id: chipId,
         remote_jid: canonicalJid,
         contact_name: contactName,
         contact_phone: contactPhone,
-        last_message_at: lastMsgAt || new Date().toISOString(),
         is_group: isGroup,
-        is_archived: false,
       }
 
-      // So atualizar last_message_text se a UazAPI retornou texto real
+      // Apenas incluir se tiver valor real (nunca sobrescrever com vazio/null)
+      if (lastMsgAt) convData.last_message_at = lastMsgAt
+      if (waName) convData.wa_name = waName
+      if (profilePicUrl) convData.profile_pic_url = profilePicUrl
+
+      // last_message_text: SOMENTE se a UazAPI retornou texto real
       const apiLastMsg = chat.wa_lastMessageTextVote || chat.lastMessage || ''
       if (apiLastMsg.length > 0) {
         convData.last_message_text = apiLastMsg
       }
 
-      // So atualizar unread_count se > 0 (preserva contadores do webhook)
-      if (unreadCount > 0) {
-        convData.unread_count = unreadCount
-      }
-      if (waName) convData.wa_name = waName
-      if (profilePicUrl) convData.profile_pic_url = profilePicUrl
+      // unread_count: NUNCA incluir no upsert (preservar valor do webhook/mark-read)
+      // is_archived: NUNCA incluir no upsert (preservar estado do usuario)
 
       const { error: convError } = await adminClient.from('conversations').upsert(convData, { onConflict: 'chip_id,remote_jid' })
       if (convError) {

@@ -42,6 +42,7 @@ interface ChatSidebarProps {
   onUnreadUpdate?: (chipId: string, totalUnread: number) => void;
   isSyncing?: boolean;
   syncProgress?: string;
+  refreshKey?: number;
 }
 
 interface LabelItem {
@@ -67,7 +68,7 @@ interface ExtendedChat extends ChatContact {
   custom_status?: ConversationStatus;
 }
 
-export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress }: ChatSidebarProps) {
+export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -218,7 +219,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   useEffect(() => {
     if (chipId) fetchChats();
-  }, [fetchChats, chipId]);
+  }, [fetchChats, chipId, refreshKey]);
 
   // Realtime
   useEffect(() => {
