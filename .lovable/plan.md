@@ -1,72 +1,94 @@
 
 
-## Correcao de 3 bugs na sidebar de conversas
+## Plano: Bidirecionalidade completa + Desativar sync historico
 
-### Bug 1: Menu de 3 pontos nao aparece
+### Parte 1: Desativar sync-history (puxar apenas ultimas 24h)
 
-O menu esta configurado com `opacity-0 group-hover:opacity-100` (linha 677), mas o `div` absoluto pode estar sendo bloqueado pelo `button` que ocupa toda a largura. Adicionar `z-10` ao container absoluto para garantir que fique acima do botao.
+Modificar a edge function `sync-history` para limitar mensagens sincronizadas a apenas 24 horas antes da implantacao do sistema, em vez dos 10 dias atuais.
 
-Alem disso, o console mostra warning "Function components cannot be given refs" no DropdownMenu. Isso nao deve ser a causa, mas o `z-10` resolve o problema de sobreposicao.
+**Arquivo**: `supabase/functions/sync-history/index.ts`
 
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`, linha 677
+- Alterar `tenDaysAgo` para `oneDayAgo` (24 horas): `Date.now() - 24 * 60 * 60 * 1000`
+- Isso efetivamente "desativa" a sincronizacao massiva mantendo apenas mensagens muito recentes
 
-Mudar de:
+Alem disso, remover o auto-trigger de sync ao selecionar chip no frontend:
+
+**Arquivo**: `src/pages/WhatsApp.tsx`
+
+- Na funcao `handleSelectChip`, comentar/remover a chamada `runStagedSync(id)` (linha 135)
+- O sync so sera executado via botao manual "Sincronizar mensagens"
+
+### Parte 2: Bidirecionalidade completa de todas as acoes
+
+Atualmente ja sao bidirecionais:
+- Mark as read (plataforma -> WhatsApp via `/chat/read` + DB)
+- Envio de mensagens (plataforma -> WhatsApp + webhook volta)
+- Status updates (WhatsApp -> plataforma via webhook `messages_update`)
+- Unread count (WhatsApp -> plataforma via webhook `chats`)
+
+Acoes que precisam de bidirecionalidade adicional:
+
+#### 2a. Deletar mensagem - atualizar DB local
+
+**Arquivo**: `src/components/whatsapp/ChatWindow.tsx`
+
+Atualmente `confirmDelete` chama `uazapi-api` com `action: 'delete-message'` mas nao remove do banco local. Adicionar:
+- Apos sucesso do delete na UazAPI, fazer `DELETE` ou `UPDATE` no `message_history` para marcar como deletada
+- Atualizar o state local `setMessages` para remover a mensagem
+
+#### 2b. Editar mensagem - atualizar DB local
+
+**Arquivo**: `src/components/whatsapp/ChatWindow.tsx`
+
+Atualmente `confirmEdit` chama UazAPI mas nao atualiza `message_history`. Adicionar:
+- Apos sucesso, fazer `UPDATE` em `message_history` com novo `message_content`
+- O state local ja esta sendo atualizado (linha 416-418)
+
+#### 2c. Reagir a mensagem - nenhuma acao adicional necessaria
+
+As reacoes sao enviadas a UazAPI e nao tem storage local. Funciona corretamente.
+
+#### 2d. Arquivar/desarquivar - ja e 100% local
+
+Arquivamento e local no banco `conversations.is_archived`. Nao precisa de acao UazAPI.
+
+#### 2e. Fixar/desafixar - ja e 100% local
+
+Fixacao e local no banco `conversations.is_pinned`. Nao precisa de acao UazAPI.
+
+#### 2f. Webhook: processar delecao e edicao vindas do WhatsApp
+
+**Arquivo**: `supabase/functions/evolution-webhook/index.ts`
+
+A UazAPI pode enviar eventos de `messages_update` com estados especiais para edicao/delecao. Adicionar tratamento:
+- Se o estado indicar delecao (ex: `revoked`, `deleted`), marcar mensagem como deletada no `message_history`
+- Se o payload contiver texto editado, atualizar `message_content` no `message_history`
+
+### Parte 3: Adicionar RLS policy para UPDATE em message_history
+
+Atualmente `message_history` nao permite UPDATE pelo usuario. Precisamos adicionar uma migration:
+
+```sql
+CREATE POLICY "Users can update their own messages"
+  ON public.message_history
+  FOR UPDATE
+  USING (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()))
+  WITH CHECK (chip_id IN (SELECT id FROM chips WHERE user_id = auth.uid()));
 ```
-<div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-```
-Para:
-```
-<div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-```
 
-### Bug 2: Horario nao aparece ao lado das mensagens
+### Resumo das alteracoes
 
-O `formatTime` (linha 455) retorna string vazia quando `lastMessageAt` e null. Muitas conversas sincronizadas podem ter `last_message_at` preenchido mas `lastMessage` vazio, ou vice-versa. O timestamp JA esta sendo renderizado na linha 649-651, dentro do flex entre o nome e o horario. O problema e que o span do horario nao tem `ml-auto` nem largura minima, e pode estar sendo comprimido pelo nome longo.
+| Arquivo | Alteracao |
+|---------|-----------|
+| `sync-history/index.ts` | Limitar a 24h, nao 10 dias |
+| `WhatsApp.tsx` | Remover auto-sync ao selecionar chip |
+| `ChatWindow.tsx` | Delete e edit atualizarem `message_history` no banco |
+| `evolution-webhook/index.ts` | Processar delecao/edicao vindas do WhatsApp |
+| Migration SQL | RLS policy UPDATE em `message_history` |
 
-Corrigir adicionando `ml-2` ao span do horario para garantir espaco, e verificar que o container flex tem `gap` adequado.
+### Secao tecnica
 
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`, linha 649
+A RLS policy de UPDATE e necessaria porque o `ChatWindow.tsx` usa o `supabase` client (anon key) para atualizar mensagens. Sem essa policy, o update sera bloqueado silenciosamente.
 
-Mudar de:
-```
-<span className="text-xs text-muted-foreground shrink-0">
-```
-Para:
-```
-<span className="text-xs text-muted-foreground shrink-0 ml-2">
-```
-
-### Bug 3: Badge de nao lidas (39) desincronizado
-
-O badge no chip selector soma `unread_count` de TODAS as conversas. Porem apos a limpeza de conversas bogus, podem existir conversas com `unread_count > 0` que nao aparecem na sidebar (por exemplo, conversas que foram lidas no WhatsApp mas o sync nao zerou o contador local).
-
-A correcao e dupla:
-1. No sync-history, ao fazer upsert da conversa, SEMPRE usar o `wa_unreadCount` da UazAPI (ja feito na linha 347)
-2. No front-end, ao abrir a sidebar com filtro "Nao lidas" e nao encontrar resultados, resetar os contadores de unread para zero
-
-A solucao mais robusta: adicionar uma funcao no `fetchChats` que, apos carregar todas as conversas, recalcula o total de unread e atualiza o badge via `onUnreadUpdate`.
-
-**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
-
-Apos o `setChats` no `fetchChats` (linhas 190-201), adicionar recalculo do unread total:
-
-```typescript
-// After setting chats, recalculate unread total
-if (onUnreadUpdate && chipId) {
-  const totalUnread = mapped
-    .filter(c => !c.is_archived)
-    .reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  onUnreadUpdate(chipId, totalUnread);
-}
-```
-
-Isso garante que o badge sempre reflete os dados REAIS das conversas carregadas, nao valores cached/stale.
-
-### Resumo
-
-| # | Bug | Arquivo | Linha | Correcao |
-|---|-----|---------|-------|----------|
-| 1 | Menu 3 pontos | ChatSidebar.tsx | 677 | Adicionar `z-10` ao container absoluto |
-| 2 | Horario | ChatSidebar.tsx | 649 | Adicionar `ml-2` ao span do horario |
-| 3 | Badge unread | ChatSidebar.tsx | 190-201 | Recalcular unread total apos fetchChats |
+Para o delete de mensagens, em vez de DELETE fisico (que tambem precisaria de policy), faremos UPDATE do `message_content` para `'[Mensagem apagada]'` e `status` para `'deleted'`, reutilizando a mesma policy de UPDATE.
 
