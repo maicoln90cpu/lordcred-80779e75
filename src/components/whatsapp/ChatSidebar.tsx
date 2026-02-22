@@ -654,7 +654,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   onClick={() => onSelectChat(chat)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors",
-                    selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50"
+                    selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50",
+                    chat.unreadCount > 0 && "bg-primary/5"
                   )}
                 >
                   <Avatar className="w-10 h-10 shrink-0">
@@ -668,16 +669,16 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                       <div className="flex items-center gap-1 min-w-0">
                         {chat.is_pinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
                         {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
-                        <span className="text-sm font-medium truncate">{chat.name}</span>
+                        <span className={cn("text-sm truncate", chat.unreadCount > 0 ? "font-bold text-foreground" : "font-medium")}>{chat.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground shrink-0 ml-2">
                         {formatTime(chat.lastMessageAt)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-xs text-muted-foreground truncate">{chat.lastMessage || chat.phone || 'Abrir conversa'}</span>
+                      <span className={cn("text-xs truncate", chat.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>{chat.lastMessage || chat.phone || 'Abrir conversa'}</span>
                       {chat.unreadCount > 0 && (
-                        <span className="ml-2 w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center shrink-0">
+                        <span className="ml-2 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: '#25D366', color: '#ffffff' }}>
                           {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
                         </span>
                       )}
@@ -698,7 +699,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                 </button>
 
                 {/* Context menu button */}
-                <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute right-2 top-2 z-10 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-6 w-6">
