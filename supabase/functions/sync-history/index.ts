@@ -365,6 +365,29 @@ Deno.serve(async (req) => {
         console.error(`[sync-history] Conv upsert error ${canonicalJid}:`, convError.message)
       }
 
+      // If we resolved a LID to phone, migrate existing messages and clean bogus data
+      if (rawJid.includes('@lid') && canonicalJid !== rawJid) {
+        console.log(`[sync-history] Migrating messages from ${rawJid} -> ${canonicalJid}`)
+        // Update messages stored with @lid to use canonical phone JID
+        const { count: migratedCount } = await adminClient
+          .from('message_history')
+          .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null })
+          .eq('chip_id', chipId)
+          .eq('remote_jid', rawJid)
+          .select('*', { count: 'exact', head: true })
+        if (migratedCount && migratedCount > 0) {
+          console.log(`[sync-history] Migrated ${migratedCount} messages from ${rawJid} to ${canonicalJid}`)
+        }
+
+        // Delete bogus conversation created by old migration (LID number used as phone)
+        const bogusJid = rawJid.replace('@lid', '@s.whatsapp.net')
+        await adminClient
+          .from('conversations')
+          .delete()
+          .eq('chip_id', chipId)
+          .eq('remote_jid', bogusJid)
+      }
+
       // ========== Fetch messages ==========
       try {
         // Use apiJid (could be LID) to query UazAPI, but store with canonicalJid
