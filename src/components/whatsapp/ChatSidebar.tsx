@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2 } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2, VolumeX } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -77,6 +77,7 @@ interface ExtendedChat extends ChatContact {
   is_starred?: boolean;
   custom_status?: ConversationStatus;
   is_blocked?: boolean;
+  is_muted?: boolean;
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
@@ -196,6 +197,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           custom_status: r.custom_status || null,
           label_ids: r.label_ids || [],
           is_blocked: r.is_blocked || false,
+          is_muted: r.is_muted || false,
         };
       });
 
@@ -420,6 +422,16 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       await supabase.functions.invoke('uazapi-api', {
         body: { action: 'mute-chat', chipId, chatId: chat.remoteJid, duration },
       });
+      const isMuted = duration !== 0;
+      // Persist locally
+      await supabase
+        .from('conversations')
+        .update({ is_muted: isMuted } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, is_muted: isMuted } : c
+      ));
       const labels: Record<number, string> = { 0: 'Conversa desmutada', 8: 'Silenciado por 8 horas', 168: 'Silenciado por 1 semana', [-1]: 'Silenciado para sempre' };
       toast({ title: labels[duration] || `Silenciado (${duration}h)` });
     } catch {
@@ -739,6 +751,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
                         {chat.is_blocked && <Ban className="w-3 h-3 text-destructive shrink-0" />}
+                        {chat.is_muted && <VolumeX className="w-3 h-3 text-muted-foreground shrink-0" />}
                         {chat.is_pinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
                         {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
                         <span className={cn("text-sm truncate", chat.unreadCount > 0 ? "font-bold text-foreground" : "font-medium")}>{chat.name}</span>
