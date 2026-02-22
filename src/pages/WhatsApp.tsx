@@ -115,6 +115,7 @@ export default function WhatsApp() {
     }
     setIsSyncing(false);
     setSyncProgress('');
+    setRefreshTrigger(prev => prev + 1); // Force re-fetch após sync
     return { totalChats, totalSynced };
   }, []);
 
@@ -274,6 +275,7 @@ export default function WhatsApp() {
             onUnreadUpdate={handleUnreadUpdate}
             isSyncing={isSyncing}
             syncProgress={syncProgress}
+            refreshKey={refreshTrigger}
           />
         </aside>
 
