@@ -439,8 +439,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   // Filter chats
   const filteredChats = chats.filter(chat => {
-    // Ocultar conversas sem ultima mensagem
-    if (!chat.lastMessage) return false;
     if (showArchived) {
       if (!chat.is_archived) return false;
     } else {
@@ -700,7 +698,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-xs text-muted-foreground truncate">{chat.lastMessage}</span>
+                      <span className="text-xs text-muted-foreground truncate">{chat.lastMessage || chat.phone || 'Abrir conversa'}</span>
                       {chat.unreadCount > 0 && (
                         <span className="ml-2 w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center shrink-0">
                           {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
