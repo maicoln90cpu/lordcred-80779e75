@@ -423,6 +423,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const sortedChats = [...filteredChats].sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1;
     if (!a.is_pinned && b.is_pinned) return 1;
+    const aHasMsg = !!a.lastMessage;
+    const bHasMsg = !!b.lastMessage;
+    if (aHasMsg && !bHasMsg) return -1;
+    if (!aHasMsg && bHasMsg) return 1;
     const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
     const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
     return tb - ta;
@@ -456,7 +460,17 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (isToday) {
       return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Ontem';
+    }
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 7) {
+      const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      return dias[date.getDay()];
+    }
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   const handleScrollEnd = () => {
