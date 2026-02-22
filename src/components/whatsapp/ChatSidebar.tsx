@@ -647,7 +647,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         ) : (
           <div className="divide-y divide-border/30">
             {sortedChats.map((chat) => {
-              if (chat.unreadCount > 0) console.log('[RENDER]', chat.name, 'unread:', chat.unreadCount, 'lastMsg:', chat.lastMessage?.substring(0, 20), 'at:', chat.lastMessageAt);
               return (
               <div key={chat.remoteJid} className="group relative">
                 <button
@@ -666,7 +665,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 min-w-0">
+                      <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
                         {chat.is_pinned && <Pin className="w-3 h-3 text-muted-foreground shrink-0" />}
                         {chat.is_starred && <Star className="w-3 h-3 text-yellow-500 shrink-0 fill-yellow-500" />}
                         <span className={cn("text-sm truncate", chat.unreadCount > 0 ? "font-bold text-foreground" : "font-medium")}>{chat.name}</span>
@@ -676,7 +675,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      <span className={cn("text-xs truncate", chat.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>{chat.lastMessage || chat.phone || 'Abrir conversa'}</span>
+                      <span className={cn("text-xs truncate flex-1 min-w-0", chat.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>{chat.lastMessage || chat.phone || 'Abrir conversa'}</span>
                       {chat.unreadCount > 0 && (
                         <span className="ml-2 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: '#25D366', color: '#ffffff' }}>
                           {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
@@ -699,7 +698,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                 </button>
 
                 {/* Context menu button */}
-                <div className="absolute right-2 top-2 z-10 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <div className="absolute right-2 top-2 z-10 opacity-50 group-hover:opacity-100 transition-opacity">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-6 w-6">
