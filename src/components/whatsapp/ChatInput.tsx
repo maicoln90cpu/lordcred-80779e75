@@ -3,9 +3,19 @@ import { Send, Plus, Mic, Trash2, Pause, Play, Image, Video, FileText, X, Loader
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
 
 import EmojiPicker from './EmojiPicker';
 import type { MessageData } from './MessageContextMenu';
+
+interface QuickReply {
+  id?: string;
+  shortCut: string;
+  text: string;
+}
+
+// Cache quick replies per chip to avoid re-fetching
+const quickReplyCache: Record<string, QuickReply[]> = {};
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -13,9 +23,10 @@ interface ChatInputProps {
   disabled?: boolean;
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
+  chipId?: string | null;
 }
 
-export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply }: ChatInputProps) {
+export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -23,6 +34,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string } | null>(null);
   const [isSendingMedia, setIsSendingMedia] = useState(false);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(30).fill(4));
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [quickReplyFilter, setQuickReplyFilter] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -30,6 +44,46 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const fileTypeRef = useRef<string>('image');
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch quick replies when chipId changes
+  useEffect(() => {
+    if (!chipId) return;
+    if (quickReplyCache[chipId]) {
+      setQuickReplies(quickReplyCache[chipId]);
+      return;
+    }
+    supabase.functions.invoke('uazapi-api', {
+      body: { action: 'list-quick-replies', chipId },
+    }).then(res => {
+      const replies = res.data?.quickReplies || [];
+      quickReplyCache[chipId] = replies;
+      setQuickReplies(replies);
+    }).catch(() => {});
+  }, [chipId]);
+
+  // Handle "/" trigger for quick replies
+  const handleMessageChange = (value: string) => {
+    setMessage(value);
+    if (value.startsWith('/') && quickReplies.length > 0) {
+      const filter = value.slice(1).toLowerCase();
+      setQuickReplyFilter(filter);
+      setShowQuickReplies(true);
+    } else {
+      setShowQuickReplies(false);
+    }
+  };
+
+  const selectQuickReply = (reply: QuickReply) => {
+    setMessage(reply.text);
+    setShowQuickReplies(false);
+    inputRef.current?.focus();
+  };
+
+  const filteredQuickReplies = quickReplies.filter(qr =>
+    qr.shortCut.toLowerCase().includes(quickReplyFilter) ||
+    qr.text.toLowerCase().includes(quickReplyFilter)
+  );
 
   const handleSend = () => {
     if (mediaPreview) {
@@ -317,7 +371,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
       {/* Input bar - hidden during recording */}
       {!isRecording && (
-        <div className="flex items-center gap-2 px-4 py-3">
+        <div className="relative flex items-center gap-2 px-4 py-3">
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
           
           <DropdownMenu>
@@ -341,14 +395,43 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
           <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled} />
 
-          <Input
-            placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite uma mensagem..."}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            className="bg-secondary/50 border-0 h-10"
-            disabled={disabled}
-          />
+          <div className="relative flex-1">
+            {/* Quick replies dropdown */}
+            {showQuickReplies && filteredQuickReplies.length > 0 && (
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                {filteredQuickReplies.map((qr, i) => (
+                  <button
+                    key={qr.id || i}
+                    onClick={() => selectQuickReply(qr)}
+                    className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors border-b border-border/30 last:border-0"
+                  >
+                    <span className="text-xs font-mono text-primary">/{qr.shortCut}</span>
+                    <p className="text-sm text-foreground truncate">{qr.text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input
+              ref={inputRef}
+              placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas..."}
+              value={message}
+              onChange={(e) => handleMessageChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  if (showQuickReplies && filteredQuickReplies.length > 0) {
+                    e.preventDefault();
+                    selectQuickReply(filteredQuickReplies[0]);
+                  } else {
+                    handleSend();
+                  }
+                }
+                if (e.key === 'Escape') setShowQuickReplies(false);
+              }}
+              onBlur={() => setTimeout(() => setShowQuickReplies(false), 200)}
+              className="bg-secondary/50 border-0 h-10"
+              disabled={disabled}
+            />
+          </div>
 
           {message.trim() || mediaPreview ? (
             <Button size="icon" onClick={handleSend} className="shrink-0" disabled={disabled || isSendingMedia}>

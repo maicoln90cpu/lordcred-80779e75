@@ -707,6 +707,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
           disabled={sending}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          chipId={chipId}
         />
       )}
 
