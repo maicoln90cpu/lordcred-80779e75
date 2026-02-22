@@ -221,73 +221,33 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (chipId) fetchChats();
   }, [fetchChats, chipId, refreshKey]);
 
-  // Realtime
+  // Realtime: re-fetch completo do banco a cada mudança (evita perda de eventos durante sync em lote)
   useEffect(() => {
     if (!chipId) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const channel = supabase
       .channel(`conversations-${chipId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations', filter: `chip_id=eq.${chipId}` },
-        (payload) => {
-          const record = payload.new as any;
-          if (!record) return;
-
-          const displayName = record.contact_name || record.wa_name || formatPhoneNumber(record.contact_phone || record.remote_jid?.split('@')[0] || '');
-
-          setChats(prev => {
-            const existing = prev.findIndex(c => c.remoteJid === record.remote_jid);
-            const updated: ExtendedChat = {
-              id: record.id,
-              remoteJid: record.remote_jid,
-              name: displayName || 'Desconhecido',
-              phone: record.contact_phone || '',
-              lastMessage: record.last_message_text || '',
-              lastMessageAt: record.last_message_at,
-              unreadCount: record.unread_count || 0,
-              isGroup: record.is_group || false,
-              is_archived: record.is_archived || false,
-              is_pinned: record.is_pinned || false,
-              is_starred: record.is_starred || false,
-              custom_status: record.custom_status || null,
-              label_ids: record.label_ids || [],
-              profilePicUrl: record.profile_pic_url || null,
-            };
-
-            let newChats;
-            if (existing >= 0) {
-              newChats = [...prev];
-              newChats[existing] = { ...newChats[existing], ...updated };
-            } else {
-              newChats = [updated, ...prev];
-            }
-
-            newChats.sort((a, b) => {
-              if (a.is_pinned && !b.is_pinned) return -1;
-              if (!a.is_pinned && b.is_pinned) return 1;
-              const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-              const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-              return tb - ta;
-            });
-
-            setCachedChats(chipId, newChats);
-
-            if (onUnreadUpdate) {
-              const totalUnread = newChats
-                .filter(c => !c.is_archived)
-                .reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-              onUnreadUpdate(chipId, totalUnread);
-            }
-
-            return newChats;
-          });
+        () => {
+          // Debounce: durante sync em lote, muitos eventos chegam em sequência
+          // Re-fetch completo garante dados consistentes com o banco
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            fetchChats(1, false);
+          }, 500);
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [chipId, onUnreadUpdate]);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [chipId, fetchChats]);
 
   // === LOCAL HANDLERS ===
 
