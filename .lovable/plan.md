@@ -1,55 +1,44 @@
 
-## Normalizar DDI 55 em todos os pontos de entrada
+
+## Tornar numeros sem formatacao clicaveis no chat
 
 ### Problema
-Tres locais criam conversas ou enviam mensagens sem normalizar o numero com DDI 55:
 
-1. **`send-message`** no edge function (envio avulso) - usa `phoneNumber` direto sem prefixar 55
-2. **`handleStartNewChat`** no `WhatsApp.tsx` - cria JID com numero sem DDI
-3. **`handleStartNewChat`** no `ChatSidebar.tsx` - mesma situacao
+O regex de deteccao de telefone no `MessageBubble.tsx` (linha 81) exige separadores entre grupos de digitos:
 
-### Alteracoes
-
-**1. `supabase/functions/uazapi-api/index.ts` — caso `send-message` (linha ~266)**
-
-Adicionar normalizacao antes do envio:
 ```
-let normalizedPhone = phoneNumber.replace(/\D/g, '')
-if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
-  normalizedPhone = '55' + normalizedPhone
-}
-```
-Usar `normalizedPhone` no body do fetch em vez de `phoneNumber`.
-
-**2. `src/pages/WhatsApp.tsx` — `handleStartNewChat` (linha ~199)**
-
-Apos extrair `digits`, normalizar:
-```
-let normalized = digits;
-if (normalized.length === 10 || normalized.length === 11) {
-  normalized = '55' + normalized;
-}
-const jid = `${normalized}@s.whatsapp.net`;
-```
-Usar `normalized` tambem no `contact_phone` e demais campos.
-
-**3. `src/components/whatsapp/ChatSidebar.tsx` — `handleStartNewChat` (linha ~1071)**
-
-Mesma normalizacao:
-```
-let normalized = phoneNumber.replace(/\D/g, '');
-if (normalized.length === 10 || normalized.length === 11) {
-  normalized = '55' + normalized;
-}
-const jid = `${normalized}@s.whatsapp.net`;
+/\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g
 ```
 
-### Resumo
+Um numero como `11999136884` (11 digitos sem separadores) nao bate nesse padrao porque o regex espera grupos separados por pontos, espacos ou hifens. Ja `5511999136884` (13 digitos) tambem nao bate pelo mesmo motivo.
 
-| Arquivo | Local | Alteracao |
-|---|---|---|
-| `uazapi-api/index.ts` | caso `send-message` | Prefixar 55 em numeros com 10-11 digitos |
-| `WhatsApp.tsx` | `handleStartNewChat` | Normalizar digits antes de criar JID |
-| `ChatSidebar.tsx` | `handleStartNewChat` | Normalizar phoneNumber antes de criar JID |
+### Solucao
 
-Isso garante que todo numero brasileiro sem DDI seja tratado como 55+DDD+telefone em todos os fluxos do sistema.
+Substituir o regex por um que tambem capture sequencias simples de 10 a 15 digitos (com ou sem `+`), alem dos formatos com separadores ja suportados.
+
+### Alteracao
+
+**Arquivo: `src/components/whatsapp/MessageBubble.tsx`**
+
+Linha 81 — substituir o regex local dentro de `formatWhatsAppText`:
+
+```
+// Antes:
+const phoneRegex = /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+
+// Depois:
+const phoneRegex = /\b(\+?\d{10,15})\b|\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+```
+
+E ajustar a logica de split/match (linhas 82-98) para tratar ambos os grupos de captura:
+- Usar um regex combinado que captura tanto sequencias puras de digitos (10-15) quanto formatos com separadores
+- Na iteracao dos segmentos, extrair os digitos e verificar se o segmento corresponde a um telefone
+
+Tambem atualizar a constante `PHONE_REGEX` na linha 50 para consistencia (embora ela nao seja usada diretamente no fluxo atual).
+
+### Resultado esperado
+
+- `11999136884` (11 digitos) — clicavel, abre conversa com `5511999136884`
+- `5511999136884` (13 digitos) — clicavel, abre conversa com `5511999136884`
+- `(11) 99913-6884` — clicavel (ja funcionava)
+- Numeros curtos como `12345` — nao clicaveis (menos de 10 digitos)
