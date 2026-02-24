@@ -32,6 +32,7 @@ interface MessageBubbleProps {
   onFavorite?: (msg: MessageData) => void;
   onDelete?: (msg: MessageData) => void;
   onEdit?: (msg: MessageData) => void;
+  onStartChat?: (phone: string) => void;
   status?: string;
 }
 
@@ -45,12 +46,30 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function formatWhatsAppText(text: string): React.ReactNode[] {
+const WHATSAPP_LINK_REGEX = /https?:\/\/(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=)(\d+)/i;
+const PHONE_REGEX = /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+
+function extractPhoneDigits(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
+function formatWhatsAppText(text: string, onStartChat?: (phone: string) => void): React.ReactNode[] {
   if (!text) return [];
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
+      // Check if it's a WhatsApp link
+      const waMatch = part.match(WHATSAPP_LINK_REGEX);
+      if (waMatch && onStartChat) {
+        const phone = waMatch[1];
+        return (
+          <button key={i} onClick={() => onStartChat(phone)}
+            className="text-blue-400 underline break-all hover:text-blue-300 cursor-pointer">
+            {part}
+          </button>
+        );
+      }
       return (
         <a key={i} href={part} target="_blank" rel="noopener noreferrer"
           className="text-blue-400 underline break-all hover:text-blue-300">
@@ -58,19 +77,41 @@ function formatWhatsAppText(text: string): React.ReactNode[] {
         </a>
       );
     }
-    const formatted = part
-      .split(/(\*[^*]+\*|_[^_]+_|~[^~]+~|`[^`]+`)/)
-      .map((segment, j) => {
-        if (segment.startsWith('*') && segment.endsWith('*') && segment.length > 2)
-          return <strong key={`${i}-${j}`}>{segment.slice(1, -1)}</strong>;
-        if (segment.startsWith('_') && segment.endsWith('_') && segment.length > 2)
-          return <em key={`${i}-${j}`}>{segment.slice(1, -1)}</em>;
-        if (segment.startsWith('~') && segment.endsWith('~') && segment.length > 2)
-          return <del key={`${i}-${j}`}>{segment.slice(1, -1)}</del>;
-        if (segment.startsWith('`') && segment.endsWith('`') && segment.length > 2)
-          return <code key={`${i}-${j}`} className="bg-black/20 dark:bg-white/10 rounded px-1 py-0.5 text-xs font-mono">{segment.slice(1, -1)}</code>;
+    // Detect phone numbers in non-URL text
+    const phoneRegex = /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+    const phoneParts = part.split(phoneRegex);
+    const formatted = phoneParts.map((segment, j) => {
+      // Check if this segment matches a phone number
+      const digits = extractPhoneDigits(segment);
+      if (digits.length >= 10 && digits.length <= 15 && phoneRegex.test(segment)) {
+        // Reset regex lastIndex
+        phoneRegex.lastIndex = 0;
+        if (onStartChat) {
+          return (
+            <button key={`${i}-phone-${j}`} onClick={() => onStartChat(digits)}
+              className="text-blue-400 underline hover:text-blue-300 cursor-pointer">
+              {segment}
+            </button>
+          );
+        }
         return segment;
-      });
+      }
+      // Apply WhatsApp formatting (bold, italic, etc.)
+      const styledParts = segment
+        .split(/(\*[^*]+\*|_[^_]+_|~[^~]+~|`[^`]+`)/)
+        .map((seg, k) => {
+          if (seg.startsWith('*') && seg.endsWith('*') && seg.length > 2)
+            return <strong key={`${i}-${j}-${k}`}>{seg.slice(1, -1)}</strong>;
+          if (seg.startsWith('_') && seg.endsWith('_') && seg.length > 2)
+            return <em key={`${i}-${j}-${k}`}>{seg.slice(1, -1)}</em>;
+          if (seg.startsWith('~') && seg.endsWith('~') && seg.length > 2)
+            return <del key={`${i}-${j}-${k}`}>{seg.slice(1, -1)}</del>;
+          if (seg.startsWith('`') && seg.endsWith('`') && seg.length > 2)
+            return <code key={`${i}-${j}-${k}`} className="bg-black/20 dark:bg-white/10 rounded px-1 py-0.5 text-xs font-mono">{seg.slice(1, -1)}</code>;
+          return seg;
+        });
+      return <React.Fragment key={`${i}-${j}`}>{styledParts}</React.Fragment>;
+    });
     return <React.Fragment key={i}>{formatted}</React.Fragment>;
   });
 }
@@ -80,7 +121,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
-    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit, status }, ref
+    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit, onStartChat, status }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -89,7 +130,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
   const isMedia = !!(effectiveMediaType && effectiveMediaType !== 'text' && effectiveMediaType !== 'chat' && messageId && chipId);
   const isTempMedia = !!(effectiveMediaType && effectiveMediaType !== 'text' && effectiveMediaType !== 'chat' && (!messageId || !chipId));
   const displayText = fallbackMediaType ? '' : text;
-  const formattedText = useMemo(() => formatWhatsAppText(displayText), [displayText]);
+  const formattedText = useMemo(() => formatWhatsAppText(displayText, onStartChat), [displayText, onStartChat]);
   const senderColor = useMemo(() => senderName ? nameToColor(senderName) : '', [senderName]);
 
   const msgData: MessageData = {

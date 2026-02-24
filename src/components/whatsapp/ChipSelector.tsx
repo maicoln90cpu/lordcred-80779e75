@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw, History } from 'lucide-react';
+import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw, History, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import ChipConnectDialog from './ChipConnectDialog';
 
 interface Chip {
@@ -56,6 +64,9 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
   const [chipToRemove, setChipToRemove] = useState<Chip | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [chipToRename, setChipToRename] = useState<Chip | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const { user, isSeller } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -236,6 +247,14 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                       <History className="w-4 h-4 mr-2" />
                       Sincronizar mensagens
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setChipToRename(chip);
+                      setRenameValue(chip.nickname || chip.phone_number || '');
+                      setRenameDialogOpen(true);
+                    }}>
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Renomear
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive cursor-pointer"
@@ -344,7 +363,6 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
-              // Allow viewing saved conversations in read-only mode
               if (chipToReconnect) {
                 onSelectChip(chipToReconnect.id);
               }
@@ -367,6 +385,46 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rename chip dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Renomear Chip</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            placeholder="Nome do chip"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRenameChip();
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleRenameChip} disabled={!renameValue.trim()}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
+
+  async function handleRenameChip() {
+    if (!chipToRename || !renameValue.trim()) return;
+    try {
+      await supabase
+        .from('chips')
+        .update({ nickname: renameValue.trim() })
+        .eq('id', chipToRename.id);
+      setChips(prev => prev.map(c =>
+        c.id === chipToRename.id ? { ...c, nickname: renameValue.trim() } : c
+      ));
+      toast({ title: 'Chip renomeado' });
+    } catch (err: any) {
+      toast({ title: 'Erro ao renomear', description: err.message, variant: 'destructive' });
+    }
+    setRenameDialogOpen(false);
+    setChipToRename(null);
+  }
 }
