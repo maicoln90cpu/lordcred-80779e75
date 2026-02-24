@@ -1,55 +1,55 @@
 
+## Normalizar DDI 55 em todos os pontos de entrada
 
-## Correcao de 2 bugs
+### Problema
+Tres locais criam conversas ou enviam mensagens sem normalizar o numero com DDI 55:
 
-### Bug 1: Numeros sem DDI 55 nao enviam mensagem
+1. **`send-message`** no edge function (envio avulso) - usa `phoneNumber` direto sem prefixar 55
+2. **`handleStartNewChat`** no `WhatsApp.tsx` - cria JID com numero sem DDI
+3. **`handleStartNewChat`** no `ChatSidebar.tsx` - mesma situacao
 
-**Causa**: No edge function `uazapi-api`, o caso `send-chat-message` (linha 475) extrai o numero do JID removendo `@s.whatsapp.net` e caracteres nao-numericos, mas nao verifica se o numero tem o DDI 55. Numeros com apenas DDD+telefone (10-11 digitos, ex: `11999136884`) sao enviados sem o prefixo internacional, e a UazAPI rejeita.
+### Alteracoes
 
-**Solucao**: Adicionar normalizacao no edge function: se o numero resultante tem 10 ou 11 digitos (DDD + telefone brasileiro), prefixar com `55`.
+**1. `supabase/functions/uazapi-api/index.ts` — caso `send-message` (linha ~266)**
 
-**Arquivo**: `supabase/functions/uazapi-api/index.ts` (linha ~475)
-
-```text
-Antes:  const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
-Depois: let targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
-        if (targetNumber.length === 10 || targetNumber.length === 11) {
-          targetNumber = '55' + targetNumber
-        }
+Adicionar normalizacao antes do envio:
 ```
-
-Aplicar a mesma normalizacao nos casos `send-media` e `send-presence` para consistencia.
-
----
-
-### Bug 2: Mensagem aparece duplicada na tela ao enviar
-
-**Causa**: Quando o envio tem sucesso (`response.data?.success === true`), o codigo NAO remove a mensagem temporaria (`temp-XXX`). A expectativa era que o handler de realtime (linha 231-239) removesse o temp ao receber o INSERT do banco. Porem, existe uma race condition: se o realtime event chega ANTES do `setSending(false)` mas DEPOIS do React processar o batch de estado, ou se ha latencia no realtime, a mensagem temp e a mensagem real coexistem brevemente. Alem disso, se o realtime event demora mais de 10 segundos, a condicao de timeout (linha 233) deixa o temp no estado permanentemente.
-
-**Solucao**: Ao receber sucesso do envio, remover imediatamente a mensagem temporaria. O realtime handler adicionara a mensagem real do banco logo em seguida.
-
-**Arquivo**: `src/components/whatsapp/ChatWindow.tsx` (apos linha 357)
-
-Adicionar remocao do temp message no caminho de sucesso:
-
-```text
-if (!response.data?.success) {
-  // ... tratamento de erro existente ...
-  setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-} else {
-  // Sucesso: remover temp imediatamente, realtime adicionara a mensagem real
-  setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+let normalizedPhone = phoneNumber.replace(/\D/g, '')
+if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
+  normalizedPhone = '55' + normalizedPhone
 }
 ```
+Usar `normalizedPhone` no body do fetch em vez de `phoneNumber`.
 
-Isso pode ser simplificado removendo o temp SEMPRE apos a resposta (sucesso ou erro), movendo a remocao para o bloco `finally`.
+**2. `src/pages/WhatsApp.tsx` — `handleStartNewChat` (linha ~199)**
 
----
+Apos extrair `digits`, normalizar:
+```
+let normalized = digits;
+if (normalized.length === 10 || normalized.length === 11) {
+  normalized = '55' + normalized;
+}
+const jid = `${normalized}@s.whatsapp.net`;
+```
+Usar `normalized` tambem no `contact_phone` e demais campos.
 
-### Resumo de alteracoes
+**3. `src/components/whatsapp/ChatSidebar.tsx` — `handleStartNewChat` (linha ~1071)**
 
-| Arquivo | Alteracao |
-|---|---|
-| `supabase/functions/uazapi-api/index.ts` | Normalizar numeros com 10-11 digitos adicionando prefixo `55` nos casos `send-chat-message`, `send-media`, `send-presence` |
-| `src/components/whatsapp/ChatWindow.tsx` | Remover mensagem temporaria no bloco `finally` do `handleSend` (em vez de apenas no erro) |
+Mesma normalizacao:
+```
+let normalized = phoneNumber.replace(/\D/g, '');
+if (normalized.length === 10 || normalized.length === 11) {
+  normalized = '55' + normalized;
+}
+const jid = `${normalized}@s.whatsapp.net`;
+```
 
+### Resumo
+
+| Arquivo | Local | Alteracao |
+|---|---|---|
+| `uazapi-api/index.ts` | caso `send-message` | Prefixar 55 em numeros com 10-11 digitos |
+| `WhatsApp.tsx` | `handleStartNewChat` | Normalizar digits antes de criar JID |
+| `ChatSidebar.tsx` | `handleStartNewChat` | Normalizar phoneNumber antes de criar JID |
+
+Isso garante que todo numero brasileiro sem DDI seja tratado como 55+DDD+telefone em todos os fluxos do sistema.
