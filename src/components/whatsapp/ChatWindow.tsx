@@ -353,14 +353,14 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         } else if (errMsg) {
           toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' });
         }
-        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setChipDisconnected(true);
       setFailedMessage(text);
     } finally {
+      // Always remove temp message — realtime will add the real one from DB
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setSending(false);
     }
   }, [chipId, chat, checkChipConnected]);

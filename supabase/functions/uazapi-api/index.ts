@@ -472,7 +472,10 @@ Deno.serve(async (req) => {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
         
-        const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        let targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        if (targetNumber.length === 10 || targetNumber.length === 11) {
+          targetNumber = '55' + targetNumber
+        }
         if (!targetNumber || !message) throw new Error('Target and message required')
 
         console.log(`send-chat-message: sending to ${targetNumber}, text length=${message.length}, token=${chipToken?.substring(0,8)}...`)
@@ -556,7 +559,10 @@ Deno.serve(async (req) => {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
         
-        const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        let targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        if (targetNumber.length === 10 || targetNumber.length === 11) {
+          targetNumber = '55' + targetNumber
+        }
         if (!targetNumber) throw new Error('Target number required')
 
         const { presence } = body
@@ -582,7 +588,10 @@ Deno.serve(async (req) => {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
         
-        const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        let targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        if (targetNumber.length === 10 || targetNumber.length === 11) {
+          targetNumber = '55' + targetNumber
+        }
         if (!targetNumber) throw new Error('Target number required')
         if (!mediaBase64 && !body.mediaUrl) throw new Error('Media file or URL required')
 
