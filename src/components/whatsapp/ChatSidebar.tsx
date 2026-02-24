@@ -1070,12 +1070,16 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   async function handleStartNewChat(phoneNumber: string) {
     if (!chipId || !phoneNumber || phoneNumber.length < 10) return;
-    const jid = `${phoneNumber}@s.whatsapp.net`;
+    let normalized = phoneNumber.replace(/\D/g, '');
+    if (normalized.length === 10 || normalized.length === 11) {
+      normalized = '55' + normalized;
+    }
+    const jid = `${normalized}@s.whatsapp.net`;
     try {
       const { data, error } = await supabase
         .from('conversations')
         .upsert(
-          { chip_id: chipId, remote_jid: jid, contact_phone: phoneNumber },
+          { chip_id: chipId, remote_jid: jid, contact_phone: normalized },
           { onConflict: 'chip_id,remote_jid' }
         )
         .select()

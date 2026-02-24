@@ -198,12 +198,16 @@ export default function WhatsApp() {
     if (!selectedChipId || !phone) return;
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 10) return;
-    const jid = `${digits}@s.whatsapp.net`;
+    let normalized = digits;
+    if (normalized.length === 10 || normalized.length === 11) {
+      normalized = '55' + normalized;
+    }
+    const jid = `${normalized}@s.whatsapp.net`;
     try {
       const { data, error } = await supabase
         .from('conversations')
         .upsert(
-          { chip_id: selectedChipId, remote_jid: jid, contact_phone: digits },
+          { chip_id: selectedChipId, remote_jid: jid, contact_phone: normalized },
           { onConflict: 'chip_id,remote_jid' }
         )
         .select()
