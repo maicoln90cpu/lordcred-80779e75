@@ -51,42 +51,6 @@ export default function WhatsApp() {
     navigate('/login');
   };
 
-  // Global unread count fetch for ALL chips (exclude archived)
-  const fetchAllUnreadCounts = useCallback(async () => {
-    if (!user) return;
-    const { data: chips } = await supabase
-      .from('chips')
-      .select('id')
-      .eq('user_id', user.id);
-    if (!chips || chips.length === 0) return;
-
-    const chipIds = chips.map(c => c.id);
-    const { data: convos } = await (supabase as any)
-      .from('conversations')
-      .select('chip_id, unread_count')
-      .in('chip_id', chipIds)
-      .or('is_archived.is.null,is_archived.eq.false');
-    if (!convos) return;
-
-    const counts: Record<string, number> = {};
-    for (const c of convos) {
-      counts[c.chip_id] = (counts[c.chip_id] || 0) + (c.unread_count || 0);
-    }
-    setUnreadCounts(counts);
-  }, [user]);
-
-  useEffect(() => {
-    fetchAllUnreadCounts();
-
-    const channel = supabase
-      .channel('global-conversations-unread')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        fetchAllUnreadCounts();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchAllUnreadCounts]);
 
   const [syncProgress, setSyncProgress] = useState<string>('');
 
@@ -142,13 +106,7 @@ export default function WhatsApp() {
 
   const handleSelectChat = useCallback((chat: ChatContact) => {
     setSelectedChat(chat);
-    if (chat.unreadCount > 0 && selectedChipId) {
-      setUnreadCounts(prev => ({
-        ...prev,
-        [selectedChipId]: Math.max(0, (prev[selectedChipId] || 0) - chat.unreadCount),
-      }));
-    }
-  }, [selectedChipId]);
+  }, []);
 
   const handleUnreadUpdate = useCallback((chipId: string, totalUnread: number) => {
     setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
