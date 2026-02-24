@@ -502,9 +502,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
   const confirmDelete = useCallback(async () => {
     if (!deleteMsg || !chipId) return;
+    const msgId = deleteMsg.messageId || deleteMsg.id;
+    if (!msgId) {
+      toast({ title: 'Erro', description: 'ID da mensagem não encontrado.', variant: 'destructive' });
+      setDeleteMsg(null);
+      return;
+    }
     try {
       const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'delete-message', chipId, messageId: deleteMsg.messageId },
+        body: { action: 'delete-message', chipId, messageId: msgId },
       });
       if (res.data?.success) {
         setMessages(prev => prev.filter(m => m.messageId !== deleteMsg.messageId && m.id !== deleteMsg.id));
