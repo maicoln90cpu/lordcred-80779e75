@@ -345,9 +345,13 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
-        if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('not connected')) {
+        if (errMsg.toLowerCase().includes('not on whatsapp')) {
+          toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' });
+        } else if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('not connected')) {
           setChipDisconnected(true);
           setFailedMessage(text);
+        } else if (errMsg) {
+          toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' });
         }
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       }

@@ -488,7 +488,13 @@ Deno.serve(async (req) => {
         let data: any = {}
         try { data = JSON.parse(responseText) } catch { data = { raw: responseText } }
         
-        if (!response.ok) throw new Error(data.message || data.error || `UazAPI returned ${response.status}: ${responseText.substring(0, 200)}`)
+        if (!response.ok) {
+          const errMsg = data.message || data.error || `UazAPI returned ${response.status}`
+          return new Response(
+            JSON.stringify({ success: false, error: errMsg }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
         return new Response(
           JSON.stringify({ success: true, data }),
