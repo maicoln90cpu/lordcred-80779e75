@@ -1,98 +1,89 @@
 
 
-## Implementar: Deletar Chat, Silenciar Chat, Bloquear/Desbloquear e Respostas Rapidas
+## 5 Novas Funcionalidades para o WhatsApp
 
-### Resumo
+### 1. Nova conversa digitando numero de celular
 
-4 funcionalidades novas usando endpoints UazAPI ja disponiveis. Alteracoes em 3 arquivos.
+Adicionar um botao "Nova conversa" (icone `MessageSquarePlus`) na sidebar do chat, acima da busca. Ao clicar, abre um Dialog onde o usuario digita um numero de telefone (ex: `5511999999999`). Ao confirmar:
+- Formatar o JID como `numero@s.whatsapp.net`
+- Criar/upsert uma conversa na tabela `conversations` com os dados basicos
+- Selecionar automaticamente o chat recem-criado via `onSelectChat`
 
----
+**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
+- Novo estado `newChatDialogOpen` e `newChatNumber`
+- Novo handler `handleStartNewChat` que faz upsert em `conversations` e chama `onSelectChat`
+- Dialog com Input para digitar o numero
 
-### 1. Edge Function: Novos actions no `uazapi-api/index.ts`
+### 2. Nova conversa puxando contato da agenda (busca no WhatsApp)
 
-Adicionar 5 novos cases no switch:
+Dentro do mesmo Dialog de nova conversa, adicionar uma busca que consulta contatos existentes no banco (`conversations` do chip atual). O usuario pode digitar parte do nome ou numero e ver resultados filtrados para selecionar rapidamente.
 
-**`delete-chat`** - POST `/chat/delete`
-```
-body: { number: chatId, deleteWhatsApp: true, deleteDB: true, deleteMessages: true }
-```
-Apos sucesso, deletar conversa e mensagens do banco local.
+**Arquivo**: `src/components/whatsapp/ChatSidebar.tsx`
+- No Dialog de nova conversa, buscar `conversations` do chip com filtro por nome/telefone
+- Exibir lista de contatos encontrados para selecao rapida
+- Ao selecionar, navegar direto para o chat
 
-**`mute-chat`** - POST `/chat/mute`
-```
-body: { number: chatId, duration: body.duration }
-// duration: 0 (desmuta), 8 (8h), 168 (1 semana), -1 (sempre)
-```
+### 3. Renomear chip pelo dropdown (seta ao lado do numero)
 
-**`block-contact`** - POST `/chat/block`
-```
-body: { number: chatId, block: body.block }
-// block: true = bloquear, false = desbloquear
-```
+No `ChipSelector.tsx`, adicionar uma opcao "Renomear" no dropdown de cada chip. Ao clicar, exibe um Dialog com Input para alterar o nickname. Salva direto na tabela `chips`.
 
-**`list-quick-replies`** - GET `/quickreply/showall`
-Retorna array de QuickReply da instancia.
+**Arquivo**: `src/components/whatsapp/ChipSelector.tsx`
+- Nova opcao `DropdownMenuItem` "Renomear" com icone `Pencil`
+- Novo estado `renameDialogOpen`, `chipToRename`, `renameValue`
+- Handler `handleRename` que faz `supabase.from('chips').update({ nickname })` e atualiza o estado local
 
-**`edit-quick-reply`** - POST `/quickreply/edit`
-```
-body: { shortCut, text, id?, delete?, type? }
-// Sem id = criar, com id = atualizar, delete:true = excluir
-```
+### 4. Clicar em numero de telefone nas mensagens para iniciar conversa
 
----
+No `MessageBubble.tsx`, detectar numeros de telefone no texto da mensagem (regex para formatos brasileiros e internacionais) e transforma-los em links clicaveis. Ao clicar, dispara um callback que cria/abre a conversa com aquele numero.
 
-### 2. ChatSidebar: Novas opcoes no menu de 3 pontos
+**Arquivo**: `src/components/whatsapp/MessageBubble.tsx`
+- Atualizar `formatWhatsAppText` para detectar numeros de telefone (regex: sequencias de 10-13 digitos, com ou sem formatacao)
+- Renderizar como `<button>` clicavel com estilo de link
+- Nova prop `onStartChat?: (phone: string) => void`
 
-Arquivo: `src/components/whatsapp/ChatSidebar.tsx`
+**Arquivo**: `src/components/whatsapp/ChatWindow.tsx`
+- Passar `onStartChat` ao MessageBubble
+- Handler que cria conversa e seleciona o chat (via callback para `WhatsApp.tsx`)
 
-Adicionar ao DropdownMenu de cada conversa:
-- **Silenciar** (com submenu: 8h, 1 semana, Sempre, Desmutar)
-- **Bloquear contato** (com confirmacao via toast)
-- **Deletar conversa** (com confirmacao via AlertDialog)
+**Arquivo**: `src/pages/WhatsApp.tsx`
+- Nova prop `onStartNewChat` passada ao ChatWindow
+- Handler que faz upsert em `conversations` e seleciona o chat
 
-Novos handlers:
-- `handleMuteChat(chat, duration)` - chama `uazapi-api` com action `mute-chat`
-- `handleBlockContact(chat, block)` - chama `uazapi-api` com action `block-contact`
-- `handleDeleteChat(chat)` - chama `uazapi-api` com action `delete-chat`, remove do estado local
+### 5. Links do WhatsApp funcionais (wa.me, api.whatsapp.com)
 
-Imports adicionais: `BellOff`, `Ban`, `Trash2` do lucide-react e `AlertDialog` components.
+Tambem no `formatWhatsAppText` do `MessageBubble.tsx`, detectar links `https://wa.me/NUMERO` e `https://api.whatsapp.com/send?phone=NUMERO`. Em vez de abrir no navegador, extrair o numero e disparar o mesmo callback `onStartChat` para abrir a conversa dentro da plataforma.
 
----
-
-### 3. ChatInput: Respostas rapidas com atalho "/"
-
-Arquivo: `src/components/whatsapp/ChatInput.tsx`
-
-Comportamento:
-- Quando usuario digita "/" no inicio da mensagem, buscar respostas rapidas da instancia (GET via edge function `list-quick-replies`)
-- Exibir dropdown acima do input com as opcoes filtradas pelo texto apos "/"
-- Ao selecionar, substitui o texto do input pelo conteudo da resposta
-- Cache local das respostas rapidas por chipId (busca apenas 1x por sessao)
-
-Props novas: `chipId: string | null` (passado do ChatWindow)
-
-UI: Popover sobre o input mostrando lista de atalhos + texto preview, filtravel.
-
-Gestao de respostas rapidas (CRUD) sera acessivel por um botao no header ou via painel admin futuramente — nesta versao, apenas o consumo das respostas ja cadastradas na UazAPI.
+**Arquivo**: `src/components/whatsapp/MessageBubble.tsx`
+- No regex de URL existente, verificar se e um link wa.me ou api.whatsapp.com
+- Se for, renderizar como botao que chama `onStartChat` com o numero extraido
+- Se nao for, manter o comportamento atual (abrir em nova aba)
 
 ---
 
 ### Detalhes tecnicos
 
-| Funcionalidade | Endpoint UazAPI | Payload principal |
+| Funcionalidade | Arquivo(s) | Tipo de alteracao |
 |---|---|---|
-| Deletar chat | POST /chat/delete | `{ number, deleteWhatsApp, deleteDB, deleteMessages }` |
-| Silenciar chat | POST /chat/mute | `{ number, duration }` |
-| Bloquear contato | POST /chat/block | `{ number, block }` |
-| Listar respostas rapidas | GET /quickreply/showall | - (header token) |
-| CRUD resposta rapida | POST /quickreply/edit | `{ shortCut, text, id?, delete? }` |
+| Nova conversa por numero | `ChatSidebar.tsx` | Dialog + upsert em conversations |
+| Nova conversa por busca de contato | `ChatSidebar.tsx` | Filtro no mesmo dialog |
+| Renomear chip | `ChipSelector.tsx` | Dialog + update em chips |
+| Numero clicavel na mensagem | `MessageBubble.tsx`, `ChatWindow.tsx`, `WhatsApp.tsx` | Regex + callback chain |
+| Links wa.me funcionais | `MessageBubble.tsx` | Interceptar links WhatsApp |
 
-### Arquivos alterados
+### Fluxo de nova conversa
 
-| Arquivo | Alteracao |
-|---|---|
-| `supabase/functions/uazapi-api/index.ts` | 5 novos cases no switch |
-| `src/components/whatsapp/ChatSidebar.tsx` | 3 novos handlers + menu items (silenciar, bloquear, deletar) |
-| `src/components/whatsapp/ChatInput.tsx` | Sistema de respostas rapidas com "/" |
-| `src/components/whatsapp/ChatWindow.tsx` | Passar chipId ao ChatInput |
+```text
+[Dialog "Nova Conversa"]
+   |
+   |-- [Tab 1: Digitar numero] --> Input telefone --> Upsert conversations --> onSelectChat
+   |
+   |-- [Tab 2: Buscar contato] --> Filtro nome/telefone --> Selecionar --> onSelectChat
+```
+
+### Regex para deteccao de telefones
+
+```text
+Telefones: /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/
+Links WhatsApp: /https?:\/\/(wa\.me|api\.whatsapp\.com\/send\?phone=)(\d+)/
+```
 
