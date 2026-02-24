@@ -91,7 +91,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     senderName: r.sender_name || '',
     messageType: r.media_type || 'text',
     mediaType: r.media_type || undefined,
-    hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat'),
+    hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat' && r.media_type !== 'url'),
     messageId: r.message_id || undefined,
     status: r.status || 'sent',
   }), []);
@@ -223,7 +223,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             senderName: record.sender_name || '',
             messageType: record.media_type || 'text',
             mediaType: record.media_type || undefined,
-            hasMedia: !!(record.media_type && record.media_type !== 'text' && record.media_type !== 'chat'),
+            hasMedia: !!(record.media_type && record.media_type !== 'text' && record.media_type !== 'chat' && record.media_type !== 'url'),
             messageId: record.message_id || undefined,
             status: record.status || 'sent',
           };
