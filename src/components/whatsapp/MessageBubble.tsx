@@ -47,7 +47,7 @@ function nameToColor(name: string): string {
 }
 
 const WHATSAPP_LINK_REGEX = /https?:\/\/(?:wa\.me\/|api\.whatsapp\.com\/send\?phone=)(\d+)/i;
-const PHONE_REGEX = /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+const PHONE_REGEX = /\b(\+?\d{10,15})\b|\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
 
 function extractPhoneDigits(raw: string): string {
   return raw.replace(/\D/g, '');
@@ -78,28 +78,42 @@ function formatWhatsAppText(text: string, onStartChat?: (phone: string) => void)
       );
     }
     // Detect phone numbers in non-URL text
-    const phoneRegex = /\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
-    const phoneParts = part.split(phoneRegex);
-    const formatted = phoneParts.map((segment, j) => {
-      // Check if this segment matches a phone number
-      const digits = extractPhoneDigits(segment);
-      if (digits.length >= 10 && digits.length <= 15 && phoneRegex.test(segment)) {
-        // Reset regex lastIndex
-        phoneRegex.lastIndex = 0;
-        if (onStartChat) {
-          return (
-            <button key={`${i}-phone-${j}`} onClick={() => onStartChat(digits)}
-              className="text-blue-400 underline hover:text-blue-300 cursor-pointer">
-              {segment}
-            </button>
-          );
-        }
-        return segment;
+    const phoneRegex = /\b(\+?\d{10,15})\b|\b(\+?\d{2,3}[\s.-]?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4})\b/g;
+    const segments: (string | React.ReactNode)[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = phoneRegex.exec(part)) !== null) {
+      if (match.index > lastIndex) {
+        segments.push({ type: 'text', value: part.slice(lastIndex, match.index) } as any);
       }
+      const matched = match[0];
+      let digits = extractPhoneDigits(matched);
+      if (digits.length === 10 || digits.length === 11) {
+        digits = '55' + digits;
+      }
+      if (onStartChat) {
+        segments.push(
+          <button key={`${i}-phone-${lastIndex}`} onClick={() => onStartChat(digits)}
+            className="text-blue-400 underline hover:text-blue-300 cursor-pointer">
+            {matched}
+          </button>
+        );
+      } else {
+        segments.push({ type: 'text', value: matched } as any);
+      }
+      lastIndex = match.index + matched.length;
+    }
+    if (lastIndex < part.length) {
+      segments.push({ type: 'text', value: part.slice(lastIndex) } as any);
+    }
+    const formatted = segments.map((segment, j) => {
+      if (React.isValidElement(segment)) return segment;
+      const text = typeof segment === 'string' ? segment : (segment as any).value || '';
+      if (!text) return null;
       // Apply WhatsApp formatting (bold, italic, etc.)
-      const styledParts = segment
+      const styledParts = text
         .split(/(\*[^*]+\*|_[^_]+_|~[^~]+~|`[^`]+`)/)
-        .map((seg, k) => {
+        .map((seg: string, k: number) => {
           if (seg.startsWith('*') && seg.endsWith('*') && seg.length > 2)
             return <strong key={`${i}-${j}-${k}`}>{seg.slice(1, -1)}</strong>;
           if (seg.startsWith('_') && seg.endsWith('_') && seg.length > 2)
