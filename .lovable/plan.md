@@ -1,39 +1,55 @@
 
 
-## Corrigir bug do contador de mensagens nao lidas piscando
+## Correcao de 2 bugs
 
-### Causa raiz
+### Bug 1: Numeros sem DDI 55 nao enviam mensagem
 
-Existem **duas fontes concorrentes** atualizando o mesmo estado `unreadCounts` no `WhatsApp.tsx`:
+**Causa**: No edge function `uazapi-api`, o caso `send-chat-message` (linha 475) extrai o numero do JID removendo `@s.whatsapp.net` e caracteres nao-numericos, mas nao verifica se o numero tem o DDI 55. Numeros com apenas DDD+telefone (10-11 digitos, ex: `11999136884`) sao enviados sem o prefixo internacional, e a UazAPI rejeita.
 
-1. **Fonte A** - `fetchAllUnreadCounts` no `WhatsApp.tsx`: busca `unread_count` de TODAS as conversas de TODOS os chips, disparada por uma subscricao realtime global na tabela `conversations` (canal `global-conversations-unread`)
-2. **Fonte B** - `onUnreadUpdate` chamado pelo `ChatSidebar.tsx`: calcula o total de nao lidos a cada fetch de chats (que acontece via realtime + polling a cada 10s)
+**Solucao**: Adicionar normalizacao no edge function: se o numero resultante tem 10 ou 11 digitos (DDD + telefone brasileiro), prefixar com `55`.
 
-Quando uma conversa muda no banco, ambas as fontes disparam quase simultaneamente e escrevem valores diferentes no estado `unreadCounts` (porque uma pode completar antes da outra), causando o "pisca-pisca" no badge.
+**Arquivo**: `supabase/functions/uazapi-api/index.ts` (linha ~475)
 
-Alem disso, o `handleSelectChat` faz um decremento otimista do contador que tambem e sobrescrito pela proxima atualizacao.
+```text
+Antes:  const targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+Depois: let targetNumber = (chatId || phoneNumber || '').split('@')[0].replace(/\D/g, '')
+        if (targetNumber.length === 10 || targetNumber.length === 11) {
+          targetNumber = '55' + targetNumber
+        }
+```
 
-### Solucao
+Aplicar a mesma normalizacao nos casos `send-media` e `send-presence` para consistencia.
 
-Remover a fonte duplicada. O `ChatSidebar` ja faz o trabalho de calcular o total de nao lidos e reportar via `onUnreadUpdate`. A subscricao global no `WhatsApp.tsx` e redundante e causa o conflito.
+---
 
-### Alteracoes
+### Bug 2: Mensagem aparece duplicada na tela ao enviar
 
-**Arquivo: `src/pages/WhatsApp.tsx`**
+**Causa**: Quando o envio tem sucesso (`response.data?.success === true`), o codigo NAO remove a mensagem temporaria (`temp-XXX`). A expectativa era que o handler de realtime (linha 231-239) removesse o temp ao receber o INSERT do banco. Porem, existe uma race condition: se o realtime event chega ANTES do `setSending(false)` mas DEPOIS do React processar o batch de estado, ou se ha latencia no realtime, a mensagem temp e a mensagem real coexistem brevemente. Alem disso, se o realtime event demora mais de 10 segundos, a condicao de timeout (linha 233) deixa o temp no estado permanentemente.
 
-1. Remover a funcao `fetchAllUnreadCounts` inteira
-2. Remover o `useEffect` que chama `fetchAllUnreadCounts` e cria o canal `global-conversations-unread`
-3. Remover o decremento otimista em `handleSelectChat` (o `onUnreadUpdate` do sidebar ja cuida disso apos o fetch)
-4. Manter apenas o `handleUnreadUpdate` como unica forma de atualizar `unreadCounts`
+**Solucao**: Ao receber sucesso do envio, remover imediatamente a mensagem temporaria. O realtime handler adicionara a mensagem real do banco logo em seguida.
 
-Isso elimina a "corrida" entre as duas fontes e o badge passa a ser atualizado somente pelo ChatSidebar, que ja tem debounce e verificacao de chip ativo.
+**Arquivo**: `src/components/whatsapp/ChatWindow.tsx` (apos linha 357)
 
-### Detalhes tecnicos
+Adicionar remocao do temp message no caminho de sucesso:
 
-Linhas a remover no `WhatsApp.tsx`:
-- `fetchAllUnreadCounts` callback (~15 linhas)
-- `useEffect` com canal `global-conversations-unread` (~10 linhas)
-- Logica de decremento otimista em `handleSelectChat` (~5 linhas)
+```text
+if (!response.data?.success) {
+  // ... tratamento de erro existente ...
+  setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+} else {
+  // Sucesso: remover temp imediatamente, realtime adicionara a mensagem real
+  setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+}
+```
 
-Nenhuma outra alteracao necessaria - o fluxo `ChatSidebar -> onUnreadUpdate -> unreadCounts` ja funciona corretamente como fonte unica de verdade.
+Isso pode ser simplificado removendo o temp SEMPRE apos a resposta (sucesso ou erro), movendo a remocao para o bloco `finally`.
+
+---
+
+### Resumo de alteracoes
+
+| Arquivo | Alteracao |
+|---|---|
+| `supabase/functions/uazapi-api/index.ts` | Normalizar numeros com 10-11 digitos adicionando prefixo `55` nos casos `send-chat-message`, `send-media`, `send-presence` |
+| `src/components/whatsapp/ChatWindow.tsx` | Remover mensagem temporaria no bloco `finally` do `handleSend` (em vez de apenas no erro) |
 
