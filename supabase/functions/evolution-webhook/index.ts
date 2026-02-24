@@ -136,8 +136,9 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
 
   // Determine display text for sidebar — fallback para messageType normalizado
   const rawMediaType = safeString(msg.mediaType)
-  const mediaType = rawMediaType || normalizeMessageType(safeString(msg.messageType))
-  const isMedia = mediaType && mediaType !== 'text' && mediaType !== 'chat'
+  // Treat "url" mediaType as plain text (WhatsApp link previews are not actual media)
+  const mediaType = (rawMediaType && rawMediaType !== 'url') ? rawMediaType : normalizeMessageType(safeString(msg.messageType))
+  const isMedia = mediaType && mediaType !== 'text' && mediaType !== 'chat' && mediaType !== 'url'
   const displayText = isMedia ? getMediaLabel(mediaType) : messageContent
 
   await adminClient.from('message_history').insert({
