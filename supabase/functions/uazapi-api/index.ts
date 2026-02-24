@@ -263,10 +263,14 @@ Deno.serve(async (req) => {
         }
         const chipToken = instanceToken || await getInstanceToken(adminClient, instanceName)
         if (!chipToken) throw new Error('Instance token not found')
+        let normalizedPhone = phoneNumber.replace(/\D/g, '')
+        if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
+          normalizedPhone = '55' + normalizedPhone
+        }
         const response = await fetch(`${baseUrl}/send/text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ number: phoneNumber, text: message }),
+          body: JSON.stringify({ number: normalizedPhone, text: message }),
         })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Failed to send message')
