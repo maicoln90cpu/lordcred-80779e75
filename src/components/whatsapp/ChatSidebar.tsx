@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2, VolumeX } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2, VolumeX, MessageSquarePlus, Phone, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 function formatPhoneNumber(raw: string): string {
@@ -99,6 +107,10 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [editingContactJid, setEditingContactJid] = useState<string | null>(null);
   const [editContactName, setEditContactName] = useState('');
   const [deleteChatTarget, setDeleteChatTarget] = useState<ExtendedChat | null>(null);
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
+  const [newChatNumber, setNewChatNumber] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactResults, setContactResults] = useState<ExtendedChat[]>([]);
   const prevChipRef = useRef<string | null>(null);
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
@@ -579,14 +591,25 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       )}
       {/* Header with search and filters */}
       <div className="p-3 space-y-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar conversa..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-secondary/50 border-0 h-9 text-sm"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar conversa..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 bg-secondary/50 border-0 h-9 text-sm"
+            />
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+            title="Nova conversa"
+            onClick={() => { setNewChatDialogOpen(true); setNewChatNumber(''); setContactSearch(''); setContactResults([]); }}
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+          </Button>
         </div>
 
         {/* Filter row */}
@@ -954,6 +977,126 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* New Chat Dialog */}
+      <Dialog open={newChatDialogOpen} onOpenChange={setNewChatDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova Conversa</DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="number" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="number"><Phone className="w-3.5 h-3.5 mr-1.5" />Digitar número</TabsTrigger>
+              <TabsTrigger value="contacts"><Users className="w-3.5 h-3.5 mr-1.5" />Buscar contato</TabsTrigger>
+            </TabsList>
+            <TabsContent value="number" className="space-y-3 mt-3">
+              <Input
+                placeholder="Ex: 5511999999999"
+                value={newChatNumber}
+                onChange={(e) => setNewChatNumber(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newChatNumber.length >= 10) {
+                    handleStartNewChat(newChatNumber);
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">Digite o número completo com DDD e código do país (ex: 55 para Brasil)</p>
+              <DialogFooter>
+                <Button
+                  disabled={newChatNumber.length < 10}
+                  onClick={() => handleStartNewChat(newChatNumber)}
+                >
+                  Iniciar conversa
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+            <TabsContent value="contacts" className="space-y-3 mt-3">
+              <Input
+                placeholder="Buscar por nome ou número..."
+                value={contactSearch}
+                onChange={(e) => {
+                  const q = e.target.value;
+                  setContactSearch(q);
+                  if (q.length >= 2) {
+                    const results = chats.filter(c =>
+                      c.name.toLowerCase().includes(q.toLowerCase()) ||
+                      c.phone.includes(q)
+                    ).slice(0, 20);
+                    setContactResults(results);
+                  } else {
+                    setContactResults([]);
+                  }
+                }}
+                autoFocus
+              />
+              <ScrollArea className="max-h-60">
+                {contactResults.length > 0 ? (
+                  <div className="space-y-1">
+                    {contactResults.map(c => (
+                      <button
+                        key={c.remoteJid}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 text-left transition-colors"
+                        onClick={() => {
+                          onSelectChat(c);
+                          setNewChatDialogOpen(false);
+                        }}
+                      >
+                        <Avatar className="w-8 h-8 shrink-0">
+                          {c.profilePicUrl && <AvatarImage src={c.profilePicUrl} alt={c.name} />}
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-medium">
+                            {c.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{c.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : contactSearch.length >= 2 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum contato encontrado</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Digite pelo menos 2 caracteres</p>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
+  async function handleStartNewChat(phoneNumber: string) {
+    if (!chipId || !phoneNumber || phoneNumber.length < 10) return;
+    const jid = `${phoneNumber}@s.whatsapp.net`;
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .upsert(
+          { chip_id: chipId, remote_jid: jid, contact_phone: phoneNumber },
+          { onConflict: 'chip_id,remote_jid' }
+        )
+        .select()
+        .single();
+      if (error) throw error;
+      const newChat: ChatContact = {
+        id: data.id,
+        remoteJid: data.remote_jid,
+        name: data.contact_name || data.wa_name || formatPhoneNumber(phoneNumber),
+        phone: phoneNumber,
+        lastMessage: data.last_message_text || '',
+        lastMessageAt: data.last_message_at,
+        unreadCount: data.unread_count || 0,
+        isGroup: false,
+      };
+      onSelectChat(newChat);
+      setNewChatDialogOpen(false);
+      toast({ title: 'Conversa iniciada' });
+    } catch (err: any) {
+      console.error('Error creating chat:', err);
+      toast({ title: 'Erro ao criar conversa', description: err.message, variant: 'destructive' });
+    }
+  }
 }

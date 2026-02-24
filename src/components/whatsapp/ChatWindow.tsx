@@ -49,11 +49,12 @@ interface ChatWindowProps {
   chipId: string | null;
   chipStatus?: string;
   onReconnect?: () => void;
+  onStartNewChat?: (phone: string) => void;
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: ChatWindowProps) {
+export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -651,6 +652,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect }: Ch
                 onFavorite={handleFavorite}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
+                onStartChat={onStartNewChat}
               />
             ))}
           </div>

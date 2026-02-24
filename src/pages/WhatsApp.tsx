@@ -236,6 +236,38 @@ export default function WhatsApp() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
+  const handleStartNewChat = useCallback(async (phone: string) => {
+    if (!selectedChipId || !phone) return;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) return;
+    const jid = `${digits}@s.whatsapp.net`;
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .upsert(
+          { chip_id: selectedChipId, remote_jid: jid, contact_phone: digits },
+          { onConflict: 'chip_id,remote_jid' }
+        )
+        .select()
+        .single();
+      if (error) throw error;
+      const newChat: ChatContact = {
+        id: data.id,
+        remoteJid: data.remote_jid,
+        name: data.contact_name || data.wa_name || digits,
+        phone: digits,
+        lastMessage: data.last_message_text || '',
+        lastMessageAt: data.last_message_at,
+        unreadCount: data.unread_count || 0,
+        isGroup: false,
+      };
+      setSelectedChat(newChat);
+      toast({ title: 'Conversa iniciada' });
+    } catch (err: any) {
+      toast({ title: 'Erro ao criar conversa', description: err.message, variant: 'destructive' });
+    }
+  }, [selectedChipId, toast]);
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <header className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card">
@@ -285,6 +317,7 @@ export default function WhatsApp() {
             chipId={selectedChipId}
             chipStatus={selectedChipStatus}
             onReconnect={handleReconnectFromChat}
+            onStartNewChat={handleStartNewChat}
           />
         </main>
       </div>
