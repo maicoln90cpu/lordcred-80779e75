@@ -288,6 +288,27 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     setMessage(prev => prev + emoji);
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+        const previewUrl = URL.createObjectURL(file);
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setMediaPreview({ type: 'image', name: 'screenshot.png', base64, previewUrl });
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
+
   return (
     <div className="border-t border-border/50 bg-card/50">
       {/* Reply preview */}
@@ -416,6 +437,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
               placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas..."}
               value={message}
               onChange={(e) => handleMessageChange(e.target.value)}
+              onPaste={handlePaste}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   if (showQuickReplies && filteredQuickReplies.length > 0) {

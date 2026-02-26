@@ -203,6 +203,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           unreadCount: r.unread_count || 0,
           isGroup: r.is_group || false,
           isPinned: r.is_pinned || false,
+          is_pinned: r.is_pinned || false,
           profilePicUrl: r.profile_pic_url || null,
           is_archived: r.is_archived || false,
           is_starred: r.is_starred || false,
