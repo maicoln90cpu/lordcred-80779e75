@@ -83,6 +83,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   useEffect(() => { activeChipRef.current = chipId; }, [chipId]);
   useEffect(() => { activeChatRef.current = chat?.remoteJid; }, [chat?.remoteJid]);
 
+  // Reset disconnect state when chip changes
+  useEffect(() => {
+    setChipDisconnected(false);
+    setFailedMessage(null);
+  }, [chipId]);
+
   const mapDbRow = useCallback((r: any): ChatMessage => ({
     id: r.id,
     text: typeof r.message_content === 'string' ? r.message_content : '',
@@ -464,9 +470,26 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   }, [toast]);
 
   const handlePin = useCallback(async (msg: MessageData) => {
-    // Pin is now handled at conversation level in ChatSidebar, not per-message
-    toast({ title: 'Use o menu da conversa na barra lateral para fixar/desafixar.' });
-  }, [toast]);
+    if (!chipId || !chat) return;
+    try {
+      // Get current pin state
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('is_pinned')
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid)
+        .maybeSingle();
+      const newVal = !(conv?.is_pinned);
+      await supabase
+        .from('conversations')
+        .update({ is_pinned: newVal } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      toast({ title: newVal ? '📌 Conversa fixada' : 'Conversa desafixada' });
+    } catch {
+      toast({ title: 'Erro ao fixar conversa', variant: 'destructive' });
+    }
+  }, [chipId, chat, toast]);
 
   const handleFavorite = useCallback(async (msg: MessageData) => {
     if (!chipId || !chat) return;
