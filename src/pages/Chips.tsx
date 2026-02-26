@@ -257,8 +257,7 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
     if (!token) throw new Error('Sessão expirada');
 
     // Determine which edge function to call based on provider
-    const provider = settings?.whatsapp_provider || 'evolution';
-    const functionName = provider === 'uazapi' ? 'uazapi-api' : 'evolution-api';
+    const functionName = 'uazapi-api';
 
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,

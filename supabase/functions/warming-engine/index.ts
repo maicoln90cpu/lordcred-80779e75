@@ -433,9 +433,9 @@ Deno.serve(async (req) => {
     let globalCursor = (typedSettings as any).global_message_cursor || 0
 
     // Determine provider and API config
-    const provider = typedSettings.whatsapp_provider || 'evolution'
-    const apiUrl = (typedSettings.provider_api_url || envEvolutionApiUrl).replace(/\/$/, '')
-    const apiKey = typedSettings.provider_api_key || envEvolutionApiKey
+    const provider = typedSettings.whatsapp_provider || 'uazapi'
+    const apiUrl = (typedSettings.provider_api_url || '').replace(/\/$/, '')
+    const apiKey = typedSettings.provider_api_key || ''
 
     const baseUrl = apiUrl
     let messagesSent = 0
@@ -528,11 +528,17 @@ Deno.serve(async (req) => {
               }),
             })
           } else {
-            response = await fetch(`${baseUrl}/message/sendText/${pair.sender.instance_name}`, {
+            // Default: also use UazAPI format
+            const chipToken = (pair.sender as Chip).instance_token
+            if (!chipToken) {
+              console.log(`No instance_token for chip ${pair.sender.instance_name}, skipping`)
+              break
+            }
+            response = await fetch(`${baseUrl}/send/text`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'apikey': apiKey,
+                'token': chipToken,
               },
               body: JSON.stringify({
                 number: recipientPhone,

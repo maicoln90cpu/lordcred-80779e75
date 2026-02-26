@@ -18,6 +18,7 @@ interface QueueItem {
   error_message: string | null
   chips?: {
     instance_name: string
+    instance_token: string | null
     status: string
   }
 }
@@ -30,12 +31,26 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
+
+    // Read provider config from system_settings
+    const { data: providerSettings } = await adminClient
+      .from('system_settings')
+      .select('provider_api_url, provider_api_key')
+      .limit(1)
+      .maybeSingle()
+
+    const apiUrl = (providerSettings?.provider_api_url || '').replace(/\/$/, '')
+
+    if (!apiUrl) {
+      return new Response(
+        JSON.stringify({ error: 'UazAPI not configured in system_settings' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const now = new Date()
 
@@ -46,6 +61,7 @@ Deno.serve(async (req) => {
         *,
         chips (
           instance_name,
+          instance_token,
           status
         )
       `)
@@ -66,7 +82,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    const baseUrl = evolutionApiUrl.replace(/\/$/, '')
     let processed = 0
     let failed = 0
 
@@ -75,7 +90,6 @@ Deno.serve(async (req) => {
       if (!item.chips || item.chips.status !== 'connected') {
         console.log(`Chip not connected for queue item ${item.id}, skipping`)
         
-        // Update attempts and potentially mark as failed
         if (item.attempts + 1 >= item.max_attempts) {
           await adminClient
             .from('message_queue')
@@ -99,6 +113,23 @@ Deno.serve(async (req) => {
         continue
       }
 
+      // Check for instance_token (required for UazAPI)
+      const chipToken = item.chips.instance_token
+      if (!chipToken) {
+        console.log(`No instance_token for chip in queue item ${item.id}, skipping`)
+        await adminClient
+          .from('message_queue')
+          .update({
+            status: 'failed',
+            attempts: item.attempts + 1,
+            error_message: 'No instance_token configured for chip',
+            processed_at: now.toISOString(),
+          })
+          .eq('id', item.id)
+        failed++
+        continue
+      }
+
       // Mark as processing
       await adminClient
         .from('message_queue')
@@ -106,12 +137,12 @@ Deno.serve(async (req) => {
         .eq('id', item.id)
 
       try {
-        // Send message via Evolution API
-        const response = await fetch(`${baseUrl}/message/sendText/${item.chips.instance_name}`, {
+        // Send message via UazAPI
+        const response = await fetch(`${apiUrl}/send/text`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': evolutionApiKey,
+            'token': chipToken,
           },
           body: JSON.stringify({
             number: item.recipient_phone,
@@ -120,7 +151,6 @@ Deno.serve(async (req) => {
         })
 
         if (response.ok) {
-          // Mark as sent
           await adminClient
             .from('message_queue')
             .update({
@@ -129,7 +159,6 @@ Deno.serve(async (req) => {
             })
             .eq('id', item.id)
 
-          // Record in message history
           await adminClient
             .from('message_history')
             .insert({
@@ -140,18 +169,15 @@ Deno.serve(async (req) => {
               recipient_phone: item.recipient_phone,
             })
 
-          // Update chip's message count
           await adminClient
             .from('chips')
-            .update({
-              last_message_at: now.toISOString(),
-            })
+            .update({ last_message_at: now.toISOString() })
             .eq('id', item.chip_id)
 
           processed++
           console.log(`Queue item ${item.id} sent successfully`)
         } else {
-          const errorData = await response.json()
+          const errorData = await response.json().catch(() => ({}))
           const errorMsg = errorData.message || 'Send failed'
           
           if (item.attempts + 1 >= item.max_attempts) {
@@ -208,12 +234,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        ok: true, 
-        processed, 
-        failed,
-        total: queueItems.length 
-      }),
+      JSON.stringify({ ok: true, processed, failed, total: queueItems.length }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

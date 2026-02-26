@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -15,13 +14,10 @@ import MigrationSQLTab from '@/components/admin/MigrationSQLTab';
 
 interface ProviderSettings {
   id: string;
-  whatsapp_provider: string;
-  provider_api_url: string | null;
-  provider_api_key: string | null;
-  evolution_api_url: string | null;
-  evolution_api_key: string | null;
   uazapi_api_url: string | null;
   uazapi_api_key: string | null;
+  provider_api_url: string | null;
+  provider_api_key: string | null;
 }
 
 export default function MasterAdmin() {
@@ -43,7 +39,7 @@ export default function MasterAdmin() {
     try {
       const { data, error } = await supabase
         .from('system_settings')
-        .select('id, whatsapp_provider, provider_api_url, provider_api_key, evolution_api_url, evolution_api_key, uazapi_api_url, uazapi_api_key')
+        .select('id, provider_api_url, provider_api_key, uazapi_api_url, uazapi_api_key')
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -56,62 +52,23 @@ export default function MasterAdmin() {
     }
   };
 
-  const getCurrentUrl = (): string => {
-    if (!settings) return '';
-    return settings.whatsapp_provider === 'uazapi' ? (settings.uazapi_api_url || '') : (settings.evolution_api_url || '');
-  };
-
-  const getCurrentKey = (): string => {
-    if (!settings) return '';
-    return settings.whatsapp_provider === 'uazapi' ? (settings.uazapi_api_key || '') : (settings.evolution_api_key || '');
-  };
-
-  const setCurrentUrl = (value: string) => {
-    if (!settings) return;
-    if (settings.whatsapp_provider === 'uazapi') {
-      setSettings({ ...settings, uazapi_api_url: value, provider_api_url: value });
-    } else {
-      setSettings({ ...settings, evolution_api_url: value, provider_api_url: value });
-    }
-  };
-
-  const setCurrentKey = (value: string) => {
-    if (!settings) return;
-    if (settings.whatsapp_provider === 'uazapi') {
-      setSettings({ ...settings, uazapi_api_key: value, provider_api_key: value });
-    } else {
-      setSettings({ ...settings, evolution_api_key: value, provider_api_key: value });
-    }
-  };
-
-  const handleProviderChange = (value: string) => {
-    if (!settings) return;
-    const newUrl = value === 'uazapi' ? (settings.uazapi_api_url || '') : (settings.evolution_api_url || '');
-    const newKey = value === 'uazapi' ? (settings.uazapi_api_key || '') : (settings.evolution_api_key || '');
-    setSettings({ ...settings, whatsapp_provider: value, provider_api_url: newUrl, provider_api_key: newKey });
-    setConnectionStatus('idle');
-  };
-
   const handleSave = async () => {
     if (!settings) return;
     setIsSaving(true);
     try {
       const updateData = {
-        whatsapp_provider: settings.whatsapp_provider,
-        provider_api_url: getCurrentUrl() || null,
-        provider_api_key: getCurrentKey() || null,
-        evolution_api_url: settings.evolution_api_url || null,
-        evolution_api_key: settings.evolution_api_key || null,
+        whatsapp_provider: 'uazapi',
+        provider_api_url: settings.uazapi_api_url || null,
+        provider_api_key: settings.uazapi_api_key || null,
         uazapi_api_url: settings.uazapi_api_url || null,
         uazapi_api_key: settings.uazapi_api_key || null,
       };
-      console.log('Saving settings:', { ...updateData, provider_api_key: '***', evolution_api_key: '***', uazapi_api_key: '***' });
       const { error } = await supabase
         .from('system_settings')
         .update(updateData)
         .eq('id', settings.id);
       if (error) throw error;
-      toast({ title: 'Configurações salvas', description: `Provedor ${settings.whatsapp_provider === 'uazapi' ? 'UazAPI' : 'Evolution API'} configurado com sucesso` });
+      toast({ title: 'Configurações salvas', description: 'UazAPI configurada com sucesso' });
     } catch (error) {
       console.error('Error saving:', error);
       toast({ title: 'Erro ao salvar', description: (error as any)?.message || String(error), variant: 'destructive' });
@@ -121,25 +78,23 @@ export default function MasterAdmin() {
   };
 
   const handleTestConnection = async () => {
-    const url = getCurrentUrl();
-    const key = getCurrentKey();
+    const url = settings?.uazapi_api_url;
+    const key = settings?.uazapi_api_key;
     if (!url || !key) {
-      toast({ title: 'Preencha URL e API Key primeiro', variant: 'destructive' });
+      toast({ title: 'Preencha URL e Admin Token primeiro', variant: 'destructive' });
       return;
     }
     setIsTesting(true);
     setConnectionStatus('idle');
     try {
-      const provider = settings?.whatsapp_provider || 'evolution';
-      const edgeFunctionName = provider === 'uazapi' ? 'uazapi-api' : 'evolution-api';
-      const response = await supabase.functions.invoke(edgeFunctionName, {
+      const response = await supabase.functions.invoke('uazapi-api', {
         body: { action: 'test-connection', apiUrl: url, apiKey: key },
       });
       if (response.error) throw new Error(response.error.message);
       const result = response.data;
       if (result?.success) {
         setConnectionStatus('success');
-        toast({ title: 'Conexão OK', description: `${provider === 'uazapi' ? 'UazAPI' : 'Evolution API'} respondeu com sucesso` });
+        toast({ title: 'Conexão OK', description: 'UazAPI respondeu com sucesso' });
       } else {
         throw new Error(result?.error || 'Connection test failed');
       }
@@ -188,7 +143,6 @@ export default function MasterAdmin() {
             <TabsTrigger value="migration">SQL Migração</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Provider (existing content) */}
           <TabsContent value="provider">
             <div className="space-y-6">
               <div className="grid gap-6 lg:grid-cols-2">
@@ -198,22 +152,10 @@ export default function MasterAdmin() {
                       <Globe className="w-5 h-5" />
                       Provedor WhatsApp
                     </CardTitle>
-                    <CardDescription>Selecione qual API será usada para comunicação com o WhatsApp</CardDescription>
+                    <CardDescription>UazAPI — provedor exclusivo de comunicação WhatsApp</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Provedor Ativo</Label>
-                      <Select value={settings?.whatsapp_provider || 'evolution'} onValueChange={handleProviderChange}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="evolution">Evolution API</SelectItem>
-                          <SelectItem value="uazapi">UazAPI</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Badge variant={settings?.whatsapp_provider === 'uazapi' ? 'secondary' : 'default'}>
-                      {settings?.whatsapp_provider === 'uazapi' ? 'UazAPI' : 'Evolution API'} ativo
-                    </Badge>
+                  <CardContent>
+                    <Badge variant="secondary">UazAPI ativo</Badge>
                   </CardContent>
                 </Card>
 
@@ -221,18 +163,18 @@ export default function MasterAdmin() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Key className="w-5 h-5" />
-                      Credenciais do Provedor
+                      Credenciais UazAPI
                     </CardTitle>
-                    <CardDescription>URL e chave de autenticação da API selecionada</CardDescription>
+                    <CardDescription>URL e Admin Token da UazAPI</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label>URL da API</Label>
-                      <Input placeholder="https://sua-api.exemplo.com" value={getCurrentUrl()} onChange={(e) => setCurrentUrl(e.target.value)} />
+                      <Input placeholder="https://sua-uazapi.exemplo.com" value={settings?.uazapi_api_url || ''} onChange={(e) => setSettings(s => s ? { ...s, uazapi_api_url: e.target.value } : s)} />
                     </div>
                     <div className="space-y-2">
-                      <Label>{settings?.whatsapp_provider === 'uazapi' ? 'Admin Token' : 'API Key'}</Label>
-                      <Input type="password" placeholder="Sua chave de API" value={getCurrentKey()} onChange={(e) => setCurrentKey(e.target.value)} />
+                      <Label>Admin Token</Label>
+                      <Input type="password" placeholder="Seu admin token" value={settings?.uazapi_api_key || ''} onChange={(e) => setSettings(s => s ? { ...s, uazapi_api_key: e.target.value } : s)} />
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
@@ -251,7 +193,7 @@ export default function MasterAdmin() {
                       <Webhook className="w-5 h-5" />
                       Webhook
                     </CardTitle>
-                    <CardDescription>URL para receber eventos do provedor (configure no painel do provedor)</CardDescription>
+                    <CardDescription>URL para receber eventos da UazAPI (configure no painel da UazAPI)</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -262,7 +204,7 @@ export default function MasterAdmin() {
                           {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">Cole esta URL no painel do seu provedor WhatsApp para receber eventos automaticamente</p>
+                      <p className="text-xs text-muted-foreground">Cole esta URL no painel da UazAPI para receber eventos automaticamente</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -277,12 +219,10 @@ export default function MasterAdmin() {
             </div>
           </TabsContent>
 
-          {/* Tab 2: Export Data */}
           <TabsContent value="export">
             <ExportDataTab />
           </TabsContent>
 
-          {/* Tab 3: Migration SQL */}
           <TabsContent value="migration">
             <MigrationSQLTab />
           </TabsContent>

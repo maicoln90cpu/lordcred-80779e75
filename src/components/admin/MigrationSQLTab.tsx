@@ -192,7 +192,7 @@ CREATE TABLE public.message_queue (
 -- ==========================================
 CREATE TABLE public.system_settings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  whatsapp_provider text NOT NULL DEFAULT 'evolution'::text,
+  whatsapp_provider text NOT NULL DEFAULT 'uazapi'::text,
   provider_api_url text,
   provider_api_key text,
   evolution_api_url text,
@@ -604,20 +604,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.chip_lifecycle_logs;`,
   {
     title: '8. Edge Functions',
     icon: <Code className="w-4 h-4" />,
-    description: '9 edge functions — copie os arquivos do diretório supabase/functions/',
+    description: '8 edge functions — copie os arquivos do diretório supabase/functions/',
     sql: `-- As Edge Functions devem ser copiadas como arquivos para o novo projeto.
 -- Copie o diretório supabase/functions/ inteiro para o novo projeto.
 --
 -- Edge Functions disponíveis:
 -- 1. create-user        → Criar usuários pelo admin
 -- 2. delete-user        → Deletar usuários
--- 3. evolution-api      → Proxy para Evolution API
--- 4. evolution-webhook  → Receber webhooks da Evolution API
--- 5. instance-maintenance → Manutenção de instâncias
--- 6. queue-processor    → Processar fila de mensagens
--- 7. uazapi-api         → Proxy para UazAPI
--- 8. update-user-role   → Atualizar role de usuários
--- 9. warming-engine     → Motor de aquecimento de chips
+-- 3. evolution-webhook  → Receber webhooks da UazAPI (nome legado mantido)
+-- 4. instance-maintenance → Manutenção de instâncias
+-- 5. queue-processor    → Processar fila de mensagens
+-- 6. uazapi-api         → Proxy para UazAPI
+-- 7. update-user-role   → Atualizar role de usuários
+-- 8. warming-engine     → Motor de aquecimento de chips
 --
 -- Configuração do config.toml (supabase/config.toml):
 -- Cada function deve ter verify_jwt = false:
@@ -626,9 +625,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.chip_lifecycle_logs;`,
 -- verify_jwt = false
 --
 -- [functions.delete-user]
--- verify_jwt = false
---
--- [functions.evolution-api]
 -- verify_jwt = false
 --
 -- [functions.evolution-webhook]
@@ -668,7 +664,7 @@ INSERT INTO public.system_settings (
   auto_phase_progression, days_phase_novo, days_phase_iniciante,
   days_phase_crescimento, days_phase_aquecido
 ) VALUES (
-  'evolution', true, 'same_user',
+  'uazapi', true, 'same_user',
   8, 20, 'America/Sao_Paulo',
   60, 300,
   5, 30, 30,
@@ -684,8 +680,8 @@ INSERT INTO public.system_settings (
 ];
 
 const SECRETS_INFO = [
-  { name: 'EVOLUTION_API_KEY', desc: 'Chave da Evolution API', manual: true },
-  { name: 'EVOLUTION_API_URL', desc: 'URL da Evolution API', manual: true },
+  { name: 'UAZAPI_API_KEY', desc: 'Admin Token da UazAPI', manual: true },
+  { name: 'UAZAPI_API_URL', desc: 'URL da UazAPI', manual: true },
   { name: 'SUPABASE_URL', desc: 'URL do projeto (auto-gerada)', manual: false },
   { name: 'SUPABASE_ANON_KEY', desc: 'Chave anônima (auto-gerada)', manual: false },
   { name: 'SUPABASE_SERVICE_ROLE_KEY', desc: 'Chave de serviço (auto-gerada)', manual: false },
@@ -776,7 +772,7 @@ export default function MigrationSQLTab() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground mt-4">
-            ⚠️ Apenas <strong>EVOLUTION_API_KEY</strong> e <strong>EVOLUTION_API_URL</strong> precisam ser configuradas manualmente. As demais são geradas automaticamente pelo novo projeto.
+            ⚠️ Apenas <strong>UAZAPI_API_KEY</strong> e <strong>UAZAPI_API_URL</strong> precisam ser configuradas manualmente. As demais são geradas automaticamente pelo novo projeto.
           </p>
         </CardContent>
       </Card>
