@@ -6,9 +6,6 @@ verify_jwt = false
 [functions.delete-user]
 verify_jwt = false
 
-[functions.evolution-api]
-verify_jwt = false
-
 [functions.evolution-webhook]
 verify_jwt = false
 

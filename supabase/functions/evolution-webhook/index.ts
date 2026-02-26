@@ -85,11 +85,7 @@ Deno.serve(async (req) => {
     } else if (eventType === 'qrcode.updated') {
       await adminClient.from('chips').update({ status: 'connecting' }).eq('id', chip.id)
     } else {
-      if (payload.event) {
-        await handleEvolutionEvent(adminClient, chip, payload)
-      } else {
-        console.log('Unhandled event type:', eventType)
-      }
+      console.log('Unhandled event type:', eventType)
     }
 
     return new Response(
@@ -367,38 +363,3 @@ async function handleConnectionUpdate(adminClient: any, chip: any, payload: any)
   console.log(`Chip ${chip.instance_name} status: ${newStatus}`)
 }
 
-async function handleEvolutionEvent(adminClient: any, chip: any, payload: any) {
-  const { event, data } = payload
-
-  switch (event) {
-    case 'connection.update': {
-      await handleConnectionUpdate(adminClient, chip, payload)
-      break
-    }
-    case 'messages.upsert': {
-      const messages = data?.messages || data || []
-      const messageList = Array.isArray(messages) ? messages : [messages]
-      for (const msg of messageList) {
-        if (msg.key?.remoteJid === 'status@broadcast') continue
-        if (!msg.message?.conversation && !msg.message?.extendedTextMessage?.text) continue
-        const messageContent = msg.message?.conversation || msg.message?.extendedTextMessage?.text || ''
-        const isFromMe = msg.key?.fromMe || false
-        const remoteJid = msg.key?.remoteJid || ''
-        const recipientPhone = remoteJid.split('@')[0].replace(/\D/g, '')
-        await adminClient.from('message_history').insert({
-          chip_id: chip.id,
-          message_content: messageContent,
-          direction: isFromMe ? 'outgoing' : 'incoming',
-          status: 'delivered',
-          recipient_phone: recipientPhone || null,
-        })
-      }
-      break
-    }
-    case 'qrcode.updated':
-      await adminClient.from('chips').update({ status: 'connecting' }).eq('id', chip.id)
-      break
-    default:
-      console.log('Unhandled Evolution event:', event)
-  }
-}
