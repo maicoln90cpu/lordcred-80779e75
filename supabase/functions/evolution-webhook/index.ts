@@ -149,7 +149,8 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     media_type: mediaType || null,
   })
 
-  const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || senderName || recipientPhone
+  // For outgoing messages, senderName = instance name (e.g. "Lord Cred"), NEVER use as contactName
+  const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || (!isFromMe ? senderName : '') || recipientPhone
   const waName = safeString(chat?.wa_name) || ''
   const contactPhone = safeString(chat?.phone) || recipientPhone
   const profilePicUrl = safeString(chat?.imagePreview) || safeString(chat?.image) || null
