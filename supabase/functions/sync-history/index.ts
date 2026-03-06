@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     // Get chip info
     const { data: chip, error: chipError } = await adminClient
       .from('chips')
-      .select('id, instance_token, last_sync_at, last_sync_cursor')
+      .select('id, instance_token, last_sync_at, last_sync_cursor, phone_number')
       .eq('id', chipId)
       .single()
 
