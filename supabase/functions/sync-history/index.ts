@@ -352,12 +352,19 @@ Deno.serve(async (req) => {
 
       // SAFE upsert: NUNCA sobrescrever unread_count, is_archived, is_pinned, is_starred, custom_status, label_ids
       // Esses campos sao geridos pelo webhook/usuario e NUNCA devem ser tocados pelo sync
+      // Protect: don't overwrite a real name with just digits
+      const isRealContactName = contactName && !/^\d+$/.test(contactName)
+
       const convData: any = {
         chip_id: chipId,
         remote_jid: canonicalJid,
-        contact_name: contactName,
         contact_phone: contactPhone,
         is_group: isGroup,
+      }
+
+      // Only set contact_name if it's a real name (not just digits)
+      if (isRealContactName) {
+        convData.contact_name = contactName
       }
 
       // Apenas incluir se tiver valor real (nunca sobrescrever com vazio/null)
