@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     // Get chip info
     const { data: chip, error: chipError } = await adminClient
       .from('chips')
-      .select('id, instance_token, last_sync_at, last_sync_cursor')
+      .select('id, instance_token, last_sync_at, last_sync_cursor, phone_number')
       .eq('id', chipId)
       .single()
 
@@ -313,7 +313,11 @@ Deno.serve(async (req) => {
         console.log(`[sync-history] DEBUG chat[${chatIndex}]: wa_chatid=${rawJid}, phone=${chat.phone}, resolvedPhone=${resolvedPhone || 'none'}, canonicalJid=${canonicalJid}, apiJid=${apiJid}`)
       }
 
-      const contactName = chat.wa_contactName || chat.name || canonicalJid.split('@')[0]
+      // Never use instance's own name as contact name — compare with chip phone
+      const rawContactName = chat.wa_contactName || chat.name || ''
+      const chipPhone = (chip as any).phone_number || ''
+      const isOwnName = rawContactName && chipPhone && rawContactName.replace(/\D/g, '').includes(chipPhone.replace(/\D/g, ''))
+      const contactName = (rawContactName && !isOwnName) ? rawContactName : (canonicalJid.split('@')[0] || '')
       const waName = chat.wa_name || ''
       // CRITICAL: use resolvedPhone or chat.phone, NEVER the LID number
       const contactPhone = resolvedPhone || chatPhone || (isLid ? '' : canonicalJid.split('@')[0])
@@ -348,12 +352,19 @@ Deno.serve(async (req) => {
 
       // SAFE upsert: NUNCA sobrescrever unread_count, is_archived, is_pinned, is_starred, custom_status, label_ids
       // Esses campos sao geridos pelo webhook/usuario e NUNCA devem ser tocados pelo sync
+      // Protect: don't overwrite a real name with just digits
+      const isRealContactName = contactName && !/^\d+$/.test(contactName)
+
       const convData: any = {
         chip_id: chipId,
         remote_jid: canonicalJid,
-        contact_name: contactName,
         contact_phone: contactPhone,
         is_group: isGroup,
+      }
+
+      // Only set contact_name if it's a real name (not just digits)
+      if (isRealContactName) {
+        convData.contact_name = contactName
       }
 
       // Apenas incluir se tiver valor real (nunca sobrescrever com vazio/null)

@@ -149,7 +149,8 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     media_type: mediaType || null,
   })
 
-  const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || senderName || recipientPhone
+  // For outgoing messages, senderName = instance name (e.g. "Lord Cred"), NEVER use as contactName
+  const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || (!isFromMe ? senderName : '') || recipientPhone
   const waName = safeString(chat?.wa_name) || ''
   const contactPhone = safeString(chat?.phone) || recipientPhone
   const profilePicUrl = safeString(chat?.imagePreview) || safeString(chat?.image) || null
@@ -157,12 +158,15 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   // Get current unread count for increment
   const { data: existing } = await adminClient
     .from('conversations')
-    .select('id, unread_count')
+    .select('id, unread_count, contact_name')
     .eq('chip_id', chip.id)
     .eq('remote_jid', remoteJid)
     .maybeSingle()
 
   const newUnread = isFromMe ? (existing?.unread_count || 0) : (existing?.unread_count || 0) + 1
+
+  // Protect against overwriting a real name with just digits
+  const isRealName = contactName && !/^\d+$/.test(contactName)
 
   const upsertData: any = {
     chip_id: chip.id,
@@ -174,6 +178,12 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     unread_count: newUnread,
     is_group: msg.isGroup || false,
   }
+
+  // If conversation already has a name and new value is just digits, preserve existing
+  if (existing && existing.contact_name && !isRealName) {
+    delete upsertData.contact_name
+  }
+
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
 
