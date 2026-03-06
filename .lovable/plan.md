@@ -1,58 +1,53 @@
 
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+## Correcao definitiva: nome do contato mostrando nome da instancia
 
-### Inventario de restos de Evolution encontrados
+### Causa raiz
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+No webhook (`evolution-webhook/index.ts`, linha 152), a logica de fallback para `contactName` eh:
 
-### Alteracoes planejadas
+```
+wa_contactName -> chat.name -> senderName -> recipientPhone
+```
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+Quando a mensagem eh **outgoing** (`fromMe = true`), `msg.senderName` contem o nome da **propria instancia** (ex: "Lord Cred"). Se `wa_contactName` e `chat.name` vierem vazios (comum em mensagens enviadas), o sistema usa "Lord Cred" como nome do contato e salva isso na conversa.
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+A partir dai, o nome errado fica permanente no banco porque o webhook sempre faz upsert com `contact_name`.
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+### Correcao
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+**Arquivo: `supabase/functions/evolution-webhook/index.ts`**
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+1. **Linha 152** — Para mensagens outgoing, NUNCA usar `senderName` como nome do contato (pois eh o nome da instancia). Usar `recipientPhone` como fallback direto:
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+```typescript
+// Para mensagens outgoing, senderName = nome da instância (ex: "Lord Cred"), NÃO usar como contactName
+const contactName = safeString(chat?.wa_contactName) 
+  || safeString(chat?.name) 
+  || (!isFromMe ? senderName : '') 
+  || recipientPhone
+```
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+2. **Protecao extra no upsert (linhas 167-181)** — So sobrescrever `contact_name` se o valor novo for um nome real (nao apenas digitos). Se a conversa ja tem um nome salvo e o novo eh so numero, preservar o existente:
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+```typescript
+// Só sobrescrever contact_name se tiver valor real (não apenas dígitos)
+const isRealName = contactName && !/^\d+$/.test(contactName)
+if (existing && existing.contact_name && !isRealName) {
+  // Preservar nome existente — não sobrescrever com número
+  delete upsertData.contact_name
+}
+```
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+3. **Correcao de dados existentes** — Adicionar logica para detectar e corrigir conversas cujo `contact_name` eh igual ao nome/numero da propria instancia (chip). Comparar `contactName` com `chip.phone_number` formatado e com o nome do business da instancia. Se bater, substituir pelo numero do contato.
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+**Arquivo: `supabase/functions/sync-history/index.ts`**
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
+4. Mesma protecao: na linha onde define `contactName`, garantir que `chat.name` nao seja o nome da propria instancia comparando com o phone_number do chip.
 
-### O que NAO muda
+### Resultado
 
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
-
-### Resumo de impacto
-
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
+- Contatos que hoje mostram "Lord Cred" passarao a mostrar o numero formatado (ex: "+55 42 9113-3545") ate que o nome real seja resolvido via `wa_contactName`
+- Novas mensagens outgoing nunca mais vao contaminar o `contact_name` com o nome da instancia
+- Deploy necessario da edge function `evolution-webhook`
 
