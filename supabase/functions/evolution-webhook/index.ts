@@ -165,6 +165,9 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
 
   const newUnread = isFromMe ? (existing?.unread_count || 0) : (existing?.unread_count || 0) + 1
 
+  // Protect against overwriting a real name with just digits
+  const isRealName = contactName && !/^\d+$/.test(contactName)
+
   const upsertData: any = {
     chip_id: chip.id,
     remote_jid: remoteJid,
@@ -175,6 +178,12 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     unread_count: newUnread,
     is_group: msg.isGroup || false,
   }
+
+  // If conversation already has a name and new value is just digits, preserve existing
+  if (existing && existing.contact_name && !isRealName) {
+    delete upsertData.contact_name
+  }
+
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
 
