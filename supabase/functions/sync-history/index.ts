@@ -313,7 +313,11 @@ Deno.serve(async (req) => {
         console.log(`[sync-history] DEBUG chat[${chatIndex}]: wa_chatid=${rawJid}, phone=${chat.phone}, resolvedPhone=${resolvedPhone || 'none'}, canonicalJid=${canonicalJid}, apiJid=${apiJid}`)
       }
 
-      const contactName = chat.wa_contactName || chat.name || canonicalJid.split('@')[0]
+      // Never use instance's own name as contact name — compare with chip phone
+      const rawContactName = chat.wa_contactName || chat.name || ''
+      const chipPhone = (chip as any).phone_number || ''
+      const isOwnName = rawContactName && chipPhone && rawContactName.replace(/\D/g, '').includes(chipPhone.replace(/\D/g, ''))
+      const contactName = (rawContactName && !isOwnName) ? rawContactName : (canonicalJid.split('@')[0] || '')
       const waName = chat.wa_name || ''
       // CRITICAL: use resolvedPhone or chat.phone, NEVER the LID number
       const contactPhone = resolvedPhone || chatPhone || (isLid ? '' : canonicalJid.split('@')[0])

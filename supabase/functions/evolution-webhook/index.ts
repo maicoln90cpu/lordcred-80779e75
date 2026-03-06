@@ -158,7 +158,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   // Get current unread count for increment
   const { data: existing } = await adminClient
     .from('conversations')
-    .select('id, unread_count')
+    .select('id, unread_count, contact_name')
     .eq('chip_id', chip.id)
     .eq('remote_jid', remoteJid)
     .maybeSingle()
