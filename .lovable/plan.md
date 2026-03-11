@@ -1,40 +1,58 @@
 
 
-## Plano: Melhorias no Kanban + Remover do Kanban + Fonte do header do chat
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### 1. Cinco melhorias uteis para o modal do Kanban
+### Inventario de restos de Evolution encontrados
 
-1. **Mover card entre colunas pelo detail dialog** — Select/dropdown no detail dialog para trocar a coluna sem precisar arrastar
-2. **Contador de tempo na coluna** — Mostrar ha quanto tempo o contato esta naquela coluna (ex: "ha 3 dias")
-3. **Adicionar nota rapida pelo detail dialog** — Input para adicionar nota diretamente sem precisar abrir o chat
-4. **Filtro por "sem mensagem ha X dias"** — Filtrar contatos inativos para follow-up
-5. **Indicador visual de contatos inativos** — Opacity reduzida ou badge "inativo" em cards sem mensagem ha mais de 3 dias
-
-### 2. Botao "Remover do Kanban" no KanbanCardDetailDialog
-
-**Arquivo**: `src/components/whatsapp/KanbanCardDetailDialog.tsx`
-- Adicionar prop `onRemoveCard: (cardId: string) => void`
-- Adicionar botao vermelho "Remover do Kanban" no footer, ao lado de "Fechar"
-- Ao clicar, chamar `onRemoveCard(card.id)` e fechar o dialog
-
-**Arquivo**: `src/components/whatsapp/KanbanDialog.tsx`
-- Importar `removeCard` do `useKanban()`
-- Passar `onRemoveCard={handleRemoveCard}` ao `KanbanCardDetailDialog`
-- `handleRemoveCard` chama `removeCard(cardId)` e limpa `detailCard`
-
-### 3. Aumentar fonte no header do chat
-
-**Arquivo**: `src/components/whatsapp/ChatWindow.tsx` linha 549
-- Nome: trocar `text-sm font-semibold` para `text-base font-bold`
-- Telefone: trocar `text-xs` para `text-sm`
-
-### Arquivos afetados
-
-| Arquivo | Mudanca |
+| Arquivo | O que sobrou |
 |---|---|
-| `KanbanCardDetailDialog.tsx` | Botao remover + select de coluna + input de nota + tempo na coluna |
-| `KanbanDialog.tsx` | Passar `removeCard` e handlers ao detail dialog |
-| `KanbanCard.tsx` | Indicador de inatividade |
-| `KanbanColumn.tsx` | Sem mudancas |
-| `ChatWindow.tsx` | Aumentar fonte do header |
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+
+### Alteracoes planejadas
+
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
+
+### O que NAO muda
+
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+
+### Resumo de impacto
+
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 

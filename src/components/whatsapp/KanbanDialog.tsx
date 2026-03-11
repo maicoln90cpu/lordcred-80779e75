@@ -26,7 +26,7 @@ interface LabelItem {
 
 export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) {
   const { isAdmin, user } = useAuth();
-  const { columns, loading, moveCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
+  const { columns, loading, moveCard, removeCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
   const [search, setSearch] = useState('');
   const [chipFilter, setChipFilter] = useState<string>('all');
   const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -83,8 +83,11 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
     [filteredByColumn]
   );
 
-  const handleDrop = (cardId: string, columnId: string) => {
-    moveCard(cardId, columnId);
+  const handleDrop = (cardId: string, columnId: string) => moveCard(cardId, columnId);
+
+  const handleRemoveCard = (cardId: string) => {
+    removeCard(cardId);
+    setDetailCard(null);
   };
 
   return (
@@ -187,6 +190,8 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
           onOpenChat(chipId, remoteJid);
           onOpenChange(false);
         }}
+        onRemoveCard={handleRemoveCard}
+        onMoveCard={(cardId, colId) => moveCard(cardId, colId)}
       />
 
       {isAdmin && (

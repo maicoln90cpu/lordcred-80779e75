@@ -546,8 +546,8 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold tracking-tight">{chat.name}</p>
-          <p className="text-xs text-muted-foreground/70">{chat.phone}</p>
+          <p className="text-base font-bold tracking-tight">{chat.name}</p>
+          <p className="text-sm text-muted-foreground/70">{chat.phone}</p>
         </div>
         <div className="flex items-center gap-0.5">
           <Button

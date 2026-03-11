@@ -1,6 +1,6 @@
 import { memo, DragEvent } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { StickyNote } from 'lucide-react';
+import { StickyNote, Clock } from 'lucide-react';
 import type { KanbanCard as KanbanCardType } from '@/hooks/useKanban';
 
 interface Props {
@@ -31,6 +31,12 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d`;
 }
 
+function isInactive(lastMessageAt: string | null): boolean {
+  if (!lastMessageAt) return true;
+  const diff = Date.now() - new Date(lastMessageAt).getTime();
+  return diff > 3 * 24 * 60 * 60 * 1000; // 3 days
+}
+
 export default memo(function KanbanCard({ card, labels, columnColor, onClick }: Props) {
   const conv = card.conversation;
   if (!conv) return null;
@@ -39,6 +45,7 @@ export default memo(function KanbanCard({ card, labels, columnColor, onClick }: 
   const phone = conv.contact_phone || conv.remote_jid.split('@')[0];
   const initials = name.slice(0, 2).toUpperCase();
   const accentColor = columnColor || '#6b7280';
+  const inactive = isInactive(conv.last_message_at);
 
   const cardLabels = (conv.label_ids || [])
     .map(lid => labels.find(l => l.label_id === lid))
@@ -60,7 +67,7 @@ export default memo(function KanbanCard({ card, labels, columnColor, onClick }: 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={() => onClick(card)}
-      className="group relative bg-card border border-border/40 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-lg hover:shadow-black/5 hover:border-border/60 transition-all duration-200 space-y-2.5 overflow-hidden"
+      className={`group relative bg-card border border-border/40 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-lg hover:shadow-black/5 hover:border-border/60 transition-all duration-200 space-y-2.5 overflow-hidden ${inactive ? 'opacity-60' : ''}`}
     >
       {/* Left accent stripe */}
       <div
@@ -79,9 +86,16 @@ export default memo(function KanbanCard({ card, labels, columnColor, onClick }: 
           <p className="text-sm font-semibold truncate text-foreground leading-tight">{name}</p>
           <p className="text-[11px] text-muted-foreground truncate mt-0.5">{formatPhone(phone)}</p>
         </div>
-        {conv.last_message_at && (
-          <span className="text-[10px] text-muted-foreground/70 shrink-0 font-medium">{timeAgo(conv.last_message_at)}</span>
-        )}
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
+          {conv.last_message_at && (
+            <span className="text-[10px] text-muted-foreground/70 font-medium">{timeAgo(conv.last_message_at)}</span>
+          )}
+          {inactive && (
+            <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-medium">
+              <Clock className="w-2.5 h-2.5" />inativo
+            </span>
+          )}
+        </div>
       </div>
 
       {conv.last_message_text && (
