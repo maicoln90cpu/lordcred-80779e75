@@ -505,37 +505,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     }
   }, [chipId, chat, toast]);
 
-  const confirmDelete = useCallback(async () => {
-    if (!deleteMsg || !chipId) return;
-    const msgId = deleteMsg.messageId || deleteMsg.id;
-    if (!msgId) {
-      toast({ title: 'Erro', description: 'ID da mensagem não encontrado.', variant: 'destructive' });
-      setDeleteMsg(null);
-      return;
-    }
-    try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'delete-message', chipId, messageId: msgId },
-      });
-      if (res.data?.success) {
-        setMessages(prev => prev.filter(m => m.messageId !== deleteMsg.messageId && m.id !== deleteMsg.id));
-        // Mark as deleted in DB (soft delete)
-        if (deleteMsg.messageId) {
-          await supabase
-            .from('message_history')
-            .update({ message_content: '[Mensagem apagada]', status: 'deleted' })
-            .eq('chip_id', chipId)
-            .eq('message_id', deleteMsg.messageId);
-        }
-        toast({ title: 'Mensagem apagada para todos' });
-      } else {
-        toast({ title: 'Erro', description: 'Não foi possível apagar.', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Erro', description: 'Falha ao apagar mensagem.', variant: 'destructive' });
-    }
-    setDeleteMsg(null);
-  }, [deleteMsg, chipId, toast]);
 
   const formatTime = (dateStr: string) => {
     try {
