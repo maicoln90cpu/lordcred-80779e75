@@ -858,29 +858,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         Editar nome
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator />
 
-                      {/* Status submenu */}
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <CircleDot className="w-4 h-4 mr-2" /> Status
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                            <DropdownMenuItem
-                              key={key}
-                              onClick={() => handleSetStatus(chat, key as ConversationStatus)}
-                            >
-                              <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
-                              {chat.custom_status === key ? '✓ ' : ''}{cfg.label}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleSetStatus(chat, null)}>
-                            Remover status
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
 
                       {/* Kanban submenu */}
                       {kanbanColumns.length > 0 && (
