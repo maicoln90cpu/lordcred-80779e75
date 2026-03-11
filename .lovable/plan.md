@@ -1,58 +1,69 @@
 
+Problema real (reformulado):
+O contador de não lidas está “oscilando” (ex.: 1 mensagem real, badge sobe para 4 e depois cai para 2) por combinação de inconsistência backend + sincronização frontend com estratégias diferentes de cálculo.
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+Arquivos isolados onde o erro nasce:
+- `supabase/functions/evolution-webhook/index.ts`
+- `supabase/functions/uazapi-api/index.ts`
+- `supabase/functions/instance-maintenance/index.ts`
+- `src/pages/WhatsApp.tsx`
+- `src/components/whatsapp/ChatSidebar.tsx`
+- `src/components/whatsapp/ChatWindow.tsx`
 
-### Inventario de restos de Evolution encontrados
+Evidências encontradas:
+1) No webhook, há duas fontes competindo pelo `unread_count`:
+- `messages` incrementa (`+1`) em `handleUazapiMessage`.
+- `chats` sobrescreve com `wa_unreadCount` em `handleUazapiChat`.
+Isso permite saltos (1→4→2) quando a UazAPI manda snapshots variáveis.
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+2) Logs mostram eventos `chats` duplicados/repetidos no mesmo segundo para o mesmo chat (inclusive múltiplas vezes).
 
-### Alteracoes planejadas
+3) `check-status` auto-configura webhook toda vez (`uazapi-api`) e `instance-maintenance` também reconfigura; isso aumenta risco de múltiplas entregas do mesmo evento.
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+4) Frontend usa caminhos diferentes:
+- chip inativo: `WhatsApp.tsx` (watcher global + soma no banco)
+- chip ativo: `ChatSidebar.tsx` recalcula por lista carregada + updates otimistas
+Isso gera diferenças visuais e quedas bruscas ao trocar de chip.
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+5) `ChatWindow.tsx` marca como lido ao abrir chat, mas mensagens que chegam enquanto chat já está aberto podem continuar incrementando até próxima ação de leitura/sincronização.
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+Do I know what the issue is?
+Sim. O núcleo é: concorrência de fontes de unread + eventos duplicados + sincronizações frontend não unificadas.
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+Plano de correção (definitivo):
+1) Unificar regra de `unread_count` no backend
+- `messages` vira fonte principal para incremento.
+- `chats` NÃO sobrescreve livremente; usar apenas para correção controlada (principalmente redução/zeramento), com guardas anti-spike.
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+2) Blindar contra duplicidade de eventos `chats`
+- Ignorar updates idênticos em janela curta (mesmo `chip_id`, `wa_chatid`, `wa_lastMsgTimestamp`, `wa_unreadCount`).
+- Só fazer update quando houver mudança material.
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+3) Parar re-registro agressivo de webhook
+- Remover auto-configuração de webhook de `check-status`.
+- Em manutenção, validar configuração atual antes de regravar.
+- Manter configuração somente em pontos de conexão/reconexão.
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+4) Unificar contagem no frontend
+- `unreadCounts` sempre por agregação absoluta no banco (não por lista carregada).
+- `ChatSidebar` deixa de publicar total derivado de página local.
+- Remover dupla atualização otimista (hoje existe no sidebar e no parent).
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+5) Leitura consistente no chat ativo
+- Ao receber mensagem em conversa aberta, disparar `mark-read` com debounce e manter badge zerado localmente.
+- Cobrir `remoteJid`/`alternateJid` para evitar zerar conversa errada.
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+6) Correção de dados já “sujos”
+- Criar rotina de ressincronização de unread por chip (snapshot da UazAPI `chat/find` → update controlado em `conversations`), para limpar contadores históricos inflados.
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+Limitações reais da UazAPI (e o que não tem 100% de garantia):
+- Eventos `chats` podem chegar repetidos e com snapshots transitórios; isso é limitação da origem.
+- Sem evento de “read receipt” granular e confiável por mensagem em todos os cenários/dispositivos, a leitura perfeita em tempo real depende de heurística.
+- Solução prática: modelo híbrido robusto (incremento local por `messages` + reconciliação controlada por `chats`), que elimina variações visíveis indevidas.
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
-
-### O que NAO muda
-
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
-
-### Resumo de impacto
-
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
-
+Validação após implementação:
+- Cenário 1: ficar no chip A, receber 1 msg no chip B → badge do B sobe exatamente 1.
+- Cenário 2: trocar para chip B sem abrir conversa → badge mantém valor correto (sem queda artificial).
+- Cenário 3: abrir conversa com não lidas → badge zera em tempo curto e estável.
+- Cenário 4: repetir com rajada de mensagens e com troca rápida de chips.
+- Teste end-to-end obrigatório com logs do `evolution-webhook` e valores de `conversations.unread_count` lado a lado.
