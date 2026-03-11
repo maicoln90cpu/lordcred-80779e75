@@ -236,9 +236,27 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
   
-  // Sync unread count from UazAPI when available
+  // Guard unread_count from chats events: only allow REDUCTION (correction downward)
+  // Never allow chats events to INCREASE unread_count — that's handled by messages events only
   if (typeof chat.wa_unreadCount === 'number') {
-    upsertData.unread_count = chat.wa_unreadCount
+    const { data: existing } = await adminClient
+      .from('conversations')
+      .select('unread_count')
+      .eq('chip_id', chip.id)
+      .eq('remote_jid', remoteJid)
+      .maybeSingle()
+    
+    const currentCount = existing?.unread_count || 0
+    const snapshotCount = chat.wa_unreadCount
+    
+    // Only apply snapshot if it's LOWER than current (e.g. user read on phone → 0)
+    // Or if conversation doesn't exist yet (existing is null)
+    if (!existing || snapshotCount < currentCount) {
+      upsertData.unread_count = snapshotCount
+      console.log(`chats event: unread ${currentCount} -> ${snapshotCount} for ${remoteJid} (correction)`)
+    } else {
+      console.log(`chats event: ignoring unread snapshot ${snapshotCount} (current: ${currentCount}) for ${remoteJid}`)
+    }
   }
 
   // UPSERT to prevent race condition duplicates

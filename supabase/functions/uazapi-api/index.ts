@@ -206,23 +206,8 @@ Deno.serve(async (req) => {
         if (data.status?.connected === true || data.status?.loggedIn === true) state = 'connected'
         else if (data.instance?.status === 'connecting') state = 'connecting'
 
-        // Auto-configure webhook when chip becomes connected
-        if (state === 'connected') {
-          try {
-            const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook`
-            console.log(`Auto-configuring webhook for ${instanceName} -> ${webhookUrl}`)
-            await fetch(`${baseUrl}/webhook`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify({
-                url: webhookUrl,
-                events: ['messages', 'chats', 'connection.update', 'messages_update'],
-              }),
-            })
-          } catch (whErr) {
-            console.error('Failed to auto-configure webhook:', whErr)
-          }
-        }
+        // Webhook is configured only during instance creation/reconnection
+        // NOT here in check-status to avoid duplicate event delivery
 
         return new Response(
           JSON.stringify({ success: true, state, jid: data.status?.jid || null, instance: data }),
