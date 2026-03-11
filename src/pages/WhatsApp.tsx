@@ -392,10 +392,38 @@ export default function WhatsApp() {
         open={reconnectDialogOpen}
         onOpenChange={setReconnectDialogOpen}
         onChipConnected={() => {
-          // Refresh chip status
           if (selectedChipId) handleSelectChip(selectedChipId);
         }}
         reconnectInstanceName={selectedChipInstanceName}
+      />
+
+      <KanbanDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        onOpenChat={async (chipId, remoteJid) => {
+          if (chipId !== selectedChipId) {
+            await handleSelectChip(chipId);
+          }
+          const { data: conv } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('chip_id', chipId)
+            .eq('remote_jid', remoteJid)
+            .single();
+          if (conv) {
+            setSelectedChat({
+              id: conv.id,
+              remoteJid: conv.remote_jid,
+              name: conv.contact_name || conv.wa_name || conv.contact_phone || remoteJid.split('@')[0],
+              phone: conv.contact_phone || remoteJid.split('@')[0],
+              lastMessage: conv.last_message_text || '',
+              lastMessageAt: conv.last_message_at,
+              unreadCount: conv.unread_count || 0,
+              isGroup: conv.is_group || false,
+              profilePicUrl: conv.profile_pic_url || undefined,
+            });
+          }
+        }}
       />
     </div>);
 }
