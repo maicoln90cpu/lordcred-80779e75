@@ -242,6 +242,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             status: record.status || 'sent',
           };
 
+          // Auto mark-read incoming messages while chat is open
+          if (!newMsg.fromMe && chipId) {
+            markRead(chipId, chat.remoteJid);
+          }
+
           setMessages(prev => {
             if (newMsg.fromMe) {
               const withoutTemp = prev.filter(m => !m.id.startsWith('temp-') || (new Date(newMsg.timestamp).getTime() - new Date(m.timestamp).getTime()) > 10000);
