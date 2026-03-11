@@ -111,6 +111,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [newChatNumber, setNewChatNumber] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<ExtendedChat[]>([]);
+  const [kanbanColumns, setKanbanColumns] = useState<{ id: string; name: string; color_hex: string | null }[]>([]);
   const prevChipRef = useRef<string | null>(null);
   const activeChipRef = useRef<string | null>(chipId);
   const { toast } = useToast();
