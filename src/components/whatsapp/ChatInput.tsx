@@ -454,7 +454,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 if (e.key === 'Escape') setShowQuickReplies(false);
               }}
               onBlur={() => setTimeout(() => setShowQuickReplies(false), 200)}
-              className="bg-secondary/50 border-0 h-10"
+              className="bg-secondary/30 border border-border/20 h-10 rounded-xl focus-visible:ring-primary/30 transition-colors"
               disabled={disabled}
             />
           </div>
