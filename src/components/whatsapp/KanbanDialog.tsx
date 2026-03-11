@@ -26,7 +26,7 @@ interface LabelItem {
 
 export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) {
   const { isAdmin, user } = useAuth();
-  const { columns, loading, moveCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns } = useKanban();
+  const { columns, loading, moveCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
   const [search, setSearch] = useState('');
   const [chipFilter, setChipFilter] = useState<string>('all');
   const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -37,9 +37,10 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
 
   useEffect(() => {
     if (!open || !user) return;
+    refetch();
     supabase.from('chips').select('id, nickname, phone_number').eq('user_id', user.id).then(({ data }) => setChips(data || []));
     supabase.from('labels').select('label_id, name, color_hex').then(({ data }) => setLabels(data || []));
-  }, [open, user]);
+  }, [open, user, refetch]);
 
   const filteredByColumn = useMemo(() => {
     const result: Record<string, KanbanCardType[]> = {};
