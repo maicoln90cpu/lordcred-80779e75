@@ -712,30 +712,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             <Ban className="w-3 h-3 mr-1" /> Bloqueados
           </Button>
 
-          {/* Status filter */}
-          {filterStatus ? (
-            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setFilterStatus(null)}>
-              <CircleDot className="w-3 h-3 mr-1" />
-              {STATUS_CONFIG[filterStatus]?.label}
-              <span className="ml-1 text-muted-foreground">✕</span>
-            </Button>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
-                  <CircleDot className="w-3 h-3 mr-1" /> Status
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                  <DropdownMenuItem key={key} onClick={() => setFilterStatus(key)}>
-                    <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
-                    {cfg.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+
 
           {/* Labels filter */}
           {filterLabel ? (
