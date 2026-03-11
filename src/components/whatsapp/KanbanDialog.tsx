@@ -26,7 +26,7 @@ interface LabelItem {
 
 export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) {
   const { isAdmin, user } = useAuth();
-  const { columns, loading, moveCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
+  const { columns, loading, moveCard, removeCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
   const [search, setSearch] = useState('');
   const [chipFilter, setChipFilter] = useState<string>('all');
   const [labelFilter, setLabelFilter] = useState<string>('all');
