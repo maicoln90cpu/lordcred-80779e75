@@ -329,6 +329,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={handleRefreshAllChips} disabled={isRefreshing} className="text-muted-foreground hover:text-foreground" title="Atualizar status dos chips">
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setKanbanOpen(true)} className="text-muted-foreground hover:text-foreground" title="Kanban de contatos">
+            <LayoutDashboard className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
