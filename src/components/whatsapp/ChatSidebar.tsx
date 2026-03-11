@@ -876,6 +876,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                                 {col.name}
                               </DropdownMenuItem>
                             ))}
+                            {chat.custom_status && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleRemoveFromKanban(chat)} className="text-destructive focus:text-destructive">
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Remover do Kanban
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                       )}
