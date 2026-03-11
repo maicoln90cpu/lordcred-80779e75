@@ -807,8 +807,18 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         </span>
                       )}
                     </div>
-                    {/* Status + Labels row */}
+                    {/* Kanban badge + Labels row */}
                     <div className="flex gap-1 mt-1 overflow-hidden items-center">
+                      {chat.custom_status && (() => {
+                        const col = kanbanColumns.find(c => c.name === chat.custom_status);
+                        if (!col) return null;
+                        return (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted/80" style={{ color: col.color_hex || undefined }}>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: col.color_hex || '#6b7280' }} />
+                            {col.name}
+                          </span>
+                        );
+                      })()}
                       {chat.label_ids && chat.label_ids.slice(0, 3).map(lid => {
                         const label = getLabelName(lid);
                         return label ? <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} /> : null;
