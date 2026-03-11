@@ -775,8 +775,8 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     onSelectChat(chat);
                   }}
                   className={cn(
-                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors",
-                    selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50",
+                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-150",
+                    selectedChatId === chat.remoteJid ? "bg-primary/10 border-l-2 border-primary" : "hover:bg-secondary/40 border-l-2 border-transparent",
                     chat.unreadCount > 0 && "bg-primary/5"
                   )}
                 >
