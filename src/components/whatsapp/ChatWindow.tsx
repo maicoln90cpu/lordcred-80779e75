@@ -602,7 +602,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       )}
 
       {/* Messages area - premium background */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-background/50 to-background" onScroll={handleScroll}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-muted/40 via-background to-muted/20 dark:from-[hsl(222,47%,9%)] dark:via-[hsl(222,47%,11%)] dark:to-[hsl(222,47%,13%)]" onScroll={handleScroll}>
         {loadingMore && (
           <div className="flex justify-center py-2">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
