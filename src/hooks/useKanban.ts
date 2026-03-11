@@ -165,8 +165,7 @@ export function useKanban() {
       { onConflict: 'conversation_id' }
     );
     if (col) {
-      const statusKey = col.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
-      await supabase.from('conversations').update({ custom_status: statusKey }).eq('id', conversationId);
+      await supabase.from('conversations').update({ custom_status: col.name }).eq('id', conversationId);
     }
     fetchCards();
   }, [columns, fetchCards]);
