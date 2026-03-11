@@ -175,16 +175,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         { conversation_id: conv.id, column_id: columnId, sort_order: 0 } as any,
         { onConflict: 'conversation_id' }
       );
-      // Sync custom_status
+      // Sync custom_status using column name directly
       if (col) {
-        const statusKey = Object.entries(STATUS_CONFIG).find(([, cfg]) => cfg.label === col.name)?.[0] || null;
         await supabase
           .from('conversations')
-          .update({ custom_status: statusKey } as any)
+          .update({ custom_status: col.name } as any)
           .eq('chip_id', chipId)
           .eq('remote_jid', chat.remoteJid);
         setChats(prev => prev.map(c =>
-          c.remoteJid === chat.remoteJid ? { ...c, custom_status: statusKey as ConversationStatus } : c
+          c.remoteJid === chat.remoteJid ? { ...c, custom_status: col.name as ConversationStatus } : c
         ));
       }
       toast({ title: `Adicionado ao Kanban: ${col?.name || 'coluna'}` });
