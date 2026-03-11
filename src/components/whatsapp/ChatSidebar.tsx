@@ -780,9 +780,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     chat.unreadCount > 0 && "bg-primary/5"
                   )}
                 >
-                  <Avatar className="w-10 h-10 shrink-0">
+                  <Avatar className="w-10 h-10 shrink-0 ring-1 ring-border/30">
                     {chat.profilePicUrl && <AvatarImage src={chat.profilePicUrl} alt={chat.name} />}
-                    <AvatarFallback className="bg-primary/20 text-primary text-sm font-medium">
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-sm font-semibold">
                       {chat.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
