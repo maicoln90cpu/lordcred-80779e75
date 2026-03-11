@@ -331,21 +331,25 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
           <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
             {mediaPreview.previewUrl ? (
               <img src={mediaPreview.previewUrl} alt="Preview" className="w-16 h-16 rounded object-cover" />
+            ) : (mediaPreview.type === 'ptt' || mediaPreview.type === 'audio') ? (
+              <div className="flex-1 min-w-0">
+                <audio src={mediaPreview.base64} controls className="h-8 w-full max-w-[240px]" />
+              </div>
             ) : (
               <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
-                {mediaPreview.type === 'ptt' || mediaPreview.type === 'audio' ? (
-                  <Mic className="w-5 h-5 text-muted-foreground" />
-                ) : mediaPreview.type === 'video' ? (
+                {mediaPreview.type === 'video' ? (
                   <Video className="w-5 h-5 text-muted-foreground" />
                 ) : (
                   <FileText className="w-5 h-5 text-muted-foreground" />
                 )}
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{mediaPreview.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{mediaPreview.type}</p>
-            </div>
+            {(mediaPreview.type !== 'ptt' && mediaPreview.type !== 'audio') && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{mediaPreview.name}</p>
+                <p className="text-xs text-muted-foreground capitalize">{mediaPreview.type}</p>
+              </div>
+            )}
             <Button variant="ghost" size="icon" onClick={cancelMediaPreview} className="shrink-0">
               <X className="w-4 h-4" />
             </Button>
