@@ -634,8 +634,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
                 onDownload={handleDownload}
                 onPin={handlePin}
                 onFavorite={handleFavorite}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
                 onStartChat={onStartNewChat}
               />
             ))}
