@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Reply, SmilePlus, Forward, Download, Pin, Star, Trash2, Pencil } from 'lucide-react';
+import { Reply, SmilePlus, Forward, Download, Pin, Star } from 'lucide-react';
 
 interface MessageBubbleProps {
   text: string;
