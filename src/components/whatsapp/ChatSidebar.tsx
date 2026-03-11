@@ -135,7 +135,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       setShowArchived(false);
       setFilterLabel(null);
       setFilterStarred(false);
-      setFilterStatus(null);
+      
       if (chipId) {
         setTimeout(() => fetchChats(1, false), 100);
       }
