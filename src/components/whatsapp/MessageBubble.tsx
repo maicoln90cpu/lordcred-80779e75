@@ -30,8 +30,6 @@ interface MessageBubbleProps {
   onDownload?: (msg: MessageData) => void;
   onPin?: (msg: MessageData) => void;
   onFavorite?: (msg: MessageData) => void;
-  onDelete?: (msg: MessageData) => void;
-  onEdit?: (msg: MessageData) => void;
   onStartChat?: (phone: string) => void;
   status?: string;
 }
