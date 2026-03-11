@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2 } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -13,6 +13,7 @@ import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
 import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
 import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
+import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatContact {
@@ -41,6 +42,7 @@ export default function WhatsApp() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [kanbanOpen, setKanbanOpen] = useState(false);
   const { user, isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -327,6 +329,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={handleRefreshAllChips} disabled={isRefreshing} className="text-muted-foreground hover:text-foreground" title="Atualizar status dos chips">
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setKanbanOpen(true)} className="text-muted-foreground hover:text-foreground" title="Kanban de contatos">
+            <LayoutDashboard className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
@@ -387,10 +392,38 @@ export default function WhatsApp() {
         open={reconnectDialogOpen}
         onOpenChange={setReconnectDialogOpen}
         onChipConnected={() => {
-          // Refresh chip status
           if (selectedChipId) handleSelectChip(selectedChipId);
         }}
         reconnectInstanceName={selectedChipInstanceName}
+      />
+
+      <KanbanDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        onOpenChat={async (chipId, remoteJid) => {
+          if (chipId !== selectedChipId) {
+            await handleSelectChip(chipId);
+          }
+          const { data: conv } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('chip_id', chipId)
+            .eq('remote_jid', remoteJid)
+            .single();
+          if (conv) {
+            setSelectedChat({
+              id: conv.id,
+              remoteJid: conv.remote_jid,
+              name: conv.contact_name || conv.wa_name || conv.contact_phone || remoteJid.split('@')[0],
+              phone: conv.contact_phone || remoteJid.split('@')[0],
+              lastMessage: conv.last_message_text || '',
+              lastMessageAt: conv.last_message_at,
+              unreadCount: conv.unread_count || 0,
+              isGroup: conv.is_group || false,
+              profilePicUrl: conv.profile_pic_url || undefined,
+            });
+          }
+        }}
       />
     </div>);
 }
