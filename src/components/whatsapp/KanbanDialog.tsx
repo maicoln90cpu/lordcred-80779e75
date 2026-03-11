@@ -83,8 +83,11 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
     [filteredByColumn]
   );
 
-  const handleDrop = (cardId: string, columnId: string) => {
-    moveCard(cardId, columnId);
+  const handleDrop = (cardId: string, columnId: string) => moveCard(cardId, columnId);
+
+  const handleRemoveCard = (cardId: string) => {
+    removeCard(cardId);
+    setDetailCard(null);
   };
 
   return (
