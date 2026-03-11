@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Settings2, Loader2 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Search, Settings2, Loader2, LayoutGrid } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKanban } from '@/hooks/useKanban';
@@ -36,20 +35,17 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [chips, setChips] = useState<{ id: string; nickname: string | null; phone_number: string | null }[]>([]);
 
-  // Fetch labels and chips
   useEffect(() => {
     if (!open || !user) return;
     supabase.from('chips').select('id, nickname, phone_number').eq('user_id', user.id).then(({ data }) => setChips(data || []));
     supabase.from('labels').select('label_id, name, color_hex').then(({ data }) => setLabels(data || []));
   }, [open, user]);
 
-  // Build filtered cards per column
   const filteredByColumn = useMemo(() => {
     const result: Record<string, KanbanCardType[]> = {};
     for (const col of columns) {
       let colCards = getVisibleCards(col.id);
 
-      // Search
       if (search.trim()) {
         const q = search.toLowerCase();
         colCards = colCards.filter(c => {
@@ -62,17 +58,14 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
         });
       }
 
-      // Chip filter
       if (chipFilter !== 'all') {
         colCards = colCards.filter(c => c.conversation?.chip_id === chipFilter);
       }
 
-      // Label filter
       if (labelFilter !== 'all') {
         colCards = colCards.filter(c => (c.conversation?.label_ids || []).includes(labelFilter));
       }
 
-      // Sort by last_message_at desc
       colCards.sort((a, b) => {
         const da = a.conversation?.last_message_at || a.created_at;
         const db = b.conversation?.last_message_at || b.created_at;
@@ -84,6 +77,11 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
     return result;
   }, [columns, getVisibleCards, search, chipFilter, labelFilter]);
 
+  const totalCards = useMemo(() =>
+    Object.values(filteredByColumn).reduce((sum, arr) => sum + arr.length, 0),
+    [filteredByColumn]
+  );
+
   const handleDrop = (cardId: string, columnId: string) => {
     moveCard(cardId, columnId);
   };
@@ -91,17 +89,32 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-4 pt-4 pb-2 border-b border-border/40 shrink-0">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle className="text-lg">Kanban de Contatos</DialogTitle>
-              <div className="flex items-center gap-2 flex-1 max-w-2xl">
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {/* Premium header */}
+          <div className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0 bg-gradient-to-b from-card to-background">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <LayoutGrid className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold tracking-tight">Kanban</DialogTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">{totalCards} contato{totalCards !== 1 ? 's' : ''} em {columns.length} coluna{columns.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-1 max-w-2xl">
                 <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contato..." className="pl-8 h-8 text-sm" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar contato..."
+                    className="pl-9 h-9 text-sm bg-secondary/40 border-border/30 focus-visible:ring-primary/30"
+                  />
                 </div>
                 <Select value={chipFilter} onValueChange={setChipFilter}>
-                  <SelectTrigger className="w-40 h-8 text-sm">
+                  <SelectTrigger className="w-40 h-9 text-sm bg-secondary/40 border-border/30">
                     <SelectValue placeholder="Chip" />
                   </SelectTrigger>
                   <SelectContent>
@@ -112,7 +125,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                   </SelectContent>
                 </Select>
                 <Select value={labelFilter} onValueChange={setLabelFilter}>
-                  <SelectTrigger className="w-36 h-8 text-sm">
+                  <SelectTrigger className="w-36 h-9 text-sm bg-secondary/40 border-border/30">
                     <SelectValue placeholder="Etiqueta" />
                   </SelectTrigger>
                   <SelectContent>
@@ -123,13 +136,14 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                   </SelectContent>
                 </Select>
               </div>
+
               {isAdmin && (
-                <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} className="h-8">
-                  <Settings2 className="w-4 h-4 mr-1" />Colunas
+                <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} className="h-9 border-border/30 hover:bg-secondary/60">
+                  <Settings2 className="w-4 h-4 mr-1.5" />Colunas
                 </Button>
               )}
             </div>
-          </DialogHeader>
+          </div>
 
           <div className="flex-1 min-h-0 overflow-x-auto">
             {loading ? (
@@ -149,8 +163,11 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                   />
                 ))}
                 {columns.length === 0 && (
-                  <div className="flex items-center justify-center w-full text-muted-foreground text-sm">
-                    Nenhuma coluna criada. {isAdmin ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
+                  <div className="flex flex-col items-center justify-center w-full text-muted-foreground gap-2">
+                    <LayoutGrid className="w-10 h-10 opacity-30" />
+                    <p className="text-sm">
+                      Nenhuma coluna criada. {isAdmin ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
+                    </p>
                   </div>
                 )}
               </div>

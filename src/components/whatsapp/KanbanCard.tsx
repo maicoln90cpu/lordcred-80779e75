@@ -1,12 +1,12 @@
 import { memo, DragEvent } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { StickyNote, MessageSquare } from 'lucide-react';
+import { StickyNote } from 'lucide-react';
 import type { KanbanCard as KanbanCardType } from '@/hooks/useKanban';
 
 interface Props {
   card: KanbanCardType;
   labels: { label_id: string; name: string; color_hex: string | null }[];
+  columnColor?: string;
   onClick: (card: KanbanCardType) => void;
 }
 
@@ -31,13 +31,14 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d`;
 }
 
-export default memo(function KanbanCard({ card, labels, onClick }: Props) {
+export default memo(function KanbanCard({ card, labels, columnColor, onClick }: Props) {
   const conv = card.conversation;
   if (!conv) return null;
 
   const name = conv.contact_name || conv.wa_name || conv.contact_phone || conv.remote_jid.split('@')[0];
   const phone = conv.contact_phone || conv.remote_jid.split('@')[0];
   const initials = name.slice(0, 2).toUpperCase();
+  const accentColor = columnColor || '#6b7280';
 
   const cardLabels = (conv.label_ids || [])
     .map(lid => labels.find(l => l.label_id === lid))
@@ -59,39 +60,56 @@ export default memo(function KanbanCard({ card, labels, onClick }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={() => onClick(card)}
-      className="bg-card border border-border/60 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow space-y-2"
+      className="group relative bg-card border border-border/40 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-lg hover:shadow-black/5 hover:border-border/60 transition-all duration-200 space-y-2.5 overflow-hidden"
     >
-      <div className="flex items-center gap-2">
-        <Avatar className="h-8 w-8 shrink-0">
+      {/* Left accent stripe */}
+      <div
+        className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full transition-all group-hover:top-1 group-hover:bottom-1"
+        style={{ backgroundColor: accentColor }}
+      />
+
+      <div className="flex items-center gap-2.5 pl-2">
+        <Avatar className="h-9 w-9 shrink-0 ring-2 ring-offset-1 ring-offset-card" style={{ ['--tw-ring-color' as any]: `${accentColor}30` }}>
           {conv.profile_pic_url && <AvatarImage src={conv.profile_pic_url} />}
-          <AvatarFallback className="text-xs bg-muted">{initials}</AvatarFallback>
+          <AvatarFallback className="text-xs font-semibold" style={{ backgroundColor: `${accentColor}15`, color: accentColor }}>
+            {initials}
+          </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium truncate text-foreground">{name}</p>
-          <p className="text-xs text-muted-foreground truncate">{formatPhone(phone)}</p>
+          <p className="text-sm font-semibold truncate text-foreground leading-tight">{name}</p>
+          <p className="text-[11px] text-muted-foreground truncate mt-0.5">{formatPhone(phone)}</p>
         </div>
         {conv.last_message_at && (
-          <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(conv.last_message_at)}</span>
+          <span className="text-[10px] text-muted-foreground/70 shrink-0 font-medium">{timeAgo(conv.last_message_at)}</span>
         )}
       </div>
 
       {conv.last_message_text && (
-        <p className="text-xs text-muted-foreground line-clamp-2">{conv.last_message_text}</p>
+        <p className="text-xs text-muted-foreground line-clamp-2 pl-2 leading-relaxed">{conv.last_message_text}</p>
       )}
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap pl-2">
         {cardLabels.map((l: any) => (
-          <span key={l.label_id} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${l.color_hex || '#6b7280'}20`, color: l.color_hex || '#6b7280' }}>
+          <span
+            key={l.label_id}
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+            style={{ backgroundColor: `${l.color_hex || '#6b7280'}15`, color: l.color_hex || '#6b7280' }}
+          >
             {l.name}
           </span>
         ))}
         {card.notesCount && card.notesCount > 0 && (
-          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/70">
             <StickyNote className="w-3 h-3" />{card.notesCount}
           </span>
         )}
         {(conv.unread_count || 0) > 0 && (
-          <Badge variant="default" className="text-[10px] h-4 px-1.5 ml-auto">{conv.unread_count}</Badge>
+          <span
+            className="ml-auto text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center text-white"
+            style={{ backgroundColor: '#25D366' }}
+          >
+            {conv.unread_count}
+          </span>
         )}
       </div>
     </div>

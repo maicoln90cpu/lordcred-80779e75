@@ -739,42 +739,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         </DialogContent>
       </Dialog>
 
-      {/* Edit message dialog */}
-      <Dialog open={!!editMsg} onOpenChange={(open) => !open && setEditMsg(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar mensagem</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
-            className="mt-2"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditMsg(null)}>Cancelar</Button>
-            <Button onClick={confirmEdit}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deleteMsg} onOpenChange={(open) => !open && setDeleteMsg(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Apagar mensagem</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação irá apagar a mensagem para todos os participantes da conversa. Não é possível desfazer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Apagar para todos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
     {/* Notes panel */}
     {chipId && chat && (
