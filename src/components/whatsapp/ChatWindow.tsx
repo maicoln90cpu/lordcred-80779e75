@@ -425,12 +425,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleReply = useCallback((msg: MessageData) => setReplyTo(msg), []);
   const handleReact = useCallback((msg: MessageData) => setReactMsg(msg), []);
   const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
-  const handleDelete = useCallback((msg: MessageData) => setDeleteMsg(msg), []);
-
-  const handleEdit = useCallback((msg: MessageData) => {
-    setEditMsg(msg);
-    setEditText(msg.text || '');
-  }, []);
 
   const confirmEdit = useCallback(async () => {
     if (!editMsg || !chipId || !editText.trim()) return;
