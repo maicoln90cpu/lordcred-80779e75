@@ -193,10 +193,10 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
       >
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm",
+            "rounded-2xl px-3.5 py-2 text-sm shadow-sm transition-shadow",
             fromMe
-              ? "bg-primary/20 text-foreground rounded-br-none"
-              : "bg-secondary text-foreground rounded-bl-none"
+              ? "bg-primary/15 text-foreground rounded-br-sm shadow-primary/5"
+              : "bg-secondary/80 text-foreground rounded-bl-sm shadow-secondary/10"
           )}
         >
           {isGroup && !fromMe && senderName && (

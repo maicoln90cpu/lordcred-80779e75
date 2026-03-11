@@ -460,7 +460,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
           </div>
 
           {message.trim() || mediaPreview ? (
-            <Button size="icon" onClick={handleSend} className="shrink-0" disabled={disabled || isSendingMedia}>
+            <Button size="icon" onClick={handleSend} className="shrink-0 rounded-full bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all" disabled={disabled || isSendingMedia}>
               {isSendingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           ) : (

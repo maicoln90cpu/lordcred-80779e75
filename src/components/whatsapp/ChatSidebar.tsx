@@ -753,7 +753,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             {showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className="divide-y divide-border/20">
             {sortedChats.map((chat) => {
               return (
               <div key={chat.remoteJid} className="group relative">

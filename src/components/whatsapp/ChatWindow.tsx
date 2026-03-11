@@ -516,12 +516,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
   if (!chat) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-        <div className="w-20 h-20 rounded-full bg-secondary/50 flex items-center justify-center mb-4">
-          <MessageSquare className="w-10 h-10 opacity-50" />
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-gradient-to-br from-background to-muted/20">
+        <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-5 shadow-lg shadow-primary/5">
+          <MessageSquare className="w-12 h-12 opacity-40" />
         </div>
-        <h3 className="text-lg font-medium mb-1">LordCred</h3>
-        <p className="text-sm">Selecione uma conversa para começar</p>
+        <h3 className="text-lg font-semibold mb-1.5 tracking-tight">LordCred</h3>
+        <p className="text-sm text-muted-foreground/70">Selecione uma conversa para começar</p>
       </div>
     );
   }
