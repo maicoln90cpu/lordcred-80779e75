@@ -190,6 +190,8 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
           onOpenChat(chipId, remoteJid);
           onOpenChange(false);
         }}
+        onRemoveCard={handleRemoveCard}
+        onMoveCard={(cardId, colId) => moveCard(cardId, colId)}
       />
 
       {isAdmin && (
