@@ -153,8 +153,7 @@ export function useKanban() {
     const card = cards.find(c => c.id === cardId);
     const col = columns.find(c => c.id === newColumnId);
     if (card?.conversation && col) {
-      const statusKey = col.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
-      await supabase.from('conversations').update({ custom_status: statusKey }).eq('id', card.conversation.id);
+      await supabase.from('conversations').update({ custom_status: col.name }).eq('id', card.conversation.id);
     }
   }, [cards, columns]);
 
