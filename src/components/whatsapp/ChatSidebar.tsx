@@ -404,50 +404,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
   };
 
-  const handleSetStatus = async (chat: ExtendedChat, status: ConversationStatus) => {
-    if (!chipId) return;
-    try {
-      await supabase
-        .from('conversations')
-        .update({ custom_status: status } as any)
-        .eq('chip_id', chipId)
-        .eq('remote_jid', chat.remoteJid);
-      setChats(prev => prev.map(c =>
-        c.remoteJid === chat.remoteJid ? { ...c, custom_status: status } : c
-      ));
-
-      // Sync com kanban_cards
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('chip_id', chipId)
-        .eq('remote_jid', chat.remoteJid)
-        .single();
-
-      if (conv) {
-        if (status) {
-          const statusLabel = STATUS_CONFIG[status]?.label || status;
-          const { data: col } = await supabase
-            .from('kanban_columns')
-            .select('id')
-            .eq('name', statusLabel)
-            .single();
-          if (col) {
-            await supabase.from('kanban_cards').upsert(
-              { conversation_id: conv.id, column_id: col.id, sort_order: 0 } as any,
-              { onConflict: 'conversation_id' }
-            );
-          }
-        } else {
-          await supabase.from('kanban_cards').delete().eq('conversation_id', conv.id);
-        }
-      }
-
-      toast({ title: status ? `Status: ${STATUS_CONFIG[status]?.label}` : 'Status removido' });
-    } catch {
-      toast({ title: 'Erro', variant: 'destructive' });
-    }
-  };
 
   const handleToggleLabel = async (chat: ExtendedChat, labelId: string) => {
     if (!chipId) return;
