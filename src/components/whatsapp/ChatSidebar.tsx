@@ -71,13 +71,6 @@ interface LabelItem {
 
 type ConversationStatus = string | null;
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  aguardando: { label: 'Aguardando', color: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },
-  em_andamento: { label: 'Em andamento', color: 'bg-blue-500/20 text-blue-700 dark:text-blue-400' },
-  finalizado: { label: 'Finalizado', color: 'bg-green-500/20 text-green-700 dark:text-green-400' },
-  urgente: { label: 'Urgente', color: 'bg-red-500/20 text-red-700 dark:text-red-400' },
-};
-
 interface ExtendedChat extends ChatContact {
   is_archived?: boolean;
   label_ids?: string[];
