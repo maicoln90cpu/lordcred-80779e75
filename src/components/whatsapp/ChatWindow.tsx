@@ -533,46 +533,50 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   return (
     <div className="flex h-full">
     <div className="flex flex-col flex-1 min-w-0">
-      {/* Chat header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card/50">
-        {chat.profilePicUrl ? (
-          <img src={chat.profilePicUrl} alt="" className="w-9 h-9 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-        ) : null}
-        <div className={cn("w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center", chat.profilePicUrl && "hidden")}>
-          <span className="text-sm font-medium text-primary">
-            {chat.name.charAt(0).toUpperCase()}
-          </span>
+      {/* Chat header - premium */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30 bg-gradient-to-r from-card/80 to-card/60 backdrop-blur-sm shadow-sm">
+        <div className="relative">
+          {chat.profilePicUrl ? (
+            <img src={chat.profilePicUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+          ) : null}
+          <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center ring-2 ring-primary/20", chat.profilePicUrl && "hidden")}>
+            <span className="text-sm font-semibold text-primary">
+              {chat.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{chat.name}</p>
-          <p className="text-xs text-muted-foreground">{chat.phone}</p>
+          <p className="text-sm font-semibold tracking-tight">{chat.name}</p>
+          <p className="text-xs text-muted-foreground/70">{chat.phone}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setQuickRepliesOpen(true)}
-          className="text-muted-foreground hover:text-foreground"
-          title="Respostas rápidas"
-        >
-          <Zap className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setNotesOpen(!notesOpen)}
-          className={cn("text-muted-foreground hover:text-foreground", notesOpen && "text-foreground bg-secondary")}
-          title="Notas internas"
-        >
-          <StickyNote className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <Search className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setQuickRepliesOpen(true)}
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            title="Respostas rápidas"
+          >
+            <Zap className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setNotesOpen(!notesOpen)}
+            className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors", notesOpen && "text-primary bg-primary/10")}
+            title="Notas internas"
+          >
+            <StickyNote className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Search className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Search bar */}
