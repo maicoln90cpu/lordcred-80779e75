@@ -37,9 +37,10 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
 
   useEffect(() => {
     if (!open || !user) return;
+    refetch();
     supabase.from('chips').select('id, nickname, phone_number').eq('user_id', user.id).then(({ data }) => setChips(data || []));
     supabase.from('labels').select('label_id, name, color_hex').then(({ data }) => setLabels(data || []));
-  }, [open, user]);
+  }, [open, user, refetch]);
 
   const filteredByColumn = useMemo(() => {
     const result: Record<string, KanbanCardType[]> = {};

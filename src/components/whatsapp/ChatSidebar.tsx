@@ -524,6 +524,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
   // Filter chats
   const filteredChats = chats.filter(chat => {
+    if (!chat.lastMessage && !chat.lastMessageAt) return false;
     if (showArchived) {
       if (!chat.is_archived) return false;
     } else {

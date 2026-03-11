@@ -617,7 +617,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             {searchQuery ? 'Nenhuma mensagem encontrada' : 'Nenhuma mensagem ainda'}
           </div>
         ) : (
-          <div className="space-y-2 max-w-3xl mx-auto">
+          <div className="space-y-2 max-w-5xl mx-auto">
             {filteredMessages.map((msg) => (
               <MessageBubble
                 key={msg.id}
