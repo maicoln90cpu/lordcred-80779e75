@@ -758,7 +758,22 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
               return (
               <div key={chat.remoteJid} className="group relative">
                 <button
-                  onClick={() => onSelectChat(chat)}
+                  onClick={() => {
+                    // Optimistic: immediately clear unread badge
+                    if (chat.unreadCount > 0) {
+                      setChats(prev => prev.map(c =>
+                        c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c
+                      ));
+                      // Update parent unread counts immediately
+                      if (onUnreadUpdate && chipId) {
+                        const newTotal = chats
+                          .filter(c => !c.is_archived && c.remoteJid !== chat.remoteJid)
+                          .reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+                        onUnreadUpdate(chipId, newTotal);
+                      }
+                    }
+                    onSelectChat(chat);
+                  }}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors",
                     selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50",

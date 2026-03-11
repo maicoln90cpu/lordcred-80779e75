@@ -106,7 +106,14 @@ export default function WhatsApp() {
 
   const handleSelectChat = useCallback((chat: ChatContact) => {
     setSelectedChat(chat);
-  }, []);
+    // Optimistic: clear unread for the selected chip immediately
+    if (selectedChipId && chat.unreadCount > 0) {
+      setUnreadCounts(prev => {
+        const current = prev[selectedChipId] || 0;
+        return { ...prev, [selectedChipId]: Math.max(0, current - chat.unreadCount) };
+      });
+    }
+  }, [selectedChipId]);
 
   const handleUnreadUpdate = useCallback((chipId: string, totalUnread: number) => {
     setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
