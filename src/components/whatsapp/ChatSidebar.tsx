@@ -154,6 +154,52 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       });
   }, [chipId]);
 
+  // Fetch kanban columns
+  useEffect(() => {
+    supabase
+      .from('kanban_columns')
+      .select('id, name, color_hex')
+      .order('sort_order')
+      .then(({ data }) => {
+        if (data) setKanbanColumns(data);
+      });
+  }, []);
+
+  // Add contact to kanban column
+  const handleAddToKanban = async (chat: ExtendedChat, columnId: string) => {
+    if (!chipId) return;
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid)
+        .single();
+      if (!conv) return;
+
+      const col = kanbanColumns.find(c => c.id === columnId);
+      await supabase.from('kanban_cards').upsert(
+        { conversation_id: conv.id, column_id: columnId, sort_order: 0 } as any,
+        { onConflict: 'conversation_id' }
+      );
+      // Sync custom_status
+      if (col) {
+        const statusKey = Object.entries(STATUS_CONFIG).find(([, cfg]) => cfg.label === col.name)?.[0] || null;
+        await supabase
+          .from('conversations')
+          .update({ custom_status: statusKey } as any)
+          .eq('chip_id', chipId)
+          .eq('remote_jid', chat.remoteJid);
+        setChats(prev => prev.map(c =>
+          c.remoteJid === chat.remoteJid ? { ...c, custom_status: statusKey as ConversationStatus } : c
+        ));
+      }
+      toast({ title: `Adicionado ao Kanban: ${col?.name || 'coluna'}` });
+    } catch {
+      toast({ title: 'Erro ao adicionar ao Kanban', variant: 'destructive' });
+    }
+  };
+
   const fetchChats = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId) return;
     const requestChipId = chipId;
