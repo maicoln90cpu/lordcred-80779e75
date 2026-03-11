@@ -183,15 +183,6 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
       <DropdownMenuItem onClick={() => onFavorite?.(msgData)}>
         <Star className="w-4 h-4 mr-2" />Favoritar
       </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      {fromMe && (
-        <DropdownMenuItem onClick={() => onEdit?.(msgData)}>
-          <Pencil className="w-4 h-4 mr-2" />Editar
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem onClick={() => onDelete?.(msgData)} className="text-destructive focus:text-destructive">
-        <Trash2 className="w-4 h-4 mr-2" />Apagar para todos
-      </DropdownMenuItem>
     </>
   );
 
