@@ -310,7 +310,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   };
 
   return (
-    <div className="border-t border-border/50 bg-card/50">
+    <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
       {/* Reply preview */}
       {replyTo && (
         <div className="px-4 pt-3 pb-1">
@@ -454,13 +454,13 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 if (e.key === 'Escape') setShowQuickReplies(false);
               }}
               onBlur={() => setTimeout(() => setShowQuickReplies(false), 200)}
-              className="bg-secondary/50 border-0 h-10"
+              className="bg-secondary/30 border border-border/20 h-10 rounded-xl focus-visible:ring-primary/30 transition-colors"
               disabled={disabled}
             />
           </div>
 
           {message.trim() || mediaPreview ? (
-            <Button size="icon" onClick={handleSend} className="shrink-0" disabled={disabled || isSendingMedia}>
+            <Button size="icon" onClick={handleSend} className="shrink-0 rounded-full bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all" disabled={disabled || isSendingMedia}>
               {isSendingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           ) : (

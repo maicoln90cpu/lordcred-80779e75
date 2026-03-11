@@ -71,13 +71,6 @@ interface LabelItem {
 
 type ConversationStatus = string | null;
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  aguardando: { label: 'Aguardando', color: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },
-  em_andamento: { label: 'Em andamento', color: 'bg-blue-500/20 text-blue-700 dark:text-blue-400' },
-  finalizado: { label: 'Finalizado', color: 'bg-green-500/20 text-green-700 dark:text-green-400' },
-  urgente: { label: 'Urgente', color: 'bg-red-500/20 text-red-700 dark:text-red-400' },
-};
-
 interface ExtendedChat extends ChatContact {
   is_archived?: boolean;
   label_ids?: string[];
@@ -182,16 +175,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         { conversation_id: conv.id, column_id: columnId, sort_order: 0 } as any,
         { onConflict: 'conversation_id' }
       );
-      // Sync custom_status
+      // Sync custom_status using column name directly
       if (col) {
-        const statusKey = Object.entries(STATUS_CONFIG).find(([, cfg]) => cfg.label === col.name)?.[0] || null;
         await supabase
           .from('conversations')
-          .update({ custom_status: statusKey } as any)
+          .update({ custom_status: col.name } as any)
           .eq('chip_id', chipId)
           .eq('remote_jid', chat.remoteJid);
         setChats(prev => prev.map(c =>
-          c.remoteJid === chat.remoteJid ? { ...c, custom_status: statusKey as ConversationStatus } : c
+          c.remoteJid === chat.remoteJid ? { ...c, custom_status: col.name as ConversationStatus } : c
         ));
       }
       toast({ title: `Adicionado ao Kanban: ${col?.name || 'coluna'}` });
@@ -622,15 +614,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         </div>
       )}
       {/* Header with search and filters */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-2.5 bg-gradient-to-b from-card/80 to-transparent">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
             <Input
               placeholder="Buscar conversa..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-secondary/50 border-0 h-9 text-sm"
+              className="pl-9 bg-secondary/30 border border-border/20 h-9 text-sm rounded-xl focus-visible:ring-primary/30"
             />
           </div>
           <Button
@@ -761,7 +753,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             {showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className="divide-y divide-border/20">
             {sortedChats.map((chat) => {
               return (
               <div key={chat.remoteJid} className="group relative">
@@ -783,14 +775,14 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     onSelectChat(chat);
                   }}
                   className={cn(
-                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors",
-                    selectedChatId === chat.remoteJid ? "bg-secondary" : "hover:bg-secondary/50",
+                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-150",
+                    selectedChatId === chat.remoteJid ? "bg-primary/10 border-l-2 border-primary" : "hover:bg-secondary/40 border-l-2 border-transparent",
                     chat.unreadCount > 0 && "bg-primary/5"
                   )}
                 >
-                  <Avatar className="w-10 h-10 shrink-0">
+                  <Avatar className="w-10 h-10 shrink-0 ring-1 ring-border/30">
                     {chat.profilePicUrl && <AvatarImage src={chat.profilePicUrl} alt={chat.name} />}
-                    <AvatarFallback className="bg-primary/20 text-primary text-sm font-medium">
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-sm font-semibold">
                       {chat.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -815,8 +807,18 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         </span>
                       )}
                     </div>
-                    {/* Status + Labels row */}
+                    {/* Kanban badge + Labels row */}
                     <div className="flex gap-1 mt-1 overflow-hidden items-center">
+                      {chat.custom_status && (() => {
+                        const col = kanbanColumns.find(c => c.name === chat.custom_status);
+                        if (!col) return null;
+                        return (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted/80" style={{ color: col.color_hex || undefined }}>
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: col.color_hex || '#6b7280' }} />
+                            {col.name}
+                          </span>
+                        );
+                      })()}
                       {chat.label_ids && chat.label_ids.slice(0, 3).map(lid => {
                         const label = getLabelName(lid);
                         return label ? <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} /> : null;

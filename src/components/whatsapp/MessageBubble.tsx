@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Reply, SmilePlus, Forward, Download, Pin, Star, Trash2, Pencil } from 'lucide-react';
+import { Reply, SmilePlus, Forward, Download, Pin, Star } from 'lucide-react';
 
 interface MessageBubbleProps {
   text: string;
@@ -30,8 +30,6 @@ interface MessageBubbleProps {
   onDownload?: (msg: MessageData) => void;
   onPin?: (msg: MessageData) => void;
   onFavorite?: (msg: MessageData) => void;
-  onDelete?: (msg: MessageData) => void;
-  onEdit?: (msg: MessageData) => void;
   onStartChat?: (phone: string) => void;
   status?: string;
 }
@@ -135,7 +133,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
-    onReply, onReact, onForward, onDownload, onPin, onFavorite, onDelete, onEdit, onStartChat, status }, ref
+    onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -183,15 +181,6 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
       <DropdownMenuItem onClick={() => onFavorite?.(msgData)}>
         <Star className="w-4 h-4 mr-2" />Favoritar
       </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      {fromMe && (
-        <DropdownMenuItem onClick={() => onEdit?.(msgData)}>
-          <Pencil className="w-4 h-4 mr-2" />Editar
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem onClick={() => onDelete?.(msgData)} className="text-destructive focus:text-destructive">
-        <Trash2 className="w-4 h-4 mr-2" />Apagar para todos
-      </DropdownMenuItem>
     </>
   );
 
@@ -204,10 +193,10 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
       >
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm",
+            "rounded-2xl px-3.5 py-2 text-sm shadow-sm transition-shadow",
             fromMe
-              ? "bg-primary/20 text-foreground rounded-br-none"
-              : "bg-secondary text-foreground rounded-bl-none"
+              ? "bg-primary/15 text-foreground rounded-br-sm shadow-primary/5"
+              : "bg-secondary/80 text-foreground rounded-bl-sm shadow-secondary/10"
           )}
         >
           {isGroup && !fromMe && senderName && (
