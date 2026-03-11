@@ -310,7 +310,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   };
 
   return (
-    <div className="border-t border-border/50 bg-card/50">
+    <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
       {/* Reply preview */}
       {replyTo && (
         <div className="px-4 pt-3 pb-1">
