@@ -69,7 +69,7 @@ interface LabelItem {
   color_hex: string | null;
 }
 
-type ConversationStatus = null | 'aguardando' | 'em_andamento' | 'finalizado' | 'urgente';
+type ConversationStatus = string | null;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   aguardando: { label: 'Aguardando', color: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },
