@@ -192,6 +192,31 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
   };
 
+  const handleRemoveFromKanban = async (chat: ExtendedChat) => {
+    if (!chipId) return;
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid)
+        .single();
+      if (!conv) return;
+      await supabase.from('kanban_cards').delete().eq('conversation_id', conv.id);
+      await supabase
+        .from('conversations')
+        .update({ custom_status: null } as any)
+        .eq('chip_id', chipId)
+        .eq('remote_jid', chat.remoteJid);
+      setChats(prev => prev.map(c =>
+        c.remoteJid === chat.remoteJid ? { ...c, custom_status: null as any } : c
+      ));
+      toast({ title: 'Removido do Kanban' });
+    } catch {
+      toast({ title: 'Erro ao remover do Kanban', variant: 'destructive' });
+    }
+  };
+
   const fetchChats = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId) return;
     const requestChipId = chipId;
@@ -876,6 +901,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                                 {col.name}
                               </DropdownMenuItem>
                             ))}
+                            {chat.custom_status && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleRemoveFromKanban(chat)} className="text-destructive focus:text-destructive">
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Remover do Kanban
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                       )}
