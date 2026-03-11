@@ -1,38 +1,58 @@
 
 
-## Diagnostico: Contador de unread dos chips inativos esta errado
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### Causa raiz
+### Inventario de restos de Evolution encontrados
 
-O problema esta na logica de **deltas** do `global-unread-watcher` no `WhatsApp.tsx` (linhas 122-158).
+| Arquivo | O que sobrou |
+|---|---|
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
 
-O fluxo atual:
-1. `unreadCounts` inicia como `{}` (vazio)
-2. Quando uma mensagem chega em chip inativo, o webhook atualiza `unread_count` de uma conversa (ex: 0→1)
-3. O watcher calcula `delta = newUnread - oldUnread = 1` e soma ao `prev[chipId] || 0`
+### Alteracoes planejadas
 
-**Problema 1 — Sem valor inicial**: O `unreadCounts` para chips inativos nunca eh inicializado com o total real do banco. Comeca em `0` e so acumula deltas.
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
 
-**Problema 2 — Multiplos eventos por mensagem**: O webhook pode disparar MULTIPLOS updates na tabela `conversations` por mensagem (ex: update `last_message_text`, update `unread_count`, trigger `update_conversation_last_message`). Cada update gera um evento realtime, e cada um calcula um delta. Resultado: 1 mensagem = multiplos incrementos no badge.
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
 
-**Problema 3 — Ao clicar no chip, corrige para o valor real**: Quando o usuario clica no chip, `ChatSidebar.fetchChats` roda e chama `onUnreadUpdate(chipId, totalReal)`, substituindo o valor inflado pelo valor correto do banco. Por isso o badge "cai" de 7 para 3.
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
 
-### Solucao
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
 
-**Substituir logica de deltas por fetch absoluto**:
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
 
-1. **Inicializacao**: Ao carregar a pagina, buscar o total de unread de TODOS os chips do usuario (uma unica query agrupada).
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
 
-2. **Global watcher**: Quando detectar mudanca em chip inativo, em vez de calcular delta, fazer um `SELECT SUM(unread_count) FROM conversations WHERE chip_id = X AND is_archived = false`. Debounce de 1s para evitar queries repetidas.
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
 
-3. **Remover logica de delta** do watcher atual.
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
 
-### Alteracoes
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
 
-**`WhatsApp.tsx`**:
-- Adicionar `useEffect` de inicializacao que busca `SELECT chip_id, SUM(unread_count) FROM conversations WHERE chip_id IN (chips do user) GROUP BY chip_id`
-- No global watcher: trocar calculo de delta por re-fetch do total para o chip especifico (com debounce por chipId)
-- Manter o `handleUnreadUpdate` do ChatSidebar como esta (ele ja seta o valor absoluto para o chip ativo)
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
 
-Resultado: badge sempre reflete o valor real do banco, sem acumular deltas fantasma.
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
+
+### O que NAO muda
+
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+
+### Resumo de impacto
+
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2 } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
@@ -119,7 +119,44 @@ export default function WhatsApp() {
     setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
   }, []);
 
-  // Global realtime listener for cross-chip unread notifications
+  // Helper: fetch absolute unread total for a specific chip
+  const fetchChipUnread = useCallback(async (chipId: string) => {
+    const { data } = await supabase
+      .from('conversations')
+      .select('unread_count')
+      .eq('chip_id', chipId)
+      .eq('is_archived', false);
+    const total = (data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+    setUnreadCounts(prev => ({ ...prev, [chipId]: total }));
+  }, []);
+
+  // Debounce timers for per-chip re-fetch
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Initialize unread counts for ALL chips on mount
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: chips } = await supabase
+        .from('chips')
+        .select('id')
+        .eq('user_id', user.id);
+      if (!chips) return;
+      const { data: convos } = await supabase
+        .from('conversations')
+        .select('chip_id, unread_count')
+        .in('chip_id', chips.map(c => c.id))
+        .eq('is_archived', false);
+      if (!convos) return;
+      const counts: Record<string, number> = {};
+      for (const c of convos) {
+        counts[c.chip_id] = (counts[c.chip_id] || 0) + (c.unread_count || 0);
+      }
+      setUnreadCounts(counts);
+    })();
+  }, [user]);
+
+  // Global realtime listener — re-fetch absolute count (debounced) on conversation changes
   useEffect(() => {
     if (!user) return;
 
@@ -136,26 +173,29 @@ export default function WhatsApp() {
           const record = payload.new as any;
           if (!record) return;
           const chipId = record.chip_id;
-          const newUnread = record.unread_count || 0;
-          const oldUnread = (payload.old as any)?.unread_count || 0;
 
-          // Only react to unread changes on chips OTHER than the active one
-          // (active chip is handled by ChatSidebar)
+          // Active chip is handled by ChatSidebar
           if (chipId === selectedChipId) return;
-          if (newUnread === oldUnread) return;
 
-          // Adjust the unread count delta for this chip
-          const delta = newUnread - oldUnread;
-          setUnreadCounts(prev => ({
-            ...prev,
-            [chipId]: Math.max(0, (prev[chipId] || 0) + delta),
-          }));
+          // Debounce: wait 1s before fetching to batch multiple events
+          if (debounceTimers.current[chipId]) {
+            clearTimeout(debounceTimers.current[chipId]);
+          }
+          debounceTimers.current[chipId] = setTimeout(() => {
+            fetchChipUnread(chipId);
+            delete debounceTimers.current[chipId];
+          }, 1000);
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user, selectedChipId]);
+    return () => {
+      supabase.removeChannel(channel);
+      // Cleanup timers
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+      debounceTimers.current = {};
+    };
+  }, [user, selectedChipId, fetchChipUnread]);
 
   const handleReconnectFromChat = useCallback(() => {
     if (selectedChipInstanceName) {
