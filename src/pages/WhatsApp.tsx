@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2 } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
