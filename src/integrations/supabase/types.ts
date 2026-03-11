@@ -245,6 +245,75 @@ export type Database = {
         }
         Relationships: []
       }
+      kanban_cards: {
+        Row: {
+          column_id: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          column_id: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          column_id?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_cards_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kanban_cards_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_columns: {
+        Row: {
+          auto_archive_days: number | null
+          color_hex: string | null
+          created_at: string | null
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          auto_archive_days?: number | null
+          color_hex?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          auto_archive_days?: number | null
+          color_hex?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       labels: {
         Row: {
           chip_id: string
