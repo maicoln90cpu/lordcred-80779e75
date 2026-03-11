@@ -817,11 +817,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     </div>
                     {/* Status + Labels row */}
                     <div className="flex gap-1 mt-1 overflow-hidden items-center">
-                      {chat.custom_status && STATUS_CONFIG[chat.custom_status] && (
-                        <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4", STATUS_CONFIG[chat.custom_status].color)}>
-                          {STATUS_CONFIG[chat.custom_status].label}
-                        </Badge>
-                      )}
                       {chat.label_ids && chat.label_ids.slice(0, 3).map(lid => {
                         const label = getLabelName(lid);
                         return label ? <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} /> : null;
