@@ -185,12 +185,20 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   }, [fetchMessages, chat?.remoteJid]);
 
   // Mark as read when opening chat - via UazAPI (edge function updates DB after success)
+  const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markRead = useCallback((cId: string, cJid: string) => {
+    if (markReadTimer.current) clearTimeout(markReadTimer.current);
+    markReadTimer.current = setTimeout(() => {
+      supabase.functions.invoke('uazapi-api', {
+        body: { action: 'mark-read', chipId: cId, chatId: cJid },
+      }).catch(() => {});
+    }, 500);
+  }, []);
+
   useEffect(() => {
     if (!chipId || !chat) return;
-    supabase.functions.invoke('uazapi-api', {
-      body: { action: 'mark-read', chipId, chatId: chat.remoteJid },
-    }).catch(() => {});
-  }, [chipId, chat?.remoteJid]);
+    markRead(chipId, chat.remoteJid);
+  }, [chipId, chat?.remoteJid, markRead]);
 
   // Realtime: listen for new messages and status updates
   useEffect(() => {
@@ -233,6 +241,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             messageId: record.message_id || undefined,
             status: record.status || 'sent',
           };
+
+          // Auto mark-read incoming messages while chat is open
+          if (!newMsg.fromMe && chipId) {
+            markRead(chipId, chat.remoteJid);
+          }
 
           setMessages(prev => {
             if (newMsg.fromMe) {

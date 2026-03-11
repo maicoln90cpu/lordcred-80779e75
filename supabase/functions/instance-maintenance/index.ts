@@ -101,18 +101,8 @@ Deno.serve(async (req) => {
           await logLifecycle(adminClient, chip.id, 'disconnected', 'Health check: API reports disconnected')
           results.push(`Status corrected: ${chip.instance_name} -> disconnected`)
         } else {
-          // Re-register webhook for connected chips
-          try {
-            const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook`
-            await fetch(`${baseUrl}/webhook`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify({
-                url: webhookUrl,
-                events: ['messages', 'chats', 'connection.update', 'messages_update'],
-              }),
-            })
-          } catch { /* non-critical */ }
+          // Webhook is configured only during instance creation/reconnection
+          // NOT re-registered here to avoid duplicate event delivery
           results.push(`Healthy: ${chip.instance_name}`)
         }
       } catch (e) {
