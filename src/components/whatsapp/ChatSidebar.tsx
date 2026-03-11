@@ -614,15 +614,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         </div>
       )}
       {/* Header with search and filters */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-2.5 bg-gradient-to-b from-card/80 to-transparent">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
             <Input
               placeholder="Buscar conversa..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-secondary/50 border-0 h-9 text-sm"
+              className="pl-9 bg-secondary/30 border border-border/20 h-9 text-sm rounded-xl focus-visible:ring-primary/30"
             />
           </div>
           <Button
