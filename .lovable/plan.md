@@ -1,71 +1,58 @@
 
 
-## Analise dos 4 itens — O que pode ser feito e o que eh limitacao
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### Item 1: Audio demora para enviar e bloqueia o chat + feedback visual
+### Inventario de restos de Evolution encontrados
 
-**Problema:** O `handleSendMedia` no `ChatWindow.tsx` seta `setSending(true)` que bloqueia toda a interacao ate o upload terminar. Audios webm podem ser grandes e a edge function precisa processar/enviar para a UazAPI.
+| Arquivo | O que sobrou |
+|---|---|
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
 
-**Soluvel?** SIM — parcialmente.
+### Alteracoes planejadas
 
-**Plano:**
-- Tornar o envio de media **nao-bloqueante**: remover `setSending(true)` do `handleSendMedia` ou usar um estado separado `sendingMedia` que nao desabilita o input de texto. O usuario pode continuar digitando e trocando de chat enquanto o audio sobe em background.
-- Para o feedback visual: quando o audio eh gravado, o `mediaPreview` mostra um icone generico com nome "audio.webm". Melhorar para mostrar um mini audio player inline no preview (similar ao `AudioPlayer` do `MediaRenderer.tsx`), usando o base64 como src temporario. Assim o usuario ve o player direto, nao um arquivo.
-- Mostrar um indicador de "enviando audio..." discreto (toast ou badge no chat) em vez de bloquear o input.
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
 
-**Limitacao tecnica:** O tempo de upload em si depende da conexao e do tamanho do arquivo — nao ha como acelerar o upload real. Mas desbloqueando a UI o usuario nao fica travado.
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
 
----
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
 
-### Item 2: Lentidao ao carregar midia ao trocar de conversa
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
 
-**Problema:** O `MediaRenderer.tsx` faz `downloadMedia()` via edge function para CADA mensagem com midia ao montar. Quando troca de conversa com muitas midias, dispara dezenas de chamadas simultaneas a `uazapi-api` com `action: 'download-media'`.
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
 
-**Soluvel?** SIM — com cache de URLs.
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
 
-**Plano:**
-- Implementar um **cache em memoria** (Map) de `messageId -> mediaUrl` no `MediaRenderer.tsx`. Se o messageId ja foi baixado antes, usar a URL cacheada direto sem chamar a edge function.
-- Adicionar **lazy loading**: so carregar midia quando o elemento estiver visivel no viewport (IntersectionObserver), em vez de carregar tudo ao montar.
-- Limitar concorrencia: no maximo 3-4 downloads de midia simultaneos para nao sobrecarregar a edge function.
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
 
----
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
 
-### Item 3: Notificacao de mensagem nao aparece em chips inativos
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
 
-**Problema:** O `ChatSidebar` so escuta realtime do chip ativo (`filter: chip_id=eq.${chipId}`). O `ChipSelector` nao tem nenhum listener realtime — ele so atualiza quando o usuario clica no chip ou quando `refreshTrigger` muda. Portanto, mensagens que chegam em chips inativos nao atualizam o badge de unread.
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
 
-**Soluvel?** SIM.
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
 
-**Plano:**
-- No `WhatsApp.tsx`, adicionar um **listener realtime global** na tabela `conversations` (sem filtro de chip_id) que escuta UPDATEs onde `unread_count` muda. Quando detectar mudanca em um chip que NAO eh o ativo, atualizar o `unreadCounts` state diretamente.
-- Alternativa mais leve: usar o `useRealtimeMessages` hook (ja existe, escuta INSERT em `message_history` sem filtro) no `WhatsApp.tsx` para detectar mensagens incoming em chips inativos e incrementar o `unreadCounts[chipId]`.
-- O `ChipSelector` ja renderiza o badge baseado em `unreadCounts` — so precisa receber dados atualizados.
+### O que NAO muda
 
----
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
 
-### Item 4: Demora para marcar como lida apos clicar na conversa
+### Resumo de impacto
 
-**Problema:** Ao clicar numa conversa, o `ChatWindow` chama `mark-read` via edge function (HTTP request para UazAPI + update no DB). So apos o DB ser atualizado, o realtime dispara, o `ChatSidebar` faz re-fetch, e ai o badge some. Essa cadeia leva varios segundos.
-
-**Soluvel?** SIM — com update otimista.
-
-**Plano:**
-- No `ChatSidebar`, quando o usuario clica em uma conversa, **imediatamente** setar `unreadCount: 0` no estado local (update otimista), antes de esperar a resposta da edge function.
-- No `WhatsApp.tsx`, ao selecionar um chat, tambem atualizar `unreadCounts` imediatamente para o chip ativo.
-- O `mark-read` continua sendo chamado em background para sincronizar com a UazAPI e o banco.
-
----
-
-### Resumo de alteracoes
-
-| # | Arquivo | Alteracao |
-|---|---|---|
-| 1 | `ChatWindow.tsx` | Envio de media nao-bloqueante (estado separado) |
-| 1 | `ChatInput.tsx` | Preview de audio gravado como mini player |
-| 2 | `MediaRenderer.tsx` | Cache de URLs + lazy loading com IntersectionObserver |
-| 3 | `WhatsApp.tsx` | Listener realtime global para unread de chips inativos |
-| 4 | `ChatSidebar.tsx` | Update otimista do unread ao clicar na conversa |
-| 4 | `WhatsApp.tsx` | Update otimista do unreadCounts ao selecionar chat |
-
-Nenhum desses itens eh limitacao da UazAPI — todos sao melhorias de frontend/UX.
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 

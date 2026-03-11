@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Image, Play, Pause, FileText, Download, Loader2, Volume2 } from 'lucide-react';
+import { Image, Play, Pause, FileText, Download, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Slider } from '@/components/ui/slider';
@@ -10,6 +10,31 @@ interface MediaRendererProps {
   mediaType: string;
   chipId: string;
   caption?: string;
+}
+
+// === Global media URL cache ===
+const mediaUrlCache = new Map<string, string>();
+
+// === Concurrency limiter ===
+let activeDownloads = 0;
+const MAX_CONCURRENT = 4;
+const downloadQueue: (() => void)[] = [];
+
+function acquireSlot(): Promise<void> {
+  if (activeDownloads < MAX_CONCURRENT) {
+    activeDownloads++;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => downloadQueue.push(resolve));
+}
+
+function releaseSlot() {
+  activeDownloads--;
+  const next = downloadQueue.shift();
+  if (next) {
+    activeDownloads++;
+    next();
+  }
 }
 
 function formatTime(seconds: number) {
@@ -88,19 +113,49 @@ function AudioPlayer({ src }: { src: string }) {
 }
 
 export default function MediaRenderer({ messageId, mediaType, chipId, caption }: MediaRendererProps) {
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(() => mediaUrlCache.get(messageId) || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Lazy loading with IntersectionObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // If already cached, skip observer
+    if (mediaUrlCache.has(messageId)) {
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' } // start loading 200px before visible
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [messageId]);
 
   const downloadMedia = useCallback(async () => {
     if (mediaUrl || loading) return;
+    // Check cache first
+    const cached = mediaUrlCache.get(messageId);
+    if (cached) { setMediaUrl(cached); return; }
+    
     setLoading(true);
     setError(false);
+    await acquireSlot();
     try {
       const response = await supabase.functions.invoke('uazapi-api', {
         body: { action: 'download-media', chipId, messageId },
       });
       if (response.data?.fileURL) {
+        mediaUrlCache.set(messageId, response.data.fileURL);
         setMediaUrl(response.data.fileURL);
       } else {
         setError(true);
@@ -109,15 +164,17 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
       console.error('Error downloading media:', e);
       setError(true);
     } finally {
+      releaseSlot();
       setLoading(false);
     }
   }, [messageId, chipId, mediaUrl, loading]);
 
-  // Auto-load media on mount
+  // Auto-load when visible
   useEffect(() => {
-    downloadMedia();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageId, chipId]);
+    if (isVisible && !mediaUrl && !loading && !error) {
+      downloadMedia();
+    }
+  }, [isVisible, mediaUrl, loading, error, downloadMedia]);
 
   const type = (mediaType || '').toLowerCase();
 
@@ -127,117 +184,131 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
 
   // Image
   if (type === 'image') {
-    if (mediaUrl) {
-      return (
-        <div className="space-y-1">
-          <img
-            src={mediaUrl}
-            alt={caption || 'Imagem'}
-            className="max-w-full rounded-md max-h-64 object-contain cursor-pointer"
-            onClick={() => window.open(mediaUrl, '_blank')}
-          />
-          {caption && <p className="text-sm break-words">{caption}</p>}
-        </div>
-      );
-    }
-    return loading ? <LoadingSkeleton className="w-48 h-32 rounded-md" /> : (
-      <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-        <Image className="w-4 h-4" />
-        <span>{error ? '⚠️ Erro - clique para tentar' : '📷 Imagem'}</span>
-      </button>
+    return (
+      <div ref={containerRef} className="space-y-1">
+        {mediaUrl ? (
+          <>
+            <img
+              src={mediaUrl}
+              alt={caption || 'Imagem'}
+              className="max-w-full rounded-md max-h-64 object-contain cursor-pointer"
+              onClick={() => window.open(mediaUrl, '_blank')}
+            />
+            {caption && <p className="text-sm break-words">{caption}</p>}
+          </>
+        ) : loading ? (
+          <LoadingSkeleton className="w-48 h-32 rounded-md" />
+        ) : (
+          <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <Image className="w-4 h-4" />
+            <span>{error ? '⚠️ Erro - clique para tentar' : '📷 Imagem'}</span>
+          </button>
+        )}
+      </div>
     );
   }
 
   // Video
   if (type === 'video' || type === 'ptv') {
-    if (mediaUrl) {
-      return (
-        <div className="space-y-1">
-          <video src={mediaUrl} controls className="max-w-full rounded-md max-h-64" />
-          {caption && <p className="text-sm break-words">{caption}</p>}
-        </div>
-      );
-    }
-    return loading ? <LoadingSkeleton className="w-48 h-32 rounded-md" /> : (
-      <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-        <Play className="w-4 h-4" />
-        <span>{error ? '⚠️ Erro - clique para tentar' : '🎬 Vídeo'}</span>
-      </button>
+    return (
+      <div ref={containerRef} className="space-y-1">
+        {mediaUrl ? (
+          <>
+            <video src={mediaUrl} controls className="max-w-full rounded-md max-h-64" />
+            {caption && <p className="text-sm break-words">{caption}</p>}
+          </>
+        ) : loading ? (
+          <LoadingSkeleton className="w-48 h-32 rounded-md" />
+        ) : (
+          <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <Play className="w-4 h-4" />
+            <span>{error ? '⚠️ Erro - clique para tentar' : '🎬 Vídeo'}</span>
+          </button>
+        )}
+      </div>
     );
   }
 
   // Audio / PTT
   if (type === 'audio' || type === 'ptt' || type === 'myaudio') {
-    if (mediaUrl) {
-      return <AudioPlayer src={mediaUrl} />;
-    }
-    if (loading) {
-      return (
-        <div className="flex items-center gap-2 w-full max-w-[280px]">
-          <Skeleton className="w-8 h-8 rounded-full" />
-          <Skeleton className="flex-1 h-2 rounded-full" />
-        </div>
-      );
-    }
-    // Friendly unavailable state for old audios
-    if (error) {
-      return (
-        <div className="flex items-center gap-2 w-full max-w-[280px] min-w-[200px] opacity-60">
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-            <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
-          <div className="flex-1 flex flex-col gap-0.5 min-w-0">
-            <div className="h-1.5 bg-muted rounded-full w-full" />
-            <span className="text-[10px] text-muted-foreground">Mídia indisponível — conteúdo anterior à integração</span>
-          </div>
-        </div>
-      );
-    }
     return (
-      <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-        <Volume2 className="w-4 h-4" />
-        <span>🎤 Áudio</span>
-      </button>
+      <div ref={containerRef}>
+        {mediaUrl ? (
+          <AudioPlayer src={mediaUrl} />
+        ) : loading ? (
+          <div className="flex items-center gap-2 w-full max-w-[280px]">
+            <Skeleton className="w-8 h-8 rounded-full" />
+            <Skeleton className="flex-1 h-2 rounded-full" />
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-2 w-full max-w-[280px] min-w-[200px] opacity-60">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+              <div className="h-1.5 bg-muted rounded-full w-full" />
+              <span className="text-[10px] text-muted-foreground">Mídia indisponível — conteúdo anterior à integração</span>
+            </div>
+          </div>
+        ) : (
+          <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <Volume2 className="w-4 h-4" />
+            <span>🎤 Áudio</span>
+          </button>
+        )}
+      </div>
     );
   }
 
   // Document
   if (type === 'document') {
-    if (mediaUrl) {
-      return (
-        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-          <FileText className="w-4 h-4" />
-          <span>{caption || 'Documento'}</span>
-          <Download className="w-3.5 h-3.5 ml-auto" />
-        </a>
-      );
-    }
-    return loading ? <LoadingSkeleton className="w-48 h-10 rounded-md" /> : (
-      <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-        <FileText className="w-4 h-4" />
-        <span>{error ? '⚠️ Erro' : '📄 Documento'}</span>
-      </button>
+    return (
+      <div ref={containerRef}>
+        {mediaUrl ? (
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <FileText className="w-4 h-4" />
+            <span>{caption || 'Documento'}</span>
+            <Download className="w-3.5 h-3.5 ml-auto" />
+          </a>
+        ) : loading ? (
+          <LoadingSkeleton className="w-48 h-10 rounded-md" />
+        ) : (
+          <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <FileText className="w-4 h-4" />
+            <span>{error ? '⚠️ Erro' : '📄 Documento'}</span>
+          </button>
+        )}
+      </div>
     );
   }
 
   // Sticker
   if (type === 'sticker') {
-    if (mediaUrl) {
-      return <img src={mediaUrl} alt="Sticker" className="max-w-[150px] max-h-[150px]" />;
-    }
-    return loading ? <LoadingSkeleton className="w-[100px] h-[100px] rounded-md" /> : (
-      <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-        <span>🎨</span>
-        <span>{error ? '⚠️ Erro' : 'Sticker'}</span>
-      </button>
+    return (
+      <div ref={containerRef}>
+        {mediaUrl ? (
+          <img src={mediaUrl} alt="Sticker" className="max-w-[150px] max-h-[150px]" />
+        ) : loading ? (
+          <LoadingSkeleton className="w-[100px] h-[100px] rounded-md" />
+        ) : (
+          <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+            <span>🎨</span>
+            <span>{error ? '⚠️ Erro' : 'Sticker'}</span>
+          </button>
+        )}
+      </div>
     );
   }
 
   // Unknown
-  return loading ? <LoadingSkeleton className="w-32 h-8 rounded-md" /> : (
-    <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
-      <Download className="w-4 h-4" />
-      <span>{error ? '📎 Mídia indisponível — conteúdo anterior à integração' : `📎 Mídia (${type})`}</span>
-    </button>
+  return (
+    <div ref={containerRef}>
+      {loading ? <LoadingSkeleton className="w-32 h-8 rounded-md" /> : (
+        <button onClick={downloadMedia} className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 hover:bg-muted text-sm transition-colors">
+          <Download className="w-4 h-4" />
+          <span>{error ? '📎 Mídia indisponível — conteúdo anterior à integração' : `📎 Mídia (${type})`}</span>
+        </button>
+      )}
+    </div>
   );
 }

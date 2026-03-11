@@ -373,11 +373,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
     if (!chipId || !chat) return;
-    setSending(true);
+    // Non-blocking: do NOT set setSending(true) — user can continue chatting
 
     const tempMsg: ChatMessage = {
       id: `temp-media-${Date.now()}`,
-      text: caption || `📎 ${mediaType}`,
+      text: caption || `📎 Enviando ${mediaType}...`,
       fromMe: true,
       timestamp: new Date().toISOString(),
       senderName: '',
@@ -385,24 +385,30 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     };
     setMessages(prev => [...prev, tempMsg]);
 
-    try {
-      const response = await supabase.functions.invoke('uazapi-api', {
-        body: {
-          action: 'send-media', chipId, chatId: chat.remoteJid,
-          mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined,
-        },
-      });
+    // Fire and forget — runs in background
+    (async () => {
+      try {
+        const response = await supabase.functions.invoke('uazapi-api', {
+          body: {
+            action: 'send-media', chipId, chatId: chat.remoteJid,
+            mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined,
+          },
+        });
 
-      if (!response.data?.success) {
+        if (!response.data?.success) {
+          setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+          toast({ title: 'Erro ao enviar mídia', variant: 'destructive' });
+        }
+      } catch (error) {
+        console.error('Error sending media:', error);
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+        toast({ title: 'Erro ao enviar mídia', variant: 'destructive' });
+      } finally {
+        // Remove temp — realtime will add the real one
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       }
-    } catch (error) {
-      console.error('Error sending media:', error);
-      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-    } finally {
-      setSending(false);
-    }
-  }, [chipId, chat]);
+    })();
+  }, [chipId, chat, toast]);
 
   // === CONTEXT MENU HANDLERS ===
 
