@@ -119,6 +119,44 @@ export default function WhatsApp() {
     setUnreadCounts(prev => ({ ...prev, [chipId]: totalUnread }));
   }, []);
 
+  // Global realtime listener for cross-chip unread notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('global-unread-watcher')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+        },
+        (payload) => {
+          const record = payload.new as any;
+          if (!record) return;
+          const chipId = record.chip_id;
+          const newUnread = record.unread_count || 0;
+          const oldUnread = (payload.old as any)?.unread_count || 0;
+
+          // Only react to unread changes on chips OTHER than the active one
+          // (active chip is handled by ChatSidebar)
+          if (chipId === selectedChipId) return;
+          if (newUnread === oldUnread) return;
+
+          // Adjust the unread count delta for this chip
+          const delta = newUnread - oldUnread;
+          setUnreadCounts(prev => ({
+            ...prev,
+            [chipId]: Math.max(0, (prev[chipId] || 0) + delta),
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, selectedChipId]);
+
   const handleReconnectFromChat = useCallback(() => {
     if (selectedChipInstanceName) {
       setReconnectDialogOpen(true);
