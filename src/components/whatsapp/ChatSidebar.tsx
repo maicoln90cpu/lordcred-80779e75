@@ -954,6 +954,23 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
 
+                      {/* Kanban submenu */}
+                      {kanbanColumns.length > 0 && (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <Columns3 className="w-4 h-4 mr-2" /> Kanban
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {kanbanColumns.map(col => (
+                              <DropdownMenuItem key={col.id} onClick={() => handleAddToKanban(chat, col.id)}>
+                                <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0" style={{ backgroundColor: col.color_hex || '#6b7280' }} />
+                                {col.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )}
+
                       <DropdownMenuSeparator />
 
                       {/* Mute submenu */}
