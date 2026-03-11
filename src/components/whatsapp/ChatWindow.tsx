@@ -61,10 +61,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<MessageData | null>(null);
   const [forwardMsg, setForwardMsg] = useState<MessageData | null>(null);
-  const [deleteMsg, setDeleteMsg] = useState<MessageData | null>(null);
   const [reactMsg, setReactMsg] = useState<MessageData | null>(null);
-  const [editMsg, setEditMsg] = useState<MessageData | null>(null);
-  const [editText, setEditText] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
