@@ -54,7 +54,7 @@ export default memo(function KanbanColumn({ column, cards, labels, onDrop, onCar
         <div className="flex items-center gap-2.5 mt-0.5">
           <div
             className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-card"
-            style={{ backgroundColor: colColor, boxShadow: `0 0 8px ${colColor}60`, ringColor: `${colColor}40` }}
+            style={{ backgroundColor: colColor, boxShadow: `0 0 8px ${colColor}60` }}
           />
           <h3 className="text-sm font-bold text-foreground tracking-tight truncate">{column.name}</h3>
           <span
