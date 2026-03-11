@@ -426,34 +426,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleReact = useCallback((msg: MessageData) => setReactMsg(msg), []);
   const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
 
-  const confirmEdit = useCallback(async () => {
-    if (!editMsg || !chipId || !editText.trim()) return;
-    try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'edit-message', chipId, messageId: editMsg.messageId, newText: editText.trim() },
-      });
-      if (res.data?.success) {
-        const newText = editText.trim();
-        setMessages(prev => prev.map(m =>
-          (m.messageId === editMsg.messageId || m.id === editMsg.id) ? { ...m, text: newText } : m
-        ));
-        // Update message_history in DB
-        if (editMsg.messageId) {
-          await supabase
-            .from('message_history')
-            .update({ message_content: newText })
-            .eq('chip_id', chipId)
-            .eq('message_id', editMsg.messageId);
-        }
-        toast({ title: 'Mensagem editada' });
-      } else {
-        toast({ title: 'Erro', description: 'Não foi possível editar.', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Erro', description: 'Falha ao editar mensagem.', variant: 'destructive' });
-    }
-    setEditMsg(null);
-  }, [editMsg, chipId, editText, toast]);
 
   const handleReactEmoji = useCallback(async (emoji: string) => {
     if (!reactMsg || !chipId || !chat) return;
