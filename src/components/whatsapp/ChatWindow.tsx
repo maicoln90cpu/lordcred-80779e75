@@ -61,10 +61,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<MessageData | null>(null);
   const [forwardMsg, setForwardMsg] = useState<MessageData | null>(null);
-  const [deleteMsg, setDeleteMsg] = useState<MessageData | null>(null);
   const [reactMsg, setReactMsg] = useState<MessageData | null>(null);
-  const [editMsg, setEditMsg] = useState<MessageData | null>(null);
-  const [editText, setEditText] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
@@ -428,41 +425,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleReply = useCallback((msg: MessageData) => setReplyTo(msg), []);
   const handleReact = useCallback((msg: MessageData) => setReactMsg(msg), []);
   const handleForward = useCallback((msg: MessageData) => setForwardMsg(msg), []);
-  const handleDelete = useCallback((msg: MessageData) => setDeleteMsg(msg), []);
 
-  const handleEdit = useCallback((msg: MessageData) => {
-    setEditMsg(msg);
-    setEditText(msg.text || '');
-  }, []);
-
-  const confirmEdit = useCallback(async () => {
-    if (!editMsg || !chipId || !editText.trim()) return;
-    try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'edit-message', chipId, messageId: editMsg.messageId, newText: editText.trim() },
-      });
-      if (res.data?.success) {
-        const newText = editText.trim();
-        setMessages(prev => prev.map(m =>
-          (m.messageId === editMsg.messageId || m.id === editMsg.id) ? { ...m, text: newText } : m
-        ));
-        // Update message_history in DB
-        if (editMsg.messageId) {
-          await supabase
-            .from('message_history')
-            .update({ message_content: newText })
-            .eq('chip_id', chipId)
-            .eq('message_id', editMsg.messageId);
-        }
-        toast({ title: 'Mensagem editada' });
-      } else {
-        toast({ title: 'Erro', description: 'Não foi possível editar.', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Erro', description: 'Falha ao editar mensagem.', variant: 'destructive' });
-    }
-    setEditMsg(null);
-  }, [editMsg, chipId, editText, toast]);
 
   const handleReactEmoji = useCallback(async (emoji: string) => {
     if (!reactMsg || !chipId || !chat) return;
@@ -542,37 +505,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     }
   }, [chipId, chat, toast]);
 
-  const confirmDelete = useCallback(async () => {
-    if (!deleteMsg || !chipId) return;
-    const msgId = deleteMsg.messageId || deleteMsg.id;
-    if (!msgId) {
-      toast({ title: 'Erro', description: 'ID da mensagem não encontrado.', variant: 'destructive' });
-      setDeleteMsg(null);
-      return;
-    }
-    try {
-      const res = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'delete-message', chipId, messageId: msgId },
-      });
-      if (res.data?.success) {
-        setMessages(prev => prev.filter(m => m.messageId !== deleteMsg.messageId && m.id !== deleteMsg.id));
-        // Mark as deleted in DB (soft delete)
-        if (deleteMsg.messageId) {
-          await supabase
-            .from('message_history')
-            .update({ message_content: '[Mensagem apagada]', status: 'deleted' })
-            .eq('chip_id', chipId)
-            .eq('message_id', deleteMsg.messageId);
-        }
-        toast({ title: 'Mensagem apagada para todos' });
-      } else {
-        toast({ title: 'Erro', description: 'Não foi possível apagar.', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Erro', description: 'Falha ao apagar mensagem.', variant: 'destructive' });
-    }
-    setDeleteMsg(null);
-  }, [deleteMsg, chipId, toast]);
 
   const formatTime = (dateStr: string) => {
     try {
@@ -702,8 +634,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
                 onDownload={handleDownload}
                 onPin={handlePin}
                 onFavorite={handleFavorite}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
                 onStartChat={onStartNewChat}
               />
             ))}
@@ -809,42 +739,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         </DialogContent>
       </Dialog>
 
-      {/* Edit message dialog */}
-      <Dialog open={!!editMsg} onOpenChange={(open) => !open && setEditMsg(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar mensagem</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
-            className="mt-2"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditMsg(null)}>Cancelar</Button>
-            <Button onClick={confirmEdit}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deleteMsg} onOpenChange={(open) => !open && setDeleteMsg(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Apagar mensagem</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação irá apagar a mensagem para todos os participantes da conversa. Não é possível desfazer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Apagar para todos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
     {/* Notes panel */}
     {chipId && chat && (

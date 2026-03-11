@@ -5,7 +5,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Reply, SmilePlus, Forward, Download, Pin, Star, Trash2, Pencil } from 'lucide-react';
+import { Reply, SmilePlus, Forward, Download, Pin, Star } from 'lucide-react';
 
 export interface MessageData {
   id: string;
@@ -26,8 +26,6 @@ interface MessageContextMenuProps {
   onDownload?: (message: MessageData) => void;
   onPin?: (message: MessageData) => void;
   onFavorite?: (message: MessageData) => void;
-  onDelete?: (message: MessageData) => void;
-  onEdit?: (message: MessageData) => void;
 }
 
 export default function MessageContextMenu({
@@ -39,8 +37,6 @@ export default function MessageContextMenu({
   onDownload,
   onPin,
   onFavorite,
-  onDelete,
-  onEdit,
 }: MessageContextMenuProps) {
   const isMedia = message.hasMedia && message.mediaType && message.mediaType !== 'text' && message.mediaType !== 'chat';
 
@@ -75,17 +71,6 @@ export default function MessageContextMenu({
         <ContextMenuItem onClick={() => onFavorite?.(message)}>
           <Star className="w-4 h-4 mr-2" />
           Favoritar
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {message.fromMe && (
-          <ContextMenuItem onClick={() => onEdit?.(message)}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Editar
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem onClick={() => onDelete?.(message)} className="text-destructive focus:text-destructive">
-          <Trash2 className="w-4 h-4 mr-2" />
-          Apagar para todos
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

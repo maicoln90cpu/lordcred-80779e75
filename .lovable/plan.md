@@ -1,82 +1,58 @@
 
 
-## Plano: 4 mudancas no Kanban e WhatsApp
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### 1. Remover submenu "Status" do context menu do sidebar
+### Inventario de restos de Evolution encontrados
 
-O submenu "Status" (linhas 935-955 do ChatSidebar) se tornou redundante com o Kanban. Remover:
-- O submenu Status do context menu
-- O filtro "Status" da barra de filtros (linhas 759-782)
-- O badge de status que aparece nos cards do sidebar (linhas 887-891)
-- A funcao `handleSetStatus` (linhas 407-450)
-- O state `filterStatus` e tipo `ConversationStatus`
-- Manter o `STATUS_CONFIG` e `custom_status` internamente pois o Kanban ainda usa essa sincronizacao
-
-### 2. Remover opcoes de editar e excluir mensagens
-
-**MessageContextMenu.tsx**: Remover os items "Editar" e "Apagar para todos" e suas props (`onDelete`, `onEdit`).
-
-**ChatWindow.tsx**: Remover:
-- States `deleteMsg`, `editMsg`, `editText`
-- Funcoes `handleDelete`, `handleEdit`, `confirmEdit`, `confirmDelete`
-- Os dialogs de editar e deletar no final do componente (linhas 812-847)
-- Props `onDelete` e `onEdit` do `<MessageBubble>`
-
-### 3. Corrigir sync bidirecional Kanban → Sidebar
-
-**Bug**: Em `useKanban.ts` `moveCard` (linha 156), o status eh salvo como `col.name` (ex: "Aguardando"), mas o sidebar espera o key (ex: "aguardando"). Precisa converter o nome da coluna para o key correspondente do `STATUS_CONFIG`.
-
-**Fix em `useKanban.ts`**: Na funcao `moveCard`, antes de atualizar `custom_status`, mapear `col.name` para o key correto:
-
-```typescript
-// Em vez de: { custom_status: col.name }
-// Fazer: encontrar o key do STATUS_CONFIG que tem label === col.name
-const statusKey = col.name.toLowerCase().replace(/ /g, '_').replace('em_andamento', 'em_andamento');
-```
-
-Na verdade, o approach mais limpo: exportar uma funcao `columnNameToStatusKey` que faz o match inverso. O mesmo fix precisa ser aplicado em `addCard`.
-
-**Alem disso**: O sidebar ja escuta mudancas na tabela `conversations` via realtime com debounce de 500ms, entao uma vez que o `custom_status` seja salvo corretamente, o sidebar vai re-fetchar automaticamente.
-
-### 4. Visual premium do Kanban
-
-Melhorar o visual dos seguintes componentes:
-
-**KanbanColumn.tsx**:
-- Fundo com gradiente sutil usando a cor da coluna
-- Header com borda colorida mais pronunciada (borda left ou top com a cor da coluna)
-- Sombra interna sutil
-- Contador com pill mais estilizado
-
-**KanbanCard.tsx**:
-- Gradiente sutil no hover
-- Borda esquerda colorida baseada na coluna (precisa receber cor da coluna como prop)
-- Sombra mais refinada com `shadow-lg` no hover
-- Melhor espacamento e tipografia
-- Avatar com ring/anel sutil
-- Unread badge mais proeminente
-
-**KanbanDialog.tsx**:
-- Header mais limpo com separacao visual
-- Filtros com design mais polido
-- Background com gradiente sutil
-
-**KanbanCardDetailDialog.tsx**:
-- Layout mais espacado
-- Sections com bordas e backgrounds distintos
-- Avatar maior
-- Botao "Abrir conversa" mais proeminente
-
-### Arquivos afetados
-
-| Arquivo | Mudanca |
+| Arquivo | O que sobrou |
 |---|---|
-| `src/components/whatsapp/ChatSidebar.tsx` | Remover status submenu, filtro status, badge status |
-| `src/components/whatsapp/MessageContextMenu.tsx` | Remover editar e excluir |
-| `src/components/whatsapp/ChatWindow.tsx` | Remover logica e dialogs de editar/excluir |
-| `src/hooks/useKanban.ts` | Fix sync: converter col.name → status key |
-| `src/components/whatsapp/KanbanCard.tsx` | Visual premium |
-| `src/components/whatsapp/KanbanColumn.tsx` | Visual premium |
-| `src/components/whatsapp/KanbanDialog.tsx` | Visual premium |
-| `src/components/whatsapp/KanbanCardDetailDialog.tsx` | Visual premium |
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+
+### Alteracoes planejadas
+
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
+
+### O que NAO muda
+
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+
+### Resumo de impacto
+
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 

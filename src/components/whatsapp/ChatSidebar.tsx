@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, CircleDot, Pencil, BellOff, Ban, Trash2, VolumeX, MessageSquarePlus, Phone, Users, Columns3 } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, Pencil, BellOff, Ban, Trash2, VolumeX, MessageSquarePlus, Phone, Users, Columns3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -69,7 +69,7 @@ interface LabelItem {
   color_hex: string | null;
 }
 
-type ConversationStatus = null | 'aguardando' | 'em_andamento' | 'finalizado' | 'urgente';
+type ConversationStatus = string | null;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   aguardando: { label: 'Aguardando', color: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },
@@ -98,7 +98,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [showArchived, setShowArchived] = useState(false);
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterStarred, setFilterStarred] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'people' | 'groups'>('all');
@@ -135,7 +135,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       setShowArchived(false);
       setFilterLabel(null);
       setFilterStarred(false);
-      setFilterStatus(null);
+      
       if (chipId) {
         setTimeout(() => fetchChats(1, false), 100);
       }
@@ -404,50 +404,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
   };
 
-  const handleSetStatus = async (chat: ExtendedChat, status: ConversationStatus) => {
-    if (!chipId) return;
-    try {
-      await supabase
-        .from('conversations')
-        .update({ custom_status: status } as any)
-        .eq('chip_id', chipId)
-        .eq('remote_jid', chat.remoteJid);
-      setChats(prev => prev.map(c =>
-        c.remoteJid === chat.remoteJid ? { ...c, custom_status: status } : c
-      ));
-
-      // Sync com kanban_cards
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('chip_id', chipId)
-        .eq('remote_jid', chat.remoteJid)
-        .single();
-
-      if (conv) {
-        if (status) {
-          const statusLabel = STATUS_CONFIG[status]?.label || status;
-          const { data: col } = await supabase
-            .from('kanban_columns')
-            .select('id')
-            .eq('name', statusLabel)
-            .single();
-          if (col) {
-            await supabase.from('kanban_cards').upsert(
-              { conversation_id: conv.id, column_id: col.id, sort_order: 0 } as any,
-              { onConflict: 'conversation_id' }
-            );
-          }
-        } else {
-          await supabase.from('kanban_cards').delete().eq('conversation_id', conv.id);
-        }
-      }
-
-      toast({ title: status ? `Status: ${STATUS_CONFIG[status]?.label}` : 'Status removido' });
-    } catch {
-      toast({ title: 'Erro', variant: 'destructive' });
-    }
-  };
 
   const handleToggleLabel = async (chat: ExtendedChat, labelId: string) => {
     if (!chipId) return;
@@ -583,7 +539,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     if (filterStarred && !chat.is_starred) return false;
-    if (filterStatus && chat.custom_status !== filterStatus) return false;
+    
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
     if (filterBlocked && !chat.is_blocked) return false;
     if (filterType === 'people' && chat.isGroup) return false;
@@ -756,30 +712,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             <Ban className="w-3 h-3 mr-1" /> Bloqueados
           </Button>
 
-          {/* Status filter */}
-          {filterStatus ? (
-            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setFilterStatus(null)}>
-              <CircleDot className="w-3 h-3 mr-1" />
-              {STATUS_CONFIG[filterStatus]?.label}
-              <span className="ml-1 text-muted-foreground">✕</span>
-            </Button>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground">
-                  <CircleDot className="w-3 h-3 mr-1" /> Status
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                  <DropdownMenuItem key={key} onClick={() => setFilterStatus(key)}>
-                    <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
-                    {cfg.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+
 
           {/* Labels filter */}
           {filterLabel ? (
@@ -884,11 +817,6 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                     </div>
                     {/* Status + Labels row */}
                     <div className="flex gap-1 mt-1 overflow-hidden items-center">
-                      {chat.custom_status && STATUS_CONFIG[chat.custom_status] && (
-                        <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-4", STATUS_CONFIG[chat.custom_status].color)}>
-                          {STATUS_CONFIG[chat.custom_status].label}
-                        </Badge>
-                      )}
                       {chat.label_ids && chat.label_ids.slice(0, 3).map(lid => {
                         const label = getLabelName(lid);
                         return label ? <LabelBadge key={lid} name={label.name} colorHex={label.color_hex} /> : null;
@@ -930,29 +858,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                         Editar nome
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator />
 
-                      {/* Status submenu */}
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <CircleDot className="w-4 h-4 mr-2" /> Status
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                            <DropdownMenuItem
-                              key={key}
-                              onClick={() => handleSetStatus(chat, key as ConversationStatus)}
-                            >
-                              <Badge variant="outline" className={cn("mr-2 text-[10px]", cfg.color)}>{cfg.label}</Badge>
-                              {chat.custom_status === key ? '✓ ' : ''}{cfg.label}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleSetStatus(chat, null)}>
-                            Remover status
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
 
                       {/* Kanban submenu */}
                       {kanbanColumns.length > 0 && (

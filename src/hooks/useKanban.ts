@@ -149,11 +149,12 @@ export function useKanban() {
 
     await supabase.from('kanban_cards').update(updateData).eq('id', cardId);
 
-    // Sync custom_status on conversation
+    // Sync custom_status on conversation (use lowercase key matching STATUS_CONFIG)
     const card = cards.find(c => c.id === cardId);
     const col = columns.find(c => c.id === newColumnId);
     if (card?.conversation && col) {
-      await supabase.from('conversations').update({ custom_status: col.name }).eq('id', card.conversation.id);
+      const statusKey = col.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+      await supabase.from('conversations').update({ custom_status: statusKey }).eq('id', card.conversation.id);
     }
   }, [cards, columns]);
 
@@ -165,7 +166,8 @@ export function useKanban() {
       { onConflict: 'conversation_id' }
     );
     if (col) {
-      await supabase.from('conversations').update({ custom_status: col.name }).eq('id', conversationId);
+      const statusKey = col.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+      await supabase.from('conversations').update({ custom_status: statusKey }).eq('id', conversationId);
     }
     fetchCards();
   }, [columns, fetchCards]);
