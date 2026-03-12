@@ -14,6 +14,7 @@ import Messages from "./pages/Messages";
 import Users from "./pages/admin/Users";
 import Settings from "./pages/admin/Settings";
 import MasterAdmin from "./pages/admin/MasterAdmin";
+import Leads from "./pages/admin/Leads";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
