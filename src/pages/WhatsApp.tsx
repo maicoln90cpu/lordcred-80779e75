@@ -334,6 +334,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setKanbanOpen(true)} className="text-muted-foreground hover:text-foreground" title="Kanban de contatos">
             <LayoutDashboard className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setLeadsOpen(true)} className="text-muted-foreground hover:text-foreground" title="Meus Leads">
+            <FileSpreadsheet className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
