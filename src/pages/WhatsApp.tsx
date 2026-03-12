@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -14,6 +14,7 @@ import ChatWindow from '@/components/whatsapp/ChatWindow';
 import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
 import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
+import LeadsPanel from '@/components/whatsapp/LeadsPanel';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatContact {
@@ -43,6 +44,7 @@ export default function WhatsApp() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [leadsOpen, setLeadsOpen] = useState(false);
   const { user, isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -332,6 +334,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setKanbanOpen(true)} className="text-muted-foreground hover:text-foreground" title="Kanban de contatos">
             <LayoutDashboard className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setLeadsOpen(true)} className="text-muted-foreground hover:text-foreground" title="Meus Leads">
+            <FileSpreadsheet className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
@@ -423,6 +428,24 @@ export default function WhatsApp() {
               profilePicUrl: conv.profile_pic_url || undefined,
             });
           }
+        }}
+      />
+      <LeadsPanel
+        open={leadsOpen}
+        onOpenChange={setLeadsOpen}
+        onStartConversation={(phone, name) => {
+          // Create a temporary chat contact to open conversation
+          const remoteJid = `${phone}@s.whatsapp.net`;
+          setSelectedChat({
+            id: `temp-${phone}`,
+            remoteJid,
+            name,
+            phone,
+            lastMessage: '',
+            lastMessageAt: null,
+            unreadCount: 0,
+            isGroup: false,
+          });
         }}
       />
     </div>);

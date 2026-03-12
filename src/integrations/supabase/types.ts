@@ -109,6 +109,90 @@ export type Database = {
         }
         Relationships: []
       }
+      client_leads: {
+        Row: {
+          agencia: string | null
+          aprovado: string | null
+          assigned_to: string
+          banco_codigo: string | null
+          banco_nome: string | null
+          banco_simulado: string | null
+          batch_name: string | null
+          conta: string | null
+          contacted_at: string | null
+          cpf: string | null
+          created_at: string
+          created_by: string
+          data_nasc: string | null
+          data_ref: string | null
+          id: string
+          nome: string
+          nome_mae: string | null
+          notes: string | null
+          prazo: number | null
+          reprovado: string | null
+          status: string | null
+          telefone: string | null
+          updated_at: string
+          valor_lib: number | null
+          vlr_parcela: number | null
+        }
+        Insert: {
+          agencia?: string | null
+          aprovado?: string | null
+          assigned_to: string
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          banco_simulado?: string | null
+          batch_name?: string | null
+          conta?: string | null
+          contacted_at?: string | null
+          cpf?: string | null
+          created_at?: string
+          created_by: string
+          data_nasc?: string | null
+          data_ref?: string | null
+          id?: string
+          nome: string
+          nome_mae?: string | null
+          notes?: string | null
+          prazo?: number | null
+          reprovado?: string | null
+          status?: string | null
+          telefone?: string | null
+          updated_at?: string
+          valor_lib?: number | null
+          vlr_parcela?: number | null
+        }
+        Update: {
+          agencia?: string | null
+          aprovado?: string | null
+          assigned_to?: string
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          banco_simulado?: string | null
+          batch_name?: string | null
+          conta?: string | null
+          contacted_at?: string | null
+          cpf?: string | null
+          created_at?: string
+          created_by?: string
+          data_nasc?: string | null
+          data_ref?: string | null
+          id?: string
+          nome?: string
+          nome_mae?: string | null
+          notes?: string | null
+          prazo?: number | null
+          reprovado?: string | null
+          status?: string | null
+          telefone?: string | null
+          updated_at?: string
+          valor_lib?: number | null
+          vlr_parcela?: number | null
+        }
+        Relationships: []
+      }
       conversation_notes: {
         Row: {
           chip_id: string

@@ -6,6 +6,7 @@ import {
   Settings, 
   Smartphone,
   MessageSquare,
+  FileSpreadsheet,
   LogOut,
   Menu,
   X,
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Meus Chips', icon: Smartphone, href: '/chips' },
   { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
   { label: 'Vendedores', icon: Users, href: '/admin/users' },
+  { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads' },
   { label: 'Configurações', icon: Settings, href: '/settings' },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
