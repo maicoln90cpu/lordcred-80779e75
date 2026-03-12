@@ -6,6 +6,7 @@ import {
   Settings, 
   Smartphone,
   MessageSquare,
+  FileSpreadsheet,
   LogOut,
   Menu,
   X,
