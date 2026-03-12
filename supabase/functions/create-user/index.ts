@@ -27,16 +27,18 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // Get current user
-    const { data: { user: currentUser }, error: userError } = await userClient.auth.getUser()
-    if (userError || !currentUser) {
+    // Validate JWT locally via signing keys (works even if auth session row was cleaned up)
+    const token = authHeader.replace('Bearer ', '')
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
+
+    if (claimsError || !claimsData?.claims?.sub) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const userId = currentUser.id
+    const userId = claimsData.claims.sub
 
     // Check caller's role
     const { data: roleData, error: roleError } = await userClient
