@@ -44,6 +44,7 @@ export default function WhatsApp() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [leadsOpen, setLeadsOpen] = useState(false);
   const { user, isSeller, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
