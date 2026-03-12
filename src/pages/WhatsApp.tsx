@@ -430,5 +430,23 @@ export default function WhatsApp() {
           }
         }}
       />
+      <LeadsPanel
+        open={leadsOpen}
+        onOpenChange={setLeadsOpen}
+        onStartConversation={(phone, name) => {
+          // Create a temporary chat contact to open conversation
+          const remoteJid = `${phone}@s.whatsapp.net`;
+          setSelectedChat({
+            id: `temp-${phone}`,
+            remoteJid,
+            name,
+            phone,
+            lastMessage: '',
+            lastMessageAt: null,
+            unreadCount: 0,
+            isGroup: false,
+          });
+        }}
+      />
     </div>);
 }
