@@ -76,6 +76,7 @@ export default function InternalChat() {
       const map: Record<string, UserProfile> = {};
       data.forEach(u => { map[u.user_id] = u; });
       setProfilesMap(map);
+      profilesMapRef.current = map;
     }
   }, []);
 
