@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const filteredNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const filteredNavItems = navItems.filter(item => (!item.adminOnly || isAdmin) && (!item.sellerHidden || !isSeller));
 
   const handleSignOut = async () => {
     await signOut();
