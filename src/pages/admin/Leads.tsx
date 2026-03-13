@@ -241,7 +241,7 @@ export default function Leads() {
           </Card>
         </div>
 
-        <Tabs defaultValue="leads" className="space-y-4 min-w-0 overflow-x-hidden">
+        <Tabs defaultValue="leads" className="space-y-4 min-w-0">
           <TabsList>
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
