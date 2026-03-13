@@ -205,7 +205,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main Content */}
       <main 
         className={cn(
-          "flex-1 min-h-screen transition-all duration-300",
+          "flex-1 min-h-screen overflow-x-hidden transition-all duration-300",
           sidebarOpen ? "md:ml-64" : "md:ml-20",
           "pt-16 md:pt-0"
         )}
