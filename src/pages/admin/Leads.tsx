@@ -207,7 +207,7 @@ export default function Leads() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 min-w-0 overflow-x-hidden">
+      <div className="space-y-6 min-w-0">
         <div>
           <h1 className="text-3xl font-bold">Gestão de Leads</h1>
           <p className="text-muted-foreground">Importe planilhas e atribua leads aos vendedores</p>
@@ -241,7 +241,7 @@ export default function Leads() {
           </Card>
         </div>
 
-        <Tabs defaultValue="leads" className="space-y-4 min-w-0 overflow-x-hidden">
+        <Tabs defaultValue="leads" className="space-y-4 min-w-0">
           <TabsList>
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
@@ -251,7 +251,7 @@ export default function Leads() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="leads" className="min-w-0 overflow-x-hidden">
+          <TabsContent value="leads" className="min-w-0">
             <LeadsTable
               filterSeller={filterSeller}
               filterStatus={filterStatus}

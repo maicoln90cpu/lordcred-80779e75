@@ -235,77 +235,91 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
 
   return (
     <>
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Todos os Leads
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={leads.length === 0}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar XLSX
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Buscar nome, telefone, CPF..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="pl-9" />
+      <div className="space-y-4">
+        {/* Card 1: Header + Filtros + Bulk Actions */}
+        <Card className="w-full">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Todos os Leads
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={handleExport} disabled={leads.length === 0}>
+                <Download className="w-4 h-4 mr-2" />
+                Exportar XLSX
+              </Button>
             </div>
-            <Select value={actualSeller} onValueChange={(v) => updateFilter('seller', v)}>
-              <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os vendedores</SelectItem>
-                {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={actualStatus} onValueChange={(v) => updateFilter('status', v)}>
-              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
-              <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os lotes</SelectItem>
-                {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar nome, telefone, CPF..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="pl-9" />
+              </div>
+              <Select value={actualSeller} onValueChange={(v) => updateFilter('seller', v)}>
+                <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os vendedores</SelectItem>
+                  {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={actualStatus} onValueChange={(v) => updateFilter('status', v)}>
+                <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
+                <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os lotes</SelectItem>
+                  {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Bulk action bar */}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-              <span className="text-sm font-medium">{selectedIds.size} selecionados</span>
-              <Button variant="destructive" size="sm" onClick={() => setBulkAction('delete')}>
-                <Trash2 className="w-4 h-4 mr-1" /> Excluir
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setBulkAction('status')}>
-                Alterar Status
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setBulkAction('reassign')}>
-                Reatribuir
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-                Limpar seleção
-              </Button>
-            </div>
-          )}
+            {/* Bulk action bar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <span className="text-sm font-medium">{selectedIds.size} selecionados</span>
+                <Button variant="destructive" size="sm" onClick={() => setBulkAction('delete')}>
+                  <Trash2 className="w-4 h-4 mr-1" /> Excluir
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction('status')}>
+                  Alterar Status
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction('reassign')}>
+                  Reatribuir
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  Limpar seleção
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum lead encontrado. Importe uma planilha para começar.
-            </div>
-          ) : (
-            <div className="border rounded-lg max-h-[600px] overflow-x-auto overflow-y-auto">
+        {/* Card 2: Apenas a Tabela */}
+        {isLoading ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        ) : leads.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
+                Nenhum lead encontrado. Importe uma planilha para começar.
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
               <Table className="min-w-[2000px]">
                 <TableHeader>
                   <TableRow>
@@ -377,24 +391,24 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 </TableBody>
               </Table>
             </div>
-          )}
+          </Card>
+        )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {leads.length} leads · Página {page + 1}/{totalPages}
-            </p>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+        {/* Paginação fora dos cards */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {leads.length} leads · Página {page + 1}/{totalPages}
+          </p>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Bulk Delete Dialog */}
       <AlertDialog open={bulkAction === 'delete'} onOpenChange={(o) => !o && setBulkAction(null)}>
