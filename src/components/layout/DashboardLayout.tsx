@@ -51,7 +51,7 @@ const navItems: NavItem[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, isSeller, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
