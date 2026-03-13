@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Send, Hash, Users, Trash2, UserPlus } from 'lucide-react';
+import { Plus, Send, Hash, Users, Trash2, UserPlus, MessageSquare, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Channel {
@@ -43,13 +44,17 @@ export default function InternalChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [directDialogOpen, setDirectDialogOpen] = useState(false);
   const [manageMembersOpen, setManageMembersOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [channelToDelete, setChannelToDelete] = useState<string | null>(null);
   const [channelName, setChannelName] = useState('');
   const [channelDesc, setChannelDesc] = useState('');
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [channelMembers, setChannelMembers] = useState<string[]>([]);
   const [profilesMap, setProfilesMap] = useState<Record<string, UserProfile>>({});
+  const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isAdmin = !isSeller;
 
@@ -62,7 +67,7 @@ export default function InternalChat() {
     if (data) setChannels(data);
   }, []);
 
-  // Load all users for admin
+  // Load all users
   const loadUsers = useCallback(async () => {
     const { data } = await supabase.from('profiles').select('user_id, email, name');
     if (data) {
@@ -72,6 +77,27 @@ export default function InternalChat() {
       setProfilesMap(map);
     }
   }, []);
+
+  // Load last message preview for each channel
+  const loadLastMessages = useCallback(async (channelIds: string[]) => {
+    if (channelIds.length === 0) return;
+    const previews: Record<string, string> = {};
+    // Fetch last message per channel - doing individual queries for simplicity
+    for (const cid of channelIds) {
+      const { data } = await supabase
+        .from('internal_messages')
+        .select('content, user_id')
+        .eq('channel_id', cid)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (data && data[0]) {
+        const sender = profilesMap[data[0].user_id];
+        const name = sender?.name || sender?.email?.split('@')[0] || '';
+        previews[cid] = `${name}: ${data[0].content}`.slice(0, 60);
+      }
+    }
+    setLastMessages(previews);
+  }, [profilesMap]);
 
   // Load messages for a channel
   const loadMessages = useCallback(async (channelId: string) => {
@@ -100,6 +126,13 @@ export default function InternalChat() {
   }, []);
 
   useEffect(() => { loadChannels(); loadUsers(); }, [loadChannels, loadUsers]);
+
+  // Load last messages after channels + profiles load
+  useEffect(() => {
+    if (channels.length > 0 && Object.keys(profilesMap).length > 0) {
+      loadLastMessages(channels.map(c => c.id));
+    }
+  }, [channels, profilesMap, loadLastMessages]);
 
   useEffect(() => {
     if (selectedChannel) {
@@ -144,8 +177,10 @@ export default function InternalChat() {
       user_id: user.id,
       content,
     });
-    // Update channel timestamp
     await supabase.from('internal_channels').update({ updated_at: new Date().toISOString() }).eq('id', selectedChannel.id);
+    // Update last message preview
+    const senderName = profilesMap[user.id]?.name || profilesMap[user.id]?.email?.split('@')[0] || '';
+    setLastMessages(prev => ({ ...prev, [selectedChannel.id]: `${senderName}: ${content}`.slice(0, 60) }));
   };
 
   const handleCreateChannel = async () => {
@@ -153,10 +188,10 @@ export default function InternalChat() {
     const { data, error } = await supabase.from('internal_channels').insert({
       name: channelName.trim(),
       description: channelDesc.trim() || null,
+      is_group: true,
       created_by: user.id,
     }).select().single();
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
-    // Add creator + selected users as members
     const memberIds = [...new Set([user.id, ...selectedUsers])];
     await supabase.from('internal_channel_members').insert(
       memberIds.map(uid => ({ channel_id: data.id, user_id: uid }))
@@ -169,19 +204,75 @@ export default function InternalChat() {
     toast({ title: 'Grupo criado com sucesso' });
   };
 
-  const handleDeleteChannel = async (channelId: string) => {
-    await supabase.from('internal_channels').delete().eq('id', channelId);
-    if (selectedChannel?.id === channelId) {
+  // Start direct 1-on-1 chat
+  const handleStartDirectChat = async (targetUserId: string) => {
+    if (!user) return;
+    // Check if direct chat already exists between the two
+    const { data: myChannels } = await supabase
+      .from('internal_channel_members')
+      .select('channel_id')
+      .eq('user_id', user.id);
+    if (myChannels) {
+      for (const mc of myChannels) {
+        const { data: ch } = await supabase
+          .from('internal_channels')
+          .select('*')
+          .eq('id', mc.channel_id)
+          .eq('is_group', false)
+          .single();
+        if (ch) {
+          const { data: members } = await supabase
+            .from('internal_channel_members')
+            .select('user_id')
+            .eq('channel_id', ch.id);
+          if (members && members.length === 2 && members.some(m => m.user_id === targetUserId)) {
+            // Already exists, select it
+            setSelectedChannel(ch);
+            setDirectDialogOpen(false);
+            return;
+          }
+        }
+      }
+    }
+    // Create new direct chat
+    const targetProfile = profilesMap[targetUserId];
+    const channelDisplayName = targetProfile?.name || targetProfile?.email?.split('@')[0] || 'Chat Direto';
+    const { data, error } = await supabase.from('internal_channels').insert({
+      name: channelDisplayName,
+      is_group: false,
+      created_by: user.id,
+    }).select().single();
+    if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+    await supabase.from('internal_channel_members').insert([
+      { channel_id: data.id, user_id: user.id },
+      { channel_id: data.id, user_id: targetUserId },
+    ]);
+    setDirectDialogOpen(false);
+    await loadChannels();
+    setSelectedChannel(data);
+    toast({ title: 'Conversa direta iniciada' });
+  };
+
+  const confirmDeleteChannel = (channelId: string) => {
+    setChannelToDelete(channelId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteChannel = async () => {
+    if (!channelToDelete) return;
+    await supabase.from('internal_channels').delete().eq('id', channelToDelete);
+    if (selectedChannel?.id === channelToDelete) {
       setSelectedChannel(null);
       setMessages([]);
     }
+    setDeleteConfirmOpen(false);
+    setChannelToDelete(null);
     loadChannels();
     toast({ title: 'Grupo removido' });
   };
 
   const handleSaveMembers = async () => {
     if (!selectedChannel) return;
-    // Remove all current members, re-add selected
     await supabase.from('internal_channel_members').delete().eq('channel_id', selectedChannel.id);
     const memberIds = [...new Set([selectedChannel.created_by, ...selectedUsers])];
     await supabase.from('internal_channel_members').insert(
@@ -207,6 +298,14 @@ export default function InternalChat() {
     return d.toLocaleDateString('pt-BR');
   };
 
+  // Get display name for direct chat channels (show the OTHER user's name)
+  const getChannelDisplayName = (ch: Channel) => {
+    if (ch.is_group) return ch.name;
+    // For direct chats, we'd ideally show the other person's name
+    // but we may not have member data loaded for all channels
+    return ch.name;
+  };
+
   // Group messages by date
   const groupedMessages: { date: string; msgs: Message[] }[] = [];
   let lastDate = '';
@@ -228,9 +327,14 @@ export default function InternalChat() {
           <div className="p-3 border-b border-border flex items-center justify-between">
             <h2 className="font-semibold text-sm">Chat Interno</h2>
             {isAdmin && (
-              <Button variant="ghost" size="icon" onClick={() => { setSelectedUsers([]); setCreateDialogOpen(true); }}>
-                <Plus className="w-4 h-4" />
-              </Button>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Nova conversa direta" onClick={() => setDirectDialogOpen(true)}>
+                  <MessageSquare className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Criar grupo" onClick={() => { setSelectedUsers([]); setCreateDialogOpen(true); }}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
             )}
           </div>
           <ScrollArea className="flex-1">
@@ -238,21 +342,25 @@ export default function InternalChat() {
               <div
                 key={ch.id}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-accent/50 transition-colors border-b border-border/30",
+                  "group flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-accent/50 transition-colors border-b border-border/30",
                   selectedChannel?.id === ch.id && "bg-accent"
                 )}
                 onClick={() => setSelectedChannel(ch)}
               >
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  {ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <Hash className="w-4 h-4 text-primary" />}
+                  {ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{ch.name}</p>
-                  {ch.description && <p className="text-xs text-muted-foreground truncate">{ch.description}</p>}
+                  <p className="text-sm font-medium truncate">{getChannelDisplayName(ch)}</p>
+                  {lastMessages[ch.id] ? (
+                    <p className="text-xs text-muted-foreground truncate">{lastMessages[ch.id]}</p>
+                  ) : ch.description ? (
+                    <p className="text-xs text-muted-foreground truncate">{ch.description}</p>
+                  ) : null}
                 </div>
                 {isAdmin && (
                   <Button variant="ghost" size="icon" className="shrink-0 opacity-0 group-hover:opacity-100 h-6 w-6"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteChannel(ch.id); }}>
+                    onClick={(e) => { e.stopPropagation(); confirmDeleteChannel(ch.id); }}>
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 )}
@@ -271,9 +379,11 @@ export default function InternalChat() {
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-sm">{selectedChannel.name}</h3>
-                  <p className="text-xs text-muted-foreground">{channelMembers.length} membro(s)</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedChannel.is_group ? `${channelMembers.length} membro(s)` : 'Conversa direta'}
+                  </p>
                 </div>
-                {isAdmin && (
+                {isAdmin && selectedChannel.is_group && (
                   <Button variant="outline" size="sm" onClick={openManageMembers}>
                     <UserPlus className="w-3.5 h-3.5 mr-1.5" />
                     Membros
@@ -332,7 +442,7 @@ export default function InternalChat() {
         </div>
       </div>
 
-      {/* Create Channel Dialog */}
+      {/* Create Group Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -365,6 +475,33 @@ export default function InternalChat() {
         </DialogContent>
       </Dialog>
 
+      {/* Direct Chat Dialog */}
+      <Dialog open={directDialogOpen} onOpenChange={setDirectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Conversa Direta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Selecione um usuário para iniciar uma conversa:</p>
+          <ScrollArea className="h-64 border rounded-md p-2">
+            {allUsers.filter(u => u.user_id !== user?.id).map(u => (
+              <div
+                key={u.user_id}
+                className="flex items-center gap-3 py-2 px-2 hover:bg-accent/50 rounded cursor-pointer transition-colors"
+                onClick={() => handleStartDirectChat(u.user_id)}
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{u.name || u.email}</p>
+                  {u.name && <p className="text-xs text-muted-foreground">{u.email}</p>}
+                </div>
+              </div>
+            ))}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
       {/* Manage Members Dialog */}
       <Dialog open={manageMembersOpen} onOpenChange={setManageMembersOpen}>
         <DialogContent>
@@ -390,6 +527,24 @@ export default function InternalChat() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este canal? Todas as mensagens serão perdidas. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteChannel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
