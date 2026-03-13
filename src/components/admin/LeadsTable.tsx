@@ -345,7 +345,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
-              <div className="min-w-[2000px]">
+              <div className="w-max min-w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
