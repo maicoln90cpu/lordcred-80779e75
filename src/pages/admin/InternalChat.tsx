@@ -162,15 +162,20 @@ export default function InternalChat() {
         filter: `channel_id=eq.${selectedChannel.id}`,
       }, (payload) => {
         const msg = payload.new as any;
-        setMessages(prev => [...prev, {
-          ...msg,
-          user_email: profilesMap[msg.user_id]?.email,
-          user_name: profilesMap[msg.user_id]?.name,
-        }]);
+        const pMap = profilesMapRef.current;
+        setMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, {
+            ...msg,
+            user_email: pMap[msg.user_id]?.email,
+            user_name: pMap[msg.user_id]?.name,
+          }];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedChannel, profilesMap]);
+  }, [selectedChannel]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChannel || !user) return;
