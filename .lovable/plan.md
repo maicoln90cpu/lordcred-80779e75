@@ -1,58 +1,79 @@
 
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+# Plan: Fix 4 Critical Internal Chat Issues
 
-### Inventario de restos de Evolution encontrados
+## Issue Analysis
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+### 1. CRITICAL: Sellers see admin page at /admin/chat
+**Root cause**: Two problems:
+- `DashboardLayout` sidebar shows ALL nav items to sellers (only `adminOnly` items are filtered, not admin-only pages like Dashboard, Chips, etc.)
+- Role label at line 135 shows `'Administrador'` for ALL non-master users, including sellers
+- The chat route is under `/admin/chat` which is confusing but technically accessible (no `blockSellers`)
 
-### Alteracoes planejadas
+**Fix**:
+- Add a `sellerVisible` flag to nav items; only show Chat Interno + Configurações to sellers
+- Fix role label: show "Vendedor" for sellers, "Administrador" for `user` role, "Master" for `admin`
+- Move chat route from `/admin/chat` to `/chat` (add redirect for old URL)
+- In `InternalChat.tsx`, hide admin-only buttons (create group, delete, manage members) for sellers — already done via `isAdmin` check, but `isAdmin = !isSeller` which means `user` role users are also "admin" in this component. Need to use `useAuth().isAdmin` or check properly.
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+### 2. No message notifications
+**Fix**: Add browser `Notification API` + audio ping when a new message arrives on any channel the user is a member of. Subscribe to all channels, not just the selected one.
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+### 3. Messages not appearing instantly
+**Root cause**: Supabase Realtime requires the table to have `REPLICA IDENTITY FULL` set, or the subscription filter may not work. Also, the current subscription at line 154 uses `postgres_changes` with a filter — if Realtime isn't enabled for `internal_messages`, nothing fires.
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+**Fix**:
+- Add optimistic message insertion: immediately add the message to local state on send (before DB insert completes)
+- Ensure Realtime subscription is properly set up; add `REPLICA IDENTITY FULL` to `internal_messages` via migration
+- Keep deduplication logic to prevent doubles when realtime eventually fires
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+### 4. Showing "Usuário" instead of user name
+**Root cause**: The `profiles` table `name` field may be null for some users, and `user_email` may also not be mapped correctly when realtime payload arrives.
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+**Fix**: Ensure `profilesMapRef` is populated before rendering, and fall back to email prefix properly. The sender's own messages should use the logged-in user's profile name.
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+---
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+## Implementation Details
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+### File: `src/components/layout/DashboardLayout.tsx`
+- Add `sellerHidden?: boolean` to `NavItem` interface
+- Mark Dashboard, Meus Chips, Mensagens, Vendedores, Leads, Performance, Kanban, Links Úteis, Master Admin as `sellerHidden: true`
+- Keep Chat Interno and Configurações visible to all
+- Filter: `navItems.filter(item => (!item.adminOnly || isAdmin) && (!item.sellerHidden || !isSeller))`
+- Fix role label: `isSeller ? 'Vendedor' : isAdmin ? 'Master' : 'Administrador'`
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+### File: `src/App.tsx`
+- Change `/admin/chat` to `/chat`
+- Add redirect: `/admin/chat` → `/chat`
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+### File: `src/pages/admin/InternalChat.tsx`
+**Optimistic send (issue 3)**:
+- On `handleSendMessage`, immediately push a temp message to `setMessages` with `id: crypto.randomUUID()`, user info from profilesMap, and current timestamp
+- After DB insert succeeds, the realtime subscription or dedup handles the rest
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
+**Notifications (issue 2)**:
+- Add a separate Supabase channel subscription for ALL `internal_messages` (no channel_id filter)
+- When a new message arrives for a channel that is NOT currently selected, show a browser Notification + play a short audio beep
+- Request `Notification.permission` on mount
 
-### O que NAO muda
+**User name fix (issue 4)**:
+- Already mostly correct; ensure the optimistic message uses `profilesMap[user.id]?.name`
 
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+### Migration SQL
+```sql
+ALTER TABLE internal_messages REPLICA IDENTITY FULL;
+```
+This ensures Realtime delivers the full row payload including `channel_id` for filters.
 
-### Resumo de impacto
+---
 
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `src/components/layout/DashboardLayout.tsx` | Filter seller nav items, fix role label |
+| `src/App.tsx` | Move route `/admin/chat` → `/chat`, add redirect |
+| `src/pages/admin/InternalChat.tsx` | Optimistic send, notification subscription, fix sender name |
+| New migration SQL | `REPLICA IDENTITY FULL` on `internal_messages` |
 
