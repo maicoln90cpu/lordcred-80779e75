@@ -13,6 +13,31 @@ import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight } f
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
+// Format date: handles Excel serial numbers and various string formats -> dd/mm/aaaa
+function formatDate(value: string | number | null | undefined): string {
+  if (!value) return '-';
+  // Excel serial number (numeric string or number)
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!isNaN(num) && num > 10000 && num < 100000) {
+    // Excel date serial: days since 1900-01-01 (with the Excel leap year bug)
+    const excelEpoch = new Date(1900, 0, 1);
+    const date = new Date(excelEpoch.getTime() + (num - 2) * 86400000);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('pt-BR');
+    }
+  }
+  // Try parsing as date string (yyyy-mm-dd, dd/mm/yyyy, etc.)
+  const str = String(value).trim();
+  // Already dd/mm/yyyy?
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+  }
+  return str;
+}
+
 const PAGE_SIZE = 50;
 
 const DEFAULT_STATUS_OPTIONS = [
