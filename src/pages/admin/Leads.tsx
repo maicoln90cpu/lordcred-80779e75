@@ -58,11 +58,6 @@ const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'batch_name', label: 'Lote', visible: true },
   { key: 'notes', label: 'Observações', visible: true },
 ];
-  { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
-  { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
-  { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
-  { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
-];
 
 export default function Leads() {
   const { toast } = useToast();
