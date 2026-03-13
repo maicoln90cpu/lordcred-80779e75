@@ -56,6 +56,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isAdmin, isSeller, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { totalUnread } = useInternalChatUnread();
 
   const filteredNavItems = navItems.filter(item => (!item.adminOnly || isAdmin) && (!item.sellerHidden || !isSeller));
 
