@@ -30,6 +30,40 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
 ];
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
+
+const ALL_COLUMNS: ColumnConfig[] = [
+  { key: 'nome', label: 'Nome', visible: true },
+  { key: 'telefone', label: 'Telefone', visible: true },
+  { key: 'cpf', label: 'CPF', visible: true },
+  { key: 'valor_lib', label: 'Valor Lib.', visible: true },
+  { key: 'prazo', label: 'Prazo', visible: true },
+  { key: 'vlr_parcela', label: 'Parcela', visible: true },
+  { key: 'banco_nome', label: 'Banco', visible: true },
+  { key: 'banco_codigo', label: 'Cód. Banco', visible: true },
+  { key: 'banco_simulado', label: 'Banco Simulado', visible: true },
+  { key: 'agencia', label: 'Agência', visible: true },
+  { key: 'conta', label: 'Conta', visible: true },
+  { key: 'aprovado', label: 'Aprovado', visible: true },
+  { key: 'reprovado', label: 'Reprovado', visible: true },
+  { key: 'data_nasc', label: 'Data Nasc.', visible: true },
+  { key: 'nome_mae', label: 'Nome Mãe', visible: true },
+  { key: 'data_ref', label: 'Data Ref.', visible: true },
+  { key: 'status', label: 'Status', visible: true },
+  { key: 'assigned_to', label: 'Vendedor', visible: true },
+  { key: 'batch_name', label: 'Lote', visible: true },
+  { key: 'notes', label: 'Observações', visible: true },
+];
+  { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+  { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
+  { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
+  { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+];
+
 export default function Leads() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
