@@ -56,6 +56,7 @@ export default function InternalChat() {
   const [profilesMap, setProfilesMap] = useState<Record<string, UserProfile>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const profilesMapRef = useRef<Record<string, UserProfile>>({});
   const isAdmin = !isSeller;
 
   // Load channels
@@ -75,14 +76,15 @@ export default function InternalChat() {
       const map: Record<string, UserProfile> = {};
       data.forEach(u => { map[u.user_id] = u; });
       setProfilesMap(map);
+      profilesMapRef.current = map;
     }
   }, []);
 
   // Load last message preview for each channel
   const loadLastMessages = useCallback(async (channelIds: string[]) => {
     if (channelIds.length === 0) return;
+    const pMap = profilesMapRef.current;
     const previews: Record<string, string> = {};
-    // Fetch last message per channel - doing individual queries for simplicity
     for (const cid of channelIds) {
       const { data } = await supabase
         .from('internal_messages')
@@ -91,16 +93,17 @@ export default function InternalChat() {
         .order('created_at', { ascending: false })
         .limit(1);
       if (data && data[0]) {
-        const sender = profilesMap[data[0].user_id];
+        const sender = pMap[data[0].user_id];
         const name = sender?.name || sender?.email?.split('@')[0] || '';
         previews[cid] = `${name}: ${data[0].content}`.slice(0, 60);
       }
     }
     setLastMessages(previews);
-  }, [profilesMap]);
+  }, []);
 
-  // Load messages for a channel
+  // Load messages for a channel - uses ref to avoid stale closure
   const loadMessages = useCallback(async (channelId: string) => {
+    const pMap = profilesMapRef.current;
     const { data } = await supabase
       .from('internal_messages')
       .select('*')
@@ -110,11 +113,11 @@ export default function InternalChat() {
     if (data) {
       setMessages(data.map(m => ({
         ...m,
-        user_email: profilesMap[m.user_id]?.email,
-        user_name: profilesMap[m.user_id]?.name,
+        user_email: pMap[m.user_id]?.email,
+        user_name: pMap[m.user_id]?.name,
       })));
     }
-  }, [profilesMap]);
+  }, []);
 
   // Load channel members
   const loadMembers = useCallback(async (channelId: string) => {
@@ -134,8 +137,9 @@ export default function InternalChat() {
     }
   }, [channels, profilesMap, loadLastMessages]);
 
+  // Re-fetch messages when selecting a channel (always fresh from DB)
   useEffect(() => {
-    if (selectedChannel) {
+    if (selectedChannel && Object.keys(profilesMapRef.current).length > 0) {
       loadMessages(selectedChannel.id);
       loadMembers(selectedChannel.id);
     }
@@ -158,15 +162,20 @@ export default function InternalChat() {
         filter: `channel_id=eq.${selectedChannel.id}`,
       }, (payload) => {
         const msg = payload.new as any;
-        setMessages(prev => [...prev, {
-          ...msg,
-          user_email: profilesMap[msg.user_id]?.email,
-          user_name: profilesMap[msg.user_id]?.name,
-        }]);
+        const pMap = profilesMapRef.current;
+        setMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, {
+            ...msg,
+            user_email: pMap[msg.user_id]?.email,
+            user_name: pMap[msg.user_id]?.name,
+          }];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedChannel, profilesMap]);
+  }, [selectedChannel]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChannel || !user) return;
