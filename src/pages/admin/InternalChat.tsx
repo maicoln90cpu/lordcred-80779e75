@@ -137,8 +137,9 @@ export default function InternalChat() {
     }
   }, [channels, profilesMap, loadLastMessages]);
 
+  // Re-fetch messages when selecting a channel (always fresh from DB)
   useEffect(() => {
-    if (selectedChannel) {
+    if (selectedChannel && Object.keys(profilesMapRef.current).length > 0) {
       loadMessages(selectedChannel.id);
       loadMembers(selectedChannel.id);
     }
