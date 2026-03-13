@@ -354,6 +354,7 @@ export default function Leads() {
               filterBatch={filterBatch}
               onFiltersChange={handleFiltersChange}
               statusOptions={statusOptions}
+              columnConfig={columnConfig}
             />
           </TabsContent>
 
