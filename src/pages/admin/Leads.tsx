@@ -75,6 +75,11 @@ export default function Leads() {
   const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
   const [isSavingStatuses, setIsSavingStatuses] = useState(false);
 
+  // Column config editor state
+  const [editingColumns, setEditingColumns] = useState<ColumnConfig[] | null>(null);
+  const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
     queryKey: ['lead-status-options'],
