@@ -1,16 +1,18 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
-import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone } from 'lucide-react';
+import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SellerProfile {
   user_id: string;
@@ -38,6 +40,12 @@ interface ChipData {
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+const PERIOD_OPTIONS = [
+  { label: '7 dias', value: 7 },
+  { label: '30 dias', value: 30 },
+  { label: '90 dias', value: 90 },
+  { label: 'Tudo', value: 0 },
+];
 
 export default function Performance() {
   const { user } = useAuth();
@@ -46,6 +54,7 @@ export default function Performance() {
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [chips, setChips] = useState<ChipData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [periodDays, setPeriodDays] = useState(30);
 
   useEffect(() => {
     fetchData();
@@ -66,6 +75,24 @@ export default function Performance() {
     setLoading(false);
   };
 
+  // Filter data by period
+  const cutoffDate = useMemo(() => {
+    if (periodDays === 0) return null;
+    const d = new Date();
+    d.setDate(d.getDate() - periodDays);
+    return d.toISOString();
+  }, [periodDays]);
+
+  const filteredLeads = useMemo(() => {
+    if (!cutoffDate) return leads;
+    return leads.filter(l => l.created_at >= cutoffDate);
+  }, [leads, cutoffDate]);
+
+  const filteredMessages = useMemo(() => {
+    if (!cutoffDate) return messages;
+    return messages.filter(m => m.created_at >= cutoffDate);
+  }, [messages, cutoffDate]);
+
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
     chips.forEach(c => {
@@ -79,18 +106,17 @@ export default function Performance() {
 
   const sellerStats = useMemo(() => {
     return sellers.map(seller => {
-      const sellerLeads = leads.filter(l => l.assigned_to === seller.user_id);
+      const sellerLeads = filteredLeads.filter(l => l.assigned_to === seller.user_id);
       const contacted = sellerLeads.filter(l => l.contacted_at);
       const approved = sellerLeads.filter(l => l.status?.toUpperCase() === 'APROVADO');
       const rejected = sellerLeads.filter(l => l.status?.toUpperCase()?.includes('REPROVADO') || l.status?.toUpperCase()?.includes('NÃO EXISTE'));
       const pending = sellerLeads.filter(l => !l.status || l.status === 'pendente');
 
       const sellerChipIds = chipsByUser[seller.user_id] || [];
-      const sellerMessages = messages.filter(m => sellerChipIds.includes(m.chip_id));
+      const sellerMessages = filteredMessages.filter(m => sellerChipIds.includes(m.chip_id));
       const sent = sellerMessages.filter(m => m.direction === 'outgoing').length;
       const received = sellerMessages.filter(m => m.direction === 'incoming').length;
 
-      // Avg response time (hours)
       const responseTimes = contacted.map(l => {
         const created = new Date(l.created_at).getTime();
         const contact = new Date(l.contacted_at!).getTime();
@@ -103,6 +129,7 @@ export default function Performance() {
       return {
         userId: seller.user_id,
         name: getSellerName(seller),
+        email: seller.email,
         totalLeads: sellerLeads.length,
         contacted: contacted.length,
         approved: approved.length,
@@ -115,25 +142,25 @@ export default function Performance() {
         messagesReceived: received,
       };
     }).filter(s => s.totalLeads > 0 || s.messagesSent > 0);
-  }, [sellers, leads, messages, chipsByUser]);
+  }, [sellers, filteredLeads, filteredMessages, chipsByUser]);
 
   const globalStats = useMemo(() => {
-    const totalLeads = leads.length;
-    const totalContacted = leads.filter(l => l.contacted_at).length;
-    const totalApproved = leads.filter(l => l.status?.toUpperCase() === 'APROVADO').length;
-    const totalSent = messages.filter(m => m.direction === 'outgoing').length;
-    const totalReceived = messages.filter(m => m.direction === 'incoming').length;
+    const totalLeads = filteredLeads.length;
+    const totalContacted = filteredLeads.filter(l => l.contacted_at).length;
+    const totalApproved = filteredLeads.filter(l => l.status?.toUpperCase() === 'APROVADO').length;
+    const totalSent = filteredMessages.filter(m => m.direction === 'outgoing').length;
+    const totalReceived = filteredMessages.filter(m => m.direction === 'incoming').length;
     return { totalLeads, totalContacted, totalApproved, totalSent, totalReceived, activeSellers: sellerStats.length };
-  }, [leads, messages, sellerStats]);
+  }, [filteredLeads, filteredMessages, sellerStats]);
 
   const statusDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
-    leads.forEach(l => {
+    filteredLeads.forEach(l => {
       const s = l.status || 'pendente';
       counts[s] = (counts[s] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [leads]);
+  }, [filteredLeads]);
 
   const leadsPerSellerChart = useMemo(() => {
     return sellerStats.map(s => ({
@@ -144,12 +171,12 @@ export default function Performance() {
     }));
   }, [sellerStats]);
 
-  // Per-seller lead evolution (last 30 days)
   const getSellerEvolution = (userId: string) => {
-    const sellerLeads = leads.filter(l => l.assigned_to === userId && l.contacted_at);
+    const days_count = periodDays || 30;
+    const sellerLeads = filteredLeads.filter(l => l.assigned_to === userId && l.contacted_at);
     const days: Record<string, number> = {};
     const now = Date.now();
-    for (let i = 29; i >= 0; i--) {
+    for (let i = days_count - 1; i >= 0; i--) {
       const d = new Date(now - i * 86400000);
       days[d.toISOString().slice(0, 10)] = 0;
     }
@@ -158,13 +185,13 @@ export default function Performance() {
       if (days[day] !== undefined) days[day]++;
     });
     return Object.entries(days).map(([date, count]) => ({
-      date: date.slice(5), // MM-DD
+      date: date.slice(5),
       contatados: count,
     }));
   };
 
   const getSellerStatusPie = (userId: string) => {
-    const sellerLeads = leads.filter(l => l.assigned_to === userId);
+    const sellerLeads = filteredLeads.filter(l => l.assigned_to === userId);
     const counts: Record<string, number> = {};
     sellerLeads.forEach(l => {
       const s = l.status || 'pendente';
@@ -172,6 +199,25 @@ export default function Performance() {
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   };
+
+  // CSV Export
+  const exportCSV = useCallback(() => {
+    const sorted = [...sellerStats].sort((a, b) => b.approvalRate - a.approvalRate);
+    const headers = ['#', 'Vendedor', 'Email', 'Leads', 'Contatados', 'Aprovados', 'Taxa Aprov.(%)', 'Tempo Médio(h)', 'Msgs Env.', 'Msgs Rec.'];
+    const rows = sorted.map((s, i) => [
+      i + 1, s.name, s.email, s.totalLeads, s.contacted, s.approved,
+      s.approvalRate.toFixed(1), s.avgResponseTime > 0 ? s.avgResponseTime.toFixed(1) : '0',
+      s.messagesSent, s.messagesReceived,
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ranking-vendedores-${periodDays || 'total'}dias.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sellerStats, periodDays]);
 
   if (loading) {
     return (
@@ -186,9 +232,24 @@ export default function Performance() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Performance</h1>
-          <p className="text-muted-foreground">Métricas de desempenho dos vendedores</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Performance</h1>
+            <p className="text-muted-foreground">Métricas de desempenho dos vendedores</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            {PERIOD_OPTIONS.map(opt => (
+              <Button
+                key={opt.value}
+                variant={periodDays === opt.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPeriodDays(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <Tabs defaultValue="geral">
@@ -211,7 +272,6 @@ export default function Performance() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Bar Chart - Leads por vendedor */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Leads por Vendedor</CardTitle>
@@ -235,11 +295,10 @@ export default function Performance() {
                 </CardContent>
               </Card>
 
-              {/* Pie Chart - Distribuição geral */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Distribuição de Status</CardTitle>
-                  <CardDescription>Todos os leads do sistema</CardDescription>
+                  <CardDescription>Todos os leads do período</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
@@ -261,8 +320,16 @@ export default function Performance() {
             {/* Ranking Table */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Ranking de Vendedores</CardTitle>
-                <CardDescription>Ordenado por taxa de aprovação</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Ranking de Vendedores</CardTitle>
+                    <CardDescription>Ordenado por taxa de aprovação</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={exportCSV}>
+                    <Download className="w-4 h-4 mr-1.5" />
+                    Exportar CSV
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -332,7 +399,6 @@ export default function Performance() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* KPIs do vendedor */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-2xl font-bold">{seller.totalLeads}</p>
@@ -356,7 +422,6 @@ export default function Performance() {
                       </div>
                     </div>
 
-                    {/* Progress bar */}
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-muted-foreground">Leads contatados</span>
@@ -365,11 +430,9 @@ export default function Performance() {
                       <Progress value={contactProgress} className="h-2" />
                     </div>
 
-                    {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Line chart - evolução */}
                       <div>
-                        <p className="text-sm font-medium mb-2 text-muted-foreground">Leads Contatados (últimos 30 dias)</p>
+                        <p className="text-sm font-medium mb-2 text-muted-foreground">Leads Contatados (últimos {periodDays || 30} dias)</p>
                         <div className="h-48">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={evolution}>
@@ -383,7 +446,6 @@ export default function Performance() {
                         </div>
                       </div>
 
-                      {/* Pie chart - status */}
                       <div>
                         <p className="text-sm font-medium mb-2 text-muted-foreground">Distribuição de Status</p>
                         <div className="h-48">
