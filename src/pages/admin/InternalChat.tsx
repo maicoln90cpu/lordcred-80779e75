@@ -56,6 +56,7 @@ export default function InternalChat() {
   const [profilesMap, setProfilesMap] = useState<Record<string, UserProfile>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const profilesMapRef = useRef<Record<string, UserProfile>>({});
   const isAdmin = !isSeller;
 
   // Load channels
