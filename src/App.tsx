@@ -15,6 +15,7 @@ import Users from "./pages/admin/Users";
 import Settings from "./pages/admin/Settings";
 import MasterAdmin from "./pages/admin/MasterAdmin";
 import Leads from "./pages/admin/Leads";
+import Performance from "./pages/admin/Performance";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
               <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
+              <Route path="/admin/performance" element={<ProtectedRoute blockSellers><Performance /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
