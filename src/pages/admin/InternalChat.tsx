@@ -79,11 +79,12 @@ export default function InternalChat() {
 
   // Load all users
   const loadUsers = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('user_id, email, name');
+    const { data } = await supabase.rpc('get_internal_chat_profiles');
     if (data) {
-      setAllUsers(data);
+      const users = data as unknown as UserProfile[];
+      setAllUsers(users);
       const map: Record<string, UserProfile> = {};
-      data.forEach(u => { map[u.user_id] = u; });
+      users.forEach(u => { map[u.user_id] = u; });
       setProfilesMap(map);
       profilesMapRef.current = map;
     }
