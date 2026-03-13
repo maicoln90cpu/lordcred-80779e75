@@ -235,7 +235,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
 
   return (
     <>
-      <Card className="overflow-hidden w-full max-w-full">
+      <Card className="w-full">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
