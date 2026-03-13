@@ -628,6 +628,7 @@ export type Database = {
           id: string
           is_warming_active: boolean
           lead_status_options: Json | null
+          lead_table_columns: Json | null
           max_interval_seconds: number
           max_messages_per_hour: number
           messages_day_1_3: number
@@ -672,6 +673,7 @@ export type Database = {
           id?: string
           is_warming_active?: boolean
           lead_status_options?: Json | null
+          lead_table_columns?: Json | null
           max_interval_seconds?: number
           max_messages_per_hour?: number
           messages_day_1_3?: number
@@ -716,6 +718,7 @@ export type Database = {
           id?: string
           is_warming_active?: boolean
           lead_status_options?: Json | null
+          lead_table_columns?: Json | null
           max_interval_seconds?: number
           max_messages_per_hour?: number
           messages_day_1_3?: number

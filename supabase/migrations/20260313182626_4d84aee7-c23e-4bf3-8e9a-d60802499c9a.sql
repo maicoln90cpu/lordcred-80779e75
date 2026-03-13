@@ -1,0 +1,1 @@
+ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS lead_table_columns jsonb DEFAULT NULL;
