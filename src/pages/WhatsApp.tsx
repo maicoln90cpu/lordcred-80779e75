@@ -342,8 +342,13 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/chat')} className="text-muted-foreground hover:text-foreground" title="Chat Interno">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/chat')} className="text-muted-foreground hover:text-foreground relative" title="Chat Interno">
             <MessageCircle className="w-4 h-4" />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+              </span>
+            )}
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />

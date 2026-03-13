@@ -99,7 +99,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative",
                   isActive 
                     ? "bg-primary text-primary-foreground" 
                     : "text-sidebar-foreground hover:bg-sidebar-accent",
@@ -108,6 +108,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 {sidebarOpen && <span>{item.label}</span>}
+                {item.href === '/chat' && totalUnread > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </Badge>
+                )}
               </Link>
             );
           })}
