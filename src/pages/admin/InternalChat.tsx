@@ -28,6 +28,7 @@ interface Message {
   created_at: string;
   user_email?: string;
   user_name?: string;
+  is_optimistic?: boolean;
 }
 
 interface UserProfile {
@@ -37,7 +38,7 @@ interface UserProfile {
 }
 
 export default function InternalChat() {
-  const { user, isSeller } = useAuth();
+  const { user, isSeller, isAdmin: isRealAdmin } = useAuth();
   const { toast } = useToast();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
@@ -57,7 +58,20 @@ export default function InternalChat() {
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profilesMapRef = useRef<Record<string, UserProfile>>({});
+  const selectedChannelRef = useRef<Channel | null>(null);
   const isAdmin = !isSeller;
+
+  // Keep ref in sync
+  useEffect(() => {
+    selectedChannelRef.current = selectedChannel;
+  }, [selectedChannel]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -101,7 +115,7 @@ export default function InternalChat() {
     setLastMessages(previews);
   }, []);
 
-  // Load messages for a channel - uses ref to avoid stale closure
+  // Load messages for a channel
   const loadMessages = useCallback(async (channelId: string) => {
     const pMap = profilesMapRef.current;
     const { data } = await supabase
@@ -137,7 +151,7 @@ export default function InternalChat() {
     }
   }, [channels, profilesMap, loadLastMessages]);
 
-  // Re-fetch messages when selecting a channel (always fresh from DB)
+  // Re-fetch messages when selecting a channel
   useEffect(() => {
     if (selectedChannel && Object.keys(profilesMapRef.current).length > 0) {
       loadMessages(selectedChannel.id);
@@ -150,7 +164,7 @@ export default function InternalChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Realtime subscription for messages
+  // Realtime subscription for current channel messages
   useEffect(() => {
     if (!selectedChannel) return;
     const channel = supabase
@@ -164,9 +178,13 @@ export default function InternalChat() {
         const msg = payload.new as any;
         const pMap = profilesMapRef.current;
         setMessages(prev => {
-          // Avoid duplicates
-          if (prev.some(m => m.id === msg.id)) return prev;
-          return [...prev, {
+          // Remove optimistic message with same content from same user, and skip exact id dupes
+          const filtered = prev.filter(m => {
+            if (m.id === msg.id) return false;
+            if (m.is_optimistic && m.user_id === msg.user_id && m.content === msg.content) return false;
+            return true;
+          });
+          return [...filtered, {
             ...msg,
             user_email: pMap[msg.user_id]?.email,
             user_name: pMap[msg.user_id]?.name,
@@ -177,19 +195,80 @@ export default function InternalChat() {
     return () => { supabase.removeChannel(channel); };
   }, [selectedChannel]);
 
+  // Global realtime subscription for notifications (all channels)
+  useEffect(() => {
+    if (!user) return;
+    const notifChannel = supabase
+      .channel('internal-msgs-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'internal_messages',
+      }, (payload) => {
+        const msg = payload.new as any;
+        // Don't notify for own messages
+        if (msg.user_id === user.id) return;
+        // Don't notify for currently selected channel
+        if (selectedChannelRef.current?.id === msg.channel_id) return;
+
+        const pMap = profilesMapRef.current;
+        const senderName = pMap[msg.user_id]?.name || pMap[msg.user_id]?.email?.split('@')[0] || 'Alguém';
+
+        // Update last message preview
+        setLastMessages(prev => ({
+          ...prev,
+          [msg.channel_id]: `${senderName}: ${msg.content}`.slice(0, 60),
+        }));
+
+        // Browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(`${senderName} - Chat Interno`, {
+            body: msg.content.slice(0, 100),
+            icon: '/favicon.png',
+          });
+        }
+
+        // Audio ping
+        try {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczHjqIr9fNdkQkMF2Yw9zEaTojNIGo0NvGdUMlOXCPt87JgVcsNmiIsMnMnWdFMDdljK3FzKlsSzM3W4WmwsyxdVIxMFWCobzIupVlTT4zVICjvL+rjHVfSD9LaoyfsrmzrZVsUjoxRGuJo7Kvq5Z7Zl1KNDpWhZ2rqpyKfnRmVkM2PVGBm6GckoZ7cmhcS0BAQ4ucnZaPh4V+dGxeTz05PUh3iZCNgoSDfnduY1RCP0FGcIWLhoGDhIF8dmtiVUlDQURBbICIhYOGhoR/eXJoX1VOSkRCQW5+hoODhoeFgHx1bWRcVk9KREFAbH2Eg4OGh4aAfHVtZF1XUUpFQUBtfYOCg4aGhYB8dW1kXVdRSkVBQGx8g4KDhoaFgHx1bWRdV1FKRUFAYH2EgoOGhoV/fHVtZF1XT0pEQQ==');
+          audio.volume = 0.3;
+          audio.play().catch(() => {});
+        } catch { }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(notifChannel); };
+  }, [user]);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChannel || !user) return;
     const content = newMessage.trim();
     setNewMessage('');
+
+    const pMap = profilesMapRef.current;
+    const optimisticId = crypto.randomUUID();
+
+    // Optimistic insert
+    setMessages(prev => [...prev, {
+      id: optimisticId,
+      channel_id: selectedChannel.id,
+      user_id: user.id,
+      content,
+      created_at: new Date().toISOString(),
+      user_email: pMap[user.id]?.email,
+      user_name: pMap[user.id]?.name,
+      is_optimistic: true,
+    }]);
+
+    // Update last message preview immediately
+    const senderName = pMap[user.id]?.name || pMap[user.id]?.email?.split('@')[0] || '';
+    setLastMessages(prev => ({ ...prev, [selectedChannel.id]: `${senderName}: ${content}`.slice(0, 60) }));
+
     await supabase.from('internal_messages').insert({
       channel_id: selectedChannel.id,
       user_id: user.id,
       content,
     });
     await supabase.from('internal_channels').update({ updated_at: new Date().toISOString() }).eq('id', selectedChannel.id);
-    // Update last message preview
-    const senderName = profilesMap[user.id]?.name || profilesMap[user.id]?.email?.split('@')[0] || '';
-    setLastMessages(prev => ({ ...prev, [selectedChannel.id]: `${senderName}: ${content}`.slice(0, 60) }));
   };
 
   const handleCreateChannel = async () => {
@@ -213,10 +292,8 @@ export default function InternalChat() {
     toast({ title: 'Grupo criado com sucesso' });
   };
 
-  // Start direct 1-on-1 chat
   const handleStartDirectChat = async (targetUserId: string) => {
     if (!user) return;
-    // Check if direct chat already exists between the two
     const { data: myChannels } = await supabase
       .from('internal_channel_members')
       .select('channel_id')
@@ -235,7 +312,6 @@ export default function InternalChat() {
             .select('user_id')
             .eq('channel_id', ch.id);
           if (members && members.length === 2 && members.some(m => m.user_id === targetUserId)) {
-            // Already exists, select it
             setSelectedChannel(ch);
             setDirectDialogOpen(false);
             return;
@@ -243,7 +319,6 @@ export default function InternalChat() {
         }
       }
     }
-    // Create new direct chat
     const targetProfile = profilesMap[targetUserId];
     const channelDisplayName = targetProfile?.name || targetProfile?.email?.split('@')[0] || 'Chat Direto';
     const { data, error } = await supabase.from('internal_channels').insert({
@@ -307,11 +382,8 @@ export default function InternalChat() {
     return d.toLocaleDateString('pt-BR');
   };
 
-  // Get display name for direct chat channels (show the OTHER user's name)
   const getChannelDisplayName = (ch: Channel) => {
     if (ch.is_group) return ch.name;
-    // For direct chats, we'd ideally show the other person's name
-    // but we may not have member data loaded for all channels
     return ch.name;
   };
 
@@ -414,7 +486,8 @@ export default function InternalChat() {
                         <div key={msg.id} className={cn("flex mb-2", isMe ? "justify-end" : "justify-start")}>
                           <div className={cn(
                             "max-w-[70%] rounded-lg px-3 py-2",
-                            isMe ? "bg-primary text-primary-foreground" : "bg-muted"
+                            isMe ? "bg-primary text-primary-foreground" : "bg-muted",
+                            msg.is_optimistic && "opacity-70"
                           )}>
                             {!isMe && <p className="text-xs font-medium opacity-70 mb-0.5">{senderName}</p>}
                             <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
@@ -424,7 +497,8 @@ export default function InternalChat() {
                       );
                     })}
                   </div>
-                ))}
+                ))
+                }
                 <div ref={messagesEndRef} />
               </ScrollArea>
               <div className="p-3 border-t border-border flex gap-2">
