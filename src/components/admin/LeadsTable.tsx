@@ -13,6 +13,31 @@ import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight } f
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
+// Format date: handles Excel serial numbers and various string formats -> dd/mm/aaaa
+function formatDate(value: string | number | null | undefined): string {
+  if (!value) return '-';
+  // Excel serial number (numeric string or number)
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!isNaN(num) && num > 10000 && num < 100000) {
+    // Excel date serial: days since 1900-01-01 (with the Excel leap year bug)
+    const excelEpoch = new Date(1900, 0, 1);
+    const date = new Date(excelEpoch.getTime() + (num - 2) * 86400000);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('pt-BR');
+    }
+  }
+  // Try parsing as date string (yyyy-mm-dd, dd/mm/yyyy, etc.)
+  const str = String(value).trim();
+  // Already dd/mm/yyyy?
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+  }
+  return str;
+}
+
 const PAGE_SIZE = 50;
 
 const DEFAULT_STATUS_OPTIONS = [
@@ -23,15 +48,22 @@ const DEFAULT_STATUS_OPTIONS = [
   { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400' },
 ];
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
+
 interface LeadsTableProps {
   filterSeller?: string;
   filterStatus?: string;
   filterBatch?: string;
   onFiltersChange?: (filters: { seller: string; status: string; batch: string }) => void;
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
+  columnConfig?: ColumnConfig[];
 }
 
-export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS }: LeadsTableProps) {
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig }: LeadsTableProps) {
   const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
@@ -233,6 +265,32 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return seller?.name || seller?.email || 'N/A';
   };
 
+  // Visible columns in order
+  const visibleCols = useMemo(() => {
+    if (!columnConfig) return null; // null means use hardcoded fallback
+    return columnConfig.filter(c => c.visible);
+  }, [columnConfig]);
+
+  const renderCellValue = (lead: any, key: string) => {
+    switch (key) {
+      case 'valor_lib':
+        return lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
+      case 'vlr_parcela':
+        return lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
+      case 'data_nasc':
+      case 'data_ref':
+        return formatDate(lead[key]);
+      case 'status':
+        return <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>;
+      case 'assigned_to':
+        return getSellerName(lead.assigned_to);
+      case 'notes':
+        return <span className="max-w-[200px] truncate block">{lead[key] || '-'}</span>;
+      default:
+        return lead[key] || '-';
+    }
+  };
+
   return (
     <>
       <div className="space-y-4">
@@ -320,33 +378,43 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
-              <div className="min-w-[2000px]">
+              <div className="w-max min-w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10 sticky left-0 bg-background z-10">
                         <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                       </TableHead>
-                      <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>CPF</TableHead>
-                      <TableHead>Valor Lib.</TableHead>
-                      <TableHead>Prazo</TableHead>
-                      <TableHead>Parcela</TableHead>
-                      <TableHead>Banco</TableHead>
-                      <TableHead>Cód. Banco</TableHead>
-                      <TableHead>Banco Simulado</TableHead>
-                      <TableHead>Agência</TableHead>
-                      <TableHead>Conta</TableHead>
-                      <TableHead>Aprovado</TableHead>
-                      <TableHead>Reprovado</TableHead>
-                      <TableHead>Data Nasc.</TableHead>
-                      <TableHead>Nome Mãe</TableHead>
-                      <TableHead>Data Ref.</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Vendedor</TableHead>
-                      <TableHead>Lote</TableHead>
-                      <TableHead>Observações</TableHead>
+                      {visibleCols ? (
+                        visibleCols.map((col, i) => (
+                          <TableHead key={col.key} className={i === 0 ? 'sticky left-10 bg-background z-10' : ''}>
+                            {col.label}
+                          </TableHead>
+                        ))
+                      ) : (
+                        <>
+                          <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
+                          <TableHead>Telefone</TableHead>
+                          <TableHead>CPF</TableHead>
+                          <TableHead>Valor Lib.</TableHead>
+                          <TableHead>Prazo</TableHead>
+                          <TableHead>Parcela</TableHead>
+                          <TableHead>Banco</TableHead>
+                          <TableHead>Cód. Banco</TableHead>
+                          <TableHead>Banco Simulado</TableHead>
+                          <TableHead>Agência</TableHead>
+                          <TableHead>Conta</TableHead>
+                          <TableHead>Aprovado</TableHead>
+                          <TableHead>Reprovado</TableHead>
+                          <TableHead>Data Nasc.</TableHead>
+                          <TableHead>Nome Mãe</TableHead>
+                          <TableHead>Data Ref.</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Vendedor</TableHead>
+                          <TableHead>Lote</TableHead>
+                          <TableHead>Observações</TableHead>
+                        </>
+                      )}
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -356,32 +424,42 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                         <TableCell className="sticky left-0 bg-background z-10">
                           <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
                         </TableCell>
-                        <TableCell className="font-medium sticky left-10 bg-background z-10 whitespace-nowrap">{lead.nome}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.telefone}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.cpf || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                        </TableCell>
-                        <TableCell>{lead.prazo || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.banco_nome || '-'}</TableCell>
-                        <TableCell>{lead.banco_codigo || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.banco_simulado || '-'}</TableCell>
-                        <TableCell>{lead.agencia || '-'}</TableCell>
-                        <TableCell>{lead.conta || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.data_nasc || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.data_ref || '-'}</TableCell>
-                        <TableCell>
-                          <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
-                        <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
+                        {visibleCols ? (
+                          visibleCols.map((col, i) => (
+                            <TableCell key={col.key} className={`whitespace-nowrap ${i === 0 ? 'font-medium sticky left-10 bg-background z-10' : ''}`}>
+                              {renderCellValue(lead, col.key)}
+                            </TableCell>
+                          ))
+                        ) : (
+                          <>
+                            <TableCell className="font-medium sticky left-10 bg-background z-10 whitespace-nowrap">{lead.nome}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.telefone}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.cpf || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                            </TableCell>
+                            <TableCell>{lead.prazo || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.banco_nome || '-'}</TableCell>
+                            <TableCell>{lead.banco_codigo || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.banco_simulado || '-'}</TableCell>
+                            <TableCell>{lead.agencia || '-'}</TableCell>
+                            <TableCell>{lead.conta || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatDate(lead.data_nasc)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatDate(lead.data_ref)}</TableCell>
+                            <TableCell>
+                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
+                            <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
+                          </>
+                        )}
                         <TableCell>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
                             <Trash2 className="w-4 h-4" />

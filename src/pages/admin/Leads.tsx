@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
@@ -29,6 +30,35 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
 ];
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
+
+const ALL_COLUMNS: ColumnConfig[] = [
+  { key: 'nome', label: 'Nome', visible: true },
+  { key: 'telefone', label: 'Telefone', visible: true },
+  { key: 'cpf', label: 'CPF', visible: true },
+  { key: 'valor_lib', label: 'Valor Lib.', visible: true },
+  { key: 'prazo', label: 'Prazo', visible: true },
+  { key: 'vlr_parcela', label: 'Parcela', visible: true },
+  { key: 'banco_nome', label: 'Banco', visible: true },
+  { key: 'banco_codigo', label: 'Cód. Banco', visible: true },
+  { key: 'banco_simulado', label: 'Banco Simulado', visible: true },
+  { key: 'agencia', label: 'Agência', visible: true },
+  { key: 'conta', label: 'Conta', visible: true },
+  { key: 'aprovado', label: 'Aprovado', visible: true },
+  { key: 'reprovado', label: 'Reprovado', visible: true },
+  { key: 'data_nasc', label: 'Data Nasc.', visible: true },
+  { key: 'nome_mae', label: 'Nome Mãe', visible: true },
+  { key: 'data_ref', label: 'Data Ref.', visible: true },
+  { key: 'status', label: 'Status', visible: true },
+  { key: 'assigned_to', label: 'Vendedor', visible: true },
+  { key: 'batch_name', label: 'Lote', visible: true },
+  { key: 'notes', label: 'Observações', visible: true },
+];
+
 export default function Leads() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -45,6 +75,11 @@ export default function Leads() {
   const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
   const [isSavingStatuses, setIsSavingStatuses] = useState(false);
 
+  // Column config editor state
+  const [editingColumns, setEditingColumns] = useState<ColumnConfig[] | null>(null);
+  const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
     queryKey: ['lead-status-options'],
@@ -57,6 +92,21 @@ export default function Leads() {
         return data.lead_status_options as unknown as StatusOption[];
       }
       return DEFAULT_STATUS_OPTIONS;
+    }
+  });
+
+  // Fetch column config from system_settings
+  const { data: columnConfig = ALL_COLUMNS } = useQuery({
+    queryKey: ['lead-table-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_table_columns')
+        .maybeSingle();
+      if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
+        return data.lead_table_columns as unknown as ColumnConfig[];
+      }
+      return ALL_COLUMNS;
     }
   });
 
@@ -194,6 +244,52 @@ export default function Leads() {
     }
   };
 
+  // Column config functions
+  const startEditingColumns = () => setEditingColumns([...columnConfig]);
+
+  const toggleColumnVisibility = (idx: number) => {
+    if (!editingColumns) return;
+    const updated = [...editingColumns];
+    updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
+    setEditingColumns(updated);
+  };
+
+  const moveColumn = (from: number, to: number) => {
+    if (!editingColumns || to < 0 || to >= editingColumns.length) return;
+    const updated = [...editingColumns];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    setEditingColumns(updated);
+  };
+
+  const saveColumns = async () => {
+    if (!editingColumns) return;
+    setIsSavingColumns(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_table_columns: editingColumns as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Colunas atualizadas com sucesso' });
+      queryClient.invalidateQueries({ queryKey: ['lead-table-columns'] });
+      setEditingColumns(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingColumns(false);
+    }
+  };
+
+  const handleColumnDragStart = (idx: number) => setDragIdx(idx);
+  const handleColumnDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    moveColumn(dragIdx, idx);
+    setDragIdx(idx);
+  };
+  const handleColumnDragEnd = () => setDragIdx(null);
+
   const COLOR_PRESETS = [
     { label: 'Cinza', value: 'bg-muted text-muted-foreground hover:bg-muted/80' },
     { label: 'Azul', value: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
@@ -247,7 +343,7 @@ export default function Leads() {
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
             <TabsTrigger value="status-config" className="flex items-center gap-1">
-              <Settings2 className="w-3.5 h-3.5" /> Status
+              <Settings2 className="w-3.5 h-3.5" /> Configurações da Planilha
             </TabsTrigger>
           </TabsList>
 
@@ -258,6 +354,7 @@ export default function Leads() {
               filterBatch={filterBatch}
               onFiltersChange={handleFiltersChange}
               statusOptions={statusOptions}
+              columnConfig={columnConfig}
             />
           </TabsContent>
 
@@ -426,6 +523,74 @@ export default function Leads() {
                     <Button variant="outline" onClick={addStatus} className="w-full">
                       <Plus className="w-4 h-4 mr-2" /> Adicionar Status
                     </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Column Configuration */}
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <GripVertical className="w-5 h-5" />
+                    Ordem e Visibilidade das Colunas
+                  </CardTitle>
+                  {!editingColumns ? (
+                    <Button onClick={startEditingColumns}>Editar Colunas</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingColumns(null)}>Cancelar</Button>
+                      <Button onClick={saveColumns} disabled={isSavingColumns}>
+                        {isSavingColumns && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingColumns ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Colunas ativas na tabela de leads:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {columnConfig.filter(c => c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                      {columnConfig.filter(c => !c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1 opacity-40">
+                          <EyeOff className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Arraste para reordenar e alterne a visibilidade. A ordem aqui será refletida na tabela de leads.</p>
+                    {editingColumns.map((col, idx) => (
+                      <div
+                        key={col.key}
+                        draggable
+                        onDragStart={() => handleColumnDragStart(idx)}
+                        onDragOver={(e) => handleColumnDragOver(e, idx)}
+                        onDragEnd={handleColumnDragEnd}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${dragIdx === idx ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'}`}
+                      >
+                        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1 text-sm font-medium">{col.label}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{col.key}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleColumnVisibility(idx)}
+                          className={col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}
+                        >
+                          {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
