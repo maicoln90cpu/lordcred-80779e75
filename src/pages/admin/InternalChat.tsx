@@ -83,8 +83,8 @@ export default function InternalChat() {
   // Load last message preview for each channel
   const loadLastMessages = useCallback(async (channelIds: string[]) => {
     if (channelIds.length === 0) return;
+    const pMap = profilesMapRef.current;
     const previews: Record<string, string> = {};
-    // Fetch last message per channel - doing individual queries for simplicity
     for (const cid of channelIds) {
       const { data } = await supabase
         .from('internal_messages')
@@ -93,13 +93,13 @@ export default function InternalChat() {
         .order('created_at', { ascending: false })
         .limit(1);
       if (data && data[0]) {
-        const sender = profilesMap[data[0].user_id];
+        const sender = pMap[data[0].user_id];
         const name = sender?.name || sender?.email?.split('@')[0] || '';
         previews[cid] = `${name}: ${data[0].content}`.slice(0, 60);
       }
     }
     setLastMessages(previews);
-  }, [profilesMap]);
+  }, []);
 
   // Load messages for a channel
   const loadMessages = useCallback(async (channelId: string) => {
