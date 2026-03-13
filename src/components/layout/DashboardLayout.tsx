@@ -20,7 +20,9 @@ import {
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
 
 interface DashboardLayoutProps {
   children: ReactNode;
