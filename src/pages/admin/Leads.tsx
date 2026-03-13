@@ -6,12 +6,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Users, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
+
+interface StatusOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
+
+const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
+  { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground hover:bg-muted/80' },
+  { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+  { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
+  { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
+  { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+];
 
 export default function Leads() {
   const { toast } = useToast();
@@ -19,6 +35,30 @@ export default function Leads() {
   const [reassignBatch, setReassignBatch] = useState<string | null>(null);
   const [reassignSeller, setReassignSeller] = useState('');
   const [isReassigning, setIsReassigning] = useState(false);
+
+  // Filters lifted from LeadsTable
+  const [filterSeller, setFilterSeller] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterBatch, setFilterBatch] = useState('all');
+
+  // Status editor state
+  const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
+  const [isSavingStatuses, setIsSavingStatuses] = useState(false);
+
+  // Fetch status options from system_settings
+  const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
+    queryKey: ['lead-status-options'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_status_options')
+        .maybeSingle();
+      if (data?.lead_status_options && Array.isArray(data.lead_status_options)) {
+        return data.lead_status_options as StatusOption[];
+      }
+      return DEFAULT_STATUS_OPTIONS;
+    }
+  });
 
   const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
@@ -41,14 +81,23 @@ export default function Leads() {
     return s?.name || s?.email || 'N/A';
   };
 
+  // Metrics react to filters
+  const filteredLeadsForMetrics = useMemo(() => {
+    let result = [...allLeads];
+    if (filterSeller !== 'all') result = result.filter((l: any) => l.assigned_to === filterSeller);
+    if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
+    if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
+    return result;
+  }, [allLeads, filterSeller, filterStatus, filterBatch]);
+
   const metrics = useMemo(() => {
-    const total = allLeads.length;
-    const pendentes = allLeads.filter((l: any) => l.status === 'pendente').length;
-    const contatados = allLeads.filter((l: any) => l.status !== 'pendente').length;
-    const aprovados = allLeads.filter((l: any) => l.status === 'APROVADO').length;
+    const total = filteredLeadsForMetrics.length;
+    const pendentes = filteredLeadsForMetrics.filter((l: any) => l.status === 'pendente').length;
+    const contatados = filteredLeadsForMetrics.filter((l: any) => l.status !== 'pendente').length;
+    const aprovados = filteredLeadsForMetrics.filter((l: any) => l.status === 'APROVADO').length;
     const taxaAprovacao = total > 0 ? Math.round((aprovados / total) * 100) : 0;
     return { total, pendentes, contatados, aprovados, taxaAprovacao };
-  }, [allLeads]);
+  }, [filteredLeadsForMetrics]);
 
   const batchHistory = useMemo(() => {
     const map = new Map<string, { batch: string; seller: string; total: number; contacted: number; created: string }>();
@@ -84,6 +133,77 @@ export default function Leads() {
       setIsReassigning(false);
     }
   };
+
+  const handleFiltersChange = (filters: { seller: string; status: string; batch: string }) => {
+    setFilterSeller(filters.seller);
+    setFilterStatus(filters.status);
+    setFilterBatch(filters.batch);
+  };
+
+  // Status management
+  const startEditingStatuses = () => {
+    setEditingStatuses([...statusOptions]);
+  };
+
+  const addStatus = () => {
+    if (!editingStatuses) return;
+    setEditingStatuses([...editingStatuses, { value: '', label: '', color_class: 'bg-muted text-muted-foreground hover:bg-muted/80' }]);
+  };
+
+  const removeStatus = (idx: number) => {
+    if (!editingStatuses) return;
+    setEditingStatuses(editingStatuses.filter((_, i) => i !== idx));
+  };
+
+  const updateStatusField = (idx: number, field: keyof StatusOption, val: string) => {
+    if (!editingStatuses) return;
+    const updated = [...editingStatuses];
+    updated[idx] = { ...updated[idx], [field]: val };
+    if (field === 'label') {
+      // Auto-set value from label if value is empty or was previously auto-generated
+      const prev = editingStatuses[idx];
+      if (!prev.value || prev.value === prev.label.toUpperCase()) {
+        updated[idx].value = val.toUpperCase();
+      }
+    }
+    setEditingStatuses(updated);
+  };
+
+  const saveStatuses = async () => {
+    if (!editingStatuses) return;
+    // Validate
+    const invalid = editingStatuses.some(s => !s.value || !s.label);
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Todos os status devem ter valor e label preenchidos.', variant: 'destructive' });
+      return;
+    }
+    setIsSavingStatuses(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_status_options: editingStatuses as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // update all rows
+      if (error) throw error;
+      toast({ title: 'Status atualizados com sucesso' });
+      queryClient.invalidateQueries({ queryKey: ['lead-status-options'] });
+      setEditingStatuses(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingStatuses(false);
+    }
+  };
+
+  const COLOR_PRESETS = [
+    { label: 'Cinza', value: 'bg-muted text-muted-foreground hover:bg-muted/80' },
+    { label: 'Azul', value: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+    { label: 'Amarelo', value: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
+    { label: 'Vermelho', value: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
+    { label: 'Verde', value: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+    { label: 'Roxo', value: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' },
+    { label: 'Rosa', value: 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30' },
+    { label: 'Laranja', value: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
+  ];
 
   return (
     <DashboardLayout>
@@ -126,10 +246,19 @@ export default function Leads() {
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
+            <TabsTrigger value="status-config" className="flex items-center gap-1">
+              <Settings2 className="w-3.5 h-3.5" /> Status
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="leads">
-            <LeadsTable />
+            <LeadsTable
+              filterSeller={filterSeller}
+              filterStatus={filterStatus}
+              filterBatch={filterBatch}
+              onFiltersChange={handleFiltersChange}
+              statusOptions={statusOptions}
+            />
           </TabsContent>
 
           <TabsContent value="import">
@@ -203,6 +332,100 @@ export default function Leads() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="status-config">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings2 className="w-5 h-5" />
+                    Gerenciar Status dos Leads
+                  </CardTitle>
+                  {!editingStatuses ? (
+                    <Button onClick={startEditingStatuses}>Editar Status</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingStatuses(null)}>Cancelar</Button>
+                      <Button onClick={saveStatuses} disabled={isSavingStatuses}>
+                        {isSavingStatuses && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingStatuses ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Status configurados atualmente:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {statusOptions.map(s => (
+                        <Badge key={s.value} className={s.color_class}>{s.label}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">Edite os nomes e cores dos status. Estas alterações serão refletidas em todo o sistema.</p>
+                    {editingStatuses.map((status, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="flex-1 grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Valor (interno)</label>
+                            <Input
+                              value={status.value}
+                              onChange={(e) => updateStatusField(idx, 'value', e.target.value)}
+                              placeholder="Ex: APROVADO"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Label (exibição)</label>
+                            <Input
+                              value={status.label}
+                              onChange={(e) => updateStatusField(idx, 'label', e.target.value)}
+                              placeholder="Ex: Aprovado"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
+                            <Select value={status.color_class} onValueChange={(v) => updateStatusField(idx, 'color_class', v)}>
+                              <SelectTrigger className="h-8 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={status.color_class + ' text-xs'}>Aa</Badge>
+                                  <span className="truncate">{COLOR_PRESETS.find(p => p.value === status.color_class)?.label || 'Custom'}</span>
+                                </div>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COLOR_PRESETS.map(p => (
+                                  <SelectItem key={p.value} value={p.value}>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={p.value + ' text-xs'}>Aa</Badge>
+                                      {p.label}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={status.color_class}>{status.label || '...'}</Badge>
+                          <Button variant="ghost" size="icon" onClick={() => removeStatus(idx)} className="text-destructive hover:text-destructive h-8 w-8">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="outline" onClick={addStatus} className="w-full">
+                      <Plus className="w-4 h-4 mr-2" /> Adicionar Status
+                    </Button>
                   </div>
                 )}
               </CardContent>
