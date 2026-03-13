@@ -63,7 +63,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
         .select('lead_status_options')
         .maybeSingle();
       if (data?.lead_status_options && Array.isArray(data.lead_status_options)) {
-        return data.lead_status_options as StatusOption[];
+        return data.lead_status_options as unknown as StatusOption[];
       }
       return DEFAULT_STATUS_OPTIONS;
     }
