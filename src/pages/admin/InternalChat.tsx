@@ -191,20 +191,19 @@ export default function InternalChat() {
     return () => { supabase.removeChannel(channel); };
   }, [selectedChannel]);
 
-  // Global realtime subscription for notifications (all channels)
+  // Global realtime subscription for last message preview updates only
+  // (Toast/sound notifications are handled by useInternalChatUnread hook globally)
   useEffect(() => {
     if (!user) return;
     const notifChannel = supabase
-      .channel('internal-msgs-notifications')
+      .channel('internal-msgs-previews')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'internal_messages',
       }, (payload) => {
         const msg = payload.new as any;
-        // Don't notify for own messages
         if (msg.user_id === user.id) return;
-        // Don't notify for currently selected channel
         if (selectedChannelRef.current?.id === msg.channel_id) return;
 
         const pMap = profilesMapRef.current;
@@ -215,19 +214,6 @@ export default function InternalChat() {
           ...prev,
           [msg.channel_id]: `${senderName}: ${msg.content}`.slice(0, 60),
         }));
-
-        // Toast notification
-        toast({
-          title: `💬 ${senderName}`,
-          description: (msg.content as string).slice(0, 100),
-        });
-
-        // Audio ping
-        try {
-          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczHjqIr9fNdkQkMF2Yw9zEaTojNIGo0NvGdUMlOXCPt87JgVcsNmiIsMnMnWdFMDdljK3FzKlsSzM3W4WmwsyxdVIxMFWCobzIupVlTT4zVICjvL+rjHVfSD9LaoyfsrmzrZVsUjoxRGuJo7Kvq5Z7Zl1KNDpWhZ2rqpyKfnRmVkM2PVGBm6GckoZ7cmhcS0BAQ4ucnZaPh4V+dGxeTz05PUh3iZCNgoSDfnduY1RCP0FGcIWLhoGDhIF8dmtiVUlDQURBbICIhYOGhoR/eXJoX1VOSkRCQW5+hoODhoeFgHx1bWRcVk9KREFAbH2Eg4OGh4aAfHVtZF1XUUpFQUBtfYOCg4aGhYB8dW1kXVdRSkVBQGx8g4KDhoaFgHx1bWRdV1FKRUFAYH2EgoOGhoV/fHVtZF1XT0pEQQ==');
-          audio.volume = 0.3;
-          audio.play().catch(() => {});
-        } catch { }
       })
       .subscribe();
     return () => { supabase.removeChannel(notifChannel); };
