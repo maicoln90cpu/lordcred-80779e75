@@ -235,7 +235,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
 
   return (
     <>
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden w-full max-w-full">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 min-w-0 overflow-x-hidden">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -305,8 +305,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
               Nenhum lead encontrado. Importe uma planilha para começar.
             </div>
           ) : (
-            <div className="border rounded-lg max-h-[600px] overflow-y-auto">
-              <div className="overflow-x-auto">
+            <div className="border rounded-lg w-full max-w-full max-h-[600px] overflow-hidden overflow-y-auto">
+              <div className="w-full max-w-full overflow-x-auto">
               <Table className="min-w-[2000px]">
                 <TableHeader>
                   <TableRow>
