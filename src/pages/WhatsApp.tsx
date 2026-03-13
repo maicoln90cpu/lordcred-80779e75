@@ -49,6 +49,7 @@ export default function WhatsApp() {
   const [leadsOpen, setLeadsOpen] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
   const { user, isSeller, signOut } = useAuth();
+  const { totalUnread: chatUnreadCount } = useInternalChatUnread();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
