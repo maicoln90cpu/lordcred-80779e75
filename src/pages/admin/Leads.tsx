@@ -251,7 +251,7 @@ export default function Leads() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="leads">
+          <TabsContent value="leads" className="min-w-0 overflow-x-hidden">
             <LeadsTable
               filterSeller={filterSeller}
               filterStatus={filterStatus}
