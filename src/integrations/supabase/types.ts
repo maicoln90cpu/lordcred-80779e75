@@ -329,6 +329,97 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_channel_members: {
+        Row: {
+          channel_id: string
+          id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_channel_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "internal_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_channels: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_group: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_group?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_group?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      internal_messages: {
+        Row: {
+          channel_id: string
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          content: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "internal_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_cards: {
         Row: {
           column_id: string

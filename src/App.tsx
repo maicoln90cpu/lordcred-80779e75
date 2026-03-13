@@ -18,6 +18,7 @@ import Leads from "./pages/admin/Leads";
 import Performance from "./pages/admin/Performance";
 import KanbanAdmin from "./pages/admin/KanbanAdmin";
 import LinksAdmin from "./pages/admin/LinksAdmin";
+import InternalChat from "./pages/admin/InternalChat";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/admin/performance" element={<ProtectedRoute blockSellers><Performance /></ProtectedRoute>} />
               <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
               <Route path="/admin/links" element={<ProtectedRoute blockSellers><LinksAdmin /></ProtectedRoute>} />
+              <Route path="/admin/chat" element={<ProtectedRoute><InternalChat /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
