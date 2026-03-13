@@ -376,7 +376,6 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                   ))}
                 </TableBody>
               </Table>
-              </div>
             </div>
           )}
 
