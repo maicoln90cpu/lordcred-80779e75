@@ -48,15 +48,22 @@ const DEFAULT_STATUS_OPTIONS = [
   { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400' },
 ];
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
+
 interface LeadsTableProps {
   filterSeller?: string;
   filterStatus?: string;
   filterBatch?: string;
   onFiltersChange?: (filters: { seller: string; status: string; batch: string }) => void;
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
+  columnConfig?: ColumnConfig[];
 }
 
-export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS }: LeadsTableProps) {
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig }: LeadsTableProps) {
   const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
