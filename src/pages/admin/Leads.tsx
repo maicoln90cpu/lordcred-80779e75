@@ -526,6 +526,74 @@ export default function Leads() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Column Configuration */}
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <GripVertical className="w-5 h-5" />
+                    Ordem e Visibilidade das Colunas
+                  </CardTitle>
+                  {!editingColumns ? (
+                    <Button onClick={startEditingColumns}>Editar Colunas</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingColumns(null)}>Cancelar</Button>
+                      <Button onClick={saveColumns} disabled={isSavingColumns}>
+                        {isSavingColumns && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingColumns ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Colunas ativas na tabela de leads:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {columnConfig.filter(c => c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                      {columnConfig.filter(c => !c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1 opacity-40">
+                          <EyeOff className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Arraste para reordenar e alterne a visibilidade. A ordem aqui será refletida na tabela de leads.</p>
+                    {editingColumns.map((col, idx) => (
+                      <div
+                        key={col.key}
+                        draggable
+                        onDragStart={() => handleColumnDragStart(idx)}
+                        onDragOver={(e) => handleColumnDragOver(e, idx)}
+                        onDragEnd={handleColumnDragEnd}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${dragIdx === idx ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'}`}
+                      >
+                        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1 text-sm font-medium">{col.label}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{col.key}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleColumnVisibility(idx)}
+                          className={col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}
+                        >
+                          {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
