@@ -66,12 +66,7 @@ export default function InternalChat() {
     selectedChannelRef.current = selectedChannel;
   }, [selectedChannel]);
 
-  // Request notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
+  // No longer need browser notification permission
 
   // Load channels
   const loadChannels = useCallback(async () => {
