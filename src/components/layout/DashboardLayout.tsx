@@ -13,7 +13,9 @@ import {
   ChevronLeft,
   Crown,
   ArrowLeft,
-  BarChart3
+  BarChart3,
+  Columns3,
+  Link2
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
