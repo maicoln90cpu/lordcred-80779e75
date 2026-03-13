@@ -244,6 +244,52 @@ export default function Leads() {
     }
   };
 
+  // Column config functions
+  const startEditingColumns = () => setEditingColumns([...columnConfig]);
+
+  const toggleColumnVisibility = (idx: number) => {
+    if (!editingColumns) return;
+    const updated = [...editingColumns];
+    updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
+    setEditingColumns(updated);
+  };
+
+  const moveColumn = (from: number, to: number) => {
+    if (!editingColumns || to < 0 || to >= editingColumns.length) return;
+    const updated = [...editingColumns];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    setEditingColumns(updated);
+  };
+
+  const saveColumns = async () => {
+    if (!editingColumns) return;
+    setIsSavingColumns(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_table_columns: editingColumns as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Colunas atualizadas com sucesso' });
+      queryClient.invalidateQueries({ queryKey: ['lead-table-columns'] });
+      setEditingColumns(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingColumns(false);
+    }
+  };
+
+  const handleColumnDragStart = (idx: number) => setDragIdx(idx);
+  const handleColumnDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    moveColumn(dragIdx, idx);
+    setDragIdx(idx);
+  };
+  const handleColumnDragEnd = () => setDragIdx(null);
+
   const COLOR_PRESETS = [
     { label: 'Cinza', value: 'bg-muted text-muted-foreground hover:bg-muted/80' },
     { label: 'Azul', value: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
