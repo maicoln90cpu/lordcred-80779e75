@@ -265,6 +265,32 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return seller?.name || seller?.email || 'N/A';
   };
 
+  // Visible columns in order
+  const visibleCols = useMemo(() => {
+    if (!columnConfig) return null; // null means use hardcoded fallback
+    return columnConfig.filter(c => c.visible);
+  }, [columnConfig]);
+
+  const renderCellValue = (lead: any, key: string) => {
+    switch (key) {
+      case 'valor_lib':
+        return lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
+      case 'vlr_parcela':
+        return lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
+      case 'data_nasc':
+      case 'data_ref':
+        return formatDate(lead[key]);
+      case 'status':
+        return <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>;
+      case 'assigned_to':
+        return getSellerName(lead.assigned_to);
+      case 'notes':
+        return <span className="max-w-[200px] truncate block">{lead[key] || '-'}</span>;
+      default:
+        return lead[key] || '-';
+    }
+  };
+
   return (
     <>
       <div className="space-y-4">
