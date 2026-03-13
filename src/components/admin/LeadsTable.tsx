@@ -320,76 +320,78 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
-              <Table className="min-w-[2000px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 sticky left-0 bg-background z-10">
-                      <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
-                    </TableHead>
-                    <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>CPF</TableHead>
-                    <TableHead>Valor Lib.</TableHead>
-                    <TableHead>Prazo</TableHead>
-                    <TableHead>Parcela</TableHead>
-                    <TableHead>Banco</TableHead>
-                    <TableHead>Cód. Banco</TableHead>
-                    <TableHead>Banco Simulado</TableHead>
-                    <TableHead>Agência</TableHead>
-                    <TableHead>Conta</TableHead>
-                    <TableHead>Aprovado</TableHead>
-                    <TableHead>Reprovado</TableHead>
-                    <TableHead>Data Nasc.</TableHead>
-                    <TableHead>Nome Mãe</TableHead>
-                    <TableHead>Data Ref.</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead>Lote</TableHead>
-                    <TableHead>Observações</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pagedLeads.map((lead: any) => (
-                    <TableRow key={lead.id} className={selectedIds.has(lead.id) ? 'bg-primary/5' : ''}>
-                      <TableCell className="sticky left-0 bg-background z-10">
-                        <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium sticky left-10 bg-background z-10 whitespace-nowrap">{lead.nome}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.telefone}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.cpf || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                      </TableCell>
-                      <TableCell>{lead.prazo || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.banco_nome || '-'}</TableCell>
-                      <TableCell>{lead.banco_codigo || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.banco_simulado || '-'}</TableCell>
-                      <TableCell>{lead.agencia || '-'}</TableCell>
-                      <TableCell>{lead.conta || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.data_nasc || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
-                      <TableCell className="whitespace-nowrap">{lead.data_ref || '-'}</TableCell>
-                      <TableCell>
-                        <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
-                      <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
+              <div className="min-w-[2000px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10 sticky left-0 bg-background z-10">
+                        <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
+                      </TableHead>
+                      <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>CPF</TableHead>
+                      <TableHead>Valor Lib.</TableHead>
+                      <TableHead>Prazo</TableHead>
+                      <TableHead>Parcela</TableHead>
+                      <TableHead>Banco</TableHead>
+                      <TableHead>Cód. Banco</TableHead>
+                      <TableHead>Banco Simulado</TableHead>
+                      <TableHead>Agência</TableHead>
+                      <TableHead>Conta</TableHead>
+                      <TableHead>Aprovado</TableHead>
+                      <TableHead>Reprovado</TableHead>
+                      <TableHead>Data Nasc.</TableHead>
+                      <TableHead>Nome Mãe</TableHead>
+                      <TableHead>Data Ref.</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead>Lote</TableHead>
+                      <TableHead>Observações</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedLeads.map((lead: any) => (
+                      <TableRow key={lead.id} className={selectedIds.has(lead.id) ? 'bg-primary/5' : ''}>
+                        <TableCell className="sticky left-0 bg-background z-10">
+                          <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
+                        </TableCell>
+                        <TableCell className="font-medium sticky left-10 bg-background z-10 whitespace-nowrap">{lead.nome}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.telefone}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.cpf || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                        </TableCell>
+                        <TableCell>{lead.prazo || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.banco_nome || '-'}</TableCell>
+                        <TableCell>{lead.banco_codigo || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.banco_simulado || '-'}</TableCell>
+                        <TableCell>{lead.agencia || '-'}</TableCell>
+                        <TableCell>{lead.conta || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.data_nasc || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{lead.data_ref || '-'}</TableCell>
+                        <TableCell>
+                          <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
+                        <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </Card>
         )}
