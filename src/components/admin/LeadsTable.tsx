@@ -398,9 +398,9 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                         <TableCell>{lead.conta || '-'}</TableCell>
                         <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
                         <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.data_nasc || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(lead.data_nasc)}</TableCell>
                         <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{lead.data_ref || '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(lead.data_ref)}</TableCell>
                         <TableCell>
                           <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
                         </TableCell>
