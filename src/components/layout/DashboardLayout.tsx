@@ -133,7 +133,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.email}</p>
                 <p className="text-xs text-muted-foreground">
-                  {isAdmin ? 'Master' : 'Administrador'}
+                  {isSeller ? 'Vendedor' : isAdmin ? 'Master' : 'Administrador'}
                 </p>
               </div>
             )}
