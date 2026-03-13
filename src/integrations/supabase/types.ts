@@ -746,6 +746,36 @@ export type Database = {
         }
         Relationships: []
       }
+      useful_links: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
