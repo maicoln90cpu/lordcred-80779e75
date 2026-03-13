@@ -216,13 +216,11 @@ export default function InternalChat() {
           [msg.channel_id]: `${senderName}: ${msg.content}`.slice(0, 60),
         }));
 
-        // Browser notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(`${senderName} - Chat Interno`, {
-            body: msg.content.slice(0, 100),
-            icon: '/favicon.png',
-          });
-        }
+        // Toast notification
+        toast({
+          title: `💬 ${senderName}`,
+          description: (msg.content as string).slice(0, 100),
+        });
 
         // Audio ping
         try {
