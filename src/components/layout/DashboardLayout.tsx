@@ -37,6 +37,7 @@ const navItems: NavItem[] = [
   { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
   { label: 'Vendedores', icon: Users, href: '/admin/users' },
   { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads' },
+  { label: 'Performance', icon: BarChart3, href: '/admin/performance' },
   { label: 'Configurações', icon: Settings, href: '/settings' },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
