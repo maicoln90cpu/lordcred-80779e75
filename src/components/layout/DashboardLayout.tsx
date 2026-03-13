@@ -20,7 +20,9 @@ import {
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -44,7 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
-  { label: 'Configurações', icon: Settings, href: '/settings' },
+  { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
 
@@ -54,6 +56,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isAdmin, isSeller, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { totalUnread } = useInternalChatUnread();
 
   const filteredNavItems = navItems.filter(item => (!item.adminOnly || isAdmin) && (!item.sellerHidden || !isSeller));
 
@@ -96,7 +99,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative",
                   isActive 
                     ? "bg-primary text-primary-foreground" 
                     : "text-sidebar-foreground hover:bg-sidebar-accent",
@@ -105,6 +108,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 {sidebarOpen && <span>{item.label}</span>}
+                {item.href === '/chat' && totalUnread > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </Badge>
+                )}
               </Link>
             );
           })}
@@ -176,7 +184,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative",
                       isActive 
                         ? "bg-primary text-primary-foreground" 
                         : "text-sidebar-foreground hover:bg-sidebar-accent"
@@ -184,6 +192,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   >
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
+                    {item.href === '/chat' && totalUnread > 0 && (
+                      <Badge className="ml-auto h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
+                        {totalUnread > 99 ? '99+' : totalUnread}
+                      </Badge>
+                    )}
                   </Link>
                 );
               })}

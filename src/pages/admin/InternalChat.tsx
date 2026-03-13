@@ -66,12 +66,7 @@ export default function InternalChat() {
     selectedChannelRef.current = selectedChannel;
   }, [selectedChannel]);
 
-  // Request notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
+  // No longer need browser notification permission
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -84,11 +79,12 @@ export default function InternalChat() {
 
   // Load all users
   const loadUsers = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('user_id, email, name');
+    const { data } = await supabase.rpc('get_internal_chat_profiles');
     if (data) {
-      setAllUsers(data);
+      const users = data as unknown as UserProfile[];
+      setAllUsers(users);
       const map: Record<string, UserProfile> = {};
-      data.forEach(u => { map[u.user_id] = u; });
+      users.forEach(u => { map[u.user_id] = u; });
       setProfilesMap(map);
       profilesMapRef.current = map;
     }
@@ -220,13 +216,11 @@ export default function InternalChat() {
           [msg.channel_id]: `${senderName}: ${msg.content}`.slice(0, 60),
         }));
 
-        // Browser notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(`${senderName} - Chat Interno`, {
-            body: msg.content.slice(0, 100),
-            icon: '/favicon.png',
-          });
-        }
+        // Toast notification
+        toast({
+          title: `💬 ${senderName}`,
+          description: (msg.content as string).slice(0, 100),
+        });
 
         // Audio ping
         try {

@@ -1,70 +1,58 @@
 
 
-# Plan: Chat Interno - Badge, Sidebar Fix, Toast Notifications, Sender Name
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-## 1. Unread badge on Chat Interno icon (DashboardLayout + WhatsApp header)
+### Inventario de restos de Evolution encontrados
 
-**Problem**: No visual indicator of unread internal chat messages anywhere.
+| Arquivo | O que sobrou |
+|---|---|
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
 
-**Solution**: Create a shared hook/context `useInternalChatUnread` that subscribes to `internal_messages` Realtime INSERT events, tracks unread count per channel (excluding currently viewed channel), and exposes a total unread number.
+### Alteracoes planejadas
 
-- **New file**: `src/hooks/useInternalChatUnread.ts` — a hook that:
-  - On mount, fetches all channels the user is a member of
-  - Subscribes to `internal_messages` INSERT events globally
-  - Maintains a `Map<channelId, unreadCount>` incremented on each new message from other users
-  - Resets count for a channel when `markAsRead(channelId)` is called
-  - Returns `totalUnread: number`
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
 
-- **`src/components/layout/DashboardLayout.tsx`**: Import the hook, render a red badge (count) on the "Chat Interno" nav item when `totalUnread > 0`.
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
 
-- **`src/pages/WhatsApp.tsx`** (line 345): Fix route from `/admin/chat` to `/chat`. Add badge on the `MessageCircle` button using the same hook.
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
 
-## 2. Remove "Configurações" from seller sidebar
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
 
-**Problem**: Sellers see "Configurações" which links to `/settings` — same effect as "Voltar ao Chat", redundant and confusing.
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
 
-**Fix**: In `DashboardLayout.tsx`, mark `Configurações` as `sellerHidden: true` in the navItems array (line 47).
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
 
-## 3. Replace browser notifications with in-app toast
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
 
-**Problem**: Browser Notification API doesn't work reliably (permissions, blocked by browsers).
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
 
-**Fix**: In `InternalChat.tsx` global notification subscription (lines 224-229), replace `new Notification(...)` with `toast({ title: senderName, description: msg.content.slice(0, 100) })`. Also add toast notification in the `useInternalChatUnread` hook for when user is on WhatsApp page (not on /chat).
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
 
-## 4. Fix sender name showing "Usuário" for sellers
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
 
-**Problem**: Sellers can't read all profiles due to RLS — `profiles` table only allows viewing own profile, profiles created by you, or admin access. Sellers see null for admin profiles.
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
 
-**Root cause**: Line 87 in InternalChat: `supabase.from('profiles').select(...)` — sellers can only see their own profile row. Admin profiles return empty.
+### O que NAO muda
 
-**Fix**: Create a `SECURITY DEFINER` function `get_channel_member_profiles(channel_ids uuid[])` that returns `user_id, email, name` for all members of the given channels, bypassing RLS. Call this instead of `profiles.select(*)`.
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
 
-**Migration SQL**:
-```sql
-CREATE OR REPLACE FUNCTION public.get_internal_chat_profiles()
-RETURNS TABLE(user_id uuid, email text, name text)
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT DISTINCT p.user_id, p.email, p.name
-  FROM profiles p
-  INNER JOIN internal_channel_members icm ON icm.user_id = p.user_id
-  INNER JOIN internal_channel_members my_channels ON my_channels.channel_id = icm.channel_id
-  WHERE my_channels.user_id = auth.uid()
-$$;
-```
+### Resumo de impacto
 
-Then in `loadUsers`, call `supabase.rpc('get_internal_chat_profiles')` instead of `supabase.from('profiles').select(...)`.
-
----
-
-## Files Changed
-
-| File | Change |
-|------|--------|
-| New `src/hooks/useInternalChatUnread.ts` | Shared hook for unread count + toast notifications |
-| `src/components/layout/DashboardLayout.tsx` | Badge on Chat Interno nav item, hide Configurações for sellers |
-| `src/pages/WhatsApp.tsx` | Fix route `/admin/chat` → `/chat`, add badge on chat icon |
-| `src/pages/admin/InternalChat.tsx` | Replace browser Notification with toast, use RPC for profiles |
-| New migration SQL | `get_internal_chat_profiles()` SECURITY DEFINER function |
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 
