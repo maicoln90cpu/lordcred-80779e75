@@ -95,6 +95,21 @@ export default function Leads() {
     }
   });
 
+  // Fetch column config from system_settings
+  const { data: columnConfig = ALL_COLUMNS } = useQuery({
+    queryKey: ['lead-table-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_table_columns')
+        .maybeSingle();
+      if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
+        return data.lead_table_columns as unknown as ColumnConfig[];
+      }
+      return ALL_COLUMNS;
+    }
+  });
+
   const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
