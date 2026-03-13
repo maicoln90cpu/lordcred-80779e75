@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
-  { label: 'Configurações', icon: Settings, href: '/settings' },
+  { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
 
