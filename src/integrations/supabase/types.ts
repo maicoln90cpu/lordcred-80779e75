@@ -920,6 +920,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_internal_chat_profiles: {
+        Args: never
+        Returns: {
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
