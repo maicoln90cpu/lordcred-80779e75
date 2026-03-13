@@ -1,57 +1,58 @@
 
 
-## Plano de Melhorias
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### 1. Erro no Dashboard ao ativar aquecimento + toggle de Settings nao persiste
+### Inventario de restos de Evolution encontrados
 
-**Problema**: O usuario logado no screenshot (`silascarlosdias@gmail.com`, role "Administrador" = role `user`) nao tem permissao de UPDATE na tabela `system_settings` -- as RLS policies so permitem `is_admin()` (role `admin`). O toggle na pagina Settings tambem falha silenciosamente pelo mesmo motivo: o `handleSaveSettings` faz update, recebe erro de permissao, mas o estado local ja mudou, dando impressao de que salvou.
-
-**Solucao**: Adicionar uma RLS policy para permitir que usuarios com role `user` tambem possam fazer UPDATE em `system_settings`, OU -- mais adequado -- verificar se o usuario logado e admin antes de mostrar os controles. Como o contexto de memoria indica que "Administrador" = role `user` com permissoes especificas, a melhor abordagem e adicionar uma policy de UPDATE para `authenticated` users (ja existe SELECT para authenticated). Alternativamente, criar uma policy que permita update para users que criaram vendedores (administradores).
-
-**Arquivo**: Nova migration SQL adicionando UPDATE policy para authenticated users na `system_settings`.
-
----
-
-### 2. Mostrar todas as colunas no painel admin + scroll lateral
-
-**Problema**: O `LeadsTable.tsx` so mostra 7 colunas (Nome, Telefone, Valor Lib, Status, Vendedor, Lote). A tabela `client_leads` tem mais: CPF, Prazo, Parcela, Banco Simulado, Banco Nome, Banco Codigo, Agencia, Conta, Aprovado, Reprovado, Data Nasc, Nome Mae, Data Ref, Notas.
-
-**Solucao**: Expandir a tabela para incluir todas as colunas. Adicionar `overflow-x-auto` no container da tabela e `min-w-[1600px]` na Table para garantir scroll lateral. Tambem atualizar o export XLSX para incluir todas as colunas.
-
-**Arquivo**: `src/components/admin/LeadsTable.tsx`
-
----
-
-### 3. Permitir admin editar os status possiveis dos leads
-
-**Problema**: Os status sao hardcoded como constante `STATUS_OPTIONS` em `LeadsTable.tsx` e `LeadsPanel.tsx`.
-
-**Solucao**: Criar uma nova tabela `lead_status_options` no Supabase com colunas (`id`, `value`, `label`, `color_class`, `sort_order`). Admin pode editar/adicionar/remover status. Os componentes LeadsTable e LeadsPanel buscarao os status do banco ao inves de usar constantes.
-
-Alternativamente, para evitar complexidade de migration + nova tabela, armazenar os status como JSON na tabela `system_settings` (adicionar coluna `lead_status_options jsonb`). Isso e mais simples e centralizado.
-
-**Abordagem escolhida**: Nova coluna `lead_status_options` em `system_settings` com valor default dos 5 status atuais. UI de edicao na pagina admin Leads. LeadsTable e LeadsPanel consultam do banco.
-
-**Arquivos**: Migration SQL, `src/pages/admin/Leads.tsx` (aba de config de status), `src/components/admin/LeadsTable.tsx`, `src/components/whatsapp/LeadsPanel.tsx`
-
----
-
-### 4. Metricas do admin refletirem filtros selecionados
-
-**Problema**: Os cards de metricas em `Leads.tsx` usam `allLeads` de uma query separada (`admin-leads-metrics`) que sempre busca todos os leads sem filtro. O `LeadsTable` tem seus proprios filtros mas os cards nao reagem a eles.
-
-**Solucao**: Mover os filtros de vendedor/status/lote para o componente pai (`Leads.tsx`) e passar como props ao `LeadsTable`. Os cards de metricas usam os mesmos filtros aplicados. Quando o admin seleciona um vendedor, os cards mostram so os dados daquele vendedor.
-
-**Arquivos**: `src/pages/admin/Leads.tsx`, `src/components/admin/LeadsTable.tsx`
-
----
-
-### Resumo de arquivos
-
-| Arquivo | Mudancas |
+| Arquivo | O que sobrou |
 |---|---|
-| Migration SQL | Policy UPDATE em system_settings para authenticated; coluna `lead_status_options` jsonb em system_settings |
-| `src/pages/admin/Leads.tsx` | Filtros no nivel pai, metricas reativas, UI para gerenciar status customizados |
-| `src/components/admin/LeadsTable.tsx` | Receber filtros como props, mostrar todas as colunas, scroll lateral |
-| `src/components/whatsapp/LeadsPanel.tsx` | Buscar status do banco ao inves de constantes |
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+
+### Alteracoes planejadas
+
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
+
+### O que NAO muda
+
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+
+### Resumo de impacto
+
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 

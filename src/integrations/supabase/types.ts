@@ -627,6 +627,7 @@ export type Database = {
           human_pattern_mode: boolean
           id: string
           is_warming_active: boolean
+          lead_status_options: Json | null
           max_interval_seconds: number
           max_messages_per_hour: number
           messages_day_1_3: number
@@ -670,6 +671,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_status_options?: Json | null
           max_interval_seconds?: number
           max_messages_per_hour?: number
           messages_day_1_3?: number
@@ -713,6 +715,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_status_options?: Json | null
           max_interval_seconds?: number
           max_messages_per_hour?: number
           messages_day_1_3?: number

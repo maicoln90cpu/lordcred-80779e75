@@ -20,23 +20,21 @@ interface LeadsPanelProps {
   onStartConversation?: (phone: string, name: string) => void;
 }
 
-const PAGE_SIZE = 50;
+interface StatusOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
 
-const STATUS_OPTIONS = [
-  { value: 'pendente', label: 'Pendente' },
-  { value: 'CHAMEI', label: 'Chamei' },
-  { value: 'NÃO ATENDEU', label: 'Não Atendeu' },
-  { value: 'NÃO EXISTE', label: 'Não Existe' },
-  { value: 'APROVADO', label: 'Aprovado' },
+const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
+  { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground hover:bg-muted/80' },
+  { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+  { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
+  { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
+  { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
 ];
 
-const statusColors: Record<string, string> = {
-  'CHAMEI': 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30',
-  'NÃO EXISTE': 'bg-red-500/20 text-red-400 hover:bg-red-500/30',
-  'APROVADO': 'bg-green-500/20 text-green-400 hover:bg-green-500/30',
-  'NÃO ATENDEU': 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30',
-  'pendente': 'bg-muted text-muted-foreground hover:bg-muted/80',
-};
+const PAGE_SIZE = 50;
 
 type SortField = 'nome' | 'valor_lib' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
@@ -56,6 +54,27 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch dynamic status options
+  const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
+    queryKey: ['lead-status-options'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_status_options')
+        .maybeSingle();
+      if (data?.lead_status_options && Array.isArray(data.lead_status_options)) {
+        return data.lead_status_options as unknown as StatusOption[];
+      }
+      return DEFAULT_STATUS_OPTIONS;
+    }
+  });
+
+  const statusColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    statusOptions.forEach(s => { map[s.value] = s.color_class; });
+    return map;
+  }, [statusOptions]);
+
   const { data: allLeads = [], isLoading } = useQuery({
     queryKey: ['my-leads-all'],
     enabled: open && !!user,
@@ -70,20 +89,18 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
-  // Derive batch names
   const batchNames = useMemo(() => {
     const names = new Set<string>();
     allLeads.forEach((l: any) => l.batch_name && names.add(l.batch_name));
     return Array.from(names).sort();
   }, [allLeads]);
 
-  // Status counts
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { total: allLeads.length };
-    STATUS_OPTIONS.forEach(s => { counts[s.value] = 0; });
+    statusOptions.forEach(s => { counts[s.value] = 0; });
     allLeads.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
     return counts;
-  }, [allLeads]);
+  }, [allLeads, statusOptions]);
 
   const contactedPercent = useMemo(() => {
     if (allLeads.length === 0) return 0;
@@ -91,7 +108,6 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     return Math.round((contacted / allLeads.length) * 100);
   }, [allLeads]);
 
-  // Filter + sort
   const filteredLeads = useMemo(() => {
     let result = [...allLeads];
     if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
@@ -115,7 +131,6 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
   const pagedLeads = filteredLeads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  // Reset page when filters change
   const handleFilterStatus = (v: string) => { setFilterStatus(v); setPage(0); };
   const handleFilterBatch = (v: string) => { setFilterBatch(v); setPage(0); };
   const handleSearch = (v: string) => { setSearchTerm(v); setPage(0); };
@@ -193,10 +208,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
           >
             Todos: {statusCounts.total}
           </Badge>
-          {STATUS_OPTIONS.map(s => (
+          {statusOptions.map(s => (
             <Badge
               key={s.value}
-              className={`cursor-pointer ${filterStatus === s.value ? statusColors[s.value] : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+              className={`cursor-pointer ${filterStatus === s.value ? s.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
               onClick={() => handleFilterStatus(filterStatus === s.value ? 'all' : s.value)}
             >
               {s.label}: {statusCounts[s.value] || 0}
@@ -248,7 +263,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <Select value={editStatus} onValueChange={setEditStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -307,12 +322,12 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
                             <SelectTrigger className="h-7 w-32 text-xs border-0 p-1">
-                              <Badge className={statusColors[lead.status] || 'bg-muted text-muted-foreground'}>
+                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>
                                 {lead.status}
                               </Badge>
                             </SelectTrigger>
                             <SelectContent>
-                              {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                              {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </TableCell>

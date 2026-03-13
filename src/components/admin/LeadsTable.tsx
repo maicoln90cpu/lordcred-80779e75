@@ -15,26 +15,26 @@ import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 50;
 
-const STATUS_OPTIONS = [
-  { value: 'pendente', label: 'Pendente' },
-  { value: 'CHAMEI', label: 'Chamei' },
-  { value: 'NÃO ATENDEU', label: 'Não Atendeu' },
-  { value: 'NÃO EXISTE', label: 'Não Existe' },
-  { value: 'APROVADO', label: 'Aprovado' },
+const DEFAULT_STATUS_OPTIONS = [
+  { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground' },
+  { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400' },
+  { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400' },
+  { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400' },
+  { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400' },
 ];
 
-const statusColors: Record<string, string> = {
-  'CHAMEI': 'bg-blue-500/20 text-blue-400',
-  'NÃO EXISTE': 'bg-red-500/20 text-red-400',
-  'APROVADO': 'bg-green-500/20 text-green-400',
-  'NÃO ATENDEU': 'bg-yellow-500/20 text-yellow-400',
-  'pendente': 'bg-muted text-muted-foreground',
-};
+interface LeadsTableProps {
+  filterSeller?: string;
+  filterStatus?: string;
+  filterBatch?: string;
+  onFiltersChange?: (filters: { seller: string; status: string; batch: string }) => void;
+  statusOptions?: Array<{ value: string; label: string; color_class: string }>;
+}
 
-export default function LeadsTable() {
-  const [filterSeller, setFilterSeller] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterBatch, setFilterBatch] = useState<string>('all');
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS }: LeadsTableProps) {
+  const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
+  const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
+  const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(0);
@@ -45,6 +45,29 @@ export default function LeadsTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Sync external filters
+  const actualSeller = extSeller ?? filterSeller;
+  const actualStatus = extStatus ?? filterStatus;
+  const actualBatch = extBatch ?? filterBatch;
+
+  const updateFilter = (key: 'seller' | 'status' | 'batch', value: string) => {
+    if (key === 'seller') setFilterSeller(value);
+    if (key === 'status') setFilterStatus(value);
+    if (key === 'batch') setFilterBatch(value);
+    setPage(0);
+    onFiltersChange?.({
+      seller: key === 'seller' ? value : actualSeller,
+      status: key === 'status' ? value : actualStatus,
+      batch: key === 'batch' ? value : actualBatch,
+    });
+  };
+
+  const statusColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    statusOptions.forEach(s => { map[s.value] = s.color_class; });
+    return map;
+  }, [statusOptions]);
+
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
@@ -54,12 +77,12 @@ export default function LeadsTable() {
   });
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['admin-leads', filterSeller, filterStatus, filterBatch, searchTerm],
+    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, searchTerm],
     queryFn: async () => {
       let query = supabase.from('client_leads' as any).select('*').order('created_at', { ascending: false });
-      if (filterSeller !== 'all') query = query.eq('assigned_to', filterSeller);
-      if (filterStatus !== 'all') query = query.eq('status', filterStatus);
-      if (filterBatch !== 'all') query = query.eq('batch_name', filterBatch);
+      if (actualSeller !== 'all') query = query.eq('assigned_to', actualSeller);
+      if (actualStatus !== 'all') query = query.eq('status', actualStatus);
+      if (actualBatch !== 'all') query = query.eq('batch_name', actualBatch);
       if (searchTerm) query = query.or(`nome.ilike.%${searchTerm}%,telefone.ilike.%${searchTerm}%,cpf.ilike.%${searchTerm}%`);
       const { data, error } = await query.limit(1000);
       if (error) throw error;
@@ -94,11 +117,15 @@ export default function LeadsTable() {
     setSelectedIds(next);
   };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
+  };
+
   const handleBulkDelete = async () => {
     setIsProcessing(true);
     try {
       const ids = Array.from(selectedIds);
-      // Delete in batches of 50
       for (let i = 0; i < ids.length; i += 50) {
         const batch = ids.slice(i, i + 50);
         const { error } = await supabase.from('client_leads' as any).delete().in('id', batch);
@@ -106,7 +133,7 @@ export default function LeadsTable() {
       }
       toast({ title: `${ids.length} leads excluídos` });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      invalidateAll();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
@@ -128,7 +155,7 @@ export default function LeadsTable() {
       }
       toast({ title: `Status de ${ids.length} leads atualizado` });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      invalidateAll();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
@@ -151,7 +178,7 @@ export default function LeadsTable() {
       }
       toast({ title: `${ids.length} leads reatribuídos` });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      invalidateAll();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
@@ -166,10 +193,24 @@ export default function LeadsTable() {
       Telefone: l.telefone,
       CPF: l.cpf,
       'Valor Lib.': l.valor_lib,
+      Prazo: l.prazo,
+      Parcela: l.vlr_parcela,
+      'Banco Nome': l.banco_nome,
+      'Banco Código': l.banco_codigo,
+      'Banco Simulado': l.banco_simulado,
+      Agência: l.agencia,
+      Conta: l.conta,
+      Aprovado: l.aprovado,
+      Reprovado: l.reprovado,
+      'Data Nasc.': l.data_nasc,
+      'Nome Mãe': l.nome_mae,
+      'Data Ref.': l.data_ref,
       Status: l.status,
       Vendedor: getSellerName(l.assigned_to),
       Lote: l.batch_name,
+      Observações: l.notes,
       'Data Criação': l.created_at,
+      'Contatado em': l.contacted_at,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -182,7 +223,7 @@ export default function LeadsTable() {
     if (error) {
       toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
     } else {
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      invalidateAll();
       toast({ title: 'Lead excluído' });
     }
   };
@@ -213,21 +254,21 @@ export default function LeadsTable() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Buscar nome, telefone, CPF..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="pl-9" />
             </div>
-            <Select value={filterSeller} onValueChange={(v) => { setFilterSeller(v); setPage(0); }}>
+            <Select value={actualSeller} onValueChange={(v) => updateFilter('seller', v)}>
               <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os vendedores</SelectItem>
                 {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(0); }}>
+            <Select value={actualStatus} onValueChange={(v) => updateFilter('status', v)}>
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
-                {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterBatch} onValueChange={(v) => { setFilterBatch(v); setPage(0); }}>
+            <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
               <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os lotes</SelectItem>
@@ -264,38 +305,68 @@ export default function LeadsTable() {
               Nenhum lead encontrado. Importe uma planilha para começar.
             </div>
           ) : (
-            <div className="border rounded-lg overflow-auto max-h-[600px]">
-              <Table>
+            <div className="border rounded-lg overflow-x-auto max-h-[600px] overflow-y-auto">
+              <Table className="min-w-[2000px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">
+                    <TableHead className="w-10 sticky left-0 bg-background z-10">
                       <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                     </TableHead>
-                    <TableHead>Nome</TableHead>
+                    <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
                     <TableHead>Telefone</TableHead>
+                    <TableHead>CPF</TableHead>
                     <TableHead>Valor Lib.</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead>Parcela</TableHead>
+                    <TableHead>Banco</TableHead>
+                    <TableHead>Cód. Banco</TableHead>
+                    <TableHead>Banco Simulado</TableHead>
+                    <TableHead>Agência</TableHead>
+                    <TableHead>Conta</TableHead>
+                    <TableHead>Aprovado</TableHead>
+                    <TableHead>Reprovado</TableHead>
+                    <TableHead>Data Nasc.</TableHead>
+                    <TableHead>Nome Mãe</TableHead>
+                    <TableHead>Data Ref.</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Vendedor</TableHead>
                     <TableHead>Lote</TableHead>
+                    <TableHead>Observações</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pagedLeads.map((lead: any) => (
                     <TableRow key={lead.id} className={selectedIds.has(lead.id) ? 'bg-primary/5' : ''}>
-                      <TableCell>
+                      <TableCell className="sticky left-0 bg-background z-10">
                         <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleOne(lead.id)} />
                       </TableCell>
-                      <TableCell className="font-medium">{lead.nome}</TableCell>
-                      <TableCell>{lead.telefone}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-medium sticky left-10 bg-background z-10 whitespace-nowrap">{lead.nome}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.telefone}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.cpf || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                       </TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                      <TableCell>{lead.prazo || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {lead.vlr_parcela ? Number(lead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                       </TableCell>
-                      <TableCell className="text-sm">{getSellerName(lead.assigned_to)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{lead.batch_name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.banco_nome || '-'}</TableCell>
+                      <TableCell>{lead.banco_codigo || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.banco_simulado || '-'}</TableCell>
+                      <TableCell>{lead.agencia || '-'}</TableCell>
+                      <TableCell>{lead.conta || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.aprovado || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.reprovado || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.data_nasc || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{lead.data_ref || '-'}</TableCell>
+                      <TableCell>
+                        <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
+                      <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
                           <Trash2 className="w-4 h-4" />
@@ -351,7 +422,7 @@ export default function LeadsTable() {
           <Select value={bulkStatus} onValueChange={setBulkStatus}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>
