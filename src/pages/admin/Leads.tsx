@@ -297,7 +297,7 @@ export default function Leads() {
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
             <TabsTrigger value="status-config" className="flex items-center gap-1">
-              <Settings2 className="w-3.5 h-3.5" /> Status
+              <Settings2 className="w-3.5 h-3.5" /> Configurações da Planilha
             </TabsTrigger>
           </TabsList>
 
