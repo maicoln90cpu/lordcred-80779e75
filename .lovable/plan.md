@@ -1,58 +1,85 @@
 
+Diagnóstico completo (confirmado no código + banco):
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+1) Causa raiz principal: Realtime do chat interno está “desligado” na prática  
+- `public.internal_messages`, `public.internal_channels` e `public.internal_channel_members` NÃO estão na publication `supabase_realtime`.  
+- Resultado direto: não chegam eventos `INSERT` no frontend, então:
+  - mensagem não aparece instantaneamente no outro navegador;
+  - badge não incrementa;
+  - toast não dispara;
+  - som não toca.
 
-### Inventario de restos de Evolution encontrados
+2) Badge/notify hoje dependem 100% de evento realtime  
+- `useInternalChatUnread` só incrementa por evento `INSERT`; sem evento, fica sempre 0.
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+3) Nome do remetente “Usuário” ocorre por fallback frágil no estado de mensagem  
+- Em alguns cenários a mensagem entra sem `user_name/user_email` resolvido e permanece assim até refresh.
 
-### Alteracoes planejadas
+4) Há risco de comportamento inconsistente por assinaturas duplicadas e sem fallback  
+- Layout + página podem assinar eventos diferentes sem estratégia única de reconexão/backup.
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+Plano de correção (ordem de implementação):
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+Etapa A — Hotfix de infraestrutura Realtime (prioridade máxima)
+- Criar migration idempotente para:
+  - adicionar tabelas internas à `supabase_realtime` publication;
+  - garantir `REPLICA IDENTITY FULL` em `internal_messages` (manter).
+- SQL (idempotente via `DO $$ ... $$` com checagem em `pg_publication_tables`):
+  - `ALTER PUBLICATION supabase_realtime ADD TABLE public.internal_messages;`
+  - `ALTER PUBLICATION supabase_realtime ADD TABLE public.internal_channels;`
+  - `ALTER PUBLICATION supabase_realtime ADD TABLE public.internal_channel_members;`
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+Etapa B — Tornar badge/toast/som confiáveis em todas as telas
+- Refatorar `useInternalChatUnread` para fluxo robusto:
+  - manter assinatura realtime única por instância;
+  - tratar status de subscribe (`SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT`) com retry;
+  - tocar som + toast no mesmo ponto de evento;
+  - adicionar fallback de polling curto (ex.: 2–3s) quando canal realtime falhar.
+- Manter uso em:
+  - `DashboardLayout` (badge sidebar /chat),
+  - `WhatsApp` header (badge no ícone de chat interno).
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+Etapa C — Mensagem instantânea no /chat (sem refresh)
+- Em `InternalChat.tsx`:
+  - reforçar subscription do canal selecionado com reconexão e deduplicação por `id`;
+  - envio otimista com rollback em erro (remover placeholder se insert falhar);
+  - atualizar preview de última mensagem imediatamente após envio/recebimento.
+- Remover sobreposição de lógica de notificação que possa conflitar com o hook global (evitar duplicidade/inconsistência).
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+Etapa D — Corrigir exibição de remetente para vendedores
+- Em `InternalChat.tsx`:
+  - resolver nome no render usando `profilesMap[msg.user_id]` (não só valores “congelados” no momento do insert realtime);
+  - fallback obrigatório: `name -> emailPrefix -> 'Usuário'`.
+- Após carregar/atualizar perfis, reidratar mensagens já no estado para substituir “Usuário” quando houver dados.
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+Etapa E — Validação funcional end-to-end (obrigatória)
+```text
+Cenário 1 (instantâneo):
+Admin A envia -> Vendedor B já no /chat (mesmo canal) vê mensagem sem refresh.
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+Cenário 2 (notificação):
+Admin A envia -> Vendedor B em /whatsapp recebe:
+- badge no ícone de chat interno,
+- toast no canto inferior direito,
+- som.
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+Cenário 3 (sidebar):
+Admin/Vendedor em telas com DashboardLayout recebe badge em "Chat Interno".
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+Cenário 4 (remetente):
+Mensagens do admin aparecem com nome/email, nunca “Usuário” (salvo ausência real de dados).
+```
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+Arquivos que serão alterados:
+- `supabase/migrations/*_internal_chat_realtime_publication.sql` (novo)
+- `src/hooks/useInternalChatUnread.ts`
+- `src/pages/admin/InternalChat.tsx`
+- `src/components/layout/DashboardLayout.tsx` (ajuste fino de badge, se necessário)
+- `src/pages/WhatsApp.tsx` (ajuste fino de badge, se necessário)
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
-
-### O que NAO muda
-
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
-
-### Resumo de impacto
-
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
-
+Resultado esperado após implementação:
+- Chat interno realmente em tempo real;
+- badge funcional para admin e vendedor;
+- toast e som funcionando;
+- mensagem aparecendo instantaneamente no destinatário;
+- remetente identificado corretamente.
