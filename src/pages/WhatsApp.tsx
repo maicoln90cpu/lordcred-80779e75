@@ -344,6 +344,7 @@ export default function WhatsApp() {
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin/chat')} className="text-muted-foreground hover:text-foreground" title="Chat Interno">
             <MessageCircle className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
