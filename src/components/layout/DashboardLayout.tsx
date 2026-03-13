@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
   { label: 'Performance', icon: BarChart3, href: '/admin/performance' },
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban' },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links' },
+  { label: 'Chat Interno', icon: MessageSquare, href: '/admin/chat' },
   { label: 'Configurações', icon: Settings, href: '/settings' },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
