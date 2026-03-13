@@ -101,8 +101,9 @@ export default function InternalChat() {
     setLastMessages(previews);
   }, []);
 
-  // Load messages for a channel
+  // Load messages for a channel - uses ref to avoid stale closure
   const loadMessages = useCallback(async (channelId: string) => {
+    const pMap = profilesMapRef.current;
     const { data } = await supabase
       .from('internal_messages')
       .select('*')
@@ -112,11 +113,11 @@ export default function InternalChat() {
     if (data) {
       setMessages(data.map(m => ({
         ...m,
-        user_email: profilesMap[m.user_id]?.email,
-        user_name: profilesMap[m.user_id]?.name,
+        user_email: pMap[m.user_id]?.email,
+        user_name: pMap[m.user_id]?.name,
       })));
     }
-  }, [profilesMap]);
+  }, []);
 
   // Load channel members
   const loadMembers = useCallback(async (channelId: string) => {
