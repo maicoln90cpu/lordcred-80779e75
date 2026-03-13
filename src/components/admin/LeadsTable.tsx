@@ -305,7 +305,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
               Nenhum lead encontrado. Importe uma planilha para começar.
             </div>
           ) : (
-            <div className="border rounded-lg overflow-x-auto max-h-[600px] overflow-y-auto">
+            <div className="border rounded-lg max-h-[600px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table className="min-w-[2000px]">
                 <TableHeader>
                   <TableRow>
