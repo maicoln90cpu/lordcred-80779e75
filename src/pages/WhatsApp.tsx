@@ -15,6 +15,7 @@ import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
 import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import LeadsPanel from '@/components/whatsapp/LeadsPanel';
+import UsefulLinksPanel from '@/components/whatsapp/UsefulLinksPanel';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatContact {
