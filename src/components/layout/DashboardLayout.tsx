@@ -31,18 +31,19 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   href: string;
   adminOnly?: boolean;
+  sellerHidden?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-  { label: 'Meus Chips', icon: Smartphone, href: '/chips' },
-  { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
-  { label: 'Vendedores', icon: Users, href: '/admin/users' },
-  { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads' },
-  { label: 'Performance', icon: BarChart3, href: '/admin/performance' },
-  { label: 'Kanban', icon: Columns3, href: '/admin/kanban' },
-  { label: 'Links Úteis', icon: Link2, href: '/admin/links' },
-  { label: 'Chat Interno', icon: MessageSquare, href: '/admin/chat' },
+  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
+  { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
+  { label: 'Mensagens', icon: MessageSquare, href: '/messages', sellerHidden: true },
+  { label: 'Vendedores', icon: Users, href: '/admin/users', sellerHidden: true },
+  { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
+  { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true },
+  { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
+  { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
+  { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
   { label: 'Configurações', icon: Settings, href: '/settings' },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
