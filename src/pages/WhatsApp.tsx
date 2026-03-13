@@ -382,6 +382,7 @@ export default function WhatsApp() {
             onStartNewChat={handleStartNewChat}
           />
         </main>
+        <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
       </div>
 
       <FavoritesPanel
