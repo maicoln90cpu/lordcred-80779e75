@@ -21,10 +21,17 @@ function playNotificationSound() {
 export function useInternalChatUnread() {
   const { user } = useAuth();
   const [totalUnread, setTotalUnread] = useState(0);
+  const [unreadByChannel, setUnreadByChannel] = useState<Record<string, number>>({});
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const unreadMap = useRef<Record<string, number>>({});
   const channelIdsRef = useRef<string[]>([]);
   const profilesRef = useRef<Record<string, { name: string | null; email: string }>>({});
-  const initDoneRef = useRef(false);
+  const activeChannelRef = useRef<string | null>(null);
+
+  // Allow external components to set which channel is currently active (suppress notifications for it)
+  const setActiveChannel = useCallback((channelId: string | null) => {
+    activeChannelRef.current = channelId;
+  }, []);
 
   // Load user's channels and profiles
   useEffect(() => {
@@ -50,8 +57,6 @@ export function useInternalChatUnread() {
         });
         profilesRef.current = map;
       }
-      
-      initDoneRef.current = true;
     };
 
     init();
@@ -72,9 +77,14 @@ export function useInternalChatUnread() {
         if (msg.user_id === user.id) return;
         if (!channelIdsRef.current.includes(msg.channel_id)) return;
 
+        // If user is actively viewing this channel, don't count as unread
+        if (activeChannelRef.current === msg.channel_id) return;
+
         // Increment unread
         unreadMap.current[msg.channel_id] = (unreadMap.current[msg.channel_id] || 0) + 1;
-        const total = Object.values(unreadMap.current).reduce((a, b) => a + b, 0);
+        const newMap = { ...unreadMap.current };
+        setUnreadByChannel(newMap);
+        const total = Object.values(newMap).reduce((a, b) => a + b, 0);
         setTotalUnread(total);
 
         // Play notification sound
@@ -83,14 +93,14 @@ export function useInternalChatUnread() {
         // Show toast notification
         const sender = profilesRef.current[msg.user_id];
         const senderName = sender?.name || sender?.email?.split('@')[0] || 'Alguém';
+        const content = msg.media_type ? `📎 ${msg.media_type === 'image' ? 'Imagem' : msg.media_type === 'audio' ? 'Áudio' : msg.media_type === 'video' ? 'Vídeo' : 'Arquivo'}` : (msg.content as string);
         toast({
           title: `💬 ${senderName}`,
-          description: (msg.content as string).slice(0, 100),
+          description: content.slice(0, 100),
         });
       })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Retry after 3 seconds
           setTimeout(() => {
             supabase.removeChannel(channel);
           }, 3000);
@@ -100,11 +110,36 @@ export function useInternalChatUnread() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  // Presence tracking
+  useEffect(() => {
+    if (!user) return;
+
+    const presenceChannel = supabase.channel('internal-chat-presence', {
+      config: { presence: { key: user.id } },
+    });
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const ids = new Set<string>(Object.keys(state));
+        setOnlineUsers(ids);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({ user_id: user.id, online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => { supabase.removeChannel(presenceChannel); };
+  }, [user]);
+
   const markAsRead = useCallback((channelId: string) => {
     delete unreadMap.current[channelId];
-    const total = Object.values(unreadMap.current).reduce((a, b) => a + b, 0);
+    const newMap = { ...unreadMap.current };
+    setUnreadByChannel(newMap);
+    const total = Object.values(newMap).reduce((a, b) => a + b, 0);
     setTotalUnread(total);
   }, []);
 
-  return { totalUnread, markAsRead };
+  return { totalUnread, unreadByChannel, onlineUsers, markAsRead, setActiveChannel };
 }
