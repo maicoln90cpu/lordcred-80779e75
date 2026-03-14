@@ -1,58 +1,100 @@
 
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+# Plan: 5 Internal Chat Enhancements
 
-### Inventario de restos de Evolution encontrados
+## 1. Sellers can start direct conversations (but NOT create groups)
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+**Current state**: Line 62 `isAdmin = !isSeller` — the "New direct chat" button is only shown to non-sellers. RLS on `internal_channels` only allows `admin` or `user` roles to INSERT.
 
-### Alteracoes planejadas
+**Changes**:
+- **`InternalChat.tsx`**: Show the "Nova conversa direta" button (`MessageSquare`) for ALL users. Keep "Criar grupo" (`Plus`) button admin-only.
+- **RLS migration**: Add INSERT policy on `internal_channels` for sellers creating non-group channels only. Add INSERT policy on `internal_channel_members` for sellers adding themselves.
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+**Migration SQL**:
+```sql
+-- Allow sellers to create direct (non-group) channels
+CREATE POLICY "Sellers can create direct channels"
+ON public.internal_channels FOR INSERT TO authenticated
+WITH CHECK (
+  has_role(auth.uid(), 'seller'::app_role)
+  AND is_group = false
+  AND created_by = auth.uid()
+);
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+-- Allow sellers to add members to channels they created
+CREATE POLICY "Sellers can add members to own channels"
+ON public.internal_channel_members FOR INSERT TO authenticated
+WITH CHECK (
+  has_role(auth.uid(), 'seller'::app_role)
+  AND channel_id IN (
+    SELECT id FROM internal_channels WHERE created_by = auth.uid() AND is_group = false
+  )
+);
+```
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+## 2. Unread badge on individual channel items in sidebar
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+**Current state**: Badge only shows on sidebar nav and WhatsApp header as a total count. No per-channel badge.
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+**Changes**:
+- **`useInternalChatUnread.ts`**: Expose `unreadByChannel: Record<string, number>` in addition to `totalUnread`.
+- **`InternalChat.tsx`**: Import `useInternalChatUnread`, call `markAsRead(channelId)` when selecting a channel. Show red dot/count badge next to each channel in the channel list when `unreadByChannel[ch.id] > 0`.
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+## 3. Media support in internal chat (images, audio, video, documents)
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+**Database migration**: Add columns to `internal_messages`:
+```sql
+ALTER TABLE public.internal_messages
+  ADD COLUMN media_url text,
+  ADD COLUMN media_type text, -- 'image', 'audio', 'video', 'document'
+  ADD COLUMN media_name text;
+```
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+**Storage**: Create a `internal-chat-media` bucket (public, with RLS for insert by authenticated users).
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+**`InternalChat.tsx` changes**:
+- Add attachment button (Plus icon with dropdown: Image, Video, Audio, Document) similar to `ChatInput.tsx`.
+- Add audio recording capability (mic button, reuse recording logic from `ChatInput.tsx`).
+- Upload file to Supabase Storage `internal-chat-media` bucket, store public URL in `media_url`.
+- Render media in message bubbles: images inline, audio with player, video with player, documents with download link.
+- Caption support: if media + text, text becomes caption.
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+## 4. Typing indicator
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
+**Approach**: Use Supabase Realtime Broadcast (no DB table needed — ephemeral).
 
-### O que NAO muda
+**`InternalChat.tsx` changes**:
+- Subscribe to a broadcast channel `typing-{channelId}`.
+- On input change (debounced), broadcast `{ type: 'typing', userId, channelId }`.
+- On receiving typing event from another user, show "Fulano está digitando..." below the message area for 3 seconds (auto-clear).
+- Display animated dots indicator.
 
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+## 5. Online indicator
 
-### Resumo de impacto
+**Approach**: Use Supabase Realtime Presence.
 
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
+**`InternalChat.tsx` changes**:
+- Track presence on a shared channel `internal-chat-presence`.
+- Each user tracks their `user_id` in presence state.
+- Show green dot on user avatars in channel list for 1:1 chats, and member count online for groups.
+- In the channel header, show "Online" or "Offline" status for direct chats.
+
+**`useInternalChatUnread.ts`**: Also track presence here so it's available globally (for the future).
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| New migration SQL | Add `media_url`, `media_type`, `media_name` to `internal_messages`; create storage bucket; seller RLS policies |
+| `src/hooks/useInternalChatUnread.ts` | Expose `unreadByChannel`, add presence tracking |
+| `src/pages/admin/InternalChat.tsx` | Major refactor: seller direct chat, per-channel badges, media upload/render, typing indicator, online indicator, audio recording |
+
+## Scope & Complexity
+
+This is a large set of changes. The implementation will be done in a single pass, focusing on:
+1. DB migrations first (media columns, storage, seller RLS)
+2. Hook updates (unread per channel, presence)
+3. InternalChat.tsx full refactor (media, typing, online, seller permissions, badges)
 
