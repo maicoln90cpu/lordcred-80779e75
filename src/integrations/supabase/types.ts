@@ -394,6 +394,9 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          media_name: string | null
+          media_type: string | null
+          media_url: string | null
           user_id: string
         }
         Insert: {
@@ -401,6 +404,9 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           user_id: string
         }
         Update: {
@@ -408,6 +414,9 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           user_id?: string
         }
         Relationships: [
@@ -920,6 +929,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_all_chat_profiles: {
+        Args: never
+        Returns: {
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
       get_internal_chat_profiles: {
         Args: never
         Returns: {
