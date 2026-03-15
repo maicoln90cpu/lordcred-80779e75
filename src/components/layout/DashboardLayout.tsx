@@ -47,6 +47,7 @@ const navItems: NavItem[] = [
   { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
+  { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
   { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },

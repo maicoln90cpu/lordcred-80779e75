@@ -49,6 +49,7 @@ const App = () => (
               <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
               <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
               <Route path="/admin/links" element={<ProtectedRoute blockSellers><LinksAdmin /></ProtectedRoute>} />
+              <Route path="/admin/chip-monitor" element={<ProtectedRoute blockSellers blockSupport={false}><ChipMonitor /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><InternalChat /></ProtectedRoute>} />
               <Route path="/admin/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
