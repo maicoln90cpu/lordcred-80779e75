@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle, Ticket } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -351,6 +351,9 @@ export default function WhatsApp() {
                 {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
               </span>
             )}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/tickets')} className="text-muted-foreground hover:text-foreground" title="Tickets de Suporte">
+            <Ticket className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
