@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 import logoExtended from '@/assets/logo-extended.png';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +50,26 @@ export default function Login() {
         variant: isEmailNotConfirmed ? 'default' : 'destructive'
       });
     } else {
-      navigate('/whatsapp');
+      // Check user role to determine redirect
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', authUser.id)
+          .single();
+        
+        const role = roleData?.role;
+        if (role === 'seller') {
+          navigate('/whatsapp');
+        } else if (role === 'support') {
+          navigate('/dashboard');
+        } else {
+          navigate('/whatsapp');
+        }
+      } else {
+        navigate('/whatsapp');
+      }
     }
 
     setIsLoading(false);

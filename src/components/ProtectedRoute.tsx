@@ -7,10 +7,11 @@ interface ProtectedRouteProps {
   children: ReactNode;
   requireAdmin?: boolean;
   blockSellers?: boolean;
+  blockSupport?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false, blockSellers = false }: ProtectedRouteProps) {
-  const { user, isAdmin, isSeller, isLoading, isBlocked } = useAuth();
+export default function ProtectedRoute({ children, requireAdmin = false, blockSellers = false, blockSupport = false }: ProtectedRouteProps) {
+  const { user, isAdmin, isSeller, isSupport, isLoading, isBlocked } = useAuth();
 
   if (isLoading) {
     return (
@@ -37,6 +38,10 @@ export default function ProtectedRoute({ children, requireAdmin = false, blockSe
 
   if (blockSellers && isSeller) {
     return <Navigate to="/whatsapp" replace />;
+  }
+
+  if (blockSupport && isSupport) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   if (requireAdmin && !isAdmin) {

@@ -34,6 +34,7 @@ interface NavItem {
   href: string;
   adminOnly?: boolean;
   sellerHidden?: boolean;
+  supportHidden?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -42,7 +43,7 @@ const navItems: NavItem[] = [
   { label: 'Mensagens', icon: MessageSquare, href: '/messages', sellerHidden: true },
   { label: 'Vendedores', icon: Users, href: '/admin/users', sellerHidden: true },
   { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
-  { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true },
+  { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
@@ -53,12 +54,24 @@ const navItems: NavItem[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin, isSeller, signOut } = useAuth();
+  const { user, isAdmin, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
 
-  const filteredNavItems = navItems.filter(item => (!item.adminOnly || isAdmin) && (!item.sellerHidden || !isSeller));
+  const filteredNavItems = navItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.sellerHidden && isSeller) return false;
+    if (item.supportHidden && isSupport) return false;
+    return true;
+  });
+
+  const getRoleLabel = () => {
+    if (isSeller) return 'Vendedor';
+    if (isSupport) return 'Suporte';
+    if (isAdmin) return 'Master';
+    return 'Administrador';
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -141,7 +154,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.email}</p>
                 <p className="text-xs text-muted-foreground">
-                  {isSeller ? 'Vendedor' : isAdmin ? 'Master' : 'Administrador'}
+                  {getRoleLabel()}
                 </p>
               </div>
             )}

@@ -30,7 +30,7 @@ interface UserProfile {
 
 export default function Users() {
   const { toast } = useToast();
-  const { user: currentUser, isAdmin, userRole } = useAuth();
+  const { user: currentUser, isAdmin, isSupport, userRole } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -45,10 +45,12 @@ export default function Users() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'user' | 'seller'>('seller');
+  const [newUserRole, setNewUserRole] = useState<'user' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
 
   const isMaster = isAdmin; // role === 'admin'
+  // Support can only create sellers, cannot edit/delete/block
+  const canManageUsers = isMaster || (!isSupport && userRole === 'user');
 
   useEffect(() => {
     fetchUsers();
@@ -89,8 +91,13 @@ export default function Users() {
 
       // Filter based on caller's role
       if (isMaster) {
-        // Master sees all non-admin users (users + sellers), excluding self
+        // Master sees all non-admin users (users + sellers + support), excluding self
         enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin');
+      } else if (isSupport) {
+        // Support sees only sellers they created
+        enrichedUsers = enrichedUsers.filter(u => 
+          u.role === 'seller' && u.created_by === currentUser?.id
+        );
       } else {
         // Administrador sees only sellers they created
         enrichedUsers = enrichedUsers.filter(u => 
@@ -122,7 +129,7 @@ export default function Users() {
       const token = sessionData?.session?.access_token;
       if (!token) throw new Error('Sessão expirada');
 
-      // Administrador always creates sellers; Master can choose
+      // Support always creates sellers; Administrador always creates sellers; Master can choose
       const roleToCreate = isMaster ? newUserRole : 'seller';
 
       const response = await fetch(
@@ -217,13 +224,16 @@ export default function Users() {
       case 'admin': return 'Master';
       case 'user': return 'Administrador';
       case 'seller': return 'Vendedor';
+      case 'support': return 'Suporte';
       default: return role;
     }
   };
 
-  const pageTitle = isMaster ? 'Gerenciar Usuários' : 'Gerenciar Vendedores';
+  const pageTitle = isMaster ? 'Gerenciar Usuários' : isSupport ? 'Meus Vendedores' : 'Gerenciar Vendedores';
   const pageDescription = isMaster
-    ? 'Crie e gerencie administradores e vendedores'
+    ? 'Crie e gerencie administradores, suportes e vendedores'
+    : isSupport
+    ? 'Crie vendedores para sua equipe'
     : 'Crie e gerencie os vendedores da sua equipe';
 
   return (
@@ -266,14 +276,14 @@ export default function Users() {
                     </Button>
                   </div>
                 </div>
-                {/* Only Master sees role selection; Administrador always creates sellers */}
+                {/* Only Master sees role selection */}
                 {isMaster && (
                   <div className="space-y-3">
                     <Label>Tipo de Usuário</Label>
                     <RadioGroup
                       value={newUserRole}
-                      onValueChange={(value) => setNewUserRole(value as 'user' | 'seller')}
-                      className="flex gap-4"
+                      onValueChange={(value) => setNewUserRole(value as 'user' | 'seller' | 'support')}
+                      className="flex flex-wrap gap-4"
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="seller" id="role-seller" />
@@ -282,6 +292,10 @@ export default function Users() {
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="user" id="role-user" />
                         <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="support" id="role-support" />
+                        <Label htmlFor="role-support" className="cursor-pointer">Suporte</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -324,7 +338,7 @@ export default function Users() {
                     <TableHead>Role</TableHead>
                     <TableHead>Chips</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    {!isSupport && <TableHead className="text-right">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -368,6 +382,7 @@ export default function Users() {
                             <SelectContent>
                               <SelectItem value="user">Administrador</SelectItem>
                               <SelectItem value="seller">Vendedor</SelectItem>
+                              <SelectItem value="support">Suporte</SelectItem>
                             </SelectContent>
                           </Select>
                         ) : (
@@ -385,41 +400,43 @@ export default function Users() {
                           {user.is_blocked ? 'Bloqueado' : 'Ativo'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleBlock(user.user_id, user.is_blocked)}
-                            className={cn(
-                              user.is_blocked
-                                ? "text-primary hover:text-primary"
-                                : "text-destructive hover:text-destructive"
-                            )}
-                          >
-                            {user.is_blocked ? (
-                              <><Shield className="w-4 h-4 mr-1" />Desbloquear</>
-                            ) : (
-                              <><ShieldOff className="w-4 h-4 mr-1" />Bloquear</>
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditDialogOpen(true); }}
-                          >
-                            <Pencil className="w-4 h-4 mr-1" />Editar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />Excluir
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {!isSupport && (
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleBlock(user.user_id, user.is_blocked)}
+                              className={cn(
+                                user.is_blocked
+                                  ? "text-primary hover:text-primary"
+                                  : "text-destructive hover:text-destructive"
+                              )}
+                            >
+                              {user.is_blocked ? (
+                                <><Shield className="w-4 h-4 mr-1" />Desbloquear</>
+                              ) : (
+                                <><ShieldOff className="w-4 h-4 mr-1" />Bloquear</>
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditDialogOpen(true); }}
+                            >
+                              <Pencil className="w-4 h-4 mr-1" />Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />Excluir
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

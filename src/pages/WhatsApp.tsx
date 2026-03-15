@@ -48,7 +48,7 @@ export default function WhatsApp() {
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [leadsOpen, setLeadsOpen] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
-  const { user, isSeller, signOut } = useAuth();
+  const { user, isSeller, isSupport, signOut } = useAuth();
   const { totalUnread: chatUnreadCount } = useInternalChatUnread();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -361,7 +361,7 @@ export default function WhatsApp() {
           {!isSeller &&
           <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')} className="text-sm">
               <Settings className="w-4 h-4 mr-1.5" />
-              Menu Admin
+              {isSupport ? 'Menu Suporte' : 'Menu Admin'}
             </Button>
           }
           <Button variant="ghost" size="icon" onClick={handleSignOut} className="text-muted-foreground hover:text-foreground">
