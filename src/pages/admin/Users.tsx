@@ -251,7 +251,7 @@ export default function Users() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                {isMaster ? 'Novo Usuário' : 'Novo Vendedor'}
+                {canChooseRole ? 'Novo Usuário' : 'Novo Vendedor'}
               </Button>
             </DialogTrigger>
             <DialogContent>
