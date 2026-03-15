@@ -24,6 +24,8 @@ import Tickets from "./pages/admin/Tickets";
 import AuditLogs from "./pages/admin/AuditLogs";
 import QueueManagement from "./pages/admin/QueueManagement";
 import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
+import Templates from "./pages/admin/Templates";
+import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
