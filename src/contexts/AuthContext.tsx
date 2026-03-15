@@ -2,13 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type UserRole = 'admin' | 'user' | 'seller';
+type UserRole = 'admin' | 'user' | 'seller' | 'support';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
   isSeller: boolean;
+  isSupport: boolean;
   userRole: UserRole;
   isLoading: boolean;
   isBlocked: boolean;
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = userRole === 'admin';
   const isSeller = userRole === 'seller';
+  const isSupport = userRole === 'support';
 
   const checkUserRole = async (userId: string) => {
     try {
@@ -97,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSeller, userRole, isLoading, isBlocked, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSeller, isSupport, userRole, isLoading, isBlocked, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

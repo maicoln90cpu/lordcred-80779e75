@@ -45,7 +45,7 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
               <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
-              <Route path="/admin/performance" element={<ProtectedRoute blockSellers><Performance /></ProtectedRoute>} />
+              <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
               <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
               <Route path="/admin/links" element={<ProtectedRoute blockSellers><LinksAdmin /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><InternalChat /></ProtectedRoute>} />
