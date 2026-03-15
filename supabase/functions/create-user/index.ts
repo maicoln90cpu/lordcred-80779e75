@@ -85,8 +85,11 @@ Deno.serve(async (req) => {
     if (callerRole === 'admin') {
       // Admin (Master) can create: user (Administrador), seller (Vendedor) or support (Suporte)
       validRole = ['user', 'seller', 'support'].includes(role) ? role : 'seller'
+    } else if (callerRole === 'user') {
+      // Administrador can create sellers or support
+      validRole = ['seller', 'support'].includes(role) ? role : 'seller'
     } else {
-      // User (Administrador) and Support can ONLY create sellers
+      // Support can ONLY create sellers
       validRole = 'seller'
     }
 
