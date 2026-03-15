@@ -25,7 +25,8 @@ interface LabelItem {
 }
 
 export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isSupport, user } = useAuth();
+  const canManageKanban = isAdmin || isSupport;
   const { columns, loading, moveCard, removeCard, getVisibleCards, createColumn, updateColumn, deleteColumn, reorderColumns, refetch } = useKanban();
   const [search, setSearch] = useState('');
   const [chipFilter, setChipFilter] = useState<string>('all');
@@ -38,9 +39,14 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   useEffect(() => {
     if (!open || !user) return;
     refetch();
-    supabase.from('chips').select('id, nickname, phone_number').eq('user_id', user.id).then(({ data }) => setChips(data || []));
+    // Support/Admin see all chips; sellers see only their own
+    const chipsQuery = supabase.from('chips').select('id, nickname, phone_number');
+    if (!isAdmin && !isSupport) {
+      chipsQuery.eq('user_id', user.id);
+    }
+    chipsQuery.then(({ data }) => setChips(data || []));
     supabase.from('labels').select('label_id, name, color_hex').then(({ data }) => setLabels(data || []));
-  }, [open, user, refetch]);
+  }, [open, user, isAdmin, isSupport, refetch]);
 
   const filteredByColumn = useMemo(() => {
     const result: Record<string, KanbanCardType[]> = {};
@@ -141,7 +147,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                 </Select>
               </div>
 
-              {isAdmin && (
+              {canManageKanban && (
                 <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} className="h-9 border-border/30 hover:bg-secondary/60">
                   <Settings2 className="w-4 h-4 mr-1.5" />Colunas
                 </Button>
@@ -170,7 +176,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                   <div className="flex flex-col items-center justify-center w-full text-muted-foreground gap-2">
                     <LayoutGrid className="w-10 h-10 opacity-30" />
                     <p className="text-sm">
-                      Nenhuma coluna criada. {isAdmin ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
+                      Nenhuma coluna criada. {canManageKanban ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
                     </p>
                   </div>
                 )}
@@ -194,7 +200,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
         onMoveCard={(cardId, colId) => moveCard(cardId, colId)}
       />
 
-      {isAdmin && (
+      {canManageKanban && (
         <KanbanSettingsDialog
           open={settingsOpen}
           onOpenChange={setSettingsOpen}

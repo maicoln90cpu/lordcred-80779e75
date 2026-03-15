@@ -38,7 +38,8 @@ export interface KanbanCard {
 }
 
 export function useKanban() {
-  const { user } = useAuth();
+  const { user, isAdmin, isSupport } = useAuth();
+  const canSeeAll = isAdmin || isSupport;
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [cards, setCards] = useState<KanbanCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,14 +55,17 @@ export function useKanban() {
   const fetchCards = useCallback(async () => {
     if (!user) return;
 
-    // Get user's chips
-    const { data: chips } = await supabase
-      .from('chips')
-      .select('id')
-      .eq('user_id', user.id);
-    if (!chips || chips.length === 0) { setCards([]); return; }
-
-    const chipIds = chips.map(c => c.id);
+    // Admin/Support see all chips; sellers see only their own
+    let chipIds: string[];
+    if (canSeeAll) {
+      const { data: chips } = await supabase.from('chips').select('id');
+      if (!chips || chips.length === 0) { setCards([]); return; }
+      chipIds = chips.map(c => c.id);
+    } else {
+      const { data: chips } = await supabase.from('chips').select('id').eq('user_id', user.id);
+      if (!chips || chips.length === 0) { setCards([]); return; }
+      chipIds = chips.map(c => c.id);
+    }
 
     // Get kanban cards with conversation data
     const { data: kanbanCards } = await supabase
@@ -109,7 +113,7 @@ export function useKanban() {
       });
 
     setCards(enriched);
-  }, [user]);
+  }, [user, canSeeAll]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Search, Eye, Webhook, RefreshCw, Clock } from 'lucide-react';
+import { Loader2, Search, Eye, Webhook, RefreshCw, Clock, Flame, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WebhookLog {
@@ -33,11 +33,12 @@ const eventColors: Record<string, string> = {
 
 export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
-  const [chips, setChips] = useState<Record<string, string>>({});
+  const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEvent, setFilterEvent] = useState('all');
   const [filterChip, setFilterChip] = useState('all');
+  const [filterSource, setFilterSource] = useState('all');
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null);
 
   useEffect(() => {
@@ -47,20 +48,32 @@ export default function WebhookDiagnostics() {
   const loadData = async () => {
     const [logsRes, chipsRes] = await Promise.all([
       supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(500),
-      supabase.from('chips').select('id, instance_name, nickname'),
+      supabase.from('chips').select('id, instance_name, nickname, chip_type'),
     ]);
     if (logsRes.data) setLogs(logsRes.data);
     if (chipsRes.data) {
-      const map: Record<string, string> = {};
-      chipsRes.data.forEach(c => { map[c.id] = c.nickname || c.instance_name; });
-      setChips(map);
+      const map: Record<string, { name: string; chipType: string }> = {};
+      chipsRes.data.forEach(c => {
+        map[c.id] = { name: c.nickname || c.instance_name, chipType: c.chip_type || 'warming' };
+      });
+      setChipsMap(map);
     }
     setLoading(false);
+  };
+
+  const getSource = (chipId: string | null): 'warming' | 'chat' | 'unknown' => {
+    if (!chipId || !chipsMap[chipId]) return 'unknown';
+    return chipsMap[chipId].chipType === 'whatsapp' ? 'chat' : 'warming';
   };
 
   const filteredLogs = logs.filter(log => {
     if (filterEvent !== 'all' && log.event_type !== filterEvent) return false;
     if (filterChip !== 'all' && log.chip_id !== filterChip) return false;
+    if (filterSource !== 'all') {
+      const source = getSource(log.chip_id);
+      if (filterSource === 'warming' && source !== 'warming') return false;
+      if (filterSource === 'chat' && source !== 'chat') return false;
+    }
     if (searchTerm && !log.instance_name?.toLowerCase().includes(searchTerm.toLowerCase()) && !log.processing_result?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
@@ -109,8 +122,16 @@ export default function WebhookDiagnostics() {
             <SelectContent>
               <SelectItem value="all">Todos os chips</SelectItem>
               {uniqueChipIds.map(id => (
-                <SelectItem key={id} value={id}>{chips[id] || id.slice(0, 8)}</SelectItem>
+                <SelectItem key={id} value={id}>{chipsMap[id]?.name || id.slice(0, 8)}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterSource} onValueChange={setFilterSource}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              <SelectItem value="warming">🔥 Aquecimento</SelectItem>
+              <SelectItem value="chat">💬 Chat Vendedores</SelectItem>
             </SelectContent>
           </Select>
           <Badge variant="outline" className="gap-1">
@@ -127,6 +148,7 @@ export default function WebhookDiagnostics() {
                   <TableRow>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Instância</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead>Evento</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Resultado</TableHead>
@@ -134,31 +156,47 @@ export default function WebhookDiagnostics() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map(log => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
-                      <TableCell className="text-xs">{log.instance_name || '—'}</TableCell>
-                      <TableCell>
-                        <Badge className={cn('text-xs', eventColors[log.event_type] || 'bg-muted text-muted-foreground')}>
-                          {log.event_type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={log.status_code === 200 ? 'outline' : 'destructive'} className="text-xs">
-                          {log.status_code}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate">{log.processing_result || '—'}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLog(log)}>
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredLogs.map(log => {
+                    const source = getSource(log.chip_id);
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
+                        <TableCell className="text-xs">{log.instance_name || '—'}</TableCell>
+                        <TableCell>
+                          {source === 'warming' ? (
+                            <Badge className="text-xs bg-orange-500/20 text-orange-400 gap-1">
+                              <Flame className="w-3 h-3" />Aquecimento
+                            </Badge>
+                          ) : source === 'chat' ? (
+                            <Badge className="text-xs bg-blue-500/20 text-blue-400 gap-1">
+                              <MessageSquare className="w-3 h-3" />Chat
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">—</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={cn('text-xs', eventColors[log.event_type] || 'bg-muted text-muted-foreground')}>
+                            {log.event_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={log.status_code === 200 ? 'outline' : 'destructive'} className="text-xs">
+                            {log.status_code}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[200px] truncate">{log.processing_result || '—'}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLog(log)}>
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {filteredLogs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum log de webhook</TableCell>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum log de webhook</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
