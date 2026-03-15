@@ -688,8 +688,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         </div>
       )}
 
-      {/* Input area - disabled when chip is offline */}
-      {chipStatus && chipStatus !== 'connected' ? (
+      {/* Input area - hidden in readOnly mode, disabled when chip is offline */}
+      {readOnly ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-3 bg-muted/50 border-t border-border/50">
+          <span className="text-sm text-muted-foreground">Modo somente leitura — não é possível enviar mensagens</span>
+        </div>
+      ) : chipStatus && chipStatus !== 'connected' ? (
         <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">
           <WifiOff className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="text-sm text-muted-foreground">Reconecte para atualizar conversas e enviar mensagens</span>
