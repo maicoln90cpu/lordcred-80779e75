@@ -279,8 +279,8 @@ export default function Users() {
                     </Button>
                   </div>
                 </div>
-                {/* Only Master sees role selection */}
-                {isMaster && (
+                {/* Admin and Master see role selection */}
+                {canChooseRole && (
                   <div className="space-y-3">
                     <Label>Tipo de Usuário</Label>
                     <RadioGroup
@@ -293,13 +293,15 @@ export default function Users() {
                         <Label htmlFor="role-seller" className="cursor-pointer">Vendedor</Label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="user" id="role-user" />
-                        <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
                         <RadioGroupItem value="support" id="role-support" />
                         <Label htmlFor="role-support" className="cursor-pointer">Suporte</Label>
                       </div>
+                      {isMaster && (
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="user" id="role-user" />
+                          <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                        </div>
+                      )}
                     </RadioGroup>
                   </div>
                 )}
