@@ -200,7 +200,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
         onMoveCard={(cardId, colId) => moveCard(cardId, colId)}
       />
 
-      {isAdmin && (
+      {canManageKanban && (
         <KanbanSettingsDialog
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
