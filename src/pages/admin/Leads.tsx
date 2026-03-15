@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
