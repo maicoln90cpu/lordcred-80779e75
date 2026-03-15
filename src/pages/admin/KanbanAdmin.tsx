@@ -20,7 +20,7 @@ export default function KanbanAdmin() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const dragRef = useRef<number | null>(null);
 
-  const readOnly = isSupport;
+  const readOnly = false;
 
   const handleCreate = async () => {
     if (!newName.trim() || readOnly) return;

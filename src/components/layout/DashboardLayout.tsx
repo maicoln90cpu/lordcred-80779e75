@@ -49,13 +49,29 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const navGroups: NavGroup[] = [
+interface NavSubItem {
+  label: string;
+  icon: typeof LayoutDashboard;
+  href: string;
+}
+
+interface NavItemWithChildren extends NavItem {
+  children?: NavSubItem[];
+}
+
+interface NavGroupWithChildren {
+  groupLabel: string;
+  items: NavItemWithChildren[];
+}
+
+const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Principal',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
-      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
-      { label: 'Mensagens', icon: MessageSquare, href: '/messages', sellerHidden: true },
+      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true, children: [
+        { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
+      ] },
     ],
   },
   {
