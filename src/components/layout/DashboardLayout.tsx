@@ -69,9 +69,7 @@ const navGroups: NavGroupWithChildren[] = [
     groupLabel: 'Principal',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
-      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true, children: [
-        { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
-      ] },
+      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
     ],
   },
   {
