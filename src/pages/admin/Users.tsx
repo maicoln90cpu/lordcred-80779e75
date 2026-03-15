@@ -312,7 +312,7 @@ export default function Users() {
                   {isCreating ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</>
                   ) : (
-                    isMaster ? 'Criar Usuário' : 'Criar Vendedor'
+                    isMaster || isRegularAdmin ? 'Criar Usuário' : 'Criar Vendedor'
                   )}
                 </Button>
               </DialogFooter>
