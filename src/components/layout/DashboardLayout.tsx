@@ -50,7 +50,9 @@ const navItems: NavItem[] = [
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
   { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
+  { label: 'Tickets', icon: Ticket, href: '/admin/tickets' },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
+  { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
   { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
 ];
