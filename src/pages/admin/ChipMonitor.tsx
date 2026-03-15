@@ -127,6 +127,14 @@ export default function ChipMonitor() {
 
       setChips((chipsData || []) as unknown as ChipMonitorData[]);
 
+      // Fetch profiles for user name mapping
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, email, name');
+      const pMap: Record<string, { email: string; name: string | null }> = {};
+      (profilesData || []).forEach(p => { pMap[p.user_id] = { email: p.email, name: p.name }; });
+      setProfilesMap(pMap);
+
       // Fetch settings
       const { data: settingsData } = await supabase
         .from('system_settings')
