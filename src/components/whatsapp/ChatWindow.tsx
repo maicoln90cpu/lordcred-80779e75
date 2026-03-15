@@ -50,11 +50,12 @@ interface ChatWindowProps {
   chipStatus?: string;
   onReconnect?: () => void;
   onStartNewChat?: (phone: string) => void;
+  readOnly?: boolean;
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat }: ChatWindowProps) {
+export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
