@@ -137,8 +137,8 @@ export default function ChipMonitor() {
         const { data: profilesData } = await supabase.from('profiles').select('user_id, email, name');
         (profilesData || []).forEach(p => { pMap[p.user_id] = { email: p.email, name: p.name }; });
       }
+      setProfilesMap(pMap);
 
-      // Fetch settings
       const { data: settingsData } = await supabase
         .from('system_settings')
         .select('messages_day_novo, messages_day_1_3, messages_day_4_7, messages_day_aquecido, messages_day_8_plus')
