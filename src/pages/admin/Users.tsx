@@ -132,8 +132,8 @@ export default function Users() {
       const token = sessionData?.session?.access_token;
       if (!token) throw new Error('Sessão expirada');
 
-      // Support always creates sellers; Administrador always creates sellers; Master can choose
-      const roleToCreate = isMaster ? newUserRole : 'seller';
+      // Support always creates sellers; Admin/Master can choose
+      const roleToCreate = canChooseRole ? newUserRole : 'seller';
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
