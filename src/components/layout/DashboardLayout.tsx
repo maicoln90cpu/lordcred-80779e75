@@ -18,7 +18,9 @@ import {
   Link2,
   Activity,
   Ticket,
-  Shield
+  Shield,
+  ListOrdered,
+  Webhook
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
