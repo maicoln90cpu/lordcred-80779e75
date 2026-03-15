@@ -395,18 +395,49 @@ export default function ChipMonitor() {
             <TabsTrigger value="logs">Logs de Atividade</TabsTrigger>
           </TabsList>
 
-          {/* Status Tab */}
           <TabsContent value="status" className="space-y-4">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap gap-3">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="w-3.5 h-3.5 mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="connected">Conectados</SelectItem>
+                  <SelectItem value="disconnected">Desconectados</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterUserId} onValueChange={setFilterUserId}>
+                <SelectTrigger className="w-[220px]">
+                  <User className="w-3.5 h-3.5 mr-2" />
+                  <SelectValue placeholder="Usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os usuários</SelectItem>
+                  {uniqueUsers.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>{u.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(filterStatus !== 'all' || filterUserId !== 'all') && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterStatus('all'); setFilterUserId('all'); }}>
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
                 Carregando chips...
               </div>
-            ) : chips.length === 0 ? (
-              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum chip encontrado no sistema</CardContent></Card>
+            ) : filteredChips.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum chip encontrado</CardContent></Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {chips.map(chip => {
+                {filteredChips.map(chip => {
                   const phase = PHASE_CONFIG[chip.warming_phase] || PHASE_CONFIG.novo;
                   const PhaseIcon = phase.icon;
                   const limit = getMessageLimit(chip.warming_phase);
