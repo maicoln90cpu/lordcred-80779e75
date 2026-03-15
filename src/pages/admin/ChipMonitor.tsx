@@ -110,6 +110,9 @@ export default function ChipMonitor() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
+  const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterUserId, setFilterUserId] = useState<string>('all');
 
   const canManage = isAdmin || isSupport;
 
