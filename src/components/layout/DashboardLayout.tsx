@@ -206,9 +206,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="my-2 mx-2 border-t border-sidebar-border" />
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) =>
-                  renderNavItem(item, location.pathname === item.href, !sidebarOpen)
-                )}
+                {group.items.map((item) => (
+                  <div key={item.href}>
+                    {renderNavItem(item, location.pathname === item.href, !sidebarOpen)}
+                    {(item as NavItemWithChildren).children?.map((child) => (
+                      <Link
+                        key={child.href}
+                        to={child.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg transition-colors relative text-xs",
+                          sidebarOpen ? "pl-10 pr-3 py-1.5" : "px-3 py-2 justify-center",
+                          location.pathname === child.href
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        )}
+                      >
+                        <child.icon className="w-3.5 h-3.5 shrink-0" />
+                        {sidebarOpen && <span>{child.label}</span>}
+                      </Link>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
           ))}

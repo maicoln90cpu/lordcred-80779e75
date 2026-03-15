@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Wifi,
   WifiOff,
@@ -14,7 +14,9 @@ import {
   MessageSquare,
   Zap,
   Signal,
-  SignalZero
+  SignalZero,
+  User,
+  Filter
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
