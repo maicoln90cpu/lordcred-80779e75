@@ -354,6 +354,7 @@ export default function WhatsApp() {
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin/tickets')} className="text-muted-foreground hover:text-foreground" title="Tickets de Suporte">
             <Ticket className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
             <Star className="w-4 h-4" />
           </Button>
