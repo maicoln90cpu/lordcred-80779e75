@@ -159,3 +159,41 @@ Use o simulador para planejar a capacidade antes de adicionar novos chips.
 7. **Mantenha templates variados** — Quanto mais diversos os templates de mensagens, menor a chance de detecção.
 
 8. **Acompanhe o status dos chips** — Se um chip desconectar, reconecte o mais rápido possível para manter a consistência.
+
+---
+
+## Matriz de Permissões por Papel
+
+O sistema possui 4 papéis: **Master** (role `admin`), **Administrador** (role `user`), **Suporte** (role `support`) e **Vendedor** (role `seller`).
+
+| Funcionalidade | Master | Administrador | Suporte | Vendedor |
+|---|:---:|:---:|:---:|:---:|
+| **Dashboard** | ✅ | ✅ | ✅ | ❌ |
+| **Meus Chips** (gerenciar chips) | ✅ | ✅ | ✅ | ❌ |
+| **Fila de Mensagens** (ver/gerenciar fila) | ✅ | ✅ | ✅ | ❌ |
+| **Histórico de Mensagens** | ✅ | ✅ | ✅ | ❌ |
+| **WhatsApp Chat** (conversar) | ✅ | ✅ | ✅ | ❌ |
+| **Kanban** (ver board) | ✅ | ✅ | ✅ | ❌ |
+| **Kanban** (gerenciar colunas/cards) | ✅ | ✅ | ✅ | ❌ |
+| **Leads** (ver/gerenciar) | ✅ | ✅ | ✅ | ❌ |
+| **Leads** (ver só atribuídos) | — | — | — | ✅ |
+| **Gerenciar Usuários** (criar/editar/bloquear) | ✅ | ✅ | ❌¹ | ❌ |
+| **Criar Usuários** (vendedor/suporte) | ✅ | ✅ | ✅ | ❌ |
+| **Monitor de Chips** | ✅ | ✅ | ✅ | ❌ |
+| **Health Check de Chips** | ✅ | ✅ | ✅ | ❌ |
+| **Diagnóstico de Webhooks** | ✅ | ✅ | ✅ | ❌ |
+| **Templates de Mensagens** | ✅ | ✅ | ✅ | ❌ |
+| **Performance** (métricas) | ✅ | ✅ | ❌ | ❌ |
+| **Configurações do Sistema** | ✅ | ✅ | ❌ | ❌ |
+| **Links Úteis** (gerenciar) | ✅ | ✅ | ✅ | ❌ |
+| **Tickets de Suporte** (gerenciar todos) | ✅ | ✅ | ✅ | ❌ |
+| **Tickets de Suporte** (criar/ver próprios) | — | — | — | ✅ |
+| **Chat Interno** | ✅ | ✅ | ✅ | ✅ |
+| **Assistência Remota** | ✅ | ✅ | ✅ | ❌ |
+| **Logs de Auditoria** | ✅ | ✅ | ✅ | ❌ |
+| **SQL/Migração** | ✅ | ❌ | ❌ | ❌ |
+| **Exportar Dados** | ✅ | ❌ | ❌ | ❌ |
+
+¹ Suporte pode criar usuários (vendedores e suporte) mas só visualiza os que criou. Não pode editar, bloquear ou excluir contas de outros.
+
+> **Nota:** "Master" é o papel `admin` no banco de dados. "Administrador" é o papel `user`. A nomenclatura no frontend é diferente da role técnica.
