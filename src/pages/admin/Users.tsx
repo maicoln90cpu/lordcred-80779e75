@@ -49,8 +49,11 @@ export default function Users() {
   const [showPassword, setShowPassword] = useState(false);
 
   const isMaster = isAdmin; // role === 'admin'
+  const isRegularAdmin = userRole === 'user'; // Administrador (not master)
   // Support can only create sellers, cannot edit/delete/block
-  const canManageUsers = isMaster || (!isSupport && userRole === 'user');
+  const canManageUsers = isMaster || (!isSupport && isRegularAdmin);
+  // Admin and Master can choose role when creating
+  const canChooseRole = isMaster || isRegularAdmin;
 
   useEffect(() => {
     fetchUsers();
