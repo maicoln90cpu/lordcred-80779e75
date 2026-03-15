@@ -1,42 +1,58 @@
 
 
-## Respostas e Plano
+## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
 
-### Pergunta 1 — Por que existe "Fila de Mensagens" sem envio em massa?
+### Inventario de restos de Evolution encontrados
 
-A fila foi implementada como infraestrutura preparatória. O `warming-engine` já usa a tabela `message_queue` para agendar mensagens de aquecimento dos chips — cada mensagem enviada pelo motor de aquecimento entra na fila com prioridade e controle de tentativas. A página `/admin/queue` serve para monitorar essas mensagens de aquecimento e, futuramente, disparos em massa. Mas hoje ela já tem utilidade real: mostra o status das mensagens de aquecimento sendo processadas. Não é um recurso "morto".
+| Arquivo | O que sobrou |
+|---|---|
+| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
+| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
+| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
+| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
+| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
+| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
+| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
+| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
+| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
+| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
 
-### Pergunta 3 — Diferença entre Respostas Rápidas e Templates
+### Alteracoes planejadas
 
-- **Respostas Rápidas**: São atalhos individuais do operador, acessados digitando `/` no chat. Cada chip tem os seus próprios atalhos sincronizados com a UazAPI. São para uso rápido durante uma conversa 1-a-1.
-- **Templates**: São modelos globais gerenciados por Admin/Suporte, organizados por categoria (saudação, vendas, cobrança). Ficam disponíveis para toda a equipe como referência — o usuário copia o texto e usa onde quiser. São um "banco de mensagens padrão" da empresa.
+**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
 
-Em resumo: Respostas Rápidas = atalhos pessoais no chat. Templates = biblioteca de mensagens padrão da empresa.
+**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
 
----
+**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
 
-### Pergunta 2 — Mover "Mensagens" para dentro de "Meus Chips" como aba
+**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
 
-**Mudanças:**
+**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
 
-1. **`src/components/layout/DashboardLayout.tsx`**: Remover "Mensagens" completamente do sidebar (remover o `children` de "Meus Chips").
+**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
 
-2. **`src/pages/Chips.tsx`**: Adicionar sistema de Tabs com 3 abas:
-   - **Meus Chips** (conteúdo atual da página)
-   - **Fila** (conteúdo que hoje está em `/admin/queue` — ou link para ele)
-   - **Mensagens** (embed do conteúdo de `Messages.tsx`)
+**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
 
-   Na prática, vou extrair o conteúdo principal de `Chips.tsx` e de `Messages.tsx` em componentes internos e renderizá-los dentro de `<Tabs>` na página Chips.
+**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
 
-3. **`src/App.tsx`**: Manter a rota `/messages` funcionando (para links diretos) mas ela pode redirecionar para `/chips?tab=mensagens`, ou manter independente.
+**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
 
-**Abordagem**: Para manter o código limpo, vou:
-- Extrair o grid de chips em um componente `ChipsGrid` dentro do próprio arquivo
-- Importar o conteúdo de `Messages.tsx` como componente (extraindo a parte interna sem o `DashboardLayout` wrapper)
-- Usar `Tabs` do shadcn com valor controlado
+**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
 
-**Arquivos a modificar:**
-- `src/components/layout/DashboardLayout.tsx` — remover Mensagens do sidebar
-- `src/pages/Chips.tsx` — adicionar Tabs com 3 abas (Chips, Mensagens, Fila)
-- `src/pages/Messages.tsx` — extrair conteúdo interno como componente exportável
+**11. Deletar funcao deployada `evolution-api`** no Supabase.
+
+### O que NAO muda
+
+- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
+- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
+- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+
+### Resumo de impacto
+
+- 1 edge function deletada (`evolution-api`)
+- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
+- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
+- 1 config atualizado (config.toml)
+- Zero mudancas no banco de dados
+- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
 
