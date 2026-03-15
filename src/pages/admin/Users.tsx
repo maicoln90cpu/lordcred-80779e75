@@ -256,7 +256,7 @@ export default function Users() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{isMaster ? 'Criar Novo Usuário' : 'Criar Novo Vendedor'}</DialogTitle>
+                <DialogTitle>{canChooseRole ? 'Criar Novo Usuário' : 'Criar Novo Vendedor'}</DialogTitle>
                 <DialogDescription>
                   Preencha os dados para criar uma nova conta
                 </DialogDescription>
