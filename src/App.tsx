@@ -58,6 +58,8 @@ const App = () => (
               <Route path="/admin/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/admin/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
               <Route path="/admin/audit-logs" element={<ProtectedRoute blockSellers><AuditLogs /></ProtectedRoute>} />
+              <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
+              <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
