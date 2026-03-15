@@ -49,13 +49,29 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const navGroups: NavGroup[] = [
+interface NavSubItem {
+  label: string;
+  icon: typeof LayoutDashboard;
+  href: string;
+}
+
+interface NavItemWithChildren extends NavItem {
+  children?: NavSubItem[];
+}
+
+interface NavGroupWithChildren {
+  groupLabel: string;
+  items: NavItemWithChildren[];
+}
+
+const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Principal',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
-      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
-      { label: 'Mensagens', icon: MessageSquare, href: '/messages', sellerHidden: true },
+      { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true, children: [
+        { label: 'Mensagens', icon: MessageSquare, href: '/messages' },
+      ] },
     ],
   },
   {
@@ -190,9 +206,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="my-2 mx-2 border-t border-sidebar-border" />
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) =>
-                  renderNavItem(item, location.pathname === item.href, !sidebarOpen)
-                )}
+                {group.items.map((item) => (
+                  <div key={item.href}>
+                    {renderNavItem(item, location.pathname === item.href, !sidebarOpen)}
+                    {(item as NavItemWithChildren).children?.map((child) => (
+                      <Link
+                        key={child.href}
+                        to={child.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg transition-colors relative text-xs",
+                          sidebarOpen ? "pl-10 pr-3 py-1.5" : "px-3 py-2 justify-center",
+                          location.pathname === child.href
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        )}
+                      >
+                        <child.icon className="w-3.5 h-3.5 shrink-0" />
+                        {sidebarOpen && <span>{child.label}</span>}
+                      </Link>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -265,25 +299,42 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.href;
                       return (
-                        <Link
-                          key={item.href}
-                          to={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors relative text-sm",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-sidebar-foreground hover:bg-sidebar-accent"
-                          )}
-                        >
-                          <item.icon className="w-4 h-4" />
-                          <span>{item.label}</span>
-                          {item.href === '/chat' && totalUnread > 0 && (
-                            <Badge className="ml-auto h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
-                              {totalUnread > 99 ? '99+' : totalUnread}
-                            </Badge>
-                          )}
-                        </Link>
+                        <div key={item.href}>
+                          <Link
+                            to={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors relative text-sm",
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "text-sidebar-foreground hover:bg-sidebar-accent"
+                            )}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            <span>{item.label}</span>
+                            {item.href === '/chat' && totalUnread > 0 && (
+                              <Badge className="ml-auto h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
+                                {totalUnread > 99 ? '99+' : totalUnread}
+                              </Badge>
+                            )}
+                          </Link>
+                          {(item as NavItemWithChildren).children?.map((child) => (
+                            <Link
+                              key={child.href}
+                              to={child.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 pl-10 pr-3 py-1.5 rounded-lg transition-colors text-xs",
+                                location.pathname === child.href
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                              )}
+                            >
+                              <child.icon className="w-3.5 h-3.5" />
+                              <span>{child.label}</span>
+                            </Link>
+                          ))}
+                        </div>
                       );
                     })}
                   </div>

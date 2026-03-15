@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Wifi,
   WifiOff,
@@ -14,13 +14,16 @@ import {
   MessageSquare,
   Zap,
   Signal,
-  SignalZero
+  SignalZero,
+  User,
+  Filter
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -107,6 +110,9 @@ export default function ChipMonitor() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
+  const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterUserId, setFilterUserId] = useState<string>('all');
 
   const canManage = isAdmin || isSupport;
 
@@ -120,6 +126,14 @@ export default function ChipMonitor() {
         .order('slot_number');
 
       setChips((chipsData || []) as unknown as ChipMonitorData[]);
+
+      // Fetch profiles for user name mapping
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, email, name');
+      const pMap: Record<string, { email: string; name: string | null }> = {};
+      (profilesData || []).forEach(p => { pMap[p.user_id] = { email: p.email, name: p.name }; });
+      setProfilesMap(pMap);
 
       // Fetch settings
       const { data: settingsData } = await supabase
@@ -268,6 +282,25 @@ export default function ChipMonitor() {
     ? lifecycleLogs.filter(l => l.chip_id === selectedChipId)
     : lifecycleLogs;
 
+  // Unique users for filter dropdown
+  const uniqueUsers = useMemo(() => {
+    const userIds = [...new Set(chips.map(c => c.user_id))];
+    return userIds.map(uid => ({
+      user_id: uid,
+      label: profilesMap[uid]?.name || profilesMap[uid]?.email || uid.slice(0, 8),
+    }));
+  }, [chips, profilesMap]);
+
+  // Filtered chips
+  const filteredChips = useMemo(() => {
+    return chips.filter(c => {
+      if (filterStatus === 'connected' && c.status !== 'connected') return false;
+      if (filterStatus === 'disconnected' && c.status === 'connected') return false;
+      if (filterUserId !== 'all' && c.user_id !== filterUserId) return false;
+      return true;
+    });
+  }, [chips, filterStatus, filterUserId]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -362,18 +395,49 @@ export default function ChipMonitor() {
             <TabsTrigger value="logs">Logs de Atividade</TabsTrigger>
           </TabsList>
 
-          {/* Status Tab */}
           <TabsContent value="status" className="space-y-4">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap gap-3">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="w-3.5 h-3.5 mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="connected">Conectados</SelectItem>
+                  <SelectItem value="disconnected">Desconectados</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterUserId} onValueChange={setFilterUserId}>
+                <SelectTrigger className="w-[220px]">
+                  <User className="w-3.5 h-3.5 mr-2" />
+                  <SelectValue placeholder="Usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os usuários</SelectItem>
+                  {uniqueUsers.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>{u.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(filterStatus !== 'all' || filterUserId !== 'all') && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterStatus('all'); setFilterUserId('all'); }}>
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
                 Carregando chips...
               </div>
-            ) : chips.length === 0 ? (
-              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum chip encontrado no sistema</CardContent></Card>
+            ) : filteredChips.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum chip encontrado</CardContent></Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {chips.map(chip => {
+                {filteredChips.map(chip => {
                   const phase = PHASE_CONFIG[chip.warming_phase] || PHASE_CONFIG.novo;
                   const PhaseIcon = phase.icon;
                   const limit = getMessageLimit(chip.warming_phase);
@@ -400,6 +464,10 @@ export default function ChipMonitor() {
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {chip.phone_number ? `+${chip.phone_number}` : 'Sem número'}
+                              </p>
+                              <p className="text-[10px] text-primary/70 flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />
+                                {profilesMap[chip.user_id]?.name || profilesMap[chip.user_id]?.email || 'Desconhecido'}
                               </p>
                             </div>
                           </div>
