@@ -38,8 +38,8 @@ export interface KanbanCard {
 }
 
 export function useKanban() {
-  const { user } = useAuth();
-  const [columns, setColumns] = useState<KanbanColumn[]>([]);
+  const { user, isAdmin, isSupport } = useAuth();
+  const canSeeAll = isAdmin || isSupport;
   const [cards, setCards] = useState<KanbanCard[]>([]);
   const [loading, setLoading] = useState(true);
 
