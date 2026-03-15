@@ -113,7 +113,7 @@ export function useKanban() {
       });
 
     setCards(enriched);
-  }, [user]);
+  }, [user, canSeeAll]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
