@@ -20,6 +20,8 @@ import KanbanAdmin from "./pages/admin/KanbanAdmin";
 import LinksAdmin from "./pages/admin/LinksAdmin";
 import ChipMonitor from "./pages/admin/ChipMonitor";
 import InternalChat from "./pages/admin/InternalChat";
+import Tickets from "./pages/admin/Tickets";
+import AuditLogs from "./pages/admin/AuditLogs";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
