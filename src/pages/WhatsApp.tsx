@@ -48,7 +48,7 @@ export default function WhatsApp() {
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [leadsOpen, setLeadsOpen] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
-  const { user, isSeller, signOut } = useAuth();
+  const { user, isSeller, isSupport, signOut } = useAuth();
   const { totalUnread: chatUnreadCount } = useInternalChatUnread();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
