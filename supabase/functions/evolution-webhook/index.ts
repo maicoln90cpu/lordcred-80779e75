@@ -34,19 +34,33 @@ function normalizeMessageType(raw: string): string {
   return map[lower] || ''
 }
 
+async function logWebhook(adminClient: any, chipId: string | null, instanceName: string | null, eventType: string, payload: any, statusCode: number, result: string) {
+  try {
+    await adminClient.from('webhook_logs').insert({
+      chip_id: chipId,
+      instance_name: instanceName,
+      event_type: eventType,
+      payload,
+      status_code: statusCode,
+      processing_result: result,
+    })
+  } catch (e) {
+    console.error('Failed to log webhook:', e)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  })
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
-
     const payload = await req.json()
     console.log('Webhook received:', JSON.stringify(payload))
 
@@ -54,6 +68,7 @@ Deno.serve(async (req) => {
     const instanceName = payload.instanceName || payload.instance
 
     if (!instanceName) {
+      await logWebhook(adminClient, null, null, eventType || 'unknown', payload, 200, 'No instance name')
       return new Response(
         JSON.stringify({ ok: true, message: 'No instance name' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -67,6 +82,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (chipError || !chip) {
+      await logWebhook(adminClient, null, instanceName, eventType || 'unknown', payload, 200, 'Chip not found')
       console.log('Chip not found for instance:', instanceName)
       return new Response(
         JSON.stringify({ ok: true, message: 'Chip not found, ignoring' }),
@@ -74,19 +90,29 @@ Deno.serve(async (req) => {
       )
     }
 
+    let processingResult = 'unhandled'
+
     if (eventType === 'messages' && payload.message) {
       await handleUazapiMessage(adminClient, chip, payload)
+      processingResult = 'message_processed'
     } else if (eventType === 'chats' && payload.chat) {
       await handleUazapiChat(adminClient, chip, payload)
+      processingResult = 'chat_processed'
     } else if (eventType === 'messages_update') {
       await handleMessagesUpdate(adminClient, chip, payload)
+      processingResult = 'status_update_processed'
     } else if (eventType === 'connection.update' || payload.event === 'connection.update') {
       await handleConnectionUpdate(adminClient, chip, payload)
+      processingResult = 'connection_update_processed'
     } else if (eventType === 'qrcode.updated') {
       await adminClient.from('chips').update({ status: 'connecting' }).eq('id', chip.id)
+      processingResult = 'qrcode_updated'
     } else {
       console.log('Unhandled event type:', eventType)
+      processingResult = `unhandled: ${eventType}`
     }
+
+    await logWebhook(adminClient, chip.id, instanceName, eventType || 'unknown', payload, 200, processingResult)
 
     return new Response(
       JSON.stringify({ ok: true }),
@@ -95,6 +121,11 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error)
+    // Try to log even on error
+    try {
+      const rawBody = error.message || 'Internal error'
+      await logWebhook(adminClient, null, null, 'error', { error: rawBody }, 500, rawBody)
+    } catch (_) {}
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -109,7 +140,6 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   if (!msg || !msg.chatid) return
   if (msg.chatid === 'status@broadcast') return
 
-  // Deduplication: skip if message_id already exists
   const existingMsgId = msg.messageid || msg.id || null
   if (existingMsgId) {
     const { data: existingMsg } = await adminClient
@@ -130,9 +160,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   const recipientPhone = remoteJid.split('@')[0].replace(/\D/g, '')
   const senderName = safeString(msg.senderName) || safeString(chat?.name) || ''
 
-  // Determine display text for sidebar — fallback para messageType normalizado
   const rawMediaType = safeString(msg.mediaType)
-  // Treat "url" mediaType as plain text (WhatsApp link previews are not actual media)
   const mediaType = (rawMediaType && rawMediaType !== 'url') ? rawMediaType : normalizeMessageType(safeString(msg.messageType))
   const isMedia = mediaType && mediaType !== 'text' && mediaType !== 'chat' && mediaType !== 'url'
   const displayText = isMedia ? getMediaLabel(mediaType) : messageContent
@@ -149,13 +177,11 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     media_type: mediaType || null,
   })
 
-  // For outgoing messages, senderName = instance name (e.g. "Lord Cred"), NEVER use as contactName
   const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || (!isFromMe ? senderName : '') || recipientPhone
   const waName = safeString(chat?.wa_name) || ''
   const contactPhone = safeString(chat?.phone) || recipientPhone
   const profilePicUrl = safeString(chat?.imagePreview) || safeString(chat?.image) || null
 
-  // Get current unread count for increment
   const { data: existing } = await adminClient
     .from('conversations')
     .select('id, unread_count, contact_name')
@@ -165,7 +191,6 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
 
   const newUnread = isFromMe ? (existing?.unread_count || 0) : (existing?.unread_count || 0) + 1
 
-  // Protect against overwriting a real name with just digits
   const isRealName = contactName && !/^\d+$/.test(contactName)
 
   const upsertData: any = {
@@ -179,7 +204,6 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     is_group: msg.isGroup || false,
   }
 
-  // If conversation already has a name and new value is just digits, preserve existing
   if (existing && existing.contact_name && !isRealName) {
     delete upsertData.contact_name
   }
@@ -187,11 +211,8 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
 
-  // UPSERT to prevent race condition duplicates
   await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
 
-  // Auto-correct: if this is a @s.whatsapp.net message, check for duplicate @lid conversation
-  // and delete it (the @s.whatsapp.net conv from the upsert above is the correct one)
   if (remoteJid.includes('@s.whatsapp.net') && contactName) {
     try {
       const { data: lidConvos } = await adminClient
@@ -201,7 +222,6 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
         .like('remote_jid', '%@lid')
 
       if (lidConvos && lidConvos.length > 0) {
-        // Match by contact_name (since contact_phone on @lid convos contains LID, not phone)
         const match = lidConvos.filter(c => c.contact_name === contactName)
         if (match.length === 1) {
           console.log(`Auto-correcting: deleting @lid conv ${match[0].remote_jid} (duplicate of ${remoteJid})`)
@@ -236,8 +256,6 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
   if (waName) upsertData.wa_name = waName
   if (profilePicUrl) upsertData.profile_pic_url = profilePicUrl
   
-  // Guard unread_count from chats events: only allow REDUCTION (correction downward)
-  // Never allow chats events to INCREASE unread_count — that's handled by messages events only
   if (typeof chat.wa_unreadCount === 'number') {
     const { data: existing } = await adminClient
       .from('conversations')
@@ -249,8 +267,6 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
     const currentCount = existing?.unread_count || 0
     const snapshotCount = chat.wa_unreadCount
     
-    // Only apply snapshot if it's LOWER than current (e.g. user read on phone → 0)
-    // Or if conversation doesn't exist yet (existing is null)
     if (!existing || snapshotCount < currentCount) {
       upsertData.unread_count = snapshotCount
       console.log(`chats event: unread ${currentCount} -> ${snapshotCount} for ${remoteJid} (correction)`)
@@ -259,27 +275,21 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
     }
   }
 
-  // UPSERT to prevent race condition duplicates
   await adminClient.from('conversations').upsert(upsertData, { onConflict: 'chip_id,remote_jid' })
 }
 
 async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
-  // Handle message status updates (sent, delivered, read)
   console.log('messages_update FULL payload:', JSON.stringify(payload))
   
-  // UazAPI sends messages_update with message object at root or nested
-  // Try to build update list from various formats
   let updateList: any[] = []
   
   if (payload.message && payload.message.messageid) {
-    // Most common: message object with status info at root
     updateList = [payload.message]
   } else if (payload.updates && Array.isArray(payload.updates)) {
     updateList = payload.updates
   } else if (payload.data && Array.isArray(payload.data)) {
     updateList = payload.data
   } else if (payload.messageid) {
-    // Status fields directly on payload root
     updateList = [payload]
   } else {
     updateList = [payload]
@@ -287,20 +297,16 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
 
   for (const update of updateList) {
     if (!update) continue
-    // Try multiple field names for message ID
     const messageId = update?.messageid || update?.message?.messageid || update?.key?.id || update?.id || payload?.messageid
-    // Try multiple field names for state/status
     const state = update?.state || update?.status || update?.ack || update?.message?.status || payload?.state || payload?.ack
     
     console.log(`messages_update: extracted messageId=${messageId}, state=${state} (type: ${typeof state})`)
     
     if (!messageId || state === undefined || state === null) continue
 
-    // Map UazAPI states to our status — comprehensive mapping
     let newStatus = ''
     const stateStr = String(state).toLowerCase()
     
-    // Handle deletion (revoked/deleted)
     if (stateStr === 'revoked' || stateStr === 'deleted' || state === 0) {
       console.log(`Message ${messageId} was deleted/revoked`)
       const { error: delError } = await adminClient
@@ -314,7 +320,6 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
       continue
     }
 
-    // Handle edit (edited message text)
     if (stateStr === 'edited' || update?.editedMessage || update?.message?.editedMessage) {
       const editedText = update?.editedMessage?.text || update?.message?.editedMessage?.text || update?.editedMessage?.conversation || ''
       if (editedText) {
@@ -328,7 +333,6 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
       continue
     }
 
-    // Numeric: 0=pending, 1=sent, 2=delivered/server_ack, 3=delivered, 4=read, 5=played
     if (state === 4 || state === 5 || stateStr === 'read' || stateStr === 'played' || stateStr === 'read_by_me' || stateStr === '4' || stateStr === '5') {
       newStatus = 'read'
     } else if (state === 3 || stateStr === 'delivered' || stateStr === 'delivery_ack' || stateStr === '3') {
@@ -381,7 +385,6 @@ async function handleConnectionUpdate(adminClient: any, chip: any, payload: any)
 
   await adminClient.from('chips').update(updateData).eq('id', chip.id)
 
-  // Log lifecycle event
   await adminClient.from('chip_lifecycle_logs').insert({
     chip_id: chip.id,
     event: newStatus,
@@ -390,4 +393,3 @@ async function handleConnectionUpdate(adminClient: any, chip: any, payload: any)
 
   console.log(`Chip ${chip.instance_name} status: ${newStatus}`)
 }
-
