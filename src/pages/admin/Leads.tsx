@@ -424,6 +424,7 @@ export default function Leads() {
           <TabsList>
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
+            <TabsTrigger value="export">Backup / Exportar</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
             <TabsTrigger value="status-config" className="flex items-center gap-1">
               <Settings2 className="w-3.5 h-3.5" /> Configurações da Planilha
