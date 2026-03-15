@@ -324,7 +324,7 @@ export default function Users() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UsersIcon className="w-5 h-5" />
-              {isMaster ? 'Usuários Cadastrados' : 'Meus Vendedores'}
+              {isMaster ? 'Usuários Cadastrados' : 'Meus Usuários'}
             </CardTitle>
             <CardDescription>
               {users.length} usuário(s) encontrado(s)
