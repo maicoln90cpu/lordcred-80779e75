@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   BarChart3,
   Columns3,
-  Link2
+  Link2,
+  Activity
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
