@@ -402,6 +402,20 @@ export default function ChipMonitor() {
           </TabsList>
 
           <TabsContent value="status" className="space-y-4">
+            {/* Sub-tabs by chip type */}
+            <Tabs value={chipTypeTab} onValueChange={(v) => setChipTypeTab(v as 'warming' | 'whatsapp')}>
+              <TabsList>
+                <TabsTrigger value="whatsapp" className="gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Chat
+                </TabsTrigger>
+                <TabsTrigger value="warming" className="gap-1.5">
+                  <Flame className="w-3.5 h-3.5" />
+                  Aquecimento
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             {/* Filter Bar */}
             <div className="flex flex-wrap gap-3">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
