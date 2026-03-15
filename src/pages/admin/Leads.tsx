@@ -446,6 +446,34 @@ export default function Leads() {
             <LeadImporter />
           </TabsContent>
 
+          <TabsContent value="export">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Download className="w-5 h-5" />Backup e Exportação de Leads</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Button onClick={handleExportCSV} disabled={isExporting} variant="outline" className="h-20 flex-col gap-2">
+                    <FileSpreadsheet className="w-6 h-6" />
+                    <span>Exportar CSV</span>
+                  </Button>
+                  <Button onClick={handleExportJSON} disabled={isExporting} variant="outline" className="h-20 flex-col gap-2">
+                    <FileJson className="w-6 h-6" />
+                    <span>Exportar JSON</span>
+                  </Button>
+                  <label className="cursor-pointer">
+                    <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+                    <div className="h-20 flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border hover:bg-secondary/30 transition-colors">
+                      <Upload className="w-6 h-6" />
+                      <span className="text-sm">Restaurar JSON</span>
+                    </div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">O backup JSON pode ser restaurado posteriormente. O CSV é compatível com planilhas.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="batches">
             <Card>
               <CardHeader>
