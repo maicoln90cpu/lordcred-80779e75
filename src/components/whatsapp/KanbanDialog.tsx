@@ -176,7 +176,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                   <div className="flex flex-col items-center justify-center w-full text-muted-foreground gap-2">
                     <LayoutGrid className="w-10 h-10 opacity-30" />
                     <p className="text-sm">
-                      Nenhuma coluna criada. {isAdmin ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
+                      Nenhuma coluna criada. {canManageKanban ? 'Clique em "Colunas" para criar.' : 'Peça ao admin para configurar.'}
                     </p>
                   </div>
                 )}
