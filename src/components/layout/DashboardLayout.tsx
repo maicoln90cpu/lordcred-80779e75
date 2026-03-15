@@ -299,25 +299,42 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.href;
                       return (
-                        <Link
-                          key={item.href}
-                          to={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors relative text-sm",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-sidebar-foreground hover:bg-sidebar-accent"
-                          )}
-                        >
-                          <item.icon className="w-4 h-4" />
-                          <span>{item.label}</span>
-                          {item.href === '/chat' && totalUnread > 0 && (
-                            <Badge className="ml-auto h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
-                              {totalUnread > 99 ? '99+' : totalUnread}
-                            </Badge>
-                          )}
-                        </Link>
+                        <div key={item.href}>
+                          <Link
+                            to={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors relative text-sm",
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "text-sidebar-foreground hover:bg-sidebar-accent"
+                            )}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            <span>{item.label}</span>
+                            {item.href === '/chat' && totalUnread > 0 && (
+                              <Badge className="ml-auto h-5 min-w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-destructive-foreground border-0">
+                                {totalUnread > 99 ? '99+' : totalUnread}
+                              </Badge>
+                            )}
+                          </Link>
+                          {(item as NavItemWithChildren).children?.map((child) => (
+                            <Link
+                              key={child.href}
+                              to={child.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 pl-10 pr-3 py-1.5 rounded-lg transition-colors text-xs",
+                                location.pathname === child.href
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                              )}
+                            >
+                              <child.icon className="w-3.5 h-3.5" />
+                              <span>{child.label}</span>
+                            </Link>
+                          ))}
+                        </div>
                       );
                     })}
                   </div>
