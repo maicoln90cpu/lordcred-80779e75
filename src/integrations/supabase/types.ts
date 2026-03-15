@@ -1025,6 +1025,47 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_logs: {
+        Row: {
+          chip_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          instance_name: string | null
+          payload: Json | null
+          processing_result: string | null
+          status_code: number | null
+        }
+        Insert: {
+          chip_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          instance_name?: string | null
+          payload?: Json | null
+          processing_result?: string | null
+          status_code?: number | null
+        }
+        Update: {
+          chip_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          instance_name?: string | null
+          payload?: Json | null
+          processing_result?: string | null
+          status_code?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_logs_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

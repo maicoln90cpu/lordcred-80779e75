@@ -49,8 +49,11 @@ export default function Users() {
   const [showPassword, setShowPassword] = useState(false);
 
   const isMaster = isAdmin; // role === 'admin'
+  const isRegularAdmin = userRole === 'user'; // Administrador (not master)
   // Support can only create sellers, cannot edit/delete/block
-  const canManageUsers = isMaster || (!isSupport && userRole === 'user');
+  const canManageUsers = isMaster || (!isSupport && isRegularAdmin);
+  // Admin and Master can choose role when creating
+  const canChooseRole = isMaster || isRegularAdmin;
 
   useEffect(() => {
     fetchUsers();
@@ -129,8 +132,8 @@ export default function Users() {
       const token = sessionData?.session?.access_token;
       if (!token) throw new Error('Sessão expirada');
 
-      // Support always creates sellers; Administrador always creates sellers; Master can choose
-      const roleToCreate = isMaster ? newUserRole : 'seller';
+      // Support always creates sellers; Admin/Master can choose
+      const roleToCreate = canChooseRole ? newUserRole : 'seller';
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
@@ -229,12 +232,12 @@ export default function Users() {
     }
   };
 
-  const pageTitle = isMaster ? 'Gerenciar Usuários' : isSupport ? 'Meus Vendedores' : 'Gerenciar Vendedores';
+  const pageTitle = isMaster ? 'Gerenciar Usuários' : isSupport ? 'Meus Vendedores' : 'Gerenciar Usuários';
   const pageDescription = isMaster
     ? 'Crie e gerencie administradores, suportes e vendedores'
     : isSupport
     ? 'Crie vendedores para sua equipe'
-    : 'Crie e gerencie os vendedores da sua equipe';
+    : 'Crie e gerencie vendedores e suportes da sua equipe';
 
   return (
     <DashboardLayout>
@@ -248,12 +251,12 @@ export default function Users() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                {isMaster ? 'Novo Usuário' : 'Novo Vendedor'}
+                {canChooseRole ? 'Novo Usuário' : 'Novo Vendedor'}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{isMaster ? 'Criar Novo Usuário' : 'Criar Novo Vendedor'}</DialogTitle>
+                <DialogTitle>{canChooseRole ? 'Criar Novo Usuário' : 'Criar Novo Vendedor'}</DialogTitle>
                 <DialogDescription>
                   Preencha os dados para criar uma nova conta
                 </DialogDescription>
@@ -276,8 +279,8 @@ export default function Users() {
                     </Button>
                   </div>
                 </div>
-                {/* Only Master sees role selection */}
-                {isMaster && (
+                {/* Admin and Master see role selection */}
+                {canChooseRole && (
                   <div className="space-y-3">
                     <Label>Tipo de Usuário</Label>
                     <RadioGroup
@@ -290,13 +293,15 @@ export default function Users() {
                         <Label htmlFor="role-seller" className="cursor-pointer">Vendedor</Label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="user" id="role-user" />
-                        <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
                         <RadioGroupItem value="support" id="role-support" />
                         <Label htmlFor="role-support" className="cursor-pointer">Suporte</Label>
                       </div>
+                      {isMaster && (
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="user" id="role-user" />
+                          <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                        </div>
+                      )}
                     </RadioGroup>
                   </div>
                 )}
@@ -307,7 +312,7 @@ export default function Users() {
                   {isCreating ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</>
                   ) : (
-                    isMaster ? 'Criar Usuário' : 'Criar Vendedor'
+                    isMaster || isRegularAdmin ? 'Criar Usuário' : 'Criar Vendedor'
                   )}
                 </Button>
               </DialogFooter>

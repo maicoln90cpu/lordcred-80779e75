@@ -18,7 +18,9 @@ import {
   Link2,
   Activity,
   Ticket,
-  Shield
+  Shield,
+  ListOrdered,
+  Webhook
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,12 +46,14 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
   { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
   { label: 'Mensagens', icon: MessageSquare, href: '/messages', sellerHidden: true },
-  { label: 'Vendedores', icon: Users, href: '/admin/users', sellerHidden: true },
+  { label: 'Usuários', icon: Users, href: '/admin/users', sellerHidden: true },
   { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
   { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
   { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
   { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
   { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
+  { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
+  { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
   { label: 'Tickets', icon: Ticket, href: '/admin/tickets' },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
   { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
