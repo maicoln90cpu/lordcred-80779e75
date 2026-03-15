@@ -54,14 +54,17 @@ export function useKanban() {
   const fetchCards = useCallback(async () => {
     if (!user) return;
 
-    // Get user's chips
-    const { data: chips } = await supabase
-      .from('chips')
-      .select('id')
-      .eq('user_id', user.id);
-    if (!chips || chips.length === 0) { setCards([]); return; }
-
-    const chipIds = chips.map(c => c.id);
+    // Admin/Support see all chips; sellers see only their own
+    let chipIds: string[];
+    if (canSeeAll) {
+      const { data: chips } = await supabase.from('chips').select('id');
+      if (!chips || chips.length === 0) { setCards([]); return; }
+      chipIds = chips.map(c => c.id);
+    } else {
+      const { data: chips } = await supabase.from('chips').select('id').eq('user_id', user.id);
+      if (!chips || chips.length === 0) { setCards([]); return; }
+      chipIds = chips.map(c => c.id);
+    }
 
     // Get kanban cards with conversation data
     const { data: kanbanCards } = await supabase
