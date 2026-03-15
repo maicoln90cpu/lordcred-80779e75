@@ -299,12 +299,13 @@ export default function ChipMonitor() {
   // Filtered chips
   const filteredChips = useMemo(() => {
     return chips.filter(c => {
+      if (c.chip_type !== chipTypeTab) return false;
       if (filterStatus === 'connected' && c.status !== 'connected') return false;
       if (filterStatus === 'disconnected' && c.status === 'connected') return false;
       if (filterUserId !== 'all' && c.user_id !== filterUserId) return false;
       return true;
     });
-  }, [chips, filterStatus, filterUserId]);
+  }, [chips, filterStatus, filterUserId, chipTypeTab]);
 
   return (
     <DashboardLayout>
