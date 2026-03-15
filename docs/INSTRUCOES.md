@@ -142,6 +142,16 @@ Use o simulador para planejar a capacidade antes de adicionar novos chips.
 
 ---
 
+## Documentação Relacionada
+
+- [PRD.md](./PRD.md) — Requisitos do produto
+- [ROADMAP.md](./ROADMAP.md) — Fases e prioridades
+- [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura técnica
+- [UAZAPI.md](./UAZAPI.md) — Referência de endpoints
+- [PENDENCIAS.md](./PENDENCIAS.md) — Changelog
+
+---
+
 ## Dicas de Uso Seguro
 
 1. **Comece sempre na fase "Novo"** — Nunca conecte um chip e coloque direto na fase "Maduro". Isso levanta bandeiras vermelhas no WhatsApp.
