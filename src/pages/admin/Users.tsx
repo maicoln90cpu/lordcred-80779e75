@@ -102,9 +102,9 @@ export default function Users() {
           u.role === 'seller' && u.created_by === currentUser?.id
         );
       } else {
-        // Administrador sees only sellers they created
+        // Administrador sees sellers and support they created
         enrichedUsers = enrichedUsers.filter(u => 
-          u.role === 'seller' && u.created_by === currentUser?.id
+          (u.role === 'seller' || u.role === 'support') && u.created_by === currentUser?.id
         );
       }
 
