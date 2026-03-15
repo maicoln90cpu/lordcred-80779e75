@@ -1,58 +1,72 @@
 
 
-## Limpeza completa de Evolution API — Remover todo legado sem quebrar nada
+## Plan: 6 Changes (items 1-3, 5, 7 are code changes; items 4, 6 are explanations)
 
-### Inventario de restos de Evolution encontrados
+### Item 4 — Fila de Mensagens (explicação)
+A **Fila de Mensagens** (`/admin/queue`) é o sistema que gerencia o envio em massa de mensagens WhatsApp. Quando você agenda mensagens para enviar a múltiplos contatos, elas entram numa fila (`message_queue`) com status: pendente, processando, pausado, erro ou enviado. A página permite pausar, retomar, retentar ou cancelar mensagens em lote, além de mostrar KPIs em tempo real do estado da fila. É essencialmente o "painel de controle" do disparo de mensagens.
 
-| Arquivo | O que sobrou |
-|---|---|
-| `supabase/functions/evolution-api/index.ts` | Edge function inteira (legado) |
-| `supabase/functions/evolution-webhook/index.ts` | Funcao `handleEvolutionEvent` (linhas 370-404) com logica de `messages.upsert` no formato Evolution |
-| `supabase/functions/queue-processor/index.ts` | Usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` do env e endpoint Evolution `/message/sendText/{instance}` com header `apikey` |
-| `supabase/functions/warming-engine/index.ts` | Fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, branch `else` (linhas 530-542) com endpoint Evolution, default provider `'evolution'` |
-| `supabase/functions/instance-maintenance/index.ts` | Webhook URL hardcoded como `evolution-webhook` |
-| `supabase/functions/uazapi-api/index.ts` | Webhook URL hardcoded como `evolution-webhook` (linha 212) |
-| `src/pages/Chips.tsx` | Default provider `'evolution'`, fallback para `evolution-api` function |
-| `src/pages/admin/MasterAdmin.tsx` | Interface de selecao Evolution/UazAPI, campos `evolution_api_url`/`evolution_api_key`, webhook URL apontando para `evolution-webhook`, fallback default `'evolution'` |
-| `src/components/admin/MigrationSQLTab.tsx` | Mencoes a Evolution em SQL template e lista de secrets |
-| `supabase/config.toml` | Entrada `[functions.evolution-api]` |
+### Item 6 — Templates (explicação)
+**Templates** (`/admin/templates`) são modelos de mensagem pré-prontos organizados por categoria (saudação, vendas, cobrança, suporte, geral). Em vez de digitar a mesma mensagem repetidamente, o usuário copia um template pronto. Admin e Suporte podem criar, editar e desativar templates que ficam disponíveis para toda a equipe.
 
-### Alteracoes planejadas
+---
 
-**1. Deletar `supabase/functions/evolution-api/`** — Edge function inteira, nao eh mais usada.
+### Item 1 — Admin ver todos os usuários (exceto Master)
 
-**2. `supabase/functions/evolution-webhook/index.ts`** — Remover funcao `handleEvolutionEvent` (linhas 370-404) e o `else` que a chama (linhas 88-92). O webhook continua existindo pois ja recebe eventos da UazAPI. Apenas renomear nao eh possivel sem reconfigurar todos os webhooks na UazAPI, entao mantemos o nome `evolution-webhook` mas removemos o codigo legado interno.
+**Problema**: Na linha 104-108 de `Users.tsx`, o admin regular filtra `created_by === currentUser?.id`, então não vê usuários criados pelo suporte.
 
-**3. `supabase/functions/queue-processor/index.ts`** — Reescrever para ler `provider_api_url`/`provider_api_key` do `system_settings` (como warming-engine ja faz), usar endpoint UazAPI `/send/text` com header `token` (instance_token do chip), remover variaveis `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`.
+**Fix**: Mudar o filtro do admin regular para mostrar todos os usuários com role `seller`, `support` ou `user` (exceto `admin`/master), removendo a restrição de `created_by`:
+```ts
+// Admin regular vê todos exceto master (role admin)
+enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin' && u.user_id !== currentUser?.id);
+```
+Isso iguala o comportamento ao Master (que já filtra `role !== 'admin'`), excluindo a si mesmo.
 
-**4. `supabase/functions/warming-engine/index.ts`** — Remover branch `else` (Evolution), remover fallback `envEvolutionApiUrl`/`envEvolutionApiKey`, mudar default de `'evolution'` para `'uazapi'`.
+---
 
-**5. `supabase/functions/instance-maintenance/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL do webhook, que eh correto pois o webhook continua com esse nome).
+### Item 2 — Suporte editar Kanban igual Admin
 
-**6. `supabase/functions/uazapi-api/index.ts`** — Nenhuma mudanca (ja usa `evolution-webhook` como URL, que continua correto).
+**File**: `src/pages/admin/KanbanAdmin.tsx`
+- Remove `const readOnly = isSupport;` → set `readOnly = false` (or remove it entirely)
+- This unlocks create, drag-reorder, delete for Support users
+- RLS: kanban_columns already has `Authenticated users can read` + need to add ALL policy for support. Will create a migration.
 
-**7. `src/pages/Chips.tsx`** — Remover fallback para `evolution-api`, usar sempre `uazapi-api`. Remover default `'evolution'`.
+---
 
-**8. `src/pages/admin/MasterAdmin.tsx`** — Simplificar interface: remover seletor de provedor (sempre UazAPI), remover campos `evolution_api_url`/`evolution_api_key` da interface, usar diretamente `uazapi_api_url`/`uazapi_api_key`. Atualizar webhook URL label. Remover SelectItem de Evolution.
+### Item 3 — Monitor de Chips: mostrar nome do usuário
 
-**9. `src/components/admin/MigrationSQLTab.tsx`** — Atualizar textos: trocar "Evolution API" por "UazAPI" nas descricoes de secrets e SQL template.
+**File**: `src/pages/admin/ChipMonitor.tsx`
+- After fetching chips, also fetch profiles to build a `userIdToName` map
+- Display the user name/email on each chip card (below phone number or as a small badge)
+- Query: `supabase.from('profiles').select('user_id, email, name')`
 
-**10. `supabase/config.toml`** — Remover entrada `[functions.evolution-api]`.
+---
 
-**11. Deletar funcao deployada `evolution-api`** no Supabase.
+### Item 5 — Sidebar: "Mensagens" como sub-item de "Meus Chips"
 
-### O que NAO muda
+**File**: `src/components/layout/DashboardLayout.tsx`
+- Remove "Mensagens" as a standalone item from the "Principal" group
+- Add a `children` property to `NavItem` interface
+- Under "Meus Chips", render "Mensagens" as an indented sub-link (smaller text, slightly more left padding)
+- When sidebar is collapsed, show both icons individually
 
-- O nome da edge function `evolution-webhook` permanece (renomear quebraria todos os webhooks ja configurados na UazAPI). Internamente o codigo ja eh 100% UazAPI.
-- Colunas `evolution_api_url`/`evolution_api_key` no banco permanecem (nao podemos editar o types.ts, e remover colunas pode causar erros em queries existentes). Ficam como campos legados inativos.
-- Secrets `EVOLUTION_API_KEY`/`EVOLUTION_API_URL` no Supabase permanecem (nao causam problemas, sao apenas variaveis de ambiente nao usadas).
+---
 
-### Resumo de impacto
+### Item 7 — Monitor de Chips: filtros (conectado/desconectado, por usuário)
 
-- 1 edge function deletada (`evolution-api`)
-- 4 edge functions atualizadas (webhook, queue-processor, warming-engine, + deploy)
-- 3 arquivos frontend atualizados (Chips, MasterAdmin, MigrationSQLTab)
-- 1 config atualizado (config.toml)
-- Zero mudancas no banco de dados
-- Zero risco de quebra — todas as funcionalidades ativas ja usam UazAPI
+**File**: `src/pages/admin/ChipMonitor.tsx`
+- Add filter bar above the chips grid with:
+  - **Status filter**: Select with options "Todos", "Conectados", "Desconectados"
+  - **User filter**: Select populated from the profiles map, "Todos os usuários" + each user
+- Apply filters to the `chips` array before rendering
+- State: `filterStatus`, `filterUserId`
+
+---
+
+### Files to modify
+
+1. **`src/pages/admin/Users.tsx`** — Fix admin filter (line 104-108)
+2. **`src/pages/admin/KanbanAdmin.tsx`** — Remove `readOnly = isSupport`
+3. **`src/pages/admin/ChipMonitor.tsx`** — Add user names + filter bar
+4. **`src/components/layout/DashboardLayout.tsx`** — Restructure "Mensagens" as sub-item of "Meus Chips"
+5. **New migration** — Add kanban_columns ALL policy for support role
 
