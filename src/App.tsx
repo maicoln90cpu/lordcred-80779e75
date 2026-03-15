@@ -22,6 +22,8 @@ import ChipMonitor from "./pages/admin/ChipMonitor";
 import InternalChat from "./pages/admin/InternalChat";
 import Tickets from "./pages/admin/Tickets";
 import AuditLogs from "./pages/admin/AuditLogs";
+import QueueManagement from "./pages/admin/QueueManagement";
+import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
