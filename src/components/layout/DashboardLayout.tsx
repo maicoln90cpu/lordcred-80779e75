@@ -58,6 +58,8 @@ const navItems: NavItem[] = [
   { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
   { label: 'Tickets', icon: Ticket, href: '/admin/tickets' },
   { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
+  { label: 'Templates', icon: FileText, href: '/admin/templates', sellerHidden: true },
+  { label: 'Assistência Remota', icon: Eye, href: '/admin/remote', sellerHidden: true },
   { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
   { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
   { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
