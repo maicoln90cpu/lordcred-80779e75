@@ -114,6 +114,7 @@ export default function ChipMonitor() {
   const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterUserId, setFilterUserId] = useState<string>('all');
+  const [chipTypeTab, setChipTypeTab] = useState<'warming' | 'whatsapp'>('whatsapp');
 
   const canManage = isAdmin || isSupport;
 
