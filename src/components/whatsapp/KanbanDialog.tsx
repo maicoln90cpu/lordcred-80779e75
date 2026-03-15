@@ -38,9 +38,14 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   useEffect(() => {
     if (!open || !user) return;
     refetch();
-    supabase.from('chips').select('id, nickname, phone_number').eq('user_id', user.id).then(({ data }) => setChips(data || []));
+    // Support/Admin see all chips; sellers see only their own
+    const chipsQuery = supabase.from('chips').select('id, nickname, phone_number');
+    if (!isAdmin && !isSupport) {
+      chipsQuery.eq('user_id', user.id);
+    }
+    chipsQuery.then(({ data }) => setChips(data || []));
     supabase.from('labels').select('label_id, name, color_hex').then(({ data }) => setLabels(data || []));
-  }, [open, user, refetch]);
+  }, [open, user, isAdmin, isSupport, refetch]);
 
   const filteredByColumn = useMemo(() => {
     const result: Record<string, KanbanCardType[]> = {};
