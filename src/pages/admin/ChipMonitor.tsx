@@ -465,6 +465,10 @@ export default function ChipMonitor() {
                               <p className="text-xs text-muted-foreground">
                                 {chip.phone_number ? `+${chip.phone_number}` : 'Sem número'}
                               </p>
+                              <p className="text-[10px] text-primary/70 flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />
+                                {profilesMap[chip.user_id]?.name || profilesMap[chip.user_id]?.email || 'Desconhecido'}
+                              </p>
                             </div>
                           </div>
                           <Badge variant={chip.status === 'connected' ? 'default' : 'destructive'} className="text-[10px]">
