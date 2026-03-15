@@ -147,7 +147,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
                 </Select>
               </div>
 
-              {isAdmin && (
+              {canManageKanban && (
                 <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} className="h-9 border-border/30 hover:bg-secondary/60">
                   <Settings2 className="w-4 h-4 mr-1.5" />Colunas
                 </Button>
