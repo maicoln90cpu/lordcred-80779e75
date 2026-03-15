@@ -24,6 +24,8 @@ import Tickets from "./pages/admin/Tickets";
 import AuditLogs from "./pages/admin/AuditLogs";
 import QueueManagement from "./pages/admin/QueueManagement";
 import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
+import Templates from "./pages/admin/Templates";
+import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
@@ -60,6 +62,8 @@ const App = () => (
               <Route path="/admin/audit-logs" element={<ProtectedRoute blockSellers><AuditLogs /></ProtectedRoute>} />
               <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
               <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
+              <Route path="/admin/templates" element={<ProtectedRoute blockSellers><Templates /></ProtectedRoute>} />
+              <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
