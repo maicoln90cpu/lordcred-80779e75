@@ -97,9 +97,9 @@ export default function Users() {
         // Master sees all non-admin users (users + sellers + support), excluding self
         enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin');
       } else if (isSupport) {
-        // Support sees only sellers they created
+        // Support sees all sellers and other supports, excluding admins and self
         enrichedUsers = enrichedUsers.filter(u => 
-          u.role === 'seller' && u.created_by === currentUser?.id
+          (u.role === 'seller' || u.role === 'support') && u.user_id !== currentUser?.id
         );
       } else {
         // Administrador vê todos exceto master, excluindo a si mesmo

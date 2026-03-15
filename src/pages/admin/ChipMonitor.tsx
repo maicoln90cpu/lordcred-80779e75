@@ -58,6 +58,7 @@ interface ChipMonitorData {
   nickname: string | null;
   user_id: string;
   slot_number: number;
+  chip_type: string;
 }
 
 interface LifecycleLog {
@@ -113,6 +114,7 @@ export default function ChipMonitor() {
   const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterUserId, setFilterUserId] = useState<string>('all');
+  const [chipTypeTab, setChipTypeTab] = useState<'warming' | 'whatsapp'>('whatsapp');
 
   const canManage = isAdmin || isSupport;
 
@@ -297,12 +299,13 @@ export default function ChipMonitor() {
   // Filtered chips
   const filteredChips = useMemo(() => {
     return chips.filter(c => {
+      if (c.chip_type !== chipTypeTab) return false;
       if (filterStatus === 'connected' && c.status !== 'connected') return false;
       if (filterStatus === 'disconnected' && c.status === 'connected') return false;
       if (filterUserId !== 'all' && c.user_id !== filterUserId) return false;
       return true;
     });
-  }, [chips, filterStatus, filterUserId]);
+  }, [chips, filterStatus, filterUserId, chipTypeTab]);
 
   return (
     <DashboardLayout>
@@ -399,6 +402,20 @@ export default function ChipMonitor() {
           </TabsList>
 
           <TabsContent value="status" className="space-y-4">
+            {/* Sub-tabs by chip type */}
+            <Tabs value={chipTypeTab} onValueChange={(v) => setChipTypeTab(v as 'warming' | 'whatsapp')}>
+              <TabsList>
+                <TabsTrigger value="whatsapp" className="gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Chat
+                </TabsTrigger>
+                <TabsTrigger value="warming" className="gap-1.5">
+                  <Flame className="w-3.5 h-3.5" />
+                  Aquecimento
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             {/* Filter Bar */}
             <div className="flex flex-wrap gap-3">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
