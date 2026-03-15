@@ -232,12 +232,12 @@ export default function Users() {
     }
   };
 
-  const pageTitle = isMaster ? 'Gerenciar Usuários' : isSupport ? 'Meus Vendedores' : 'Gerenciar Vendedores';
+  const pageTitle = isMaster ? 'Gerenciar Usuários' : isSupport ? 'Meus Vendedores' : 'Gerenciar Usuários';
   const pageDescription = isMaster
     ? 'Crie e gerencie administradores, suportes e vendedores'
     : isSupport
     ? 'Crie vendedores para sua equipe'
-    : 'Crie e gerencie os vendedores da sua equipe';
+    : 'Crie e gerencie vendedores e suportes da sua equipe';
 
   return (
     <DashboardLayout>
