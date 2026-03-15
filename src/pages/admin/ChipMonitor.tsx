@@ -282,6 +282,25 @@ export default function ChipMonitor() {
     ? lifecycleLogs.filter(l => l.chip_id === selectedChipId)
     : lifecycleLogs;
 
+  // Unique users for filter dropdown
+  const uniqueUsers = useMemo(() => {
+    const userIds = [...new Set(chips.map(c => c.user_id))];
+    return userIds.map(uid => ({
+      user_id: uid,
+      label: profilesMap[uid]?.name || profilesMap[uid]?.email || uid.slice(0, 8),
+    }));
+  }, [chips, profilesMap]);
+
+  // Filtered chips
+  const filteredChips = useMemo(() => {
+    return chips.filter(c => {
+      if (filterStatus === 'connected' && c.status !== 'connected') return false;
+      if (filterStatus === 'disconnected' && c.status === 'connected') return false;
+      if (filterUserId !== 'all' && c.user_id !== filterUserId) return false;
+      return true;
+    });
+  }, [chips, filterStatus, filterUserId]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
