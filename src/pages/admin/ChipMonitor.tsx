@@ -58,6 +58,7 @@ interface ChipMonitorData {
   nickname: string | null;
   user_id: string;
   slot_number: number;
+  chip_type: string;
 }
 
 interface LifecycleLog {
