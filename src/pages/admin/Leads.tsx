@@ -190,6 +190,89 @@ export default function Leads() {
     setFilterBatch(filters.batch);
   };
 
+  // Export leads
+  const [isExporting, setIsExporting] = useState(false);
+
+  const fetchAllLeadsForExport = async () => {
+    const allData: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('client_leads').select('*').range(from, from + batchSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allData.push(...data);
+      if (data.length < batchSize) break;
+      from += batchSize;
+    }
+    return allData;
+  };
+
+  const handleExportJSON = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllLeadsForExport();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `leads_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Exportado!', description: `${data.length} leads exportados em JSON` });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setIsExporting(false);
+  };
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllLeadsForExport();
+      if (data.length === 0) { toast({ title: 'Nenhum lead para exportar' }); setIsExporting(false); return; }
+      const headers = Object.keys(data[0]);
+      const csvRows = [
+        headers.join(','),
+        ...data.map(row => headers.map(h => { const v = row[h]; if (v == null) return ''; return `"${String(v).replace(/"/g, '""')}"`; }).join(','))
+      ];
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `leads_backup_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Exportado!', description: `${data.length} leads exportados em CSV` });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setIsExporting(false);
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsExporting(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as any[];
+      if (!Array.isArray(data)) throw new Error('Formato inválido');
+      // Remove id and timestamps for re-insert
+      const cleaned = data.map(({ id, created_at, updated_at, ...rest }) => rest);
+      let inserted = 0;
+      for (let i = 0; i < cleaned.length; i += 100) {
+        const batch = cleaned.slice(i, i + 100);
+        const { error } = await supabase.from('client_leads').insert(batch as any);
+        if (error) throw error;
+        inserted += batch.length;
+      }
+      toast({ title: 'Importado!', description: `${inserted} leads restaurados` });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    }
+    setIsExporting(false);
+    e.target.value = '';
+  };
+
   // Status management
   const startEditingStatuses = () => {
     setEditingStatuses([...statusOptions]);
