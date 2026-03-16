@@ -51,6 +51,7 @@ interface ColumnConfig {
 
 const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'nome', label: 'Nome', visible: true },
+  { key: 'perfil', label: 'Perfil', visible: true },
   { key: 'telefone', label: 'Telefone', visible: true },
   { key: 'cpf', label: 'CPF', visible: true },
   { key: 'valor_lib', label: 'Valor Lib.', visible: true },
@@ -67,7 +68,6 @@ const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'nome_mae', label: 'Nome Mãe', visible: true },
   { key: 'data_ref', label: 'Data Ref.', visible: true },
   { key: 'status', label: 'Status', visible: true },
-  { key: 'perfil', label: 'Perfil', visible: true },
   { key: 'assigned_to', label: 'Vendedor', visible: true },
   { key: 'batch_name', label: 'Lote', visible: true },
   { key: 'notes', label: 'Observações', visible: true },
