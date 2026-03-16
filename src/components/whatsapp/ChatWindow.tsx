@@ -10,8 +10,8 @@ import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import ConversationNotes from './ConversationNotes';
 import QuickRepliesManager from './QuickRepliesManager';
-import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
