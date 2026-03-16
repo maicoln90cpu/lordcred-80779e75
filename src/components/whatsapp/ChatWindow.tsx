@@ -5,7 +5,7 @@ import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
-import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
+import { invokeUazapiWithRetry, isDisconnectError } from '@/lib/invokeEdgeWithRetry';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -117,11 +117,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     }
 
     try {
-      // Database-first: query Supabase directly
       const from = (pageNum - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      // Build list of JIDs to search (dual query for @lid chats)
       const jidsToSearch = [requestChatJid];
       if (requestChatJid.includes('@lid') && chat.phone) {
         const cleanPhone = chat.phone.replace(/\D/g, '');
@@ -141,7 +139,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         .order('created_at', { ascending: false })
         .range(from, to);
 
-      // Stale request guard
       if (activeChipRef.current !== requestChipId || activeChatRef.current !== requestChatJid) return;
 
       if (error) {
@@ -149,7 +146,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         return;
       }
 
-      const mapped = (dbMessages || []).map(mapDbRow).reverse(); // reverse to ascending order
+      const mapped = (dbMessages || []).map(mapDbRow).reverse();
 
       if (mapped.length < PAGE_SIZE) setHasMore(false);
 
@@ -184,7 +181,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     }
   }, [fetchMessages, chat?.remoteJid]);
 
-  // Mark as read when opening chat - via UazAPI (edge function updates DB after success)
+  // Mark as read when opening chat
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRead = useCallback((cId: string, cJid: string) => {
     if (markReadTimer.current) clearTimeout(markReadTimer.current);
@@ -197,7 +194,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       lastMarkReadAtRef.current[key] = now;
       await invokeUazapiWithRetry(
         { action: 'mark-read', chipId: cId, chatId: cJid },
-        { retries: 2, retryDelayMs: 250 }
+        { retries: 1, retryDelayMs: 300 }
       );
     }, 500);
   }, []);
@@ -224,7 +221,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         (payload) => {
           const record = payload.new as any;
           if (!record) return;
-          // Match both primary and alternate JIDs
           const matchJids = [chat.remoteJid];
           if (chat.alternateJid) matchJids.push(chat.alternateJid);
           if (chat.remoteJid.includes('@lid') && chat.phone) {
@@ -249,7 +245,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             status: record.status || 'sent',
           };
 
-          // Auto mark-read incoming messages while chat is open
           if (!newMsg.fromMe && chipId) {
             markRead(chipId, chat.remoteJid);
           }
@@ -285,12 +280,10 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             if (!matchJids2.includes(pJid2)) matchJids2.push(pJid2);
           }
           if (!matchJids2.includes(record.remote_jid)) return;
-          // Handle deleted messages from webhook
           if (record.status === 'deleted') {
             setMessages(prev => prev.filter(m => m.id !== record.id && m.messageId !== record.message_id));
             return;
           }
-          // Update status and text of existing message (handles edits + status ticks)
           setMessages(prev => prev.map(m =>
             (m.id === record.id || (m.messageId && m.messageId === record.message_id))
               ? { ...m, status: record.status || m.status, text: record.message_content || m.text }
@@ -318,7 +311,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       setCurrentPage(nextPage);
       const prevHeight = scrollRef.current.scrollHeight;
       fetchMessages(nextPage, true).then(() => {
-        // Maintain scroll position after prepending
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight;
         }
@@ -339,7 +331,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleSend = useCallback(async (text: string) => {
     if (!chipId || !chat || !text.trim()) return;
 
-    // Check chip connection before sending
     const connected = await checkChipConnected();
     if (!connected) {
       setChipDisconnected(true);
@@ -361,45 +352,55 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setReplyTo(null);
 
     try {
+      // Best-effort presence — never blocks or causes errors
       void invokeUazapiWithRetry(
         { action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' },
-        { retries: 1, retryDelayMs: 200 }
+        { retries: 0, retryDelayMs: 0 }
       );
 
       const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
         { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text },
-        { retries: 2, retryDelayMs: 250 }
+        { retries: 2, retryDelayMs: 400 }
       );
 
+      // Check for explicit disconnect errors
+      if (isDisconnectError(response)) {
+        setChipDisconnected(true);
+        setFailedMessage(text);
+        return;
+      }
+
+      // Transport error (502/503) — message MAY have been sent, don't show disconnect
+      if (response.isTransportError) {
+        toast({ title: 'Instabilidade temporária', description: 'A mensagem pode ter sido enviada. Verifique em instantes.', variant: 'destructive' });
+        return;
+      }
+
       if (response.error) {
-        throw response.error;
+        toast({ title: 'Erro ao enviar', description: String(response.error?.message || response.error), variant: 'destructive' });
+        return;
       }
 
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
         if (errMsg.toLowerCase().includes('not on whatsapp')) {
           toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' });
-        } else if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('not connected')) {
-          setChipDisconnected(true);
-          setFailedMessage(text);
         } else if (errMsg) {
           toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' });
         }
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      setChipDisconnected(true);
-      setFailedMessage(text);
+      // Catch-all: only show toast, never mark as disconnected from generic errors
+      toast({ title: 'Erro ao enviar mensagem', variant: 'destructive' });
     } finally {
-      // Always remove temp message — realtime will add the real one from DB
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setSending(false);
     }
-  }, [chipId, chat, checkChipConnected]);
+  }, [chipId, chat, checkChipConnected, toast]);
 
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
     if (!chipId || !chat) return;
-    // Non-blocking: do NOT set setSending(true) — user can continue chatting
 
     const tempMsg: ChatMessage = {
       id: `temp-media-${Date.now()}`,
@@ -411,27 +412,45 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     };
     setMessages(prev => [...prev, tempMsg]);
 
-    // Fire and forget — runs in background
+    // Fire and forget — runs in background with retry
     (async () => {
       try {
-        const response = await supabase.functions.invoke('uazapi-api', {
-          body: {
+        const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
+          {
             action: 'send-media', chipId, chatId: chat.remoteJid,
             mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined,
           },
-        });
+          { retries: 2, retryDelayMs: 500 }
+        );
+
+        if (response.isTransportError) {
+          // Don't remove temp — message may have been sent, realtime will reconcile
+          toast({ title: 'Instabilidade ao enviar mídia', description: 'Verifique se a mídia foi entregue.', variant: 'destructive' });
+          // Remove temp after a delay to let realtime catch up
+          setTimeout(() => {
+            setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+          }, 8000);
+          return;
+        }
+
+        if (isDisconnectError(response)) {
+          setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+          toast({ title: 'Chip desconectado', description: 'Reconecte o chip para enviar mídia.', variant: 'destructive' });
+          return;
+        }
 
         if (!response.data?.success) {
           setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-          toast({ title: 'Erro ao enviar mídia', variant: 'destructive' });
+          toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' });
+          return;
         }
+
+        // Success — remove temp, realtime will add real message
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       } catch (error) {
         console.error('Error sending media:', error);
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
         toast({ title: 'Erro ao enviar mídia', variant: 'destructive' });
-      } finally {
-        // Remove temp — realtime will add the real one
-        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       }
     })();
   }, [chipId, chat, toast]);
@@ -446,9 +465,10 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleReactEmoji = useCallback(async (emoji: string) => {
     if (!reactMsg || !chipId || !chat) return;
     try {
-      await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'react-message', chipId, chatId: chat.remoteJid, messageId: reactMsg.messageId, emoji },
-      });
+      await invokeUazapiWithRetry(
+        { action: 'react-message', chipId, chatId: chat.remoteJid, messageId: reactMsg.messageId, emoji },
+        { retries: 1, retryDelayMs: 300 }
+      );
       toast({ title: 'Reação enviada', description: emoji });
     } catch {
       toast({ title: 'Erro', description: 'Não foi possível reagir.', variant: 'destructive' });
@@ -461,7 +481,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
     const res = await invokeUazapiWithRetry<{ fileURL?: string }>(
       { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
-      { retries: 2, retryDelayMs: 250 }
+      { retries: 2, retryDelayMs: 400 }
     );
 
     if (res.data?.fileURL) {
@@ -475,7 +495,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handlePin = useCallback(async (msg: MessageData) => {
     if (!chipId || !chat) return;
     try {
-      // Get current pin state
       const { data: conv } = await supabase
         .from('conversations')
         .select('is_pinned')
@@ -500,7 +519,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if already favorited
       const { data: existing } = await supabase
         .from('message_favorites')
         .select('id')
@@ -678,12 +696,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             onClick={async () => {
               if (!chipId) return;
               try {
-                await supabase.functions.invoke('uazapi-api', {
-                  body: { action: 'connect-instance', chipId },
-                });
+                await invokeUazapiWithRetry(
+                  { action: 'connect-instance', chipId },
+                  { retries: 1, retryDelayMs: 500 }
+                );
                 toast({ title: 'Reconectando...', description: 'Aguarde alguns segundos.' });
                 setChipDisconnected(false);
-                // Retry sending the failed message after a short delay
                 if (failedMessage) {
                   const msg = failedMessage;
                   setFailedMessage(null);
@@ -708,7 +726,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         </div>
       )}
 
-      {/* Input area - hidden in readOnly mode, disabled when chip is offline */}
+      {/* Input area */}
       {readOnly ? (
         <div className="flex items-center justify-center gap-2 px-4 py-3 bg-muted/50 border-t border-border/50">
           <span className="text-sm text-muted-foreground">Modo somente leitura — não é possível enviar mensagens</span>
