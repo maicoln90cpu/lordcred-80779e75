@@ -221,11 +221,11 @@ export default function WhatsApp() {
     }, TIMEOUT_MS);
 
     try {
-      const { data: chips } = await supabase
+      const query = supabase
         .from('chips')
         .select('id, instance_name, instance_token, status')
-        .eq('user_id', user.id)
-        .eq('chip_type' as any, 'whatsapp');
+        .eq('user_id', user.id);
+      const { data: chips } = await (query as any).eq('chip_type', 'whatsapp');
       if (!chips || chips.length === 0) {
         toast({ title: 'Nenhum chip encontrado' });
         clearTimeout(timeoutId);
