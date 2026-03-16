@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2"
+import { createClient } from "npm:@supabase/supabase-js@2.49.4"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,16 +40,17 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    const { data: { user: authUser }, error: authError } = await userClient.auth.getUser()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
     
-    if (authError || !authUser) {
+    if (claimsError || !claimsData?.claims) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const user = { id: authUser.id, email: authUser.email || '' }
+    const user = { id: claimsData.claims.sub as string, email: (claimsData.claims.email as string) || '' }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
