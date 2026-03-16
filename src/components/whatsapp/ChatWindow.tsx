@@ -360,13 +360,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setReplyTo(null);
 
     try {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' },
-      }).catch(() => {});
+      void invokeUazapiWithRetry(
+        { action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' },
+        { retries: 1, retryDelayMs: 200 }
+      );
 
-      const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text },
-      });
+      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
+        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text },
+        { retries: 2, retryDelayMs: 250 }
+      );
 
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
