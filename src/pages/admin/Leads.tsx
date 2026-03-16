@@ -80,6 +80,8 @@ export default function Leads() {
   const [reassignBatch, setReassignBatch] = useState<string | null>(null);
   const [reassignSeller, setReassignSeller] = useState('');
   const [isReassigning, setIsReassigning] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   // Filters lifted from LeadsTable
   const [filterSeller, setFilterSeller] = useState('all');
