@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload, UserCircle } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
@@ -79,6 +80,8 @@ export default function Leads() {
   const [reassignBatch, setReassignBatch] = useState<string | null>(null);
   const [reassignSeller, setReassignSeller] = useState('');
   const [isReassigning, setIsReassigning] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   // Filters lifted from LeadsTable
   const [filterSeller, setFilterSeller] = useState('all');
@@ -129,7 +132,7 @@ export default function Leads() {
     }
   });
 
-  // Fetch column config from system_settings
+  // Fetch column config from system_settings, merging with ALL_COLUMNS to include new columns
   const { data: columnConfig = ALL_COLUMNS } = useQuery({
     queryKey: ['lead-table-columns'],
     queryFn: async () => {
@@ -138,7 +141,14 @@ export default function Leads() {
         .select('lead_table_columns')
         .maybeSingle();
       if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
-        return data.lead_table_columns as unknown as ColumnConfig[];
+        const saved = data.lead_table_columns as unknown as ColumnConfig[];
+        const savedKeys = new Set(saved.map(c => c.key));
+        // Add any new columns from ALL_COLUMNS that aren't in the saved config
+        const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
+        if (newCols.length > 0) {
+          return [...saved, ...newCols];
+        }
+        return saved;
       }
       return ALL_COLUMNS;
     }
@@ -147,8 +157,18 @@ export default function Leads() {
   const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
-      const { data } = await supabase.from('client_leads' as any).select('status, batch_name, assigned_to, created_at, contacted_at, perfil').limit(5000);
-      return (data || []) as any[];
+      const allData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from('client_leads').select('status, batch_name, assigned_to, created_at, contacted_at, perfil').range(from, from + batchSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
+      return allData;
     }
   });
 
@@ -217,6 +237,33 @@ export default function Leads() {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
       setIsReassigning(false);
+    }
+  };
+
+  const handleDeleteBatch = async () => {
+    if (!deletingBatch) return;
+    setIsDeletingBatch(true);
+    try {
+      // Delete in batches to handle large lotes
+      let deleted = 0;
+      while (true) {
+        const { data, error } = await supabase.from('client_leads')
+          .delete()
+          .eq('batch_name', deletingBatch)
+          .select('id')
+          .limit(1000);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        deleted += data.length;
+      }
+      toast({ title: `Lote "${deletingBatch}" excluído`, description: `${deleted} leads removidos` });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
+      setDeletingBatch(null);
+    } catch (e: any) {
+      toast({ title: 'Erro ao excluir lote', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingBatch(false);
     }
   };
 
@@ -570,13 +617,13 @@ export default function Leads() {
                   <div className="border rounded-lg overflow-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                         <TableRow>
                           <TableHead>Lote</TableHead>
                           <TableHead>Vendedor</TableHead>
                           <TableHead>Qtd Leads</TableHead>
                           <TableHead>% Contatados</TableHead>
                           <TableHead>Data</TableHead>
-                          <TableHead>Reatribuir</TableHead>
+                          <TableHead>Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -597,28 +644,33 @@ export default function Leads() {
                                 {new Date(b.created).toLocaleDateString('pt-BR')}
                               </TableCell>
                               <TableCell>
-                                {reassignBatch === b.batch ? (
-                                  <div className="flex gap-2 items-center">
-                                    <Select value={reassignSeller} onValueChange={setReassignSeller}>
-                                      <SelectTrigger className="w-40 h-8">
-                                        <SelectValue placeholder="Vendedor" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {sellers.map((s: any) => (
-                                          <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
-                                      {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
+                                <div className="flex gap-2 items-center">
+                                  {reassignBatch === b.batch ? (
+                                    <div className="flex gap-2 items-center">
+                                      <Select value={reassignSeller} onValueChange={setReassignSeller}>
+                                        <SelectTrigger className="w-40 h-8">
+                                          <SelectValue placeholder="Vendedor" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {sellers.map((s: any) => (
+                                            <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
+                                        {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
+                                      </Button>
+                                      <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
+                                    </div>
+                                  ) : (
+                                    <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
+                                      Reatribuir
                                     </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
-                                    Reatribuir
+                                  )}
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
-                                )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -629,6 +681,24 @@ export default function Leads() {
                 )}
               </CardContent>
             </Card>
+
+            <AlertDialog open={!!deletingBatch} onOpenChange={(open) => !open && setDeletingBatch(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir lote "{deletingBatch}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Todos os leads deste lote serão permanentemente excluídos. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeletingBatch}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteBatch} disabled={isDeletingBatch} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {isDeletingBatch ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           <TabsContent value="status-config" className="space-y-4">
