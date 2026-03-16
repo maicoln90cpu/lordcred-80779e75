@@ -465,13 +465,13 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (!chipId) return;
     try {
       const unreadChats = chats.filter(c => (c.unreadCount || 0) > 0 && !c.is_archived);
-      // Send mark-read to UazAPI for each unread chat (edge function updates DB)
-      const promises = unreadChats.map(c =>
-        supabase.functions.invoke('uazapi-api', {
-          body: { action: 'mark-read', chipId, chatId: c.remoteJid },
-        }).catch(() => {})
-      );
-      await Promise.all(promises);
+      // Send mark-read in sequence to avoid edge burst 503s
+      for (const c of unreadChats) {
+        await invokeUazapiWithRetry(
+          { action: 'mark-read', chipId, chatId: c.remoteJid },
+          { retries: 2, retryDelayMs: 250 }
+        );
+      }
       toast({ title: 'Todas as conversas marcadas como lidas' });
     } catch {
       toast({ title: 'Erro ao limpar não lidas', variant: 'destructive' });
