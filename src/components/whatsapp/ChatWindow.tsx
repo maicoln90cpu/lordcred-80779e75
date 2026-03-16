@@ -5,6 +5,7 @@ import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
 import { getCachedMessages, setCachedMessages, addMessageToCache } from '@/hooks/useMessageCache';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +76,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeChipRef = useRef(chipId);
   const activeChatRef = useRef(chat?.remoteJid);
+  const lastMarkReadAtRef = useRef<Record<string, number>>({});
   const { toast } = useToast();
 
   // Keep refs in sync
@@ -186,10 +188,17 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRead = useCallback((cId: string, cJid: string) => {
     if (markReadTimer.current) clearTimeout(markReadTimer.current);
-    markReadTimer.current = setTimeout(() => {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'mark-read', chipId: cId, chatId: cJid },
-      }).catch(() => {});
+    markReadTimer.current = setTimeout(async () => {
+      const key = `${cId}:${cJid}`;
+      const now = Date.now();
+      const lastSent = lastMarkReadAtRef.current[key] || 0;
+      if (now - lastSent < 4000) return;
+
+      lastMarkReadAtRef.current[key] = now;
+      await invokeUazapiWithRetry(
+        { action: 'mark-read', chipId: cId, chatId: cJid },
+        { retries: 2, retryDelayMs: 250 }
+      );
     }, 500);
   }, []);
 
@@ -352,13 +361,19 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setReplyTo(null);
 
     try {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' },
-      }).catch(() => {});
+      void invokeUazapiWithRetry(
+        { action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' },
+        { retries: 1, retryDelayMs: 200 }
+      );
 
-      const response = await supabase.functions.invoke('uazapi-api', {
-        body: { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text },
-      });
+      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
+        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text },
+        { retries: 2, retryDelayMs: 250 }
+      );
+
+      if (response.error) {
+        throw response.error;
+      }
 
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
@@ -441,15 +456,20 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setReactMsg(null);
   }, [reactMsg, chipId, chat, toast]);
 
-  const handleDownload = useCallback((msg: MessageData) => {
-    if (msg.messageId && msg.chipId) {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
-      }).then(res => {
-        if (res.data?.fileURL) window.open(res.data.fileURL, '_blank');
-        else toast({ title: 'Erro', description: 'Não foi possível baixar a mídia.', variant: 'destructive' });
-      });
+  const handleDownload = useCallback(async (msg: MessageData) => {
+    if (!(msg.messageId && msg.chipId)) return;
+
+    const res = await invokeUazapiWithRetry<{ fileURL?: string }>(
+      { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
+      { retries: 2, retryDelayMs: 250 }
+    );
+
+    if (res.data?.fileURL) {
+      window.open(res.data.fileURL, '_blank');
+      return;
     }
+
+    toast({ title: 'Erro', description: 'Não foi possível baixar a mídia.', variant: 'destructive' });
   }, [toast]);
 
   const handlePin = useCallback(async (msg: MessageData) => {
