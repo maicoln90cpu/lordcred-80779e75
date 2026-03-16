@@ -13,24 +13,16 @@ import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight } f
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
-// Format date: handles Excel serial numbers and various string formats -> dd/mm/aaaa
 function formatDate(value: string | number | null | undefined): string {
   if (!value) return '-';
-  // Excel serial number (numeric string or number)
   const num = typeof value === 'number' ? value : Number(value);
   if (!isNaN(num) && num > 10000 && num < 100000) {
-    // Excel date serial: days since 1900-01-01 (with the Excel leap year bug)
     const excelEpoch = new Date(1900, 0, 1);
     const date = new Date(excelEpoch.getTime() + (num - 2) * 86400000);
-    if (!isNaN(date.getTime())) {
-      return date.toLocaleDateString('pt-BR');
-    }
+    if (!isNaN(date.getTime())) return date.toLocaleDateString('pt-BR');
   }
-  // Try parsing as date string (yyyy-mm-dd, dd/mm/yyyy, etc.)
   const str = String(value).trim();
-  // Already dd/mm/yyyy?
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
-  // yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
     const d = new Date(str);
     if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
@@ -54,43 +46,55 @@ interface ColumnConfig {
   visible: boolean;
 }
 
+interface ProfileOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
+
 interface LeadsTableProps {
   filterSeller?: string;
   filterStatus?: string;
   filterBatch?: string;
-  onFiltersChange?: (filters: { seller: string; status: string; batch: string }) => void;
+  filterProfile?: string;
+  onFiltersChange?: (filters: { seller: string; status: string; batch: string; profile: string }) => void;
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
   columnConfig?: ColumnConfig[];
+  profileOptions?: ProfileOption[];
 }
 
-export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig }: LeadsTableProps) {
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, filterProfile: extProfile, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig, profileOptions = [] }: LeadsTableProps) {
   const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
+  const [filterProfile, setFilterProfile] = useState<string>(extProfile || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(0);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'status' | 'reassign' | null>(null);
+  const [bulkAction, setBulkAction] = useState<'delete' | 'status' | 'reassign' | 'profile' | null>(null);
   const [bulkStatus, setBulkStatus] = useState('pendente');
   const [bulkSeller, setBulkSeller] = useState('');
+  const [bulkProfile, setBulkProfile] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Sync external filters
   const actualSeller = extSeller ?? filterSeller;
   const actualStatus = extStatus ?? filterStatus;
   const actualBatch = extBatch ?? filterBatch;
+  const actualProfile = extProfile ?? filterProfile;
 
-  const updateFilter = (key: 'seller' | 'status' | 'batch', value: string) => {
+  const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile', value: string) => {
     if (key === 'seller') setFilterSeller(value);
     if (key === 'status') setFilterStatus(value);
     if (key === 'batch') setFilterBatch(value);
+    if (key === 'profile') setFilterProfile(value);
     setPage(0);
     onFiltersChange?.({
       seller: key === 'seller' ? value : actualSeller,
       status: key === 'status' ? value : actualStatus,
       batch: key === 'batch' ? value : actualBatch,
+      profile: key === 'profile' ? value : actualProfile,
     });
   };
 
@@ -99,6 +103,12 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     statusOptions.forEach(s => { map[s.value] = s.color_class; });
     return map;
   }, [statusOptions]);
+
+  const profileColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    profileOptions.forEach(p => { map[p.value] = p.color_class; });
+    return map;
+  }, [profileOptions]);
 
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
@@ -109,12 +119,17 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   });
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, searchTerm],
+    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, actualProfile, searchTerm],
     queryFn: async () => {
       let query = supabase.from('client_leads' as any).select('*').order('created_at', { ascending: false });
       if (actualSeller !== 'all') query = query.eq('assigned_to', actualSeller);
       if (actualStatus !== 'all') query = query.eq('status', actualStatus);
       if (actualBatch !== 'all') query = query.eq('batch_name', actualBatch);
+      if (actualProfile === '__none__') {
+        query = query.is('perfil', null);
+      } else if (actualProfile !== 'all') {
+        query = query.eq('perfil', actualProfile);
+      }
       if (searchTerm) query = query.or(`nome.ilike.%${searchTerm}%,telefone.ilike.%${searchTerm}%,cpf.ilike.%${searchTerm}%`);
       const { data, error } = await query.limit(1000);
       if (error) throw error;
@@ -219,6 +234,29 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     }
   };
 
+  const handleBulkProfile = async () => {
+    setIsProcessing(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const newProfile = bulkProfile === '__none__' ? null : bulkProfile;
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        const { error } = await supabase.from('client_leads' as any).update({
+          perfil: newProfile, updated_at: new Date().toISOString()
+        }).in('id', batch);
+        if (error) throw error;
+      }
+      toast({ title: `Perfil de ${ids.length} leads atualizado` });
+      setSelectedIds(new Set());
+      invalidateAll();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+      setBulkAction(null);
+    }
+  };
+
   const handleExport = () => {
     const exportData = leads.map((l: any) => ({
       Nome: l.nome,
@@ -238,6 +276,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       'Nome Mãe': l.nome_mae,
       'Data Ref.': l.data_ref,
       Status: l.status,
+      Perfil: l.perfil || '',
       Vendedor: getSellerName(l.assigned_to),
       Lote: l.batch_name,
       Observações: l.notes,
@@ -265,9 +304,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return seller?.name || seller?.email || 'N/A';
   };
 
-  // Visible columns in order
   const visibleCols = useMemo(() => {
-    if (!columnConfig) return null; // null means use hardcoded fallback
+    if (!columnConfig) return null;
     return columnConfig.filter(c => c.visible);
   }, [columnConfig]);
 
@@ -282,6 +320,10 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         return formatDate(lead[key]);
       case 'status':
         return <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>;
+      case 'perfil':
+        return lead.perfil
+          ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+          : <span className="text-muted-foreground text-xs">-</span>;
       case 'assigned_to':
         return getSellerName(lead.assigned_to);
       case 'notes':
@@ -294,7 +336,6 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   return (
     <>
       <div className="space-y-4">
-        {/* Card 1: Header + Filtros + Bulk Actions */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -309,7 +350,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Buscar nome, telefone, CPF..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="pl-9" />
@@ -328,6 +369,14 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                   {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={actualProfile} onValueChange={(v) => updateFilter('profile', v)}>
+                <SelectTrigger><SelectValue placeholder="Perfil" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os perfis</SelectItem>
+                  <SelectItem value="__none__">Sem perfil</SelectItem>
+                  {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
                 <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
                 <SelectContent>
@@ -337,15 +386,17 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
               </Select>
             </div>
 
-            {/* Bulk action bar */}
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20 flex-wrap">
                 <span className="text-sm font-medium">{selectedIds.size} selecionados</span>
                 <Button variant="destructive" size="sm" onClick={() => setBulkAction('delete')}>
                   <Trash2 className="w-4 h-4 mr-1" /> Excluir
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setBulkAction('status')}>
                   Alterar Status
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setBulkAction('profile')}>
+                  Alterar Perfil
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setBulkAction('reassign')}>
                   Reatribuir
@@ -358,7 +409,6 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           </CardContent>
         </Card>
 
-        {/* Card 2: Apenas a Tabela */}
         {isLoading ? (
           <Card>
             <CardContent className="py-8">
@@ -410,6 +460,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                           <TableHead>Nome Mãe</TableHead>
                           <TableHead>Data Ref.</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Perfil</TableHead>
                           <TableHead>Vendedor</TableHead>
                           <TableHead>Lote</TableHead>
                           <TableHead>Observações</TableHead>
@@ -455,6 +506,12 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                             <TableCell>
                               <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
                             </TableCell>
+                            <TableCell>
+                              {lead.perfil
+                                ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+                                : <span className="text-muted-foreground text-xs">-</span>
+                              }
+                            </TableCell>
                             <TableCell className="text-sm whitespace-nowrap">{getSellerName(lead.assigned_to)}</TableCell>
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{lead.batch_name || '-'}</TableCell>
                             <TableCell className="text-sm max-w-[200px] truncate">{lead.notes || '-'}</TableCell>
@@ -474,7 +531,6 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           </Card>
         )}
 
-        {/* Paginação fora dos cards */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {leads.length} leads · Página {page + 1}/{totalPages}
@@ -522,6 +578,29 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleBulkStatus} disabled={isProcessing}>
+              {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Aplicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Profile Dialog */}
+      <AlertDialog open={bulkAction === 'profile'} onOpenChange={(o) => !o && setBulkAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar perfil de {selectedIds.size} leads</AlertDialogTitle>
+          </AlertDialogHeader>
+          <Select value={bulkProfile} onValueChange={setBulkProfile}>
+            <SelectTrigger><SelectValue placeholder="Selecionar perfil" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sem perfil</SelectItem>
+              {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkProfile} disabled={isProcessing || !bulkProfile}>
               {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Aplicar
             </AlertDialogAction>
