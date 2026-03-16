@@ -328,6 +328,21 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     return data?.status === 'connected';
   }, [chipId]);
 
+  /** Reconciliation: check if message was actually delivered despite transport error */
+  const reconcileMessage = useCallback(async (cId: string, remoteJid: string, sentAfter: string): Promise<boolean> => {
+    // Wait a bit for webhook/realtime to persist the message
+    await new Promise(r => setTimeout(r, 3000));
+    const { data } = await supabase
+      .from('message_history')
+      .select('id')
+      .eq('chip_id', cId)
+      .eq('remote_jid', remoteJid)
+      .eq('direction', 'outgoing')
+      .gte('created_at', sentAfter)
+      .limit(1);
+    return !!(data && data.length > 0);
+  }, []);
+
   const handleSend = useCallback(async (text: string) => {
     if (!chipId || !chat || !text.trim()) return;
 
@@ -339,12 +354,13 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     }
 
     setSending(true);
+    const sentAt = new Date().toISOString();
 
     const tempMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
       text,
       fromMe: true,
-      timestamp: new Date().toISOString(),
+      timestamp: sentAt,
       senderName: '',
       messageType: 'text',
     };
@@ -370,9 +386,13 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         return;
       }
 
-      // Transport error (502/503) — message MAY have been sent, don't show disconnect
+      // Transport error (502/503) — reconcile by checking DB
       if (response.isTransportError) {
-        toast({ title: 'Instabilidade temporária', description: 'A mensagem pode ter sido enviada. Verifique em instantes.', variant: 'destructive' });
+        const delivered = await reconcileMessage(chipId, chat.remoteJid, sentAt);
+        if (!delivered) {
+          toast({ title: 'Instabilidade temporária', description: 'A mensagem pode não ter sido enviada. Tente novamente.', variant: 'destructive' });
+        }
+        // If delivered, realtime already added the real message — no toast needed
         return;
       }
 
@@ -391,13 +411,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      // Catch-all: only show toast, never mark as disconnected from generic errors
       toast({ title: 'Erro ao enviar mensagem', variant: 'destructive' });
     } finally {
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setSending(false);
     }
-  }, [chipId, chat, checkChipConnected, toast]);
+  }, [chipId, chat, checkChipConnected, toast, reconcileMessage]);
 
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
     if (!chipId || !chat) return;
