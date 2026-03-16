@@ -130,7 +130,7 @@ export default function LeadImporter() {
 
       setParsedData(parsed.filter(p => p.nome.trim() !== ''));
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   }, []);
 
   const handleImport = async () => {
