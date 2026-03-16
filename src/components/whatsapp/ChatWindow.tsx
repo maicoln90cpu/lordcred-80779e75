@@ -456,15 +456,20 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setReactMsg(null);
   }, [reactMsg, chipId, chat, toast]);
 
-  const handleDownload = useCallback((msg: MessageData) => {
-    if (msg.messageId && msg.chipId) {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
-      }).then(res => {
-        if (res.data?.fileURL) window.open(res.data.fileURL, '_blank');
-        else toast({ title: 'Erro', description: 'Não foi possível baixar a mídia.', variant: 'destructive' });
-      });
+  const handleDownload = useCallback(async (msg: MessageData) => {
+    if (!(msg.messageId && msg.chipId)) return;
+
+    const res = await invokeUazapiWithRetry<{ fileURL?: string }>(
+      { action: 'download-media', chipId: msg.chipId, messageId: msg.messageId },
+      { retries: 2, retryDelayMs: 250 }
+    );
+
+    if (res.data?.fileURL) {
+      window.open(res.data.fileURL, '_blank');
+      return;
     }
+
+    toast({ title: 'Erro', description: 'Não foi possível baixar a mídia.', variant: 'destructive' });
   }, [toast]);
 
   const handlePin = useCallback(async (msg: MessageData) => {
