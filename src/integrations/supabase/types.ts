@@ -162,6 +162,7 @@ export type Database = {
           nome: string
           nome_mae: string | null
           notes: string | null
+          perfil: string | null
           prazo: number | null
           reprovado: string | null
           status: string | null
@@ -189,6 +190,7 @@ export type Database = {
           nome: string
           nome_mae?: string | null
           notes?: string | null
+          perfil?: string | null
           prazo?: number | null
           reprovado?: string | null
           status?: string | null
@@ -216,6 +218,7 @@ export type Database = {
           nome?: string
           nome_mae?: string | null
           notes?: string | null
+          perfil?: string | null
           prazo?: number | null
           reprovado?: string | null
           status?: string | null
@@ -832,6 +835,7 @@ export type Database = {
           human_pattern_mode: boolean
           id: string
           is_warming_active: boolean
+          lead_profile_options: Json | null
           lead_status_options: Json | null
           lead_table_columns: Json | null
           max_interval_seconds: number
@@ -877,6 +881,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_profile_options?: Json | null
           lead_status_options?: Json | null
           lead_table_columns?: Json | null
           max_interval_seconds?: number
@@ -922,6 +927,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_profile_options?: Json | null
           lead_status_options?: Json | null
           lead_table_columns?: Json | null
           max_interval_seconds?: number
