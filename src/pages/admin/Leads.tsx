@@ -130,7 +130,7 @@ export default function Leads() {
     }
   });
 
-  // Fetch column config from system_settings
+  // Fetch column config from system_settings, merging with ALL_COLUMNS to include new columns
   const { data: columnConfig = ALL_COLUMNS } = useQuery({
     queryKey: ['lead-table-columns'],
     queryFn: async () => {
@@ -139,7 +139,14 @@ export default function Leads() {
         .select('lead_table_columns')
         .maybeSingle();
       if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
-        return data.lead_table_columns as unknown as ColumnConfig[];
+        const saved = data.lead_table_columns as unknown as ColumnConfig[];
+        const savedKeys = new Set(saved.map(c => c.key));
+        // Add any new columns from ALL_COLUMNS that aren't in the saved config
+        const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
+        if (newCols.length > 0) {
+          return [...saved, ...newCols];
+        }
+        return saved;
       }
       return ALL_COLUMNS;
     }
