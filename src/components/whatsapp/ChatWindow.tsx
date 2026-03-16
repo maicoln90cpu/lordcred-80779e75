@@ -75,6 +75,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeChipRef = useRef(chipId);
   const activeChatRef = useRef(chat?.remoteJid);
+  const lastMarkReadAtRef = useRef<Record<string, number>>({});
   const { toast } = useToast();
 
   // Keep refs in sync
