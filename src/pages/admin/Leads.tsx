@@ -11,12 +11,18 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload, UserCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
 
 interface StatusOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
+
+interface ProfileOption {
   value: string;
   label: string;
   color_class: string;
@@ -28,6 +34,13 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'NÃO ATENDEU', label: 'Não Atendeu', color_class: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
   { value: 'NÃO EXISTE', label: 'Não Existe', color_class: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
   { value: 'APROVADO', label: 'Aprovado', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+];
+
+const DEFAULT_PROFILE_OPTIONS: ProfileOption[] = [
+  { value: 'CLT', label: 'CLT', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+  { value: 'CLT Clientes', label: 'CLT Clientes', color_class: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+  { value: 'FGTS', label: 'FGTS', color_class: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' },
+  { value: 'FGTS Clientes', label: 'FGTS Clientes', color_class: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
 ];
 
 interface ColumnConfig {
@@ -54,6 +67,7 @@ const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'nome_mae', label: 'Nome Mãe', visible: true },
   { key: 'data_ref', label: 'Data Ref.', visible: true },
   { key: 'status', label: 'Status', visible: true },
+  { key: 'perfil', label: 'Perfil', visible: true },
   { key: 'assigned_to', label: 'Vendedor', visible: true },
   { key: 'batch_name', label: 'Lote', visible: true },
   { key: 'notes', label: 'Observações', visible: true },
@@ -70,10 +84,15 @@ export default function Leads() {
   const [filterSeller, setFilterSeller] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterBatch, setFilterBatch] = useState('all');
+  const [filterProfile, setFilterProfile] = useState('all');
 
   // Status editor state
   const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
   const [isSavingStatuses, setIsSavingStatuses] = useState(false);
+
+  // Profile editor state
+  const [editingProfiles, setEditingProfiles] = useState<ProfileOption[] | null>(null);
+  const [isSavingProfiles, setIsSavingProfiles] = useState(false);
 
   // Column config editor state
   const [editingColumns, setEditingColumns] = useState<ColumnConfig[] | null>(null);
@@ -95,6 +114,21 @@ export default function Leads() {
     }
   });
 
+  // Fetch profile options from system_settings
+  const { data: profileOptions = DEFAULT_PROFILE_OPTIONS } = useQuery({
+    queryKey: ['lead-profile-options'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_profile_options')
+        .maybeSingle();
+      if (data?.lead_profile_options && Array.isArray(data.lead_profile_options)) {
+        return data.lead_profile_options as unknown as ProfileOption[];
+      }
+      return DEFAULT_PROFILE_OPTIONS;
+    }
+  });
+
   // Fetch column config from system_settings
   const { data: columnConfig = ALL_COLUMNS } = useQuery({
     queryKey: ['lead-table-columns'],
@@ -113,7 +147,7 @@ export default function Leads() {
   const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
-      const { data } = await supabase.from('client_leads' as any).select('status, batch_name, assigned_to, created_at, contacted_at').limit(5000);
+      const { data } = await supabase.from('client_leads' as any).select('status, batch_name, assigned_to, created_at, contacted_at, perfil').limit(5000);
       return (data || []) as any[];
     }
   });
@@ -137,8 +171,10 @@ export default function Leads() {
     if (filterSeller !== 'all') result = result.filter((l: any) => l.assigned_to === filterSeller);
     if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
+    if (filterProfile === '__none__') result = result.filter((l: any) => !l.perfil);
+    else if (filterProfile !== 'all') result = result.filter((l: any) => l.perfil === filterProfile);
     return result;
-  }, [allLeads, filterSeller, filterStatus, filterBatch]);
+  }, [allLeads, filterSeller, filterStatus, filterBatch, filterProfile]);
 
   const metrics = useMemo(() => {
     const total = filteredLeadsForMetrics.length;
@@ -184,10 +220,11 @@ export default function Leads() {
     }
   };
 
-  const handleFiltersChange = (filters: { seller: string; status: string; batch: string }) => {
+  const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string }) => {
     setFilterSeller(filters.seller);
     setFilterStatus(filters.status);
     setFilterBatch(filters.batch);
+    setFilterProfile(filters.profile);
   };
 
   // Export leads
@@ -254,7 +291,6 @@ export default function Leads() {
       const text = await file.text();
       const data = JSON.parse(text) as any[];
       if (!Array.isArray(data)) throw new Error('Formato inválido');
-      // Remove id and timestamps for re-insert
       const cleaned = data.map(({ id, created_at, updated_at, ...rest }) => rest);
       let inserted = 0;
       for (let i = 0; i < cleaned.length; i += 100) {
@@ -274,9 +310,7 @@ export default function Leads() {
   };
 
   // Status management
-  const startEditingStatuses = () => {
-    setEditingStatuses([...statusOptions]);
-  };
+  const startEditingStatuses = () => setEditingStatuses([...statusOptions]);
 
   const addStatus = () => {
     if (!editingStatuses) return;
@@ -293,7 +327,6 @@ export default function Leads() {
     const updated = [...editingStatuses];
     updated[idx] = { ...updated[idx], [field]: val };
     if (field === 'label') {
-      // Auto-set value from label if value is empty or was previously auto-generated
       const prev = editingStatuses[idx];
       if (!prev.value || prev.value === prev.label.toUpperCase()) {
         updated[idx].value = val.toUpperCase();
@@ -304,7 +337,6 @@ export default function Leads() {
 
   const saveStatuses = async () => {
     if (!editingStatuses) return;
-    // Validate
     const invalid = editingStatuses.some(s => !s.value || !s.label);
     if (invalid) {
       toast({ title: 'Erro', description: 'Todos os status devem ter valor e label preenchidos.', variant: 'destructive' });
@@ -315,7 +347,7 @@ export default function Leads() {
       const { error } = await supabase
         .from('system_settings')
         .update({ lead_status_options: editingStatuses as any, updated_at: new Date().toISOString() } as any)
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // update all rows
+        .neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
       toast({ title: 'Status atualizados com sucesso' });
       queryClient.invalidateQueries({ queryKey: ['lead-status-options'] });
@@ -324,6 +356,56 @@ export default function Leads() {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally {
       setIsSavingStatuses(false);
+    }
+  };
+
+  // Profile management
+  const startEditingProfiles = () => setEditingProfiles([...profileOptions]);
+
+  const addProfile = () => {
+    if (!editingProfiles) return;
+    setEditingProfiles([...editingProfiles, { value: '', label: '', color_class: 'bg-muted text-muted-foreground hover:bg-muted/80' }]);
+  };
+
+  const removeProfile = (idx: number) => {
+    if (!editingProfiles) return;
+    setEditingProfiles(editingProfiles.filter((_, i) => i !== idx));
+  };
+
+  const updateProfileField = (idx: number, field: keyof ProfileOption, val: string) => {
+    if (!editingProfiles) return;
+    const updated = [...editingProfiles];
+    updated[idx] = { ...updated[idx], [field]: val };
+    if (field === 'label') {
+      const prev = editingProfiles[idx];
+      if (!prev.value || prev.value === prev.label) {
+        updated[idx].value = val;
+      }
+    }
+    setEditingProfiles(updated);
+  };
+
+  const saveProfiles = async () => {
+    if (!editingProfiles) return;
+    const invalid = editingProfiles.some(p => !p.value || !p.label);
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Todos os perfis devem ter valor e label preenchidos.', variant: 'destructive' });
+      return;
+    }
+    setIsSavingProfiles(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_profile_options: editingProfiles as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Perfis atualizados com sucesso' });
+      queryClient.invalidateQueries({ queryKey: ['lead-profile-options'] });
+      setEditingProfiles(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingProfiles(false);
     }
   };
 
@@ -436,9 +518,11 @@ export default function Leads() {
               filterSeller={filterSeller}
               filterStatus={filterStatus}
               filterBatch={filterBatch}
+              filterProfile={filterProfile}
               onFiltersChange={handleFiltersChange}
               statusOptions={statusOptions}
               columnConfig={columnConfig}
+              profileOptions={profileOptions}
             />
           </TabsContent>
 
@@ -547,7 +631,8 @@ export default function Leads() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="status-config">
+          <TabsContent value="status-config" className="space-y-4">
+            {/* Status management card */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -640,8 +725,101 @@ export default function Leads() {
               </CardContent>
             </Card>
 
+            {/* Profile management card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCircle className="w-5 h-5" />
+                    Gerenciar Perfis dos Leads
+                  </CardTitle>
+                  {!editingProfiles ? (
+                    <Button onClick={startEditingProfiles}>Editar Perfis</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingProfiles(null)}>Cancelar</Button>
+                      <Button onClick={saveProfiles} disabled={isSavingProfiles}>
+                        {isSavingProfiles && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingProfiles ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Perfis configurados atualmente:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {profileOptions.map(p => (
+                        <Badge key={p.value} className={p.color_class}>{p.label}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">Edite os nomes e cores dos perfis. O perfil é atribuído durante a importação e pode ser alterado em massa.</p>
+                    {editingProfiles.map((profile, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="flex-1 grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Valor (interno)</label>
+                            <Input
+                              value={profile.value}
+                              onChange={(e) => updateProfileField(idx, 'value', e.target.value)}
+                              placeholder="Ex: CLT"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Label (exibição)</label>
+                            <Input
+                              value={profile.label}
+                              onChange={(e) => updateProfileField(idx, 'label', e.target.value)}
+                              placeholder="Ex: CLT"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
+                            <Select value={profile.color_class} onValueChange={(v) => updateProfileField(idx, 'color_class', v)}>
+                              <SelectTrigger className="h-8 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={profile.color_class + ' text-xs'}>Aa</Badge>
+                                  <span className="truncate">{COLOR_PRESETS.find(p => p.value === profile.color_class)?.label || 'Custom'}</span>
+                                </div>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COLOR_PRESETS.map(p => (
+                                  <SelectItem key={p.value} value={p.value}>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={p.value + ' text-xs'}>Aa</Badge>
+                                      {p.label}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={profile.color_class}>{profile.label || '...'}</Badge>
+                          <Button variant="ghost" size="icon" onClick={() => removeProfile(idx)} className="text-destructive hover:text-destructive h-8 w-8">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="outline" onClick={addProfile} className="w-full">
+                      <Plus className="w-4 h-4 mr-2" /> Adicionar Perfil
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Column Configuration */}
-            <Card className="mt-4">
+            <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">

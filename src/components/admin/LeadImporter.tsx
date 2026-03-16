@@ -45,41 +45,53 @@ function cleanPhone(value: string | null | undefined): string {
   return String(value).replace(/\D/g, '');
 }
 
+interface ProfileOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
+
 export default function LeadImporter() {
   const [parsedData, setParsedData] = useState<ParsedLead[]>([]);
   const [batchName, setBatchName] = useState('');
   const [selectedSeller, setSelectedSeller] = useState<string>('');
+  const [selectedProfile, setSelectedProfile] = useState<string>('');
   const [isImporting, setIsImporting] = useState(false);
   const [imported, setImported] = useState(false);
   const [fileName, setFileName] = useState('');
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Fetch sellers (role = 'seller') and users (role = 'user') for assignment
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-for-leads'],
     queryFn: async () => {
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id, role');
-      
       if (!roles) return [];
-
       const userIds = roles.map(r => r.user_id);
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, name, email')
         .in('user_id', userIds);
-
       return (profiles || []).map(p => {
         const role = roles.find(r => r.user_id === p.user_id);
-        return {
-          user_id: p.user_id,
-          name: p.name || p.email,
-          email: p.email,
-          role: role?.role || 'user'
-        };
+        return { user_id: p.user_id, name: p.name || p.email, email: p.email, role: role?.role || 'user' };
       });
+    }
+  });
+
+  const { data: profileOptions = [] } = useQuery({
+    queryKey: ['lead-profile-options'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_profile_options')
+        .maybeSingle();
+      if (data?.lead_profile_options && Array.isArray(data.lead_profile_options)) {
+        return data.lead_profile_options as unknown as ProfileOption[];
+      }
+      return [];
     }
   });
 
@@ -133,6 +145,7 @@ export default function LeadImporter() {
         created_by: user!.id,
         assigned_to: selectedSeller,
         batch_name: batchName || fileName,
+        perfil: selectedProfile || null,
         data_ref: lead.data_ref,
         banco_simulado: lead.banco_simulado,
         nome: lead.nome,
@@ -152,7 +165,6 @@ export default function LeadImporter() {
         nome_mae: lead.nome_mae,
       }));
 
-      // Insert in batches of 100
       for (let i = 0; i < batch.length; i += 100) {
         const chunk = batch.slice(i, i + 100);
         const { error } = await supabase.from('client_leads' as any).insert(chunk as any);
@@ -183,7 +195,7 @@ export default function LeadImporter() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Arquivo XLSX</Label>
               <Input
@@ -216,6 +228,23 @@ export default function LeadImporter() {
                   {sellers.map(s => (
                     <SelectItem key={s.user_id} value={s.user_id}>
                       {s.name} <span className="text-muted-foreground text-xs ml-1">({s.role})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Perfil dos Leads (opcional)</Label>
+              <Select value={selectedProfile} onValueChange={setSelectedProfile}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem perfil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem perfil</SelectItem>
+                  {profileOptions.map(p => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
