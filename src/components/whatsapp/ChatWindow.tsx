@@ -187,10 +187,17 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const markReadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRead = useCallback((cId: string, cJid: string) => {
     if (markReadTimer.current) clearTimeout(markReadTimer.current);
-    markReadTimer.current = setTimeout(() => {
-      supabase.functions.invoke('uazapi-api', {
-        body: { action: 'mark-read', chipId: cId, chatId: cJid },
-      }).catch(() => {});
+    markReadTimer.current = setTimeout(async () => {
+      const key = `${cId}:${cJid}`;
+      const now = Date.now();
+      const lastSent = lastMarkReadAtRef.current[key] || 0;
+      if (now - lastSent < 4000) return;
+
+      lastMarkReadAtRef.current[key] = now;
+      await invokeUazapiWithRetry(
+        { action: 'mark-read', chipId: cId, chatId: cJid },
+        { retries: 2, retryDelayMs: 250 }
+      );
     }, 500);
   }, []);
 
