@@ -104,7 +104,7 @@ export default function LeadImporter() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       const data = evt.target?.result;
-      const workbook = XLSX.read(data, { type: 'binary' });
+      const workbook = XLSX.read(data, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
 
