@@ -421,11 +421,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
     if (!chipId || !chat) return;
 
+    const sentAt = new Date().toISOString();
     const tempMsg: ChatMessage = {
       id: `temp-media-${Date.now()}`,
       text: caption || `📎 Enviando ${mediaType}...`,
       fromMe: true,
-      timestamp: new Date().toISOString(),
+      timestamp: sentAt,
       senderName: '',
       messageType: mediaType,
     };
@@ -443,12 +444,13 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         );
 
         if (response.isTransportError) {
-          // Don't remove temp — message may have been sent, realtime will reconcile
-          toast({ title: 'Instabilidade ao enviar mídia', description: 'Verifique se a mídia foi entregue.', variant: 'destructive' });
-          // Remove temp after a delay to let realtime catch up
-          setTimeout(() => {
-            setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-          }, 8000);
+          // Reconcile: check if message was actually delivered
+          const delivered = await reconcileMessage(chipId, chat.remoteJid, sentAt);
+          if (!delivered) {
+            toast({ title: 'Instabilidade ao enviar mídia', description: 'Verifique se a mídia foi entregue.', variant: 'destructive' });
+          }
+          // Remove temp after reconciliation delay
+          setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
           return;
         }
 
@@ -472,7 +474,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         toast({ title: 'Erro ao enviar mídia', variant: 'destructive' });
       }
     })();
-  }, [chipId, chat, toast]);
+  }, [chipId, chat, toast, reconcileMessage]);
 
   // === CONTEXT MENU HANDLERS ===
 
