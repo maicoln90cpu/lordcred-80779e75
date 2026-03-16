@@ -240,6 +240,33 @@ export default function Leads() {
     }
   };
 
+  const handleDeleteBatch = async () => {
+    if (!deletingBatch) return;
+    setIsDeletingBatch(true);
+    try {
+      // Delete in batches to handle large lotes
+      let deleted = 0;
+      while (true) {
+        const { data, error } = await supabase.from('client_leads')
+          .delete()
+          .eq('batch_name', deletingBatch)
+          .select('id')
+          .limit(1000);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        deleted += data.length;
+      }
+      toast({ title: `Lote "${deletingBatch}" excluído`, description: `${deleted} leads removidos` });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
+      setDeletingBatch(null);
+    } catch (e: any) {
+      toast({ title: 'Erro ao excluir lote', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
+
   const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string }) => {
     setFilterSeller(filters.seller);
     setFilterStatus(filters.status);
