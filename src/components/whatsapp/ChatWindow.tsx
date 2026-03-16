@@ -370,6 +370,10 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         { retries: 2, retryDelayMs: 250 }
       );
 
+      if (response.error) {
+        throw response.error;
+      }
+
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
         if (errMsg.toLowerCase().includes('not on whatsapp')) {
