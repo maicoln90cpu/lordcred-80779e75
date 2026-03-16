@@ -617,13 +617,13 @@ export default function Leads() {
                   <div className="border rounded-lg overflow-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                         <TableRow>
                           <TableHead>Lote</TableHead>
                           <TableHead>Vendedor</TableHead>
                           <TableHead>Qtd Leads</TableHead>
                           <TableHead>% Contatados</TableHead>
                           <TableHead>Data</TableHead>
-                          <TableHead>Reatribuir</TableHead>
+                          <TableHead>Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -644,28 +644,33 @@ export default function Leads() {
                                 {new Date(b.created).toLocaleDateString('pt-BR')}
                               </TableCell>
                               <TableCell>
-                                {reassignBatch === b.batch ? (
-                                  <div className="flex gap-2 items-center">
-                                    <Select value={reassignSeller} onValueChange={setReassignSeller}>
-                                      <SelectTrigger className="w-40 h-8">
-                                        <SelectValue placeholder="Vendedor" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {sellers.map((s: any) => (
-                                          <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
-                                      {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
+                                <div className="flex gap-2 items-center">
+                                  {reassignBatch === b.batch ? (
+                                    <div className="flex gap-2 items-center">
+                                      <Select value={reassignSeller} onValueChange={setReassignSeller}>
+                                        <SelectTrigger className="w-40 h-8">
+                                          <SelectValue placeholder="Vendedor" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {sellers.map((s: any) => (
+                                            <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
+                                        {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
+                                      </Button>
+                                      <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
+                                    </div>
+                                  ) : (
+                                    <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
+                                      Reatribuir
                                     </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
-                                    Reatribuir
+                                  )}
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
-                                )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -676,6 +681,24 @@ export default function Leads() {
                 )}
               </CardContent>
             </Card>
+
+            <AlertDialog open={!!deletingBatch} onOpenChange={(open) => !open && setDeletingBatch(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir lote "{deletingBatch}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Todos os leads deste lote serão permanentemente excluídos. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeletingBatch}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteBatch} disabled={isDeletingBatch} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {isDeletingBatch ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           <TabsContent value="status-config" className="space-y-4">
