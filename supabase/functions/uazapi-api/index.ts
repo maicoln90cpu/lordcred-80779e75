@@ -606,8 +606,26 @@ Deno.serve(async (req) => {
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
           body: JSON.stringify(sendBody),
         })
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.message || data.error || 'Failed to send media')
+        // Safe parse — UazAPI may return non-JSON on success
+        let data: any = {}
+        try {
+          const rawText = await response.text()
+          data = rawText ? JSON.parse(rawText) : {}
+        } catch {
+          // Non-JSON response — if HTTP was OK, treat as success
+          if (!response.ok) {
+            return new Response(
+              JSON.stringify({ success: false, error: `UazAPI returned status ${response.status}` }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+        if (!response.ok) {
+          return new Response(
+            JSON.stringify({ success: false, error: data.message || data.error || 'Failed to send media' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
         return new Response(
           JSON.stringify({ success: true, data }),

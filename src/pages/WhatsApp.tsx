@@ -214,22 +214,33 @@ export default function WhatsApp() {
   const handleRefreshAllChips = useCallback(async () => {
     if (!user || isRefreshing) return;
     setIsRefreshing(true);
+    const TIMEOUT_MS = 12000; // Global timeout to guarantee spinner stops
+    const timeoutId = setTimeout(() => {
+      setIsRefreshing(false);
+      toast({ title: 'Tempo esgotado', description: 'Alguns chips não responderam a tempo.', variant: 'destructive' });
+    }, TIMEOUT_MS);
+
     try {
       const { data: chips } = await supabase
         .from('chips')
         .select('id, instance_name, instance_token, status')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('chip_type' as any, 'whatsapp');
       if (!chips || chips.length === 0) {
         toast({ title: 'Nenhum chip encontrado' });
+        clearTimeout(timeoutId);
         setIsRefreshing(false);
         return;
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setIsRefreshing(false); return; }
+      if (!session) { clearTimeout(timeoutId); setIsRefreshing(false); return; }
 
-      let connected = 0, offline = 0;
-      for (const chip of chips) {
+      const PER_CHIP_TIMEOUT = 8000;
+
+      const checkChip = async (chip: typeof chips[0]): Promise<'connected' | 'disconnected'> => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), PER_CHIP_TIMEOUT);
         try {
           const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
             method: 'POST',
@@ -238,32 +249,34 @@ export default function WhatsApp() {
               'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ action: 'check-status', instanceName: chip.instance_name, instanceToken: chip.instance_token }),
+            signal: controller.signal,
           });
           const data = await res.json();
           const newStatus = data.state === 'connected' ? 'connected' : 'disconnected';
           if (newStatus !== chip.status) {
             await supabase.from('chips').update({ status: newStatus }).eq('id', chip.id);
           }
-          if (newStatus === 'connected') connected++; else offline++;
+          return newStatus as 'connected' | 'disconnected';
         } catch {
-          offline++;
+          return 'disconnected';
+        } finally {
+          clearTimeout(tid);
         }
-      }
+      };
 
-      // Update selected chip status
+      const results = await Promise.allSettled(chips.map(checkChip));
+      let connected = 0, offline = 0;
+      results.forEach(r => {
+        if (r.status === 'fulfilled' && r.value === 'connected') connected++;
+        else offline++;
+      });
+
+      // Update selected chip status from results
       if (selectedChipId) {
-        const updated = chips.find(c => c.id === selectedChipId);
-        if (updated) {
-          const res2 = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ action: 'check-status', instanceName: updated.instance_name, instanceToken: updated.instance_token }),
-          });
-          const d2 = await res2.json();
-          setSelectedChipStatus(d2.state === 'connected' ? 'connected' : 'disconnected');
+        const idx = chips.findIndex(c => c.id === selectedChipId);
+        if (idx >= 0) {
+          const r = results[idx];
+          setSelectedChipStatus(r.status === 'fulfilled' && r.value === 'connected' ? 'connected' : 'disconnected');
         }
       }
 
@@ -272,6 +285,7 @@ export default function WhatsApp() {
     } catch (err: any) {
       toast({ title: 'Erro ao atualizar', description: err.message, variant: 'destructive' });
     } finally {
+      clearTimeout(timeoutId);
       setIsRefreshing(false);
     }
   }, [user, isRefreshing, selectedChipId, toast]);
