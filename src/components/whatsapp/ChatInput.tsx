@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from '@/integrations/supabase/client';
 
 import EmojiPicker from './EmojiPicker';
+import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
 
 interface QuickReply {
