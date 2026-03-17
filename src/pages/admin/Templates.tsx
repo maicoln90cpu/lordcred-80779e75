@@ -325,7 +325,7 @@ export default function Templates() {
                       <Mic className="w-4 h-4 text-muted-foreground" />
                     </div>
                   )}
-                  <span className="text-sm flex-1 truncate">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
+                  <span className="text-sm flex-1 min-w-0 truncate">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
                   <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => { setMediaFile(null); setExistingMediaUrl(null); setExistingMediaType(null); }}>
                     <X className="w-3.5 h-3.5" />
                   </Button>
