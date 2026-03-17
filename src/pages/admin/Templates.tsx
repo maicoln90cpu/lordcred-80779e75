@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy, Upload, X, Image, Mic } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,9 @@ interface Template {
   sort_order: number;
   created_at: string;
   created_by: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
 }
 
 const CATEGORIES = [
