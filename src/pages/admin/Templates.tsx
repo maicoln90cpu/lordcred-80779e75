@@ -297,6 +297,46 @@ export default function Templates() {
               <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Texto do template..." rows={6} />
               <p className="text-xs text-muted-foreground">Use {'{nome}'}, {'{telefone}'} como variáveis</p>
             </div>
+            <div className="space-y-2">
+              <Label>Mídia (opcional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const type = f.type.startsWith('image') ? 'image' : 'audio';
+                  const preview = type === 'image' ? URL.createObjectURL(f) : undefined;
+                  setMediaFile({ file: f, preview, type });
+                  setExistingMediaUrl(null);
+                  setExistingMediaType(null);
+                }}
+              />
+              {(mediaFile || existingMediaUrl) ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                  {mediaFile?.preview ? (
+                    <img src={mediaFile.preview} alt="" className="w-14 h-14 rounded object-cover" />
+                  ) : existingMediaType === 'image' && existingMediaUrl ? (
+                    <img src={existingMediaUrl} alt="" className="w-14 h-14 rounded object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                      <Mic className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  )}
+                  <span className="text-sm flex-1 truncate">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => { setMediaFile(null); setExistingMediaUrl(null); setExistingMediaType(null); }}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} type="button">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Anexar imagem ou áudio
+                </Button>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
