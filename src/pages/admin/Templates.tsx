@@ -50,6 +50,10 @@ export default function Templates() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
+  const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
+  const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
 
   // Form fields
   const [title, setTitle] = useState('');
