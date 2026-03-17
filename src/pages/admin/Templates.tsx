@@ -68,7 +68,7 @@ export default function Templates() {
       .select('*')
       .order('category')
       .order('sort_order');
-    if (!error) setTemplates(data || []);
+    if (!error) setTemplates((data as Template[]) || []);
     setIsLoading(false);
   };
 
