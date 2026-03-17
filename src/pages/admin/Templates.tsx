@@ -235,7 +235,11 @@ export default function Templates() {
                     {group.items.map(t => (
                       <div key={t.id} className={`p-4 rounded-lg border transition-colors ${t.is_active ? 'border-border/50 bg-card/50 hover:bg-secondary/30' : 'border-border/30 bg-muted/20 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <h3 className="font-medium text-sm">{t.title}</h3>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="font-medium text-sm">{t.title}</h3>
+                            {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground" />}
+                            {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground" />}
+                          </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
                               <Copy className="w-3.5 h-3.5" />
@@ -248,6 +252,9 @@ export default function Templates() {
                             </Button>
                           </div>
                         </div>
+                        {t.media_url && t.media_type === 'image' && (
+                          <img src={t.media_url} alt="" className="w-full h-24 object-cover rounded mb-2" />
+                        )}
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{t.content}</p>
                         <div className="flex items-center justify-between mt-3">
                           <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
