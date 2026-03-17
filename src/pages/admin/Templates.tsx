@@ -315,7 +315,7 @@ export default function Templates() {
                 }}
               />
               {(mediaFile || existingMediaUrl) ? (
-                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50 min-w-0">
                   {mediaFile?.preview ? (
                     <img src={mediaFile.preview} alt="" className="w-14 h-14 rounded object-cover" />
                   ) : existingMediaType === 'image' && existingMediaUrl ? (
