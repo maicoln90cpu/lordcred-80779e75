@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from '@/integrations/supabase/client';
 
 import EmojiPicker from './EmojiPicker';
+import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
 
 interface QuickReply {
@@ -419,6 +420,12 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
           </DropdownMenu>
 
           <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled} />
+
+          <TemplatePicker
+            disabled={disabled}
+            onInsertText={(text) => { setMessage(text); inputRef.current?.focus(); }}
+            onSendMedia={onSendMedia}
+          />
 
           <div className="relative flex-1">
             {/* Quick replies dropdown */}

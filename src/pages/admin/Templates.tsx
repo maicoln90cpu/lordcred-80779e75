@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy, Upload, X, Image, Mic } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,9 @@ interface Template {
   sort_order: number;
   created_at: string;
   created_by: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
 }
 
 const CATEGORIES = [
@@ -47,6 +50,10 @@ export default function Templates() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
+  const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
+  const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -61,7 +68,7 @@ export default function Templates() {
       .select('*')
       .order('category')
       .order('sort_order');
-    if (!error) setTemplates(data || []);
+    if (!error) setTemplates((data as Template[]) || []);
     setIsLoading(false);
   };
 
@@ -70,6 +77,9 @@ export default function Templates() {
     setTitle('');
     setContent('');
     setCategory('geral');
+    setMediaFile(null);
+    setExistingMediaUrl(null);
+    setExistingMediaType(null);
     setDialogOpen(true);
   };
 
@@ -78,6 +88,9 @@ export default function Templates() {
     setTitle(t.title);
     setContent(t.content);
     setCategory(t.category);
+    setMediaFile(null);
+    setExistingMediaUrl(t.media_url || null);
+    setExistingMediaType(t.media_type || null);
     setDialogOpen(true);
   };
 
@@ -85,21 +98,53 @@ export default function Templates() {
     if (!title.trim() || !content.trim()) return;
     setSaving(true);
     try {
+      let uploadedMediaUrl: string | null = existingMediaUrl;
+      let uploadedMediaType: string | null = existingMediaType;
+      let uploadedMediaFilename: string | null = editTemplate?.media_filename || null;
+
+      // Upload new media file if selected
+      if (mediaFile) {
+        const ext = mediaFile.file.name.split('.').pop() || 'bin';
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('template-media')
+          .upload(path, mediaFile.file);
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage
+          .from('template-media')
+          .getPublicUrl(path);
+        uploadedMediaUrl = urlData.publicUrl;
+        uploadedMediaType = mediaFile.type;
+        uploadedMediaFilename = mediaFile.file.name;
+      }
+
+      const payload: any = {
+        title: title.trim(),
+        content: content.trim(),
+        category,
+        media_url: uploadedMediaUrl,
+        media_type: uploadedMediaType,
+        media_filename: uploadedMediaFilename,
+      };
+
       if (editTemplate) {
+        payload.updated_at = new Date().toISOString();
         const { error } = await supabase
           .from('message_templates')
-          .update({ title: title.trim(), content: content.trim(), category, updated_at: new Date().toISOString() })
+          .update(payload)
           .eq('id', editTemplate.id);
         if (error) throw error;
         toast({ title: 'Template atualizado' });
       } else {
+        payload.created_by = user!.id;
         const { error } = await supabase
           .from('message_templates')
-          .insert({ title: title.trim(), content: content.trim(), category, created_by: user!.id });
+          .insert(payload);
         if (error) throw error;
         toast({ title: 'Template criado' });
       }
       setDialogOpen(false);
+      setMediaFile(null);
       fetchTemplates();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -190,7 +235,11 @@ export default function Templates() {
                     {group.items.map(t => (
                       <div key={t.id} className={`p-4 rounded-lg border transition-colors ${t.is_active ? 'border-border/50 bg-card/50 hover:bg-secondary/30' : 'border-border/30 bg-muted/20 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <h3 className="font-medium text-sm">{t.title}</h3>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="font-medium text-sm">{t.title}</h3>
+                            {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground" />}
+                            {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground" />}
+                          </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
                               <Copy className="w-3.5 h-3.5" />
@@ -203,6 +252,9 @@ export default function Templates() {
                             </Button>
                           </div>
                         </div>
+                        {t.media_url && t.media_type === 'image' && (
+                          <img src={t.media_url} alt="" className="w-full h-24 object-cover rounded mb-2" />
+                        )}
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{t.content}</p>
                         <div className="flex items-center justify-between mt-3">
                           <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
@@ -244,6 +296,46 @@ export default function Templates() {
               <Label>Conteúdo</Label>
               <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Texto do template..." rows={6} />
               <p className="text-xs text-muted-foreground">Use {'{nome}'}, {'{telefone}'} como variáveis</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Mídia (opcional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const type = f.type.startsWith('image') ? 'image' : 'audio';
+                  const preview = type === 'image' ? URL.createObjectURL(f) : undefined;
+                  setMediaFile({ file: f, preview, type });
+                  setExistingMediaUrl(null);
+                  setExistingMediaType(null);
+                }}
+              />
+              {(mediaFile || existingMediaUrl) ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                  {mediaFile?.preview ? (
+                    <img src={mediaFile.preview} alt="" className="w-14 h-14 rounded object-cover" />
+                  ) : existingMediaType === 'image' && existingMediaUrl ? (
+                    <img src={existingMediaUrl} alt="" className="w-14 h-14 rounded object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                      <Mic className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  )}
+                  <span className="text-sm flex-1 truncate">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => { setMediaFile(null); setExistingMediaUrl(null); setExistingMediaType(null); }}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} type="button">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Anexar imagem ou áudio
+                </Button>
+              )}
             </div>
           </div>
           <DialogFooter>

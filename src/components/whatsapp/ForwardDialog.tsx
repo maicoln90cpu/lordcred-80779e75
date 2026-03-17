@@ -52,7 +52,15 @@ export default function ForwardDialog({ open, onClose, message, chipId }: Forwar
     try {
       const promises = Array.from(selected).map(jid =>
         supabase.functions.invoke('uazapi-api', {
-          body: { action: 'forward-message', chipId, chatId: jid, messageId: message.messageId, text: message.text },
+          body: {
+            action: 'forward-message',
+            chipId,
+            chatId: jid,
+            messageId: message.messageId,
+            text: message.text,
+            mediaType: message.mediaType || '',
+            hasMedia: !!message.hasMedia,
+          },
         })
       );
       await Promise.allSettled(promises);

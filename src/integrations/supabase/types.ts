@@ -719,6 +719,9 @@ export type Database = {
           created_by: string
           id: string
           is_active: boolean
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           sort_order: number | null
           title: string
           updated_at: string
@@ -730,6 +733,9 @@ export type Database = {
           created_by: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           sort_order?: number | null
           title: string
           updated_at?: string
@@ -741,6 +747,9 @@ export type Database = {
           created_by?: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           sort_order?: number | null
           title?: string
           updated_at?: string
