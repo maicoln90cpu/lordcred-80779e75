@@ -41,6 +41,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
+              <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/" element={<Navigate to="/whatsapp" replace />} />
