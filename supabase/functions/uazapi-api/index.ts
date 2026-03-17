@@ -661,12 +661,16 @@ Deno.serve(async (req) => {
       case 'forward-message': {
         const chipToken = await getChipToken(adminClient, chipId, instanceToken)
         if (!chipToken) throw new Error('Chip token not found')
-        const targetNumber = (chatId || '').split('@')[0].replace(/\D/g, '')
+        let targetNumber = (chatId || '').split('@')[0].replace(/\D/g, '')
+        if (targetNumber.length === 10 || targetNumber.length === 11) {
+          targetNumber = '55' + targetNumber
+        }
         if (!targetNumber) throw new Error('Target chatId required')
 
         const fwdText = body.text || message || ''
         if (!fwdText && !messageId) throw new Error('Nothing to forward')
 
+        console.log(`forward-message: sending to ${targetNumber}, text length=${fwdText.length}`)
         const fwdBody: any = { number: targetNumber, text: fwdText }
         const response = await fetchWithTimeout(`${baseUrl}/send/text`, {
           method: 'POST',
@@ -674,8 +678,13 @@ Deno.serve(async (req) => {
           body: JSON.stringify(fwdBody),
           timeout: TIMEOUT.NORMAL,
         })
-        const data = await safeJson(response)
-        if (!response.ok) throw new Error(data.message || 'Failed to forward')
+        const responseText = await response.text()
+        console.log(`forward-message: UazAPI status=${response.status}, body=${responseText.substring(0, 300)}`)
+        let data: any = {}
+        try { data = JSON.parse(responseText) } catch { data = { raw: responseText } }
+        if (!response.ok) {
+          return jsonResponse({ success: false, error: data.message || data.error || 'Failed to forward' })
+        }
         return jsonResponse({ success: true, data })
       }
 
