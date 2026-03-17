@@ -77,6 +77,9 @@ export default function Templates() {
     setTitle('');
     setContent('');
     setCategory('geral');
+    setMediaFile(null);
+    setExistingMediaUrl(null);
+    setExistingMediaType(null);
     setDialogOpen(true);
   };
 
@@ -85,6 +88,9 @@ export default function Templates() {
     setTitle(t.title);
     setContent(t.content);
     setCategory(t.category);
+    setMediaFile(null);
+    setExistingMediaUrl(t.media_url || null);
+    setExistingMediaType(t.media_type || null);
     setDialogOpen(true);
   };
 
