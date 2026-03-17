@@ -27,6 +27,7 @@ import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WhatsApp from "./pages/WhatsApp";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
