@@ -75,7 +75,8 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
-          onSendMedia(base64, t.media_type!, t.content || '', t.media_filename || undefined);
+          const sendType = t.media_type === 'audio' ? 'ptt' : t.media_type!;
+          onSendMedia(base64, sendType, t.content || '', t.media_filename || undefined);
           setOpen(false);
           setSendingId(null);
         };
