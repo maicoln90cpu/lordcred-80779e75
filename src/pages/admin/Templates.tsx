@@ -273,7 +273,7 @@ export default function Templates() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editTemplate ? 'Editar Template' : 'Novo Template'}</DialogTitle>
             <DialogDescription>Crie templates reutilizáveis para agilizar o atendimento</DialogDescription>
