@@ -98,21 +98,53 @@ export default function Templates() {
     if (!title.trim() || !content.trim()) return;
     setSaving(true);
     try {
+      let uploadedMediaUrl: string | null = existingMediaUrl;
+      let uploadedMediaType: string | null = existingMediaType;
+      let uploadedMediaFilename: string | null = editTemplate?.media_filename || null;
+
+      // Upload new media file if selected
+      if (mediaFile) {
+        const ext = mediaFile.file.name.split('.').pop() || 'bin';
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('template-media')
+          .upload(path, mediaFile.file);
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage
+          .from('template-media')
+          .getPublicUrl(path);
+        uploadedMediaUrl = urlData.publicUrl;
+        uploadedMediaType = mediaFile.type;
+        uploadedMediaFilename = mediaFile.file.name;
+      }
+
+      const payload: any = {
+        title: title.trim(),
+        content: content.trim(),
+        category,
+        media_url: uploadedMediaUrl,
+        media_type: uploadedMediaType,
+        media_filename: uploadedMediaFilename,
+      };
+
       if (editTemplate) {
+        payload.updated_at = new Date().toISOString();
         const { error } = await supabase
           .from('message_templates')
-          .update({ title: title.trim(), content: content.trim(), category, updated_at: new Date().toISOString() })
+          .update(payload)
           .eq('id', editTemplate.id);
         if (error) throw error;
         toast({ title: 'Template atualizado' });
       } else {
+        payload.created_by = user!.id;
         const { error } = await supabase
           .from('message_templates')
-          .insert({ title: title.trim(), content: content.trim(), category, created_by: user!.id });
+          .insert(payload);
         if (error) throw error;
         toast({ title: 'Template criado' });
       }
       setDialogOpen(false);
+      setMediaFile(null);
       fetchTemplates();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
