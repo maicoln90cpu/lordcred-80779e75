@@ -421,6 +421,12 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
           <EmojiPicker onSelect={handleEmojiSelect} disabled={disabled} />
 
+          <TemplatePicker
+            disabled={disabled}
+            onInsertText={(text) => { setMessage(text); inputRef.current?.focus(); }}
+            onSendMedia={onSendMedia}
+          />
+
           <div className="relative flex-1">
             {/* Quick replies dropdown */}
             {showQuickReplies && filteredQuickReplies.length > 0 && (

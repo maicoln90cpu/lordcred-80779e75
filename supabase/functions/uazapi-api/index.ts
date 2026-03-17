@@ -668,9 +668,74 @@ Deno.serve(async (req) => {
         if (!targetNumber) throw new Error('Target chatId required')
 
         const fwdText = body.text || message || ''
-        if (!fwdText && !messageId) throw new Error('Nothing to forward')
+        const fwdMediaType = body.mediaType || ''
+        const fwdHasMedia = body.hasMedia === true
+        const fwdMessageId = body.messageId || messageId || ''
 
-        console.log(`forward-message: sending to ${targetNumber}, text length=${fwdText.length}`)
+        console.log(`forward-message: to=${targetNumber}, mediaType=${fwdMediaType}, hasMedia=${fwdHasMedia}, messageId=${fwdMessageId}, textLen=${fwdText.length}`)
+
+        // If media message, download then re-send
+        if (fwdHasMedia && fwdMediaType && fwdMediaType !== 'text' && fwdMediaType !== 'chat' && fwdMessageId) {
+          try {
+            // Step 1: Download media from original message
+            console.log(`forward-message: downloading media for messageId=${fwdMessageId}`)
+            const dlResponse = await fetchWithTimeout(`${baseUrl}/message/download`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+              body: JSON.stringify({ id: fwdMessageId, return_link: true, generate_mp3: true }),
+              timeout: TIMEOUT.MEDIA,
+            })
+            const dlData = await safeJson(dlResponse)
+            console.log(`forward-message: download result keys=${Object.keys(dlData).join(',')}, fileURL=${!!dlData.fileURL}, base64=${!!(dlData.base64Data)}`)
+
+            const mediaFile = dlData.fileURL || dlData.base64Data || null
+            if (!mediaFile) {
+              // Fallback: send text if no media could be downloaded
+              if (fwdText) {
+                console.log(`forward-message: media download failed, falling back to text`)
+                const fallbackResp = await fetchWithTimeout(`${baseUrl}/send/text`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'token': chipToken },
+                  body: JSON.stringify({ number: targetNumber, text: fwdText }),
+                  timeout: TIMEOUT.NORMAL,
+                })
+                const fallbackData = await safeJson(fallbackResp)
+                return jsonResponse({ success: fallbackResp.ok, data: fallbackData, fallback: true })
+              }
+              return jsonResponse({ success: false, error: 'Could not download media for forwarding' })
+            }
+
+            // Step 2: Re-send media to target
+            const sendMediaBody: any = {
+              number: targetNumber,
+              type: fwdMediaType === 'ptt' ? 'ptt' : fwdMediaType,
+              file: mediaFile,
+            }
+            if (fwdText) sendMediaBody.text = fwdText
+
+            console.log(`forward-message: re-sending media type=${sendMediaBody.type} to ${targetNumber}`)
+            const sendResp = await fetchWithTimeout(`${baseUrl}/send/media`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+              body: JSON.stringify(sendMediaBody),
+              timeout: TIMEOUT.MEDIA,
+            })
+            const sendData = await safeJson(sendResp)
+            console.log(`forward-message: send media result status=${sendResp.status}`)
+
+            if (!sendResp.ok) {
+              return jsonResponse({ success: false, error: sendData.message || sendData.error || 'Failed to forward media' })
+            }
+            return jsonResponse({ success: true, data: sendData })
+          } catch (e: any) {
+            console.error(`forward-message: media forward error: ${e.message}`)
+            return jsonResponse({ success: false, error: e.message || 'Media forward failed' })
+          }
+        }
+
+        // Text-only forward
+        if (!fwdText) throw new Error('Nothing to forward')
+        console.log(`forward-message: sending text to ${targetNumber}, text length=${fwdText.length}`)
         const fwdBody: any = { number: targetNumber, text: fwdText }
         const response = await fetchWithTimeout(`${baseUrl}/send/text`, {
           method: 'POST',
