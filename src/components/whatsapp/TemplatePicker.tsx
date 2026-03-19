@@ -67,7 +67,7 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
           const { data: adminRoles } = await supabase
             .from('user_roles')
             .select('user_id')
-            .eq('role', 'admin');
+            .in('role', ['master', 'admin'] as any);
           const adminIds = (adminRoles || []).map(r => r.user_id);
           const allowedIds = [user.id, ...adminIds];
           query = query.in('created_by', allowedIds);

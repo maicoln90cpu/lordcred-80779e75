@@ -60,6 +60,8 @@ export default function InternalChat() {
   const [newMessage, setNewMessage] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [directDialogOpen, setDirectDialogOpen] = useState(false);
+  const [sellerEmailSearch, setSellerEmailSearch] = useState('');
+  const [sellerEmailError, setSellerEmailError] = useState('');
   const [manageMembersOpen, setManageMembersOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState<string | null>(null);
@@ -116,19 +118,24 @@ export default function InternalChat() {
 
   // Load all users (use get_all_chat_profiles for starting new chats)
   const loadUsers = useCallback(async () => {
-    // Try the new function first, fall back to existing one
     const { data: allData } = await supabase.rpc('get_all_chat_profiles' as any);
-    const { data: chatData } = await supabase.rpc('get_internal_chat_profiles');
+    // Use v2 for avatar_url support
+    const { data: chatData } = await supabase.rpc('get_internal_chat_profiles_v2' as any);
+    // Fallback to original if v2 doesn't exist
+    const chatProfiles = chatData || (await supabase.rpc('get_internal_chat_profiles')).data;
     
-    const users = (allData || chatData || []) as unknown as UserProfile[];
+    const users = (allData || chatProfiles || []) as unknown as UserProfile[];
     setAllUsers(users);
     const map: Record<string, UserProfile> = {};
     users.forEach(u => { map[u.user_id] = u; });
     
-    // Also merge chat profiles to ensure we have all senders
-    if (chatData && allData) {
-      (chatData as unknown as UserProfile[]).forEach(u => {
+    // Also merge chat profiles to ensure we have all senders with avatar_url
+    if (chatProfiles && allData) {
+      (chatProfiles as unknown as UserProfile[]).forEach(u => {
         if (!map[u.user_id]) map[u.user_id] = u;
+        else if (u.avatar_url && !map[u.user_id].avatar_url) {
+          map[u.user_id].avatar_url = u.avatar_url;
+        }
       });
     }
     
@@ -967,38 +974,85 @@ export default function InternalChat() {
       </Dialog>
 
       {/* Direct Chat Dialog */}
-      <Dialog open={directDialogOpen} onOpenChange={setDirectDialogOpen}>
+      <Dialog open={directDialogOpen} onOpenChange={(open) => { setDirectDialogOpen(open); if (!open) { setSellerEmailSearch(''); setSellerEmailError(''); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nova Conversa Direta</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Selecione um usuário para iniciar uma conversa:</p>
-          <ScrollArea className="h-64 border rounded-md p-2">
-            {allUsers.filter(u => u.user_id !== user?.id).map(u => {
-              const isOnline = onlineUsers.has(u.user_id);
-              return (
-                <div
-                  key={u.user_id}
-                  className="flex items-center gap-3 py-2 px-2 hover:bg-accent/50 rounded cursor-pointer transition-colors"
-                  onClick={() => handleStartDirectChat(u.user_id)}
-                >
-                  <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    <User className="w-4 h-4 text-primary" />
-                    {isOnline && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{u.name || u.email}</p>
-                    {u.name && <p className="text-xs text-muted-foreground">{u.email}</p>}
-                  </div>
-                  <span className={cn("text-xs", isOnline ? "text-green-500" : "text-muted-foreground")}>
-                    {isOnline ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-              );
-            })}
-          </ScrollArea>
+          {isSeller ? (
+            <>
+              <p className="text-sm text-muted-foreground">Digite o email completo do usuário para iniciar uma conversa:</p>
+              <div className="space-y-3">
+                <Input
+                  placeholder="email@exemplo.com"
+                  value={sellerEmailSearch}
+                  onChange={(e) => { setSellerEmailSearch(e.target.value); setSellerEmailError(''); }}
+                />
+                {sellerEmailError && <p className="text-xs text-destructive">{sellerEmailError}</p>}
+                <Button className="w-full" disabled={!sellerEmailSearch.trim()} onClick={async () => {
+                  const email = sellerEmailSearch.trim().toLowerCase();
+                  // Find user by exact email match
+                  const targetUser = allUsers.find(u => u.email.toLowerCase() === email && u.user_id !== user?.id);
+                  if (!targetUser) {
+                    setSellerEmailError('Usuário não encontrado. Digite o email completo.');
+                    return;
+                  }
+                  // Check if target is support or admin (not seller)
+                  const { data: targetRole } = await supabase
+                    .from('user_roles')
+                    .select('role')
+                    .eq('user_id', targetUser.user_id)
+                    .single();
+                  if (!targetRole || (targetRole.role !== 'support' && targetRole.role !== 'admin' && targetRole.role !== 'master')) {
+                    setSellerEmailError('Você só pode iniciar conversas com Suporte ou Administradores.');
+                    return;
+                  }
+                  handleStartDirectChat(targetUser.user_id);
+                  setSellerEmailSearch('');
+                  setSellerEmailError('');
+                }}>
+                  Iniciar Conversa
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">Selecione um usuário para iniciar uma conversa:</p>
+              <ScrollArea className="h-64 border rounded-md p-2">
+                {allUsers.filter(u => u.user_id !== user?.id).map(u => {
+                  const isOnline = onlineUsers.has(u.user_id);
+                  return (
+                    <div
+                      key={u.user_id}
+                      className="flex items-center gap-3 py-2 px-2 hover:bg-accent/50 rounded cursor-pointer transition-colors"
+                      onClick={() => handleStartDirectChat(u.user_id)}
+                    >
+                      <div className="relative">
+                        <Avatar className="w-8 h-8">
+                          {profilesMap[u.user_id]?.avatar_url ? (
+                            <AvatarImage src={profilesMap[u.user_id].avatar_url!} />
+                          ) : null}
+                          <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                            {(u.name?.[0] || u.email[0] || 'U').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isOnline && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{u.name || u.email}</p>
+                        {u.name && <p className="text-xs text-muted-foreground">{u.email}</p>}
+                      </div>
+                      <span className={cn("text-xs", isOnline ? "text-green-500" : "text-muted-foreground")}>
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </ScrollArea>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
