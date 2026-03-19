@@ -66,10 +66,12 @@ interface NavGroupWithChildren {
 
 const navGroups: NavGroupWithChildren[] = [
   {
-    groupLabel: 'Principal',
+    groupLabel: 'Aquecimento',
     items: [
-      { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
+      { label: 'Dash. Aquecimento', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
       { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
+      { label: 'Config. Aquecimento', icon: Settings, href: '/settingsaquecimento', sellerHidden: true },
+      { label: 'Relat. Aquecimento', icon: BarChart3, href: '/admin/warming-reports', sellerHidden: true },
     ],
   },
   {
@@ -87,7 +89,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
       { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
       { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
-      { label: 'Templates', icon: FileText, href: '/admin/templates', sellerHidden: true },
+      { label: 'Templates', icon: FileText, href: '/admin/templates' },
     ],
   },
   {
@@ -108,7 +110,6 @@ const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Sistema',
     items: [
-      { label: 'Configurações', icon: Settings, href: '/settings', sellerHidden: true },
       { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
     ],
   },

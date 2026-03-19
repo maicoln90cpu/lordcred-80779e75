@@ -41,7 +41,7 @@ const CATEGORIES = [
 
 export default function Templates() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isSeller } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -191,8 +191,8 @@ export default function Templates() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Templates de Mensagem</h1>
-            <p className="text-muted-foreground">Gerencie templates globais por categoria</p>
+            <h1 className="text-2xl font-bold">{isSeller ? 'Meus Templates' : 'Templates de Mensagem'}</h1>
+            <p className="text-muted-foreground">{isSeller ? 'Crie e gerencie seus templates pessoais' : 'Gerencie templates globais por categoria'}</p>
           </div>
           <Button onClick={openNew}>
             <Plus className="w-4 h-4 mr-2" />
@@ -244,12 +244,16 @@ export default function Templates() {
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
                               <Copy className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(t)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            {(!isSeller || t.created_by === user?.id) && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(t)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                         {t.media_url && t.media_type === 'image' && (

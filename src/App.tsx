@@ -27,6 +27,7 @@ import QueueManagement from "./pages/admin/QueueManagement";
 import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
+import WarmingReports from "./pages/admin/WarmingReports";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
@@ -53,8 +54,9 @@ const App = () => (
               <Route path="/messages" element={<ProtectedRoute blockSellers><Messages /></ProtectedRoute>} />
               <Route path="/history" element={<Navigate to="/messages" replace />} />
               <Route path="/admin/users" element={<ProtectedRoute blockSellers><Users /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
+              <Route path="/settingsaquecimento" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
+              <Route path="/settings" element={<Navigate to="/settingsaquecimento" replace />} />
+              <Route path="/admin/settings" element={<Navigate to="/settingsaquecimento" replace />} />
               <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
               <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
               <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
@@ -66,8 +68,9 @@ const App = () => (
               <Route path="/admin/audit-logs" element={<ProtectedRoute blockSellers><AuditLogs /></ProtectedRoute>} />
               <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
               <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
-              <Route path="/admin/templates" element={<ProtectedRoute blockSellers><Templates /></ProtectedRoute>} />
+              <Route path="/admin/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
               <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
+              <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

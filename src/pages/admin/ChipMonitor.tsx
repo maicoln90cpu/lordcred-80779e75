@@ -397,7 +397,6 @@ export default function ChipMonitor() {
         <Tabs defaultValue="status" className="space-y-4">
           <TabsList>
             <TabsTrigger value="status">Status dos Chips</TabsTrigger>
-            <TabsTrigger value="warming">Relatórios de Aquecimento</TabsTrigger>
             <TabsTrigger value="logs">Logs de Atividade</TabsTrigger>
           </TabsList>
 
@@ -541,133 +540,7 @@ export default function ChipMonitor() {
             )}
           </TabsContent>
 
-          {/* Warming Reports Tab */}
-          <TabsContent value="warming" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Messages over time chart */}
-              <Card className="lg:col-span-2 border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-base">Mensagens nos Últimos 14 Dias</CardTitle>
-                  <CardDescription>Enviadas, recebidas e erros por dia</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {warmingData.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground text-sm">Sem dados de mensagens no período</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={warmingData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            color: 'hsl(var(--foreground))',
-                          }}
-                        />
-                        <Legend />
-                        <Bar dataKey="sent" name="Enviadas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="received" name="Recebidas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="errors" name="Erros" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Phase distribution */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-base">Distribuição por Fase</CardTitle>
-                  <CardDescription>Chips por fase de aquecimento</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {phaseDistribution.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground text-sm">Sem chips</div>
-                  ) : (
-                    <>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                          <Pie
-                            data={phaseDistribution}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={80}
-                            dataKey="value"
-                            paddingAngle={2}
-                          >
-                            {phaseDistribution.map((_, idx) => (
-                              <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="space-y-1 mt-2">
-                        {phaseDistribution.map((d, idx) => (
-                          <div key={d.name} className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
-                              <span>{d.name}</span>
-                            </div>
-                            <span className="font-medium">{d.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Per-chip warming stats */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="text-base">Progresso de Aquecimento por Chip</CardTitle>
-                <CardDescription>Desempenho diário e progressão de fase</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {chips.map(chip => {
-                    const phase = PHASE_CONFIG[chip.warming_phase] || PHASE_CONFIG.novo;
-                    const limit = getMessageLimit(chip.warming_phase);
-                    const progress = limit > 0 ? Math.min(100, (chip.messages_sent_today / limit) * 100) : 0;
-                    const phaseProgress = ((phase.order + 1) / 5) * 100;
-
-                    return (
-                      <div key={chip.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30">
-                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", STATUS_COLORS[chip.status] || 'bg-muted')} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium truncate">
-                              {chip.nickname || chip.instance_name}
-                              {chip.phone_number && <span className="text-muted-foreground ml-2 text-xs">+{chip.phone_number}</span>}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
-                              {phase.label}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-[10px] text-muted-foreground mb-0.5">Msgs hoje ({chip.messages_sent_today}/{limit})</p>
-                              <Progress value={progress} className="h-1" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-muted-foreground mb-0.5">Fase ({phase.order + 1}/5)</p>
-                              <Progress value={phaseProgress} className="h-1" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Logs Tab */}
           <TabsContent value="logs" className="space-y-4">
