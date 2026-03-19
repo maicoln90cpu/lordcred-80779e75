@@ -395,9 +395,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 <strong>{confirmDialog?.sellerName}</strong> para{' '}
                 <strong>{confirmDialog?.targetName}</strong>.
               </p>
-              {confirmDialog?.status !== 'all' && (
-                <p className="text-sm">Filtro status: <Badge variant="outline">{confirmDialog?.status}</Badge></p>
-              )}
               {confirmDialog?.profile !== 'all' && (
                 <p className="text-sm">Filtro perfil: <Badge variant="outline">{confirmDialog?.profile}</Badge></p>
               )}
