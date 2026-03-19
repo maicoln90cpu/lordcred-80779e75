@@ -502,15 +502,33 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
-  // Color hex presets for lead status/profiles (same style as Kanban)
-  const COLOR_HEX_PRESETS = [
-    '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
-    '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6',
-  ];
-
-  // Convert hex to tailwind-compatible color_class
+  // Convert hex to a storable format that works with inline styles
   const hexToColorClass = (hex: string) => {
-    return `bg-[${hex}]/20 text-[${hex}] hover:bg-[${hex}]/30`;
+    return `hex:${hex}`;
+  };
+
+  // Extract hex from color_class — supports both "hex:#abc123" and legacy "bg-[#abc123]/20 text-[#abc123]"
+  const extractHex = (colorClass: string): string | null => {
+    if (colorClass.startsWith('hex:')) return colorClass.slice(4);
+    const match = colorClass.match(/#[0-9a-fA-F]{6}/);
+    return match ? match[0] : null;
+  };
+
+  // Render a badge with proper color — uses inline styles for hex colors, CSS classes for Tailwind presets
+  const renderColorBadge = (label: string, colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return (
+        <Badge
+          variant="secondary"
+          style={{ backgroundColor: hex + '33', color: hex, borderColor: hex + '44' }}
+        >
+          {label}
+        </Badge>
+      );
+    }
+    // Fallback: use Tailwind class (for default presets that are known safe static classes)
+    return <Badge className={colorClass}>{label}</Badge>;
   };
 
   return (
