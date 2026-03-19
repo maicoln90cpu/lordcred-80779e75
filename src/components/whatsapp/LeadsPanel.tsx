@@ -26,6 +26,12 @@ interface StatusOption {
   color_class: string;
 }
 
+interface ProfileOption {
+  value: string;
+  label: string;
+  color_class: string;
+}
+
 const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
   { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground hover:bg-muted/80' },
   { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
@@ -39,8 +45,29 @@ const PAGE_SIZE = 50;
 type SortField = 'nome' | 'valor_lib' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
+// Fetch all rows without the 1000 limit
+async function fetchAllLeads() {
+  const allData: any[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('client_leads' as any)
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + batchSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return allData;
+}
+
 export default function LeadsPanel({ open, onOpenChange, onStartConversation }: LeadsPanelProps) {
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPerfil, setFilterPerfil] = useState<string>('all');
   const [filterBatch, setFilterBatch] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
@@ -69,24 +96,37 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
+  // Fetch dynamic profile options
+  const { data: profileOptions = [] } = useQuery({
+    queryKey: ['lead-profile-options'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_profile_options')
+        .maybeSingle();
+      if (data?.lead_profile_options && Array.isArray(data.lead_profile_options)) {
+        return data.lead_profile_options as unknown as ProfileOption[];
+      }
+      return [];
+    }
+  });
+
   const statusColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     statusOptions.forEach(s => { map[s.value] = s.color_class; });
     return map;
   }, [statusOptions]);
 
+  const profileColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    profileOptions.forEach(p => { map[p.value] = p.color_class; });
+    return map;
+  }, [profileOptions]);
+
   const { data: allLeads = [], isLoading } = useQuery({
     queryKey: ['my-leads-all'],
     enabled: open && !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('client_leads' as any)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000);
-      if (error) throw error;
-      return data as any[];
-    }
+    queryFn: fetchAllLeads,
   });
 
   const batchNames = useMemo(() => {
@@ -102,6 +142,15 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     return counts;
   }, [allLeads, statusOptions]);
 
+  const perfilCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    profileOptions.forEach(p => { counts[p.value] = 0; });
+    allLeads.forEach((l: any) => {
+      if (l.perfil) counts[l.perfil] = (counts[l.perfil] || 0) + 1;
+    });
+    return counts;
+  }, [allLeads, profileOptions]);
+
   const contactedPercent = useMemo(() => {
     if (allLeads.length === 0) return 0;
     const contacted = allLeads.filter((l: any) => l.status !== 'pendente').length;
@@ -111,12 +160,14 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const filteredLeads = useMemo(() => {
     let result = [...allLeads];
     if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
+    if (filterPerfil !== 'all') result = result.filter((l: any) => l.perfil === filterPerfil);
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter((l: any) =>
         (l.nome && l.nome.toLowerCase().includes(term)) ||
-        (l.telefone && l.telefone.includes(term))
+        (l.telefone && l.telefone.includes(term)) ||
+        (l.cpf && l.cpf.includes(term))
       );
     }
     result.sort((a: any, b: any) => {
@@ -126,12 +177,13 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [allLeads, filterStatus, filterBatch, searchTerm, sortField, sortDir]);
+  }, [allLeads, filterStatus, filterPerfil, filterBatch, searchTerm, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
   const pagedLeads = filteredLeads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const handleFilterStatus = (v: string) => { setFilterStatus(v); setPage(0); };
+  const handleFilterPerfil = (v: string) => { setFilterPerfil(v); setPage(0); };
   const handleFilterBatch = (v: string) => { setFilterBatch(v); setPage(0); };
   const handleSearch = (v: string) => { setSearchTerm(v); setPage(0); };
 
@@ -182,7 +234,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
@@ -199,7 +251,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
           <Progress value={contactedPercent} className="h-2" />
         </div>
 
-        {/* Status counters */}
+        {/* Status filter badges */}
         <div className="flex-shrink-0 flex flex-wrap gap-2">
           <Badge
             variant={filterStatus === 'all' ? 'default' : 'outline'}
@@ -219,11 +271,34 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
           ))}
         </div>
 
+        {/* Profile filter badges */}
+        {profileOptions.length > 0 && (
+          <div className="flex-shrink-0 flex flex-wrap gap-2">
+            <span className="text-xs text-muted-foreground self-center mr-1">Perfil:</span>
+            <Badge
+              variant={filterPerfil === 'all' ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => handleFilterPerfil('all')}
+            >
+              Todos
+            </Badge>
+            {profileOptions.map(p => (
+              <Badge
+                key={p.value}
+                className={`cursor-pointer ${filterPerfil === p.value ? p.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                onClick={() => handleFilterPerfil(filterPerfil === p.value ? 'all' : p.value)}
+              >
+                {p.label}: {perfilCounts[p.value] || 0}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex-shrink-0 flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar por nome ou telefone..." value={searchTerm} onChange={(e) => handleSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Buscar por nome, telefone ou CPF..." value={searchTerm} onChange={(e) => handleSearch(e.target.value)} className="pl-9" />
           </div>
           {batchNames.length > 0 && (
             <Select value={filterBatch} onValueChange={handleFilterBatch}>
@@ -247,7 +322,8 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Nome:</span> <strong>{selectedLead.nome}</strong></div>
                 <div><span className="text-muted-foreground">Telefone:</span> <strong>{selectedLead.telefone}</strong></div>
-                <div><span className="text-muted-foreground">CPF:</span> {selectedLead.cpf}</div>
+                <div><span className="text-muted-foreground">CPF:</span> {selectedLead.cpf || '-'}</div>
+                <div><span className="text-muted-foreground">Perfil:</span> {selectedLead.perfil || '-'}</div>
                 <div><span className="text-muted-foreground">Valor Lib.:</span> {selectedLead.valor_lib ? Number(selectedLead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
                 <div><span className="text-muted-foreground">Prazo:</span> {selectedLead.prazo || '-'} meses</div>
                 <div><span className="text-muted-foreground">Parcela:</span> {selectedLead.vlr_parcela ? Number(selectedLead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
@@ -301,10 +377,12 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                       <TableHead className="cursor-pointer" onClick={() => toggleSort('nome')}>
                         Nome <ArrowUpDown className="inline w-3 h-3 ml-1" />
                       </TableHead>
+                      <TableHead>CPF</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead className="cursor-pointer" onClick={() => toggleSort('valor_lib')}>
                         Valor Lib. <ArrowUpDown className="inline w-3 h-3 ml-1" />
                       </TableHead>
+                      <TableHead>Perfil</TableHead>
                       <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
                         Status <ArrowUpDown className="inline w-3 h-3 ml-1" />
                       </TableHead>
@@ -315,9 +393,17 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                     {pagedLeads.map((lead: any) => (
                       <TableRow key={lead.id} className="cursor-pointer" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
                         <TableCell className="font-medium">{lead.nome}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{lead.cpf || '-'}</TableCell>
                         <TableCell>{lead.telefone}</TableCell>
                         <TableCell>
                           {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {lead.perfil ? (
+                            <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>
+                              {lead.perfil}
+                            </Badge>
+                          ) : '-'}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>

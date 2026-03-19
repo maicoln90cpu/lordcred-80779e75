@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { format } from 'date-fns';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
-import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar } from 'lucide-react';
+import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SellerProfile {
@@ -45,7 +48,48 @@ const PERIOD_OPTIONS = [
   { label: '30 dias', value: 30 },
   { label: '90 dias', value: 90 },
   { label: 'Tudo', value: 0 },
+  { label: 'Personalizado', value: -1 },
 ];
+
+// Fetch all rows without the 1000 limit
+async function fetchAllMessages(cutoff?: string) {
+  const allData: MessageData[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    let query = supabase
+      .from('message_history')
+      .select('chip_id, direction, created_at')
+      .order('created_at', { ascending: false })
+      .range(from, from + batchSize - 1);
+    if (cutoff) query = query.gte('created_at', cutoff);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return allData;
+}
+
+async function fetchAllLeads() {
+  const allData: LeadData[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('client_leads')
+      .select('id, assigned_to, status, contacted_at, created_at')
+      .range(from, from + batchSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return allData;
+}
 
 export default function Performance() {
   const { user } = useAuth();
@@ -55,6 +99,8 @@ export default function Performance() {
   const [chips, setChips] = useState<ChipData[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodDays, setPeriodDays] = useState(30);
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
 
   useEffect(() => {
     fetchData();
@@ -62,36 +108,55 @@ export default function Performance() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [sellersRes, leadsRes, messagesRes, chipsRes] = await Promise.all([
+    const [sellersRes, chipsRes] = await Promise.all([
       supabase.from('profiles').select('user_id, email, name'),
-      supabase.from('client_leads').select('id, assigned_to, status, contacted_at, created_at'),
-      supabase.from('message_history').select('chip_id, direction, created_at').order('created_at', { ascending: false }).limit(1000),
       supabase.from('chips').select('id, user_id'),
     ]);
+    const [leadsData, messagesData] = await Promise.all([
+      fetchAllLeads(),
+      fetchAllMessages(),
+    ]);
     if (sellersRes.data) setSellers(sellersRes.data);
-    if (leadsRes.data) setLeads(leadsRes.data);
-    if (messagesRes.data) setMessages(messagesRes.data);
+    setLeads(leadsData);
+    setMessages(messagesData);
     if (chipsRes.data) setChips(chipsRes.data);
     setLoading(false);
   };
 
   // Filter data by period
   const cutoffDate = useMemo(() => {
+    if (periodDays === -1) {
+      // Custom date range
+      return customDateFrom ? customDateFrom.toISOString() : null;
+    }
     if (periodDays === 0) return null;
     const d = new Date();
     d.setDate(d.getDate() - periodDays);
     return d.toISOString();
-  }, [periodDays]);
+  }, [periodDays, customDateFrom]);
+
+  const cutoffDateTo = useMemo(() => {
+    if (periodDays === -1 && customDateTo) {
+      const d = new Date(customDateTo);
+      d.setHours(23, 59, 59, 999);
+      return d.toISOString();
+    }
+    return null;
+  }, [periodDays, customDateTo]);
 
   const filteredLeads = useMemo(() => {
-    if (!cutoffDate) return leads;
-    return leads.filter(l => l.created_at >= cutoffDate);
-  }, [leads, cutoffDate]);
+    let result = leads;
+    if (cutoffDate) result = result.filter(l => l.created_at >= cutoffDate);
+    if (cutoffDateTo) result = result.filter(l => l.created_at <= cutoffDateTo);
+    return result;
+  }, [leads, cutoffDate, cutoffDateTo]);
 
   const filteredMessages = useMemo(() => {
-    if (!cutoffDate) return messages;
-    return messages.filter(m => m.created_at >= cutoffDate);
-  }, [messages, cutoffDate]);
+    let result = messages;
+    if (cutoffDate) result = result.filter(m => m.created_at >= cutoffDate);
+    if (cutoffDateTo) result = result.filter(m => m.created_at <= cutoffDateTo);
+    return result;
+  }, [messages, cutoffDate, cutoffDateTo]);
 
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -172,7 +237,7 @@ export default function Performance() {
   }, [sellerStats]);
 
   const getSellerEvolution = (userId: string) => {
-    const days_count = periodDays || 30;
+    const days_count = periodDays > 0 ? periodDays : 30;
     const sellerLeads = filteredLeads.filter(l => l.assigned_to === userId && l.contacted_at);
     const days: Record<string, number> = {};
     const now = Date.now();
@@ -214,10 +279,18 @@ export default function Performance() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ranking-vendedores-${periodDays || 'total'}dias.csv`;
+    a.download = `ranking-vendedores-${periodDays > 0 ? periodDays + 'dias' : 'personalizado'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [sellerStats, periodDays]);
+
+  const handlePeriodChange = (value: number) => {
+    setPeriodDays(value);
+    if (value !== -1) {
+      setCustomDateFrom(undefined);
+      setCustomDateTo(undefined);
+    }
+  };
 
   if (loading) {
     return (
@@ -232,25 +305,68 @@ export default function Performance() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold">Performance</h1>
             <p className="text-muted-foreground">Métricas de desempenho dos vendedores</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <CalendarIcon className="w-4 h-4 text-muted-foreground" />
             {PERIOD_OPTIONS.map(opt => (
               <Button
                 key={opt.value}
                 variant={periodDays === opt.value ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setPeriodDays(opt.value)}
+                onClick={() => handlePeriodChange(opt.value)}
               >
                 {opt.label}
               </Button>
             ))}
           </div>
         </div>
+
+        {/* Custom date pickers */}
+        {periodDays === -1 && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {customDateFrom ? format(customDateFrom, 'dd/MM/yyyy') : 'Data início'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={customDateFrom}
+                  onSelect={setCustomDateFrom}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <span className="text-muted-foreground text-sm">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {customDateTo ? format(customDateTo, 'dd/MM/yyyy') : 'Data fim'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={customDateTo}
+                  onSelect={setCustomDateTo}
+                  disabled={(date) => date > new Date() || (customDateFrom ? date < customDateFrom : false)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         <Tabs defaultValue="geral">
           <TabsList>
@@ -432,7 +548,7 @@ export default function Performance() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div>
-                        <p className="text-sm font-medium mb-2 text-muted-foreground">Leads Contatados (últimos {periodDays || 30} dias)</p>
+                        <p className="text-sm font-medium mb-2 text-muted-foreground">Leads Contatados (últimos {periodDays > 0 ? periodDays : 30} dias)</p>
                         <div className="h-48">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={evolution}>
