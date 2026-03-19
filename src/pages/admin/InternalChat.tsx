@@ -52,7 +52,7 @@ interface UserProfile {
 }
 
 export default function InternalChat() {
-  const { user, isSeller, isAdmin: isRealAdmin } = useAuth();
+  const { user, isSeller, isMaster, isAdmin: isRealAdmin } = useAuth();
   const { toast } = useToast();
   const { unreadByChannel, onlineUsers, markAsRead, setActiveChannel } = useInternalChatUnread();
   const [channels, setChannels] = useState<Channel[]>([]);
