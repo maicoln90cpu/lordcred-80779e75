@@ -385,9 +385,10 @@ export default function Performance() {
           {/* ===== ABA GERAL ===== */}
           <TabsContent value="geral" className="space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
               <KPICard icon={Users} label="Vendedores Ativos" value={globalStats.activeSellers} />
               <KPICard icon={Phone} label="Total Leads" value={globalStats.totalLeads} />
+              <KPICard icon={Clock} label="Pendentes" value={globalStats.totalPending} />
               <KPICard icon={TrendingUp} label="Contatados" value={globalStats.totalContacted} />
               <KPICard icon={CheckCircle} label="Aprovados" value={globalStats.totalApproved} />
               <KPICard icon={MessageSquare} label="Msgs Enviadas" value={globalStats.totalSent} />
