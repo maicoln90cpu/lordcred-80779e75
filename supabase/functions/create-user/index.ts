@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
 
     const callerRole = roleData?.role
     
-    // admin, user and support can create users
-    if (callerRole !== 'admin' && callerRole !== 'user' && callerRole !== 'support') {
+    // master, admin and support can create users
+    if (callerRole !== 'master' && callerRole !== 'admin' && callerRole !== 'support') {
       return new Response(
         JSON.stringify({ error: 'Access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -83,8 +83,8 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Only admin and user (administrador) can reset passwords
-      if (callerRole !== 'admin' && callerRole !== 'user') {
+      // Only master and admin (administrador) can reset passwords
+      if (callerRole !== 'master' && callerRole !== 'admin') {
         return new Response(
           JSON.stringify({ error: 'Only admins can reset passwords' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -131,9 +131,9 @@ Deno.serve(async (req) => {
 
     // Validate role based on caller's permissions
     let validRole: string
-    if (callerRole === 'admin') {
-      validRole = ['user', 'seller', 'support'].includes(role) ? role : 'seller'
-    } else if (callerRole === 'user') {
+    if (callerRole === 'master') {
+      validRole = ['admin', 'seller', 'support'].includes(role) ? role : 'seller'
+    } else if (callerRole === 'admin') {
       validRole = ['seller', 'support'].includes(role) ? role : 'seller'
     } else {
       validRole = 'seller'

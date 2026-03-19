@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       const userId = claimsData.claims.sub as string
       const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).single()
       const role = roleData?.role
-      if (role !== 'admin' && role !== 'user' && role !== 'support') {
+      if (role !== 'master' && role !== 'admin' && role !== 'support') {
         return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })

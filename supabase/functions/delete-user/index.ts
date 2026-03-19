@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
       .eq('user_id', caller.id)
       .single();
 
-    // Allow admin and user (Administrador) roles
-    if (callerRole?.role !== 'admin' && callerRole?.role !== 'user') {
+    // Allow master and admin (Administrador) roles
+    if (callerRole?.role !== 'master' && callerRole?.role !== 'admin') {
       return new Response(
         JSON.stringify({ error: 'Permissão negada' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -73,15 +73,15 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .single();
 
-    if (targetRole?.role === 'admin') {
+    if (targetRole?.role === 'master') {
       return new Response(
-        JSON.stringify({ error: 'Cannot delete admin users' }),
+        JSON.stringify({ error: 'Cannot delete master users' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // If caller is 'user' (Administrador), verify they created the target
-    if (callerRole?.role === 'user') {
+    // If caller is 'admin' (Administrador), verify they created the target
+    if (callerRole?.role === 'admin') {
       const { data: targetProfile } = await adminClient
         .from('profiles')
         .select('created_by')
