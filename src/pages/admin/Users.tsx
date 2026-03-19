@@ -289,7 +289,7 @@ export default function Users() {
                     <Label>Tipo de Usuário</Label>
                     <RadioGroup
                       value={newUserRole}
-                      onValueChange={(value) => setNewUserRole(value as 'user' | 'seller' | 'support')}
+                      onValueChange={(value) => setNewUserRole(value as 'admin' | 'seller' | 'support')}
                       className="flex flex-wrap gap-4"
                     >
                       <div className="flex items-center space-x-2">
@@ -302,8 +302,8 @@ export default function Users() {
                       </div>
                       {isMaster && (
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="user" id="role-user" />
-                          <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                          <RadioGroupItem value="admin" id="role-admin" />
+                          <Label htmlFor="role-admin" className="cursor-pointer">Administrador</Label>
                         </div>
                       )}
                     </RadioGroup>

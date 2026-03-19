@@ -76,7 +76,7 @@ export default function LeadImporter() {
         .in('user_id', userIds);
       return (profiles || []).map(p => {
         const role = roles.find(r => r.user_id === p.user_id);
-        return { user_id: p.user_id, name: p.name || p.email, email: p.email, role: role?.role || 'user' };
+        return { user_id: p.user_id, name: p.name || p.email, email: p.email, role: role?.role || 'seller' };
       });
     }
   });
