@@ -282,15 +282,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
           >
             Todos: {statusCounts.total}
           </Badge>
-          {statusOptions.map(s => (
-            <Badge
-              key={s.value}
-              className={`cursor-pointer ${filterStatus === s.value ? s.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
-              onClick={() => handleFilterStatus(filterStatus === s.value ? 'all' : s.value)}
-            >
-              {s.label}: {statusCounts[s.value] || 0}
-            </Badge>
-          ))}
+          {statusOptions.map(s => {
+            const cs = getColorStyle(s.color_class);
+            const isActive = filterStatus === s.value;
+            return (
+              <Badge
+                key={s.value}
+                className={`cursor-pointer ${isActive ? cs.className : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                style={isActive ? cs.style : {}}
+                onClick={() => handleFilterStatus(filterStatus === s.value ? 'all' : s.value)}
+              >
+                {s.label}: {statusCounts[s.value] || 0}
+              </Badge>
+            );
+          })}
         </div>
 
         {/* Profile filter badges */}
