@@ -73,9 +73,9 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .single();
 
-    if (targetRole?.role === 'admin') {
+    if (targetRole?.role === 'master') {
       return new Response(
-        JSON.stringify({ error: 'Cannot delete admin users' }),
+        JSON.stringify({ error: 'Cannot delete master users' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
