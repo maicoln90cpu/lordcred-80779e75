@@ -73,6 +73,40 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     }).catch(() => {});
   }, [chipId]);
 
+  // Fetch shortcuts from DB when chipId changes
+  useEffect(() => {
+    if (!chipId) return;
+    if (shortcutCache[chipId]) return;
+    supabase
+      .from('message_shortcuts' as any)
+      .select('trigger_word,response_text,is_active')
+      .or(`chip_id.eq.${chipId},chip_id.is.null`)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        shortcutCache[chipId] = (data as any[]) || [];
+      })
+      .catch(() => {});
+  }, [chipId]);
+
+  // Detect trigger words in last incoming message
+  useEffect(() => {
+    if (!lastIncomingText || !chipId) {
+      setShortcutSuggestion(null);
+      return;
+    }
+    if (lastMatchedTextRef.current === lastIncomingText) return;
+    lastMatchedTextRef.current = lastIncomingText;
+
+    const shortcuts = shortcutCache[chipId] || [];
+    const incomingLower = lastIncomingText.toLowerCase();
+    const match = shortcuts.find(s => s.is_active && incomingLower.includes(s.trigger_word));
+    if (match) {
+      setShortcutSuggestion({ trigger_word: match.trigger_word, response_text: match.response_text });
+    } else {
+      setShortcutSuggestion(null);
+    }
+  }, [lastIncomingText, chipId]);
+
   // Handle "/" trigger for quick replies
   const handleMessageChange = (value: string) => {
     setMessage(value);
