@@ -141,7 +141,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     if (filterPerfil !== 'all') subset = subset.filter((l: any) => l.perfil === filterPerfil);
     const counts: Record<string, number> = { total: subset.length };
     statusOptions.forEach(s => { counts[s.value] = 0; });
-    subset.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    subset.forEach((l: any) => { const st = l.status || 'pendente'; counts[st] = (counts[st] || 0) + 1; });
     return counts;
   }, [allLeads, statusOptions, filterPerfil]);
 
