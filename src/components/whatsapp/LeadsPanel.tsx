@@ -463,9 +463,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
                             <SelectTrigger className="h-7 w-32 text-xs border-0 p-1">
-                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>
-                                {lead.status}
-                              </Badge>
+                              {(() => {
+                                const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
+                                return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>;
+                              })()}
                             </SelectTrigger>
                             <SelectContent>
                               {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
