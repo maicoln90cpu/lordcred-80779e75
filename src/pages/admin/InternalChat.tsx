@@ -780,9 +780,9 @@ export default function InternalChat() {
                   </p>
                 </div>
                 {isAdmin && selectedChannel.is_group && (
-                  <Button variant="outline" size="sm" onClick={openManageMembers}>
-                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                    Membros
+                  <Button variant="outline" size="sm" onClick={openGroupConfig}>
+                    <Settings className="w-3.5 h-3.5 mr-1.5" />
+                    Configurações
                   </Button>
                 )}
               </div>
