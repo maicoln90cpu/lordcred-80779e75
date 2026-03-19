@@ -118,7 +118,7 @@ const navGroups: NavGroupWithChildren[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin, isSeller, isSupport, signOut } = useAuth();
+  const { user, isMaster, isAdmin, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
