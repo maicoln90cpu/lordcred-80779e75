@@ -1180,8 +1180,32 @@ export default function InternalChat() {
                   <p className="text-sm font-medium">Somente admins podem enviar</p>
                   <p className="text-xs text-muted-foreground">Apenas administradores poderão enviar mensagens neste grupo</p>
                 </div>
-                <Switch checked={configAdminOnly} onCheckedChange={setConfigAdminOnly} />
+                <Switch checked={configAdminOnly} onCheckedChange={setConfigAdminOnly} disabled={!isAdmin} />
               </div>
+              {isAdmin && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Usuários com acesso às configurações</Label>
+                  <p className="text-xs text-muted-foreground">Selecione membros que podem editar nome, descrição, avatar e membros deste grupo.</p>
+                  <ScrollArea className="h-40 border rounded-md p-2">
+                    {selectedUsers.filter(uid => uid !== user?.id).map(uid => {
+                      const profile = profilesMap[uid];
+                      return (
+                        <label key={uid} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
+                          <Checkbox
+                            checked={configAllowedUsers.includes(uid)}
+                            onCheckedChange={(checked) => {
+                              setConfigAllowedUsers(prev =>
+                                checked ? [...prev, uid] : prev.filter(id => id !== uid)
+                              );
+                            }}
+                          />
+                          <span className="text-sm">{profile?.name || profile?.email || uid}</span>
+                        </label>
+                      );
+                    })}
+                  </ScrollArea>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
           <DialogFooter>
