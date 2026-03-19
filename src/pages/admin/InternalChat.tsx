@@ -4,14 +4,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
-import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Channel {
