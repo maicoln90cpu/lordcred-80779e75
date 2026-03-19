@@ -116,19 +116,24 @@ export default function InternalChat() {
 
   // Load all users (use get_all_chat_profiles for starting new chats)
   const loadUsers = useCallback(async () => {
-    // Try the new function first, fall back to existing one
     const { data: allData } = await supabase.rpc('get_all_chat_profiles' as any);
-    const { data: chatData } = await supabase.rpc('get_internal_chat_profiles');
+    // Use v2 for avatar_url support
+    const { data: chatData } = await supabase.rpc('get_internal_chat_profiles_v2' as any);
+    // Fallback to original if v2 doesn't exist
+    const chatProfiles = chatData || (await supabase.rpc('get_internal_chat_profiles')).data;
     
-    const users = (allData || chatData || []) as unknown as UserProfile[];
+    const users = (allData || chatProfiles || []) as unknown as UserProfile[];
     setAllUsers(users);
     const map: Record<string, UserProfile> = {};
     users.forEach(u => { map[u.user_id] = u; });
     
-    // Also merge chat profiles to ensure we have all senders
-    if (chatData && allData) {
-      (chatData as unknown as UserProfile[]).forEach(u => {
+    // Also merge chat profiles to ensure we have all senders with avatar_url
+    if (chatProfiles && allData) {
+      (chatProfiles as unknown as UserProfile[]).forEach(u => {
         if (!map[u.user_id]) map[u.user_id] = u;
+        else if (u.avatar_url && !map[u.user_id].avatar_url) {
+          map[u.user_id].avatar_url = u.avatar_url;
+        }
       });
     }
     
