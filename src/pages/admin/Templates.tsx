@@ -191,8 +191,8 @@ export default function Templates() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Templates de Mensagem</h1>
-            <p className="text-muted-foreground">Gerencie templates globais por categoria</p>
+            <h1 className="text-2xl font-bold">{isSeller ? 'Meus Templates' : 'Templates de Mensagem'}</h1>
+            <p className="text-muted-foreground">{isSeller ? 'Crie e gerencie seus templates pessoais' : 'Gerencie templates globais por categoria'}</p>
           </div>
           <Button onClick={openNew}>
             <Plus className="w-4 h-4 mr-2" />
