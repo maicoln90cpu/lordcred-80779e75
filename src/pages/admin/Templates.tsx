@@ -154,6 +154,9 @@ export default function Templates() {
         uploadedMediaFilename = mediaFile.file.name;
       }
 
+      // Sellers: force visible_to = own user id (private templates only)
+      const finalVisibleTo = isSeller ? user!.id : (visibleTo === 'all' ? null : visibleTo);
+
       const payload: any = {
         title: title.trim(),
         content: content.trim(),
@@ -161,7 +164,7 @@ export default function Templates() {
         media_url: uploadedMediaUrl,
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
-        visible_to: visibleTo === 'all' ? null : visibleTo,
+        visible_to: finalVisibleTo,
       };
 
       if (editTemplate) {
