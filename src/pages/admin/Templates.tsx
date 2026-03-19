@@ -88,11 +88,11 @@ export default function Templates() {
       .order('sort_order');
     // Sellers see their own + admin-created templates
     if (isSeller && user) {
-      // Get admin user IDs
+      // Get master + admin user IDs
       const { data: adminRoles } = await supabase
         .from('user_roles')
         .select('user_id')
-        .eq('role', 'admin');
+        .in('role', ['master', 'admin'] as any);
       const adminIds = (adminRoles || []).map(r => r.user_id);
       const allowedIds = [user.id, ...adminIds];
       query = query.in('created_by', allowedIds);
@@ -379,7 +379,7 @@ export default function Templates() {
                 </Button>
               )}
             </div>
-            {(isAdmin || userRole === 'user') && (
+            {isAdmin && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
                 <Select value={visibleTo} onValueChange={setVisibleTo}>

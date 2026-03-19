@@ -118,14 +118,14 @@ const navGroups: NavGroupWithChildren[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin, isSeller, isSupport, signOut } = useAuth();
+  const { user, isMaster, isAdmin, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
 
   const filterItems = (items: NavItem[]) =>
     items.filter(item => {
-      if (item.adminOnly && !isAdmin) return false;
+      if (item.adminOnly && !isMaster) return false;
       if (item.sellerHidden && isSeller) return false;
       if (item.supportHidden && isSupport) return false;
       return true;
@@ -138,7 +138,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const getRoleLabel = () => {
     if (isSeller) return 'Vendedor';
     if (isSupport) return 'Suporte';
-    if (isAdmin) return 'Master';
+    if (isMaster) return 'Master';
     return 'Administrador';
   };
 

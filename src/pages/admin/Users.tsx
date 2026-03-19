@@ -46,18 +46,18 @@ export default function Users() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'user' | 'seller' | 'support'>('seller');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
   const [editMaxChips, setEditMaxChips] = useState(5);
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  const isMaster = isAdmin; // role === 'admin'
-  const isRegularAdmin = userRole === 'user'; // Administrador (not master)
+  const { isMaster } = useAuth();
+  const isRegularAdmin = userRole === 'admin'; // Administrador (not master)
   // Support can only create sellers, cannot edit/delete/block
   const canManageUsers = isMaster || (!isSupport && isRegularAdmin);
-  // Admin and Master can choose role when creating
+  // Master and Admin can choose role when creating
   const canChooseRole = isMaster || isRegularAdmin;
 
   useEffect(() => {
@@ -100,8 +100,8 @@ export default function Users() {
 
       // Filter based on caller's role
       if (isMaster) {
-        // Master sees all non-admin users (users + sellers + support), excluding self
-        enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin');
+        // Master sees all non-master users, excluding self
+        enrichedUsers = enrichedUsers.filter(u => u.role !== 'master');
       } else if (isSupport) {
         // Support sees all sellers and other supports, excluding admins and self
         enrichedUsers = enrichedUsers.filter(u => 
@@ -109,7 +109,7 @@ export default function Users() {
         );
       } else {
         // Administrador vê todos exceto master, excluindo a si mesmo
-        enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin' && u.user_id !== currentUser?.id);
+        enrichedUsers = enrichedUsers.filter(u => u.role !== 'master' && u.user_id !== currentUser?.id);
       }
 
       setUsers(enrichedUsers);
@@ -228,8 +228,8 @@ export default function Users() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return 'Master';
-      case 'user': return 'Administrador';
+      case 'master': return 'Master';
+      case 'admin': return 'Administrador';
       case 'seller': return 'Vendedor';
       case 'support': return 'Suporte';
       default: return role;
@@ -289,7 +289,7 @@ export default function Users() {
                     <Label>Tipo de Usuário</Label>
                     <RadioGroup
                       value={newUserRole}
-                      onValueChange={(value) => setNewUserRole(value as 'user' | 'seller' | 'support')}
+                      onValueChange={(value) => setNewUserRole(value as 'admin' | 'seller' | 'support')}
                       className="flex flex-wrap gap-4"
                     >
                       <div className="flex items-center space-x-2">
@@ -302,8 +302,8 @@ export default function Users() {
                       </div>
                       {isMaster && (
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="user" id="role-user" />
-                          <Label htmlFor="role-user" className="cursor-pointer">Administrador</Label>
+                          <RadioGroupItem value="admin" id="role-admin" />
+                          <Label htmlFor="role-admin" className="cursor-pointer">Administrador</Label>
                         </div>
                       )}
                     </RadioGroup>
@@ -360,7 +360,7 @@ export default function Users() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {isMaster && user.role !== 'admin' ? (
+                        {isMaster && user.role !== 'master' ? (
                           <Select
                             value={user.role}
                             onValueChange={async (value) => {
@@ -389,7 +389,7 @@ export default function Users() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="user">Administrador</SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
                               <SelectItem value="seller">Vendedor</SelectItem>
                               <SelectItem value="support">Suporte</SelectItem>
                             </SelectContent>

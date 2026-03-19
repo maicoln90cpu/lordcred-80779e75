@@ -47,7 +47,7 @@ export default function RemoteAssistance() {
     const { data: roles } = await supabase
       .from('user_roles')
       .select('user_id, role')
-      .in('role', ['seller', 'user']);
+      .in('role', ['seller', 'admin']);
 
     if (!roles) { setIsLoading(false); return; }
 

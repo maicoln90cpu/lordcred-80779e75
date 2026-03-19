@@ -44,7 +44,7 @@ const SQL_SECTIONS: SQLSection[] = [
     icon: <Code className="w-4 h-4" />,
     description: 'Tipos customizados usados pelo sistema',
     sql: `-- Enum de roles
-CREATE TYPE public.app_role AS ENUM ('admin', 'user', 'seller');`,
+CREATE TYPE public.app_role AS ENUM ('master', 'admin', 'seller', 'support');`,
   },
   {
     title: '2. Tabelas',
@@ -72,7 +72,7 @@ CREATE TABLE public.profiles (
 CREATE TABLE public.user_roles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
-  role public.app_role NOT NULL DEFAULT 'user'::app_role,
+  role public.app_role NOT NULL DEFAULT 'seller'::app_role,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT user_roles_pkey PRIMARY KEY (id),
   CONSTRAINT user_roles_user_id_key UNIQUE (user_id)
