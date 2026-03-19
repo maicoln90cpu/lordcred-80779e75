@@ -111,7 +111,7 @@ export default function Performance() {
     setLoading(true);
     const [sellersRes, chipsRes] = await Promise.all([
       supabase.from('profiles').select('user_id, email, name'),
-      supabase.from('chips').select('id, user_id'),
+      supabase.from('chips').select('id, user_id, chip_type'),
     ]);
     const [leadsData, messagesData] = await Promise.all([
       fetchAllLeads(),
