@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -143,11 +142,29 @@ export default function Login() {
               </Button>
             </form>
           </Form>
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Não tem uma conta?{' '}
-            <Link to="/register" className="text-primary hover:underline font-medium">
-              Criar conta
-            </Link>
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline font-medium"
+              onClick={async () => {
+                const email = form.getValues('email');
+                if (!email || !email.includes('@')) {
+                  toast({ title: 'Informe seu email', description: 'Digite seu email no campo acima antes de solicitar a recuperação', variant: 'destructive' });
+                  return;
+                }
+                try {
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  if (error) throw error;
+                  toast({ title: 'Email enviado', description: 'Verifique sua caixa de entrada (e spam) para redefinir sua senha' });
+                } catch (error: any) {
+                  toast({ title: 'Erro', description: error.message || 'Não foi possível enviar o email', variant: 'destructive' });
+                }
+              }}
+            >
+              Esqueci minha senha
+            </button>
           </div>
         </CardContent>
       </Card>
