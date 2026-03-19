@@ -992,7 +992,7 @@ export default function InternalChat() {
           </DialogHeader>
           {isSeller ? (
             <>
-              <p className="text-sm text-muted-foreground">Digite o email completo do usuário para iniciar uma conversa:</p>
+              <p className="text-sm text-muted-foreground">Digite o email ou selecione um usuário:</p>
               <div className="space-y-3">
                 <Input
                   placeholder="email@exemplo.com"
@@ -1002,13 +1002,11 @@ export default function InternalChat() {
                 {sellerEmailError && <p className="text-xs text-destructive">{sellerEmailError}</p>}
                 <Button className="w-full" disabled={!sellerEmailSearch.trim()} onClick={async () => {
                   const email = sellerEmailSearch.trim().toLowerCase();
-                  // Find user by exact email match
                   const targetUser = allUsers.find(u => u.email.toLowerCase() === email && u.user_id !== user?.id);
                   if (!targetUser) {
                     setSellerEmailError('Usuário não encontrado. Digite o email completo.');
                     return;
                   }
-                  // Check if target is support or admin (not seller)
                   const { data: targetRole } = await supabase
                     .from('user_roles')
                     .select('role')
@@ -1025,6 +1023,44 @@ export default function InternalChat() {
                   Iniciar Conversa
                 </Button>
               </div>
+              {supportAdminUsers.filter(u => u.user_id !== user?.id).length > 0 && (
+                <div className="border-t border-border pt-3 mt-1">
+                  <p className="text-xs text-muted-foreground mb-2">Suporte e Administradores disponíveis:</p>
+                  <ScrollArea className="h-48 border rounded-md p-2">
+                    {supportAdminUsers.filter(u => u.user_id !== user?.id).map(u => {
+                      const isOnline = onlineUsers.has(u.user_id);
+                      return (
+                        <div
+                          key={u.user_id}
+                          className="flex items-center gap-3 py-2 px-2 hover:bg-accent/50 rounded cursor-pointer transition-colors"
+                          onClick={() => handleStartDirectChat(u.user_id)}
+                        >
+                          <div className="relative">
+                            <Avatar className="w-8 h-8">
+                              {profilesMap[u.user_id]?.avatar_url ? (
+                                <AvatarImage src={profilesMap[u.user_id].avatar_url!} />
+                              ) : null}
+                              <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                                {(u.name?.[0] || u.email[0] || 'U').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {isOnline && (
+                              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{u.name || u.email}</p>
+                            {u.name && <p className="text-xs text-muted-foreground">{u.email}</p>}
+                          </div>
+                          <span className={cn("text-xs", isOnline ? "text-green-500" : "text-muted-foreground")}>
+                            {isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </ScrollArea>
+                </div>
+              )}
             </>
           ) : (
             <>
