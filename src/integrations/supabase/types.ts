@@ -717,6 +717,9 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           response_text: string
           trigger_word: string
           updated_at: string
@@ -727,6 +730,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           response_text: string
           trigger_word: string
           updated_at?: string
@@ -737,6 +743,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           response_text?: string
           trigger_word?: string
           updated_at?: string
@@ -1181,6 +1190,11 @@ export type Database = {
           name: string
           user_id: string
         }[]
+      }
+      get_lead_counts: { Args: { _user_id: string }; Returns: Json }
+      get_performance_stats: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: Json
       }
       has_role: {
         Args: {
