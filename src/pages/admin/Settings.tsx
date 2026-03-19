@@ -111,18 +111,26 @@ function SupportChatSettings() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: settings }, { data: profiles }] = await Promise.all([
+      const [{ data: settings }, { data: profiles }, { data: masterIds }] = await Promise.all([
         supabase.from('system_settings').select('support_chat_user_id').single(),
         supabase.rpc('get_all_chat_profiles' as any),
+        supabase.rpc('get_master_user_ids'),
       ]);
       if (settings && (settings as any).support_chat_user_id) setSupportUserId((settings as any).support_chat_user_id);
-      if (profiles) setAllProfiles(profiles as any);
+      if (profiles) {
+        const masterSet = new Set((masterIds as string[]) || []);
+        setAllProfiles((profiles as any[]).filter(p => !masterSet.has(p.user_id)));
+      }
     })();
   }, []);
 
   const handleSave = async () => {
+    if (!supportUserId) {
+      toast({ title: 'Selecione um usuário', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportUserId || null } as any).neq('id', '');
+    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportUserId } as any).neq('id', '');
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else toast({ title: 'Responsável pelo suporte atualizado' });
     setSaving(false);
@@ -149,7 +157,7 @@ function SupportChatSettings() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={handleSave} disabled={saving || !supportUserId}>
           {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Salvar
         </Button>
