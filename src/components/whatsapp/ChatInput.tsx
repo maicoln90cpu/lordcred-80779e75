@@ -15,8 +15,15 @@ interface QuickReply {
   text: string;
 }
 
+interface ShortcutMatch {
+  trigger_word: string;
+  response_text: string;
+}
+
 // Cache quick replies per chip to avoid re-fetching
 const quickReplyCache: Record<string, QuickReply[]> = {};
+// Cache shortcuts per chip
+const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean }[]> = {};
 
 interface ChatInputProps {
   onSend: (text: string) => void;
