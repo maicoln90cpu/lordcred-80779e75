@@ -553,8 +553,11 @@ export default function Leads() {
         </div>
 
         <Tabs defaultValue="leads" className="space-y-4 min-w-0">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="leads">Leads</TabsTrigger>
+            <TabsTrigger value="management" className="flex items-center gap-1">
+              <BarChart3 className="w-3.5 h-3.5" /> Gerenciamento
+            </TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
             <TabsTrigger value="export">Backup / Exportar</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
