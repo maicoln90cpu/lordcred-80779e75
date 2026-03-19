@@ -18,12 +18,15 @@ interface QuickReply {
 interface ShortcutMatch {
   trigger_word: string;
   response_text: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
 }
 
 // Cache quick replies per chip to avoid re-fetching
 const quickReplyCache: Record<string, QuickReply[]> = {};
 // Cache shortcuts per chip
-const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean }[]> = {};
+const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean; media_url?: string | null; media_type?: string | null; media_filename?: string | null }[]> = {};
 
 interface ChatInputProps {
   onSend: (text: string) => void;
