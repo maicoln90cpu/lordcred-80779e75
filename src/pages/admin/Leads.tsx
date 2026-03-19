@@ -11,11 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload, UserCircle } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload, UserCircle, BarChart3 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
+import LeadManagement from '@/components/admin/LeadManagement';
 
 interface StatusOption {
   value: string;
@@ -77,9 +78,6 @@ const ALL_COLUMNS: ColumnConfig[] = [
 export default function Leads() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [reassignBatch, setReassignBatch] = useState<string | null>(null);
-  const [reassignSeller, setReassignSeller] = useState('');
-  const [isReassigning, setIsReassigning] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
@@ -220,25 +218,6 @@ export default function Leads() {
     return Array.from(map.values()).sort((a, b) => b.created.localeCompare(a.created));
   }, [allLeads]);
 
-  const handleReassignBatch = async () => {
-    if (!reassignBatch || !reassignSeller) return;
-    setIsReassigning(true);
-    try {
-      const { error } = await supabase.from('client_leads' as any)
-        .update({ assigned_to: reassignSeller, updated_at: new Date().toISOString() })
-        .eq('batch_name', reassignBatch);
-      if (error) throw error;
-      toast({ title: 'Lote reatribuído com sucesso' });
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
-      setReassignBatch(null);
-      setReassignSeller('');
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setIsReassigning(false);
-    }
-  };
 
   const handleDeleteBatch = async () => {
     if (!deletingBatch) return;
@@ -574,8 +553,11 @@ export default function Leads() {
         </div>
 
         <Tabs defaultValue="leads" className="space-y-4 min-w-0">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="leads">Leads</TabsTrigger>
+            <TabsTrigger value="management" className="flex items-center gap-1">
+              <BarChart3 className="w-3.5 h-3.5" /> Gerenciamento
+            </TabsTrigger>
             <TabsTrigger value="import">Importar Planilha</TabsTrigger>
             <TabsTrigger value="export">Backup / Exportar</TabsTrigger>
             <TabsTrigger value="batches">Histórico de Lotes</TabsTrigger>
@@ -595,6 +577,10 @@ export default function Leads() {
               columnConfig={columnConfig}
               profileOptions={profileOptions}
             />
+          </TabsContent>
+
+          <TabsContent value="management">
+            <LeadManagement statusOptions={statusOptions} profileOptions={profileOptions} />
           </TabsContent>
 
           <TabsContent value="import">
@@ -668,33 +654,9 @@ export default function Leads() {
                                 {new Date(b.created).toLocaleDateString('pt-BR')}
                               </TableCell>
                               <TableCell>
-                                <div className="flex gap-2 items-center">
-                                  {reassignBatch === b.batch ? (
-                                    <div className="flex gap-2 items-center">
-                                      <Select value={reassignSeller} onValueChange={setReassignSeller}>
-                                        <SelectTrigger className="w-40 h-8">
-                                          <SelectValue placeholder="Vendedor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {sellers.map((s: any) => (
-                                            <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
-                                        {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
-                                      </Button>
-                                      <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
-                                    </div>
-                                  ) : (
-                                    <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
-                                      Reatribuir
-                                    </Button>
-                                  )}
-                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
+                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
