@@ -218,25 +218,6 @@ export default function Leads() {
     return Array.from(map.values()).sort((a, b) => b.created.localeCompare(a.created));
   }, [allLeads]);
 
-  const handleReassignBatch = async () => {
-    if (!reassignBatch || !reassignSeller) return;
-    setIsReassigning(true);
-    try {
-      const { error } = await supabase.from('client_leads' as any)
-        .update({ assigned_to: reassignSeller, updated_at: new Date().toISOString() })
-        .eq('batch_name', reassignBatch);
-      if (error) throw error;
-      toast({ title: 'Lote reatribuído com sucesso' });
-      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
-      setReassignBatch(null);
-      setReassignSeller('');
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setIsReassigning(false);
-    }
-  };
 
   const handleDeleteBatch = async () => {
     if (!deletingBatch) return;
