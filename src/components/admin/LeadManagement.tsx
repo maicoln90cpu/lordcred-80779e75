@@ -25,7 +25,6 @@ interface ProfileOption {
 }
 
 interface SellerRowState {
-  filterStatus: string;
   filterProfile: string;
   qty: string;
   targetSeller: string;

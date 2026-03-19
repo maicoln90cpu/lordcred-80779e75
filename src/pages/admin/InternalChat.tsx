@@ -130,14 +130,11 @@ export default function InternalChat() {
     
     let users = (allData || chatProfiles || []) as unknown as UserProfile[];
 
-    // Hide master users from non-master roles
+    // Hide master users from non-master roles using SECURITY DEFINER function
     let masterIds = new Set<string>();
     if (!isMaster) {
-      const { data: masterRoles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'master');
-      masterIds = new Set((masterRoles || []).map((r: any) => r.user_id));
+      const { data: masterIdsArr } = await supabase.rpc('get_master_user_ids' as any);
+      masterIds = new Set<string>((masterIdsArr as string[]) || []);
       users = users.filter(u => !masterIds.has(u.user_id));
     }
 
