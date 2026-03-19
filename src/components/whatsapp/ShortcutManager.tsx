@@ -334,7 +334,7 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
 
       {/* Create/Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Editar atalho' : 'Novo atalho de mensagem'}</DialogTitle>
           </DialogHeader>
