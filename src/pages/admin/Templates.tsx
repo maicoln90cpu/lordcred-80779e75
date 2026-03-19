@@ -31,6 +31,7 @@ interface Template {
   media_filename?: string | null;
   visible_to?: string | null;
   visible_to_list?: string[] | null;
+  trigger_word?: string | null;
 }
 
 const CATEGORIES = [
