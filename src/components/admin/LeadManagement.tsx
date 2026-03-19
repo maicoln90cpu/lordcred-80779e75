@@ -94,7 +94,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   };
 
   const getRowState = (sellerId: string): SellerRowState => {
-    return rowStates[sellerId] || { filterStatus: 'all', filterProfile: 'all', qty: '', targetSeller: '' };
+    return rowStates[sellerId] || { filterProfile: 'all', qty: '', targetSeller: '' };
   };
 
   const updateRowState = (sellerId: string, partial: Partial<SellerRowState>) => {
