@@ -234,7 +234,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
 
       // Reset row state
-      updateRowState(sellerId, { qty: '', targetSeller: '', filterStatus: 'all', filterProfile: 'all' });
+      updateRowState(sellerId, { qty: '', targetSeller: '', filterProfile: 'all' });
       setConfirmDialog(null);
     } catch (e: any) {
       toast({ title: 'Erro na reatribuição', description: e.message, variant: 'destructive' });
