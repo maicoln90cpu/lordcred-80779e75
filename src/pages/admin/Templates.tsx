@@ -63,11 +63,16 @@ export default function Templates() {
   useEffect(() => { fetchTemplates(); }, []);
 
   const fetchTemplates = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('message_templates')
       .select('*')
       .order('category')
       .order('sort_order');
+    // Sellers only see their own templates
+    if (isSeller && user) {
+      query = query.eq('created_by', user.id);
+    }
+    const { data, error } = await query;
     if (!error) setTemplates((data as Template[]) || []);
     setIsLoading(false);
   };
