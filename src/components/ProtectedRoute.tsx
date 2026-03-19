@@ -45,6 +45,10 @@ export default function ProtectedRoute({ children, requireAdmin = false, require
     return <Navigate to="/dashboard" replace />;
   }
 
+  if (requireMaster && !isMaster) {
+    return <Navigate to="/whatsapp" replace />;
+  }
+
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/whatsapp" replace />;
   }
