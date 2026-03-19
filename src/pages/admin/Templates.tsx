@@ -67,6 +67,7 @@ export default function Templates() {
   const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
   const [visibleToList, setVisibleToList] = useState<string[]>([]);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>([]);
+  const [triggerWord, setTriggerWord] = useState('');
 
   // Form fields
   const [title, setTitle] = useState('');
