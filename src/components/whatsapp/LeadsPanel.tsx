@@ -451,11 +451,14 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                           {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                         </TableCell>
                         <TableCell>
-                          {lead.perfil ? (
-                            <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>
-                              {lead.perfil}
-                            </Badge>
-                          ) : '-'}
+                          {lead.perfil ? (() => {
+                            const cp = getColorStyle(profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground');
+                            return (
+                              <Badge className={cp.className} style={cp.style}>
+                                {lead.perfil}
+                              </Badge>
+                            );
+                          })() : '-'}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
