@@ -110,6 +110,25 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return map;
   }, [profileOptions]);
 
+  // Extract hex from color_class — supports "hex:#abc123" and legacy "bg-[#abc123]/20"
+  const extractHex = (colorClass: string): string | null => {
+    if (colorClass.startsWith('hex:')) return colorClass.slice(4);
+    const match = colorClass.match(/#[0-9a-fA-F]{6}/);
+    return match ? match[0] : null;
+  };
+
+  const renderColorBadge = (label: string, colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return (
+        <Badge variant="secondary" style={{ backgroundColor: hex + '33', color: hex, borderColor: hex + '44' }}>
+          {label}
+        </Badge>
+      );
+    }
+    return <Badge className={colorClass}>{label}</Badge>;
+  };
+
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
@@ -319,10 +338,10 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       case 'data_ref':
         return formatDate(lead[key]);
       case 'status':
-        return <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>;
+        return renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
       case 'perfil':
         return lead.perfil
-          ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+          ? renderColorBadge(lead.perfil, profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground')
           : <span className="text-muted-foreground text-xs">-</span>;
       case 'assigned_to':
         return getSellerName(lead.assigned_to);
@@ -504,11 +523,11 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                             <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatDate(lead.data_ref)}</TableCell>
                             <TableCell>
-                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                              {renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground')}
                             </TableCell>
                             <TableCell>
                               {lead.perfil
-                                ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+                                ? renderColorBadge(lead.perfil, profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground')
                                 : <span className="text-muted-foreground text-xs">-</span>
                               }
                             </TableCell>

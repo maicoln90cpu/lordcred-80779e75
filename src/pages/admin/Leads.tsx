@@ -502,15 +502,39 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
-  // Color hex presets for lead status/profiles (same style as Kanban)
+  // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
     '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
     '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6',
   ];
 
-  // Convert hex to tailwind-compatible color_class
+  // Convert hex to a storable format that works with inline styles
   const hexToColorClass = (hex: string) => {
-    return `bg-[${hex}]/20 text-[${hex}] hover:bg-[${hex}]/30`;
+    return `hex:${hex}`;
+  };
+
+  // Extract hex from color_class — supports both "hex:#abc123" and legacy "bg-[#abc123]/20 text-[#abc123]"
+  const extractHex = (colorClass: string): string | null => {
+    if (colorClass.startsWith('hex:')) return colorClass.slice(4);
+    const match = colorClass.match(/#[0-9a-fA-F]{6}/);
+    return match ? match[0] : null;
+  };
+
+  // Render a badge with proper color — uses inline styles for hex colors, CSS classes for Tailwind presets
+  const renderColorBadge = (label: string, colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return (
+        <Badge
+          variant="secondary"
+          style={{ backgroundColor: hex + '33', color: hex, borderColor: hex + '44' }}
+        >
+          {label}
+        </Badge>
+      );
+    }
+    // Fallback: use Tailwind class (for default presets that are known safe static classes)
+    return <Badge className={colorClass}>{label}</Badge>;
   };
 
   return (
@@ -729,7 +753,7 @@ export default function Leads() {
                     <p className="text-sm text-muted-foreground">Status configurados atualmente:</p>
                     <div className="flex flex-wrap gap-2">
                       {statusOptions.map(s => (
-                        <Badge key={s.value} className={s.color_class}>{s.label}</Badge>
+                        <span key={s.value}>{renderColorBadge(s.label, s.color_class)}</span>
                       ))}
                     </div>
                   </div>
@@ -784,7 +808,7 @@ export default function Leads() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge className={status.color_class}>{status.label || '...'}</Badge>
+                          {renderColorBadge(status.label || '...', status.color_class)}
                           <Button variant="ghost" size="icon" onClick={() => removeStatus(idx)} className="text-destructive hover:text-destructive h-8 w-8">
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -826,7 +850,7 @@ export default function Leads() {
                     <p className="text-sm text-muted-foreground">Perfis configurados atualmente:</p>
                     <div className="flex flex-wrap gap-2">
                       {profileOptions.map(p => (
-                        <Badge key={p.value} className={p.color_class}>{p.label}</Badge>
+                        <span key={p.value}>{renderColorBadge(p.label, p.color_class)}</span>
                       ))}
                     </div>
                   </div>
@@ -881,7 +905,7 @@ export default function Leads() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge className={profile.color_class}>{profile.label || '...'}</Badge>
+                          {renderColorBadge(profile.label || '...', profile.color_class)}
                           <Button variant="ghost" size="icon" onClick={() => removeProfile(idx)} className="text-destructive hover:text-destructive h-8 w-8">
                             <Trash2 className="w-4 h-4" />
                           </Button>

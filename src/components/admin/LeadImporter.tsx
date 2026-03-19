@@ -35,8 +35,18 @@ interface ParsedLead {
 
 function cleanCurrency(value: string | number | null | undefined): number | null {
   if (value == null || value === '') return null;
-  const str = String(value).replace(/[R$\s.]/g, '').replace(',', '.');
-  const num = parseFloat(str);
+  // If already a number (from Excel), return directly
+  if (typeof value === 'number') return isNaN(value) ? null : value;
+  const str = String(value).trim();
+  // If has comma as decimal separator (BR format: 1.234,56), remove dots then replace comma
+  if (str.includes(',')) {
+    const cleaned = str.replace(/[R$\s.]/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  }
+  // No comma: remove only R$ and spaces, keep dot as decimal
+  const cleaned = str.replace(/[R$\s]/g, '');
+  const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
 }
 
