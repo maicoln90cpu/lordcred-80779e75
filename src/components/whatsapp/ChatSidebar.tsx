@@ -1039,7 +1039,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           <Tabs defaultValue="number" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="number"><Phone className="w-3.5 h-3.5 mr-1.5" />Digitar número</TabsTrigger>
-              <TabsTrigger value="contacts"><Users className="w-3.5 h-3.5 mr-1.5" />Buscar contato</TabsTrigger>
+              <TabsTrigger value="contacts"><Users className="w-3.5 h-3.5 mr-1.5" />Buscar lead</TabsTrigger>
             </TabsList>
             <TabsContent value="number" className="space-y-3 mt-3">
               <Input
@@ -1065,17 +1065,35 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             </TabsContent>
             <TabsContent value="contacts" className="space-y-3 mt-3">
               <Input
-                placeholder="Buscar por nome ou número..."
+                placeholder="Buscar lead por telefone..."
                 value={contactSearch}
                 onChange={(e) => {
                   const q = e.target.value;
                   setContactSearch(q);
-                  if (q.length >= 2) {
-                    const results = chats.filter(c =>
-                      c.name.toLowerCase().includes(q.toLowerCase()) ||
-                      c.phone.includes(q)
-                    ).slice(0, 20);
-                    setContactResults(results);
+                  if (q.length >= 3) {
+                    // Search leads by phone
+                    (async () => {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (!user) return;
+                      const { data: leads } = await supabase
+                        .from('client_leads')
+                        .select('id, nome, telefone, cpf')
+                        .eq('assigned_to', user.id)
+                        .ilike('telefone', `%${q}%`)
+                        .limit(20);
+                      if (leads) {
+                        setContactResults(leads.map((l: any) => ({
+                          id: l.id,
+                          remoteJid: `${(l.telefone || '').replace(/\D/g, '')}@s.whatsapp.net`,
+                          name: l.nome || 'Sem nome',
+                          phone: l.telefone || '',
+                          lastMessage: l.cpf ? `CPF: ${l.cpf}` : '',
+                          lastMessageAt: null,
+                          unreadCount: 0,
+                          isGroup: false,
+                        })));
+                      }
+                    })();
                   } else {
                     setContactResults([]);
                   }
@@ -1087,30 +1105,31 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
                   <div className="space-y-1">
                     {contactResults.map(c => (
                       <button
-                        key={c.remoteJid}
+                        key={c.id}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 text-left transition-colors"
                         onClick={() => {
-                          onSelectChat(c);
-                          setNewChatDialogOpen(false);
+                          const digits = c.phone.replace(/\D/g, '');
+                          if (digits.length >= 10) {
+                            handleStartNewChat(digits);
+                          }
                         }}
                       >
                         <Avatar className="w-8 h-8 shrink-0">
-                          {c.profilePicUrl && <AvatarImage src={c.profilePicUrl} alt={c.name} />}
                           <AvatarFallback className="bg-primary/20 text-primary text-xs font-medium">
                             {c.name.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{c.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.phone}{c.lastMessage ? ` · ${c.lastMessage}` : ''}</p>
                         </div>
                       </button>
                     ))}
                   </div>
-                ) : contactSearch.length >= 2 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum contato encontrado</p>
+                ) : contactSearch.length >= 3 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum lead encontrado</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">Digite pelo menos 2 caracteres</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">Digite pelo menos 3 caracteres do telefone</p>
                 )}
               </ScrollArea>
             </TabsContent>

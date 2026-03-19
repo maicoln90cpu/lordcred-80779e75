@@ -56,7 +56,7 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         .eq('is_active', true)
         .order('category')
         .order('sort_order');
-      // Sellers see own + admin templates; filter visible_to
+      // Sellers see own + admin templates; also filter visible_to
       if (user) {
         const { data: roleData } = await supabase
           .from('user_roles')
@@ -74,7 +74,15 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         }
       }
       const { data } = await query;
-      setTemplates((data as Template[]) || []);
+      // Client-side filter for visible_to
+      let filtered = (data as Template[]) || [];
+      if (user) {
+        filtered = filtered.filter(t => {
+          const vt = (t as any).visible_to;
+          return !vt || vt === user.id;
+        });
+      }
+      setTemplates(filtered);
       setLoading(false);
     })();
   }, [open]);
