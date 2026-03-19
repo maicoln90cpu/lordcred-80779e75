@@ -27,7 +27,6 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // Validate JWT locally via signing keys (works even if auth session row was cleaned up)
     const token = authHeader.replace('Bearer ', '')
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
 
@@ -64,7 +63,57 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { email, password, name, role } = await req.json()
+    const body = await req.json()
+
+    // Handle password reset action
+    if (body.action === 'reset-password') {
+      const { targetUserId, newPassword } = body
+
+      if (!targetUserId || !newPassword) {
+        return new Response(
+          JSON.stringify({ error: 'targetUserId and newPassword are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (newPassword.length < 6) {
+        return new Response(
+          JSON.stringify({ error: 'Password must be at least 6 characters' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Only admin and user (administrador) can reset passwords
+      if (callerRole !== 'admin' && callerRole !== 'user') {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can reset passwords' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(targetUserId, {
+        password: newPassword,
+      })
+
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: updateError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Password reset successfully' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Original create user flow
+    const { email, password, name, role } = body
 
     if (!email || !password) {
       return new Response(
@@ -83,13 +132,10 @@ Deno.serve(async (req) => {
     // Validate role based on caller's permissions
     let validRole: string
     if (callerRole === 'admin') {
-      // Admin (Master) can create: user (Administrador), seller (Vendedor) or support (Suporte)
       validRole = ['user', 'seller', 'support'].includes(role) ? role : 'seller'
     } else if (callerRole === 'user') {
-      // Administrador can create sellers or support
       validRole = ['seller', 'support'].includes(role) ? role : 'seller'
     } else {
-      // Support can ONLY create sellers
       validRole = 'seller'
     }
 
@@ -97,7 +143,6 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    // Create user
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
@@ -113,7 +158,6 @@ Deno.serve(async (req) => {
     }
 
     if (newUser.user) {
-      // Update role (handle_new_user trigger creates with 'seller' default)
       if (validRole !== 'seller') {
         await adminClient
           .from('user_roles')
@@ -121,7 +165,6 @@ Deno.serve(async (req) => {
           .eq('user_id', newUser.user.id)
       }
 
-      // Set created_by on profile
       await adminClient
         .from('profiles')
         .update({ created_by: userId, name: name || null })

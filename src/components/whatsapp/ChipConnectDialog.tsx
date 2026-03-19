@@ -136,9 +136,17 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
       }
     }
 
+    // Fetch user's max_chips from profile
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('max_chips')
+      .eq('user_id', user.id)
+      .single();
+    
+    const userMaxChips = (profileData as any)?.max_chips ?? 5;
     const slotStart = chipType === 'whatsapp' ? 101 : 1;
-    const slotEnd = chipType === 'whatsapp' ? 105 : 15;
-    const maxChips = chipType === 'whatsapp' ? 5 : 15;
+    const slotEnd = chipType === 'whatsapp' ? 100 + userMaxChips : userMaxChips;
+    const maxChips = userMaxChips;
     const typeLabel = chipType === 'whatsapp' ? 'WhatsApp Web' : 'aquecimento';
 
     const existingQuery = supabase
