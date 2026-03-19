@@ -1204,6 +1204,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_internal_chat_profiles_v2: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
       get_lead_counts: { Args: { _user_id: string }; Returns: Json }
       get_performance_stats: {
         Args: { _date_from?: string; _date_to?: string }
@@ -1224,7 +1233,7 @@ export type Database = {
       reset_daily_message_count: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "seller" | "support"
+      app_role: "admin" | "user" | "seller" | "support" | "master"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1352,7 +1361,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "seller", "support"],
+      app_role: ["admin", "user", "seller", "support", "master"],
     },
   },
 } as const
