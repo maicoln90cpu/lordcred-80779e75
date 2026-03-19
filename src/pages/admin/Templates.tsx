@@ -219,6 +219,7 @@ export default function Templates() {
     if (!error) {
       toast({ title: 'Template excluído' });
       setTemplates(prev => prev.filter(t => t.id !== deleteTarget.id));
+      window.dispatchEvent(new CustomEvent('shortcut-cache-invalidate', { detail: 'all' }));
     }
     setDeleteTarget(null);
   };
