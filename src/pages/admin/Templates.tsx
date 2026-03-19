@@ -71,34 +71,38 @@ export default function Templates() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
-  // Load seller profiles for visible_to selector (admin only)
+  // Load seller profiles for visible_to selector (admin/support)
+  const canSetVisibility = isAdmin || userRole === 'support';
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canSetVisibility) return;
     (async () => {
       const { data } = await supabase.rpc('get_all_chat_profiles' as any);
       if (data) setSellerProfiles(data as unknown as SellerProfile[]);
     })();
-  }, [isAdmin]);
+  }, [canSetVisibility]);
 
   const fetchTemplates = async () => {
-    let query = supabase
+    const query = supabase
       .from('message_templates')
       .select('*')
       .order('category')
       .order('sort_order');
-    // Sellers see their own + admin-created templates
-    if (isSeller && user) {
-      // Get master + admin user IDs
-      const { data: adminRoles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('role', ['master', 'admin'] as any);
-      const adminIds = (adminRoles || []).map(r => r.user_id);
-      const allowedIds = [user.id, ...adminIds];
-      query = query.in('created_by', allowedIds);
-    }
     const { data, error } = await query;
-    if (!error) setTemplates((data as Template[]) || []);
+    if (!error && user) {
+      // Client-side visibility filter
+      let filtered = (data as Template[]) || [];
+      if (isSeller) {
+        // Seller sees: own templates OR visible_to is null (global) OR visible_to matches self
+        filtered = filtered.filter(t =>
+          t.created_by === user.id ||
+          !t.visible_to ||
+          t.visible_to === user.id
+        );
+      }
+      setTemplates(filtered);
+    } else {
+      setTemplates((data as Template[]) || []);
+    }
     setIsLoading(false);
   };
 
@@ -150,6 +154,9 @@ export default function Templates() {
         uploadedMediaFilename = mediaFile.file.name;
       }
 
+      // Sellers: force visible_to = own user id (private templates only)
+      const finalVisibleTo = isSeller ? user!.id : (visibleTo === 'all' ? null : visibleTo);
+
       const payload: any = {
         title: title.trim(),
         content: content.trim(),
@@ -157,7 +164,7 @@ export default function Templates() {
         media_url: uploadedMediaUrl,
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
-        visible_to: visibleTo === 'all' ? null : visibleTo,
+        visible_to: finalVisibleTo,
       };
 
       if (editTemplate) {
@@ -379,7 +386,7 @@ export default function Templates() {
                 </Button>
               )}
             </div>
-            {isAdmin && (
+            {canSetVisibility && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
                 <Select value={visibleTo} onValueChange={setVisibleTo}>

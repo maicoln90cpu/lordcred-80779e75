@@ -75,17 +75,34 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     }).catch(() => {});
   }, [chipId]);
 
-  // Fetch shortcuts from DB when chipId changes
+  // Fetch shortcuts from DB when chipId changes (with same visibility rules as ShortcutManager)
   useEffect(() => {
     if (!chipId) return;
     const loadShortcuts = async () => {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
         const { data } = await supabase
           .from('message_shortcuts' as any)
-          .select('trigger_word,response_text,is_active,media_url,media_type,media_filename')
+          .select('trigger_word,response_text,is_active,media_url,media_type,media_filename,user_id')
           .or(`chip_id.eq.${chipId},chip_id.is.null`)
           .eq('is_active', true);
-        shortcutCache[chipId] = (data as any[]) || [];
+        let results = (data as any[]) || [];
+        // Check if seller
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        if (roleData?.role === 'seller') {
+          const { data: nonSellerRoles } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .in('role', ['master', 'admin', 'support'] as any);
+          const allowedIds = new Set([user.id, ...(nonSellerRoles || []).map((r: any) => r.user_id)]);
+          results = results.filter((s: any) => allowedIds.has(s.user_id));
+        }
+        shortcutCache[chipId] = results;
       } catch {}
     };
     if (!shortcutCache[chipId]) loadShortcuts();

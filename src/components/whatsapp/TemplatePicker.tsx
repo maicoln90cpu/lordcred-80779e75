@@ -50,36 +50,22 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
     setLoading(true);
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      let query = supabase
+      const { data } = await supabase
         .from('message_templates')
-        .select('id, title, content, category, media_url, media_type, media_filename, visible_to')
+        .select('id, title, content, category, media_url, media_type, media_filename, visible_to, created_by')
         .eq('is_active', true)
         .order('category')
         .order('sort_order');
-      // Sellers see own + admin templates; also filter visible_to
-      if (user) {
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-        if (roleData?.role === 'seller') {
-          const { data: adminRoles } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['master', 'admin'] as any);
-          const adminIds = (adminRoles || []).map(r => r.user_id);
-          const allowedIds = [user.id, ...adminIds];
-          query = query.in('created_by', allowedIds);
-        }
-      }
-      const { data } = await query;
-      // Client-side filter for visible_to
-      let filtered = (data as Template[]) || [];
+      // Client-side visibility filter
+      let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string }));
       if (user) {
         filtered = filtered.filter(t => {
-          const vt = (t as any).visible_to;
-          return !vt || vt === user.id;
+          // Creator always sees their own
+          if ((t as any).created_by === user.id) return true;
+          // Global (visible_to null) = everyone sees
+          if (!(t as any).visible_to) return true;
+          // Targeted = only that user sees
+          return (t as any).visible_to === user.id;
         });
       }
       setTemplates(filtered);
