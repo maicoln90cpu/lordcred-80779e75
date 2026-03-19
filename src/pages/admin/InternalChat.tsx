@@ -25,6 +25,8 @@ interface Channel {
   description: string | null;
   is_group: boolean;
   created_by: string;
+  avatar_url?: string | null;
+  admin_only_messages?: boolean;
 }
 
 interface Message {
