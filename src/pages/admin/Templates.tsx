@@ -286,6 +286,11 @@ export default function Templates() {
               {catStyle.label}
             </Badge>
             <h3 className="font-medium text-sm truncate">{t.title}</h3>
+            {t.trigger_word && (
+              <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0 border-primary/40 text-primary">
+                ⚡ {t.trigger_word}
+              </Badge>
+            )}
             {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
             {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
           </div>
