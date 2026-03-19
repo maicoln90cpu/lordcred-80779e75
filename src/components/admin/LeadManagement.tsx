@@ -121,7 +121,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     return { total, pendentes, contatados, aprovados, taxaAprovacao };
   }, [globalFiltered]);
 
-  // Group leads by seller
+  // Group leads by seller — compute pendentes from raw allLeads (not filtered)
   const sellerData = useMemo(() => {
     const map = new Map<string, { leads: any[] }>();
     globalFiltered.forEach((l: any) => {
@@ -129,15 +129,23 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       map.get(l.assigned_to)!.leads.push(l);
     });
 
+    // Count pendentes from RAW allLeads (unfiltered) per seller
+    const pendentesMap = new Map<string, number>();
+    allLeads.forEach((l: any) => {
+      if (!l.status || l.status === 'pendente') {
+        pendentesMap.set(l.assigned_to, (pendentesMap.get(l.assigned_to) || 0) + 1);
+      }
+    });
+
     return Array.from(map.entries()).map(([sellerId, { leads }]) => {
       const total = leads.length;
       const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
       const pctContacted = total > 0 ? Math.round((contacted / total) * 100) : 0;
-      // Most recent updated_at
+      const pendentes = pendentesMap.get(sellerId) || 0;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
-      return { sellerId, total, contacted, pctContacted, lastUpdate };
+      return { sellerId, total, contacted, pctContacted, pendentes, lastUpdate };
     }).sort((a, b) => b.total - a.total);
-  }, [globalFiltered]);
+  }, [globalFiltered, allLeads]);
 
   // Count leads available for reassignment based on per-row filters
   const getAvailableCount = (sellerId: string) => {
