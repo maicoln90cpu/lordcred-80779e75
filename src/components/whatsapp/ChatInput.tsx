@@ -375,11 +375,36 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       {shortcutSuggestion && (
         <div className="px-4 pt-3 pb-1">
           <div className="flex items-center gap-3 p-2 rounded-lg bg-accent/20 border-l-4 border-accent">
+            {shortcutSuggestion.media_url && shortcutSuggestion.media_type?.startsWith('image') && (
+              <img src={shortcutSuggestion.media_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
+            )}
+            {shortcutSuggestion.media_url && !shortcutSuggestion.media_type?.startsWith('image') && (
+              <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
+                {shortcutSuggestion.media_type?.startsWith('audio') ? <Mic className="w-4 h-4 text-muted-foreground" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-accent-foreground">⚡ Atalho detectado: <span className="font-mono">{shortcutSuggestion.trigger_word}</span></p>
-              <p className="text-sm truncate text-muted-foreground">{shortcutSuggestion.response_text}</p>
+              <p className="text-xs font-semibold text-accent-foreground">⚡ Atalho: <span className="font-mono">{shortcutSuggestion.trigger_word}</span></p>
+              {shortcutSuggestion.response_text && (
+                <p className="text-sm truncate text-muted-foreground">{shortcutSuggestion.response_text}</p>
+              )}
+              {shortcutSuggestion.media_url && !shortcutSuggestion.response_text && (
+                <p className="text-sm truncate text-muted-foreground">📎 {shortcutSuggestion.media_filename || 'Mídia'}</p>
+              )}
             </div>
-            <Button size="sm" variant="secondary" className="shrink-0 text-xs" onClick={() => { setMessage(shortcutSuggestion.response_text); setShortcutSuggestion(null); inputRef.current?.focus(); }}>
+            <Button size="sm" variant="secondary" className="shrink-0 text-xs" onClick={() => {
+              const s = shortcutSuggestion;
+              if (s.media_url) {
+                // Set media preview from URL
+                const mType = s.media_type?.startsWith('audio') ? 'ptt' : s.media_type?.startsWith('image') ? 'image' : s.media_type?.startsWith('video') ? 'video' : 'document';
+                setMediaPreview({ type: mType, name: s.media_filename || 'media', base64: s.media_url, previewUrl: s.media_type?.startsWith('image') ? s.media_url : undefined });
+                if (s.response_text) setMessage(s.response_text);
+              } else {
+                setMessage(s.response_text);
+              }
+              setShortcutSuggestion(null);
+              inputRef.current?.focus();
+            }}>
               Usar
             </Button>
             <Button variant="ghost" size="icon" onClick={() => setShortcutSuggestion(null)} className="shrink-0 h-6 w-6">
