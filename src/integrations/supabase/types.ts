@@ -1223,6 +1223,7 @@ export type Database = {
         }[]
       }
       get_lead_counts: { Args: { _user_id: string }; Returns: Json }
+      get_master_user_ids: { Args: never; Returns: string[] }
       get_performance_stats: {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
