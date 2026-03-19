@@ -182,7 +182,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       sellerName: getSellerName(sellerId),
       targetName: getSellerName(row.targetSeller),
       qty: finalQty,
-      status: row.filterStatus,
       profile: row.filterProfile,
     });
   };
