@@ -139,11 +139,11 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
-    // Load from visible_to_list, fallback to visible_to
     const list = t.visible_to_list && t.visible_to_list.length > 0
       ? t.visible_to_list
       : t.visible_to ? [t.visible_to] : [];
     setVisibleToList(list);
+    setTriggerWord(t.trigger_word || '');
     setDialogOpen(true);
   };
 
