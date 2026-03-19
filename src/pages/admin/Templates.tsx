@@ -71,14 +71,15 @@ export default function Templates() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
-  // Load seller profiles for visible_to selector (admin only)
+  // Load seller profiles for visible_to selector (admin/support)
+  const canSetVisibility = isAdmin || userRole === 'support';
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canSetVisibility) return;
     (async () => {
       const { data } = await supabase.rpc('get_all_chat_profiles' as any);
       if (data) setSellerProfiles(data as unknown as SellerProfile[]);
     })();
-  }, [isAdmin]);
+  }, [canSetVisibility]);
 
   const fetchTemplates = async () => {
     let query = supabase
