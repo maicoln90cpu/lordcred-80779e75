@@ -77,11 +77,11 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
         .order('trigger_word');
 
       if (roleData?.role === 'seller') {
-        // Sellers see own + admin shortcuts
+        // Sellers see own + master/admin shortcuts
         const { data: adminRoles } = await supabase
           .from('user_roles')
           .select('user_id')
-          .eq('role', 'admin');
+          .in('role', ['master', 'admin'] as any);
         const adminIds = (adminRoles || []).map((r: any) => r.user_id);
         const allowedIds = [user.id, ...adminIds];
         query = query.in('user_id', allowedIds);
