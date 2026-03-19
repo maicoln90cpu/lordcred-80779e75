@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { User, KeyRound, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { User, KeyRound, Loader2, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ export default function UserProfileMenu() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const handleChangeName = async () => {
     if (!newName.trim()) {
@@ -65,8 +66,42 @@ export default function UserProfileMenu() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setIsSaving(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `avatars/${user.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('internal-chat-media')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl } as any)
+        .eq('user_id', user.id);
+      if (updateError) throw updateError;
+      toast({ title: 'Avatar atualizado com sucesso' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao atualizar avatar', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
   return (
     <>
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarUpload}
+      />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
@@ -81,6 +116,10 @@ export default function UserProfileMenu() {
           <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)}>
             <KeyRound className="w-4 h-4 mr-2" />
             Alterar Senha
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => avatarInputRef.current?.click()}>
+            <Camera className="w-4 h-4 mr-2" />
+            Alterar Avatar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

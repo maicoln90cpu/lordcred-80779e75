@@ -27,6 +27,7 @@ interface Template {
   media_url?: string | null;
   media_type?: string | null;
   media_filename?: string | null;
+  visible_to?: string | null;
 }
 
 const CATEGORIES = [
@@ -39,9 +40,15 @@ const CATEGORIES = [
   { value: 'geral', label: 'Geral', color: 'bg-muted text-muted-foreground' },
 ];
 
+interface SellerProfile {
+  user_id: string;
+  email: string;
+  name: string | null;
+}
+
 export default function Templates() {
   const { toast } = useToast();
-  const { user, isSeller } = useAuth();
+  const { user, isSeller, isAdmin } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,6 +61,8 @@ export default function Templates() {
   const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
   const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
+  const [visibleTo, setVisibleTo] = useState<string>('all');
+  const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>([]);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -62,15 +71,31 @@ export default function Templates() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
+  // Load seller profiles for visible_to selector (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      const { data } = await supabase.rpc('get_all_chat_profiles' as any);
+      if (data) setSellerProfiles(data as unknown as SellerProfile[]);
+    })();
+  }, [isAdmin]);
+
   const fetchTemplates = async () => {
     let query = supabase
       .from('message_templates')
       .select('*')
       .order('category')
       .order('sort_order');
-    // Sellers only see their own templates
+    // Sellers see their own + admin-created templates
     if (isSeller && user) {
-      query = query.eq('created_by', user.id);
+      // Get admin user IDs
+      const { data: adminRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      const adminIds = (adminRoles || []).map(r => r.user_id);
+      const allowedIds = [user.id, ...adminIds];
+      query = query.in('created_by', allowedIds);
     }
     const { data, error } = await query;
     if (!error) setTemplates((data as Template[]) || []);
@@ -85,6 +110,7 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(null);
     setExistingMediaType(null);
+    setVisibleTo('all');
     setDialogOpen(true);
   };
 
@@ -96,6 +122,7 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
+    setVisibleTo((t as any).visible_to || 'all');
     setDialogOpen(true);
   };
 
@@ -130,6 +157,7 @@ export default function Templates() {
         media_url: uploadedMediaUrl,
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
+        visible_to: visibleTo === 'all' ? null : visibleTo,
       };
 
       if (editTemplate) {
@@ -265,10 +293,15 @@ export default function Templates() {
                           <img src={t.media_url} alt="" className="w-full h-24 object-cover rounded mb-2" />
                         )}
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{t.content}</p>
-                        <div className="flex items-center justify-between mt-3">
+                        <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                           <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
                             {t.is_active ? 'Ativo' : 'Inativo'}
                           </Button>
+                          {(t as any).visible_to && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {sellerProfiles.find(s => s.user_id === (t as any).visible_to)?.name || 'Usuário específico'}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -346,6 +379,23 @@ export default function Templates() {
                 </Button>
               )}
             </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label>Visível para</Label>
+                <Select value={visibleTo} onValueChange={setVisibleTo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os usuários</SelectItem>
+                    {sellerProfiles.filter(s => s.user_id !== user?.id).map(s => (
+                      <SelectItem key={s.user_id} value={s.user_id}>
+                        {s.name || s.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Selecione um usuário específico ou deixe para todos</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>

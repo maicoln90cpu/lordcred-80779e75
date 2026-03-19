@@ -64,11 +64,29 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Check role to decide filter
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
       let query = supabase
         .from('message_shortcuts' as any)
         .select('*')
-        .eq('user_id', user.id)
         .order('trigger_word');
+
+      if (roleData?.role === 'seller') {
+        // Sellers see own + admin shortcuts
+        const { data: adminRoles } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'admin');
+        const adminIds = (adminRoles || []).map((r: any) => r.user_id);
+        const allowedIds = [user.id, ...adminIds];
+        query = query.in('user_id', allowedIds);
+      }
+      // Admin/support/user see all (no filter on user_id)
 
       if (chipId) {
         query = query.or(`chip_id.eq.${chipId},chip_id.is.null`);

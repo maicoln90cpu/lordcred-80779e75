@@ -4,14 +4,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
-import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause, Settings, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Channel {
@@ -20,6 +25,8 @@ interface Channel {
   description: string | null;
   is_group: boolean;
   created_by: string;
+  avatar_url?: string | null;
+  admin_only_messages?: boolean;
 }
 
 interface Message {
@@ -66,6 +73,12 @@ export default function InternalChat() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; type: string; url: string } | null>(null);
+  // Group config state
+  const [configGroupName, setConfigGroupName] = useState('');
+  const [configGroupDesc, setConfigGroupDesc] = useState('');
+  const [configAdminOnly, setConfigAdminOnly] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profilesMapRef = useRef<Record<string, UserProfile>>({});
   const selectedChannelRef = useRef<Channel | null>(null);
@@ -511,9 +524,65 @@ export default function InternalChat() {
     toast({ title: 'Membros atualizados' });
   };
 
-  const openManageMembers = () => {
+  const openGroupConfig = () => {
+    if (!selectedChannel) return;
     setSelectedUsers(channelMembers);
+    setConfigGroupName(selectedChannel.name);
+    setConfigGroupDesc(selectedChannel.description || '');
+    setConfigAdminOnly((selectedChannel as any).admin_only_messages || false);
     setManageMembersOpen(true);
+  };
+
+  const handleSaveGroupConfig = async () => {
+    if (!selectedChannel) return;
+    setSavingConfig(true);
+    try {
+      const { error } = await supabase
+        .from('internal_channels')
+        .update({
+          name: configGroupName.trim() || selectedChannel.name,
+          description: configGroupDesc.trim() || null,
+          admin_only_messages: configAdminOnly,
+        } as any)
+        .eq('id', selectedChannel.id);
+      if (error) throw error;
+      // Also save members
+      await supabase.from('internal_channel_members').delete().eq('channel_id', selectedChannel.id);
+      const memberIds = [...new Set([selectedChannel.created_by, ...selectedUsers])];
+      await supabase.from('internal_channel_members').insert(
+        memberIds.map(uid => ({ channel_id: selectedChannel.id, user_id: uid }))
+      );
+      setSelectedChannel({ ...selectedChannel, name: configGroupName.trim() || selectedChannel.name, description: configGroupDesc.trim() || null, admin_only_messages: configAdminOnly } as any);
+      loadChannels();
+      loadMembers(selectedChannel.id);
+      toast({ title: 'Configurações do grupo salvas' });
+      setManageMembersOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setSavingConfig(false);
+  };
+
+  const handleGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChannel) return;
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `group-avatars/${selectedChannel.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('internal-chat-media')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      await supabase.from('internal_channels').update({ avatar_url: avatarUrl } as any).eq('id', selectedChannel.id);
+      setSelectedChannel({ ...selectedChannel, avatar_url: avatarUrl } as any);
+      loadChannels();
+      toast({ title: 'Avatar do grupo atualizado' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    if (groupAvatarInputRef.current) groupAvatarInputRef.current.value = '';
   };
 
   const formatTime = (dateStr: string) => {
@@ -647,8 +716,10 @@ export default function InternalChat() {
                   )}
                   onClick={() => setSelectedChannel(ch)}
                 >
-                  <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    {ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
+                  <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 overflow-hidden">
+                    {(ch as any).avatar_url ? (
+                      <img src={(ch as any).avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
                     {/* Online indicator for direct chats */}
                     {!ch.is_group && isOnline && (
                       <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-card" />
@@ -711,9 +782,9 @@ export default function InternalChat() {
                   </p>
                 </div>
                 {isAdmin && selectedChannel.is_group && (
-                  <Button variant="outline" size="sm" onClick={openManageMembers}>
-                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                    Membros
+                  <Button variant="outline" size="sm" onClick={openGroupConfig}>
+                    <Settings className="w-3.5 h-3.5 mr-1.5" />
+                    Configurações
                   </Button>
                 )}
               </div>
@@ -920,28 +991,74 @@ export default function InternalChat() {
         </DialogContent>
       </Dialog>
 
-      {/* Manage Members Dialog */}
+      {/* Group Config Dialog */}
       <Dialog open={manageMembersOpen} onOpenChange={setManageMembersOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gerenciar Membros</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              Configurações do Grupo
+            </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="h-64 border rounded-md p-2">
-            {allUsers.map(u => (
-              <label key={u.user_id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
-                <Checkbox
-                  checked={selectedUsers.includes(u.user_id)}
-                  onCheckedChange={(checked) => {
-                    setSelectedUsers(prev => checked ? [...prev, u.user_id] : prev.filter(id => id !== u.user_id));
-                  }}
-                />
-                <span className="text-sm">{u.name || u.email}</span>
-              </label>
-            ))}
-          </ScrollArea>
+          <input ref={groupAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleGroupAvatarUpload} />
+          <Tabs defaultValue="info" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="info">Info</TabsTrigger>
+              <TabsTrigger value="members">Membros</TabsTrigger>
+              <TabsTrigger value="permissions">Permissões</TabsTrigger>
+            </TabsList>
+            <TabsContent value="info" className="space-y-4 mt-3">
+              <div className="flex items-center gap-4">
+                <div className="relative cursor-pointer" onClick={() => groupAvatarInputRef.current?.click()}>
+                  <Avatar className="w-16 h-16">
+                    {(selectedChannel as any)?.avatar_url && <AvatarImage src={(selectedChannel as any).avatar_url} />}
+                    <AvatarFallback className="bg-primary/20 text-primary text-lg">{selectedChannel?.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Image className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label>Nome do grupo</Label>
+                  <Input value={configGroupName} onChange={e => setConfigGroupName(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea value={configGroupDesc} onChange={e => setConfigGroupDesc(e.target.value)} placeholder="Descrição do grupo (opcional)" rows={3} />
+              </div>
+            </TabsContent>
+            <TabsContent value="members" className="mt-3">
+              <ScrollArea className="h-64 border rounded-md p-2">
+                {allUsers.map(u => (
+                  <label key={u.user_id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
+                    <Checkbox
+                      checked={selectedUsers.includes(u.user_id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedUsers(prev => checked ? [...prev, u.user_id] : prev.filter(id => id !== u.user_id));
+                      }}
+                    />
+                    <span className="text-sm">{u.name || u.email}</span>
+                  </label>
+                ))}
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="permissions" className="mt-3 space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                <div>
+                  <p className="text-sm font-medium">Somente admins podem enviar</p>
+                  <p className="text-xs text-muted-foreground">Apenas administradores poderão enviar mensagens neste grupo</p>
+                </div>
+                <Switch checked={configAdminOnly} onCheckedChange={setConfigAdminOnly} />
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageMembersOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveMembers}>Salvar</Button>
+            <Button onClick={handleSaveGroupConfig} disabled={savingConfig}>
+              {savingConfig && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
