@@ -110,6 +110,7 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(null);
     setExistingMediaType(null);
+    setVisibleTo('all');
     setDialogOpen(true);
   };
 
@@ -121,6 +122,7 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
+    setVisibleTo((t as any).visible_to || 'all');
     setDialogOpen(true);
   };
 
