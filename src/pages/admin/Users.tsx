@@ -485,11 +485,79 @@ export default function Users() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
-              <DialogDescription>Alterar nome de {userToEdit?.email}</DialogDescription>
+              <DialogDescription>Alterar dados de {userToEdit?.email}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-2 py-4">
-              <Label htmlFor="edit-name">Nome</Label>
-              <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do usuário" />
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nome</Label>
+                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do usuário" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-max-chips">Máx. Chips</Label>
+                <Input id="edit-max-chips" type="number" min={1} max={50} value={editMaxChips} onChange={(e) => setEditMaxChips(Number(e.target.value))} />
+                <p className="text-xs text-muted-foreground">Número máximo de chips que este usuário pode criar</p>
+              </div>
+              
+              {/* Reset password section */}
+              <div className="space-y-2 border-t pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowResetPassword(!showResetPassword)}
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  {showResetPassword ? 'Cancelar Reset de Senha' : 'Resetar Senha'}
+                </Button>
+                {showResetPassword && (
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-password">Nova Senha</Label>
+                    <Input
+                      id="reset-password"
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={resetPasswordValue}
+                      onChange={(e) => setResetPasswordValue(e.target.value)}
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      disabled={isResettingPassword || resetPasswordValue.length < 6}
+                      onClick={async () => {
+                        if (!userToEdit) return;
+                        setIsResettingPassword(true);
+                        try {
+                          const { data: sessionData } = await supabase.auth.getSession();
+                          const token = sessionData?.session?.access_token;
+                          if (!token) throw new Error('Sessão expirada');
+                          
+                          const response = await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ action: 'reset-password', targetUserId: userToEdit.user_id, newPassword: resetPasswordValue }),
+                            }
+                          );
+                          const result = await response.json();
+                          if (!response.ok) throw new Error(result.error || 'Erro ao resetar senha');
+                          
+                          toast({ title: 'Senha resetada', description: `Senha de ${userToEdit.email} foi alterada` });
+                          setShowResetPassword(false);
+                          setResetPasswordValue('');
+                        } catch (error: any) {
+                          toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                        } finally {
+                          setIsResettingPassword(false);
+                        }
+                      }}
+                    >
+                      {isResettingPassword ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Resetando...</> : 'Confirmar Reset de Senha'}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
@@ -501,7 +569,7 @@ export default function Users() {
                   try {
                     const { error } = await supabase
                       .from('profiles')
-                      .update({ name: editName.trim() || null })
+                      .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
                       .eq('user_id', userToEdit.user_id);
                     if (error) throw error;
                     toast({ title: 'Usuário atualizado' });
