@@ -67,6 +67,7 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
       let query = supabase
         .from('message_shortcuts' as any)
         .select('*')
+        .eq('user_id', user.id)
         .order('trigger_word');
 
       if (chipId) {
