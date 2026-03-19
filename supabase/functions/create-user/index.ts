@@ -83,8 +83,8 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Only admin and user (administrador) can reset passwords
-      if (callerRole !== 'admin' && callerRole !== 'user') {
+      // Only master and admin (administrador) can reset passwords
+      if (callerRole !== 'master' && callerRole !== 'admin') {
         return new Response(
           JSON.stringify({ error: 'Only admins can reset passwords' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
