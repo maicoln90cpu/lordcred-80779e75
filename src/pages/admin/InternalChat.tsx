@@ -560,7 +560,14 @@ export default function InternalChat() {
     setConfigGroupName(selectedChannel.name);
     setConfigGroupDesc(selectedChannel.description || '');
     setConfigAdminOnly((selectedChannel as any).admin_only_messages || false);
+    setConfigAllowedUsers((selectedChannel as any).config_allowed_users || []);
     setManageMembersOpen(true);
+  };
+
+  const canAccessGroupConfig = (ch: Channel) => {
+    if (isAdmin) return true;
+    if (ch.config_allowed_users && user && ch.config_allowed_users.includes(user.id)) return true;
+    return false;
   };
 
   const handleSaveGroupConfig = async () => {
