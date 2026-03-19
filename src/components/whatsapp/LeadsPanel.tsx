@@ -242,7 +242,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
