@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
 
     const callerRole = roleData?.role
     
-    // admin, user and support can create users
-    if (callerRole !== 'admin' && callerRole !== 'user' && callerRole !== 'support') {
+    // master, admin and support can create users
+    if (callerRole !== 'master' && callerRole !== 'admin' && callerRole !== 'support') {
       return new Response(
         JSON.stringify({ error: 'Access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
