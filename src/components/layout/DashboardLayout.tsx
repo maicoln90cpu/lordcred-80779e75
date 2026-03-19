@@ -138,7 +138,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const getRoleLabel = () => {
     if (isSeller) return 'Vendedor';
     if (isSupport) return 'Suporte';
-    if (isAdmin) return 'Master';
+    if (isMaster) return 'Master';
     return 'Administrador';
   };
 

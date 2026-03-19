@@ -2,11 +2,12 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type UserRole = 'admin' | 'user' | 'seller' | 'support';
+type UserRole = 'master' | 'admin' | 'seller' | 'support';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  isMaster: boolean;
   isAdmin: boolean;
   isSeller: boolean;
   isSupport: boolean;
@@ -22,11 +23,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [userRole, setUserRole] = useState<UserRole>('user');
+  const [userRole, setUserRole] = useState<UserRole>('seller');
   const [isLoading, setIsLoading] = useState(true);
   const [isBlocked, setIsBlocked] = useState(false);
 
-  const isAdmin = userRole === 'admin';
+  const isMaster = userRole === 'master';
+  const isAdmin = userRole === 'master' || userRole === 'admin';
   const isSeller = userRole === 'seller';
   const isSupport = userRole === 'support';
 
@@ -38,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .single();
 
-      setUserRole((roleData?.role as UserRole) ?? 'user');
+      setUserRole((roleData?.role as UserRole) ?? 'seller');
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -49,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsBlocked(profileData?.is_blocked ?? false);
     } catch (error) {
       console.error('Error checking user role:', error);
-      setUserRole('user');
+      setUserRole('seller');
       setIsBlocked(false);
     }
   };
@@ -63,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           setTimeout(() => checkUserRole(session.user.id), 0);
         } else {
-          setUserRole('user');
+          setUserRole('seller');
           setIsBlocked(false);
         }
         
@@ -94,12 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setUserRole('user');
+    setUserRole('seller');
     setIsBlocked(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSeller, isSupport, userRole, isLoading, isBlocked, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isMaster, isAdmin, isSeller, isSupport, userRole, isLoading, isBlocked, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
