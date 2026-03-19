@@ -75,7 +75,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     }).catch(() => {});
   }, [chipId]);
 
-  // Fetch shortcuts from DB + templates with trigger_word
+  // Fetch templates with trigger_word as shortcuts
   useEffect(() => {
     if (!chipId) return;
     const loadShortcuts = async () => {
@@ -83,71 +83,39 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Load from message_shortcuts (legacy)
-        const { data: shortcutsData } = await supabase
-          .from('message_shortcuts' as any)
-          .select('trigger_word,response_text,is_active,media_url,media_type,media_filename,user_id')
-          .or(`chip_id.eq.${chipId},chip_id.is.null`)
-          .eq('is_active', true);
-
-        // Load from message_templates with trigger_word set
         const { data: templatesData } = await supabase
           .from('message_templates')
           .select('trigger_word,content,is_active,media_url,media_type,media_filename,created_by,visible_to,visible_to_list')
           .eq('is_active', true)
           .not('trigger_word', 'is', null);
 
-        let results = (shortcutsData as any[]) || [];
-
-        // Check if seller
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-        const isSeller = roleData?.role === 'seller';
-
-        if (isSeller) {
-          const { data: nonSellerRoles } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['master', 'admin', 'support'] as any);
-          const allowedIds = new Set([user.id, ...(nonSellerRoles || []).map((r: any) => r.user_id)]);
-          results = results.filter((s: any) => allowedIds.has(s.user_id));
-        }
-
-        // Merge templates with trigger_word into shortcut format
-        if (templatesData) {
-          const templateShortcuts = (templatesData as any[])
-            .filter(t => {
-              if (!t.trigger_word) return false;
-              // Visibility check
-              if (t.created_by === user.id) return true;
-              const list = t.visible_to_list;
-              if (list && list.length > 0) return list.includes(user.id);
-              if (!t.visible_to) return true;
-              return t.visible_to === user.id;
-            })
-            .map(t => ({
-              trigger_word: t.trigger_word,
-              response_text: t.content,
-              is_active: true,
-              media_url: t.media_url,
-              media_type: t.media_type,
-              media_filename: t.media_filename,
-            }));
-          results = [...results, ...templateShortcuts];
-        }
+        const results = (templatesData as any[] || [])
+          .filter(t => {
+            if (!t.trigger_word) return false;
+            if (t.created_by === user.id) return true;
+            const list = t.visible_to_list;
+            if (list && list.length > 0) return list.includes(user.id);
+            if (!t.visible_to) return true;
+            return t.visible_to === user.id;
+          })
+          .map(t => ({
+            trigger_word: t.trigger_word,
+            response_text: t.content,
+            is_active: true,
+            media_url: t.media_url,
+            media_type: t.media_type,
+            media_filename: t.media_filename,
+          }));
 
         shortcutCache[chipId] = results;
       } catch {}
     };
     if (!shortcutCache[chipId]) loadShortcuts();
 
-    // Listen for cache invalidation from ShortcutManager
+    // Listen for cache invalidation (template changes)
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail === chipId) {
+      if (detail === chipId || detail === 'all') {
         delete shortcutCache[chipId];
         loadShortcuts();
       }

@@ -204,6 +204,8 @@ export default function Templates() {
       }
       setDialogOpen(false);
       setMediaFile(null);
+      // Invalidate shortcut cache so ChatInput picks up trigger_word changes
+      window.dispatchEvent(new CustomEvent('shortcut-cache-invalidate', { detail: 'all' }));
       fetchTemplates();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -217,6 +219,7 @@ export default function Templates() {
     if (!error) {
       toast({ title: 'Template excluído' });
       setTemplates(prev => prev.filter(t => t.id !== deleteTarget.id));
+      window.dispatchEvent(new CustomEvent('shortcut-cache-invalidate', { detail: 'all' }));
     }
     setDeleteTarget(null);
   };
