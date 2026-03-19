@@ -278,9 +278,9 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   <TableRow>
                     <TableHead>Vendedor</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
+                    <TableHead className="text-center">Pendentes</TableHead>
                     <TableHead className="text-center">% Contatos</TableHead>
                     <TableHead className="text-center">Última Alteração</TableHead>
-                    <TableHead>Filtro Status</TableHead>
                     <TableHead>Filtro Perfil</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
                     <TableHead>Vendedor Destino</TableHead>
