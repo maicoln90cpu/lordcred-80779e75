@@ -60,6 +60,8 @@ export default function InternalChat() {
   const [newMessage, setNewMessage] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [directDialogOpen, setDirectDialogOpen] = useState(false);
+  const [sellerEmailSearch, setSellerEmailSearch] = useState('');
+  const [sellerEmailError, setSellerEmailError] = useState('');
   const [manageMembersOpen, setManageMembersOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState<string | null>(null);
