@@ -629,6 +629,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             title="Atalhos de mensagem"
           >
             <Wand2 className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
