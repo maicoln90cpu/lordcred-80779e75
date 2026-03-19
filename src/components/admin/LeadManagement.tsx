@@ -255,18 +255,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
-            <span className="text-sm text-muted-foreground">Filtros globais:</span>
-            <Select value={globalStatus} onValueChange={setGlobalStatus}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                {statusOptions.map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-sm text-muted-foreground">Filtro global:</span>
             <Select value={globalProfile} onValueChange={setGlobalProfile}>
               <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder="Perfil" />
