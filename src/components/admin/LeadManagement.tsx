@@ -104,13 +104,12 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }));
   };
 
-  // Apply global filters first
+  // Apply global profile filter
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
-    if (globalStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === globalStatus);
     if (globalProfile !== 'all') result = result.filter((l: any) => l.perfil === globalProfile);
     return result;
-  }, [allLeads, globalStatus, globalProfile]);
+  }, [allLeads, globalProfile]);
 
   // Global counter metrics
   const globalMetrics = useMemo(() => {
