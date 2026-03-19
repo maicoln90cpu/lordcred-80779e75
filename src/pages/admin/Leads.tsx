@@ -78,9 +78,6 @@ const ALL_COLUMNS: ColumnConfig[] = [
 export default function Leads() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [reassignBatch, setReassignBatch] = useState<string | null>(null);
-  const [reassignSeller, setReassignSeller] = useState('');
-  const [isReassigning, setIsReassigning] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
