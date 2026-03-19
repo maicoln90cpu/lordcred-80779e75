@@ -396,7 +396,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                   </TableHeader>
                   <TableBody>
                     {pagedLeads.map((lead: any) => (
-                      <TableRow key={lead.id} className="cursor-pointer" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
+                      <TableRow key={lead.id} className="cursor-pointer group" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
                         <TableCell className="font-medium">{lead.nome}</TableCell>
                         <TableCell className="text-xs text-muted-foreground" onClick={(e) => {
                           if (!lead.cpf) return;
