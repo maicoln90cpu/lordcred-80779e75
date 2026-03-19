@@ -1022,21 +1022,21 @@ export default function InternalChat() {
           </DialogHeader>
           {isSeller ? (
             <>
-              <p className="text-sm text-muted-foreground">Busque por nome ou email para iniciar uma conversa:</p>
+              <p className="text-sm text-muted-foreground">Digite o email completo do usuário para iniciar uma conversa:</p>
               <div className="space-y-3">
                 <Input
-                  placeholder="Nome ou email..."
+                  placeholder="Digite o email completo do usuário..."
                   value={sellerEmailSearch}
                   onChange={(e) => { setSellerEmailSearch(e.target.value); setSellerEmailError(''); }}
                 />
                 {sellerEmailError && <p className="text-xs text-destructive">{sellerEmailError}</p>}
 
-                {/* Filtered user list based on search */}
-                {sellerEmailSearch.trim().length >= 2 && (() => {
+                {/* Only show results on exact email match for sellers */}
+                {sellerEmailSearch.trim().length >= 3 && (() => {
                   const query = sellerEmailSearch.trim().toLowerCase();
                   const matches = allUsers.filter(u =>
                     u.user_id !== user?.id &&
-                    (u.email.toLowerCase().includes(query) || (u.name || '').toLowerCase().includes(query))
+                    u.email.toLowerCase() === query
                   );
                   return matches.length > 0 ? (
                     <ScrollArea className="h-40 border rounded-md p-2">
@@ -1067,13 +1067,11 @@ export default function InternalChat() {
                         );
                       })}
                     </ScrollArea>
-                  ) : (
-                    <p className="text-xs text-muted-foreground text-center py-3">Nenhum usuário encontrado</p>
-                  );
+                  ) : null;
                 })()}
 
-                {/* Support button */}
-                {supportUserId && supportUserId !== user?.id && (
+                {/* Support button - always visible */}
+                {supportUserId && supportUserId !== user?.id ? (
                   <Button
                     variant="outline"
                     className="w-full"
@@ -1085,6 +1083,8 @@ export default function InternalChat() {
                     <MessageSquare className="w-4 h-4 mr-2" />
                     Suporte
                   </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center">Suporte não configurado. Peça ao admin para configurar em Configurações.</p>
                 )}
               </div>
             </>

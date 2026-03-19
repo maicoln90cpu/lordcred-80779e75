@@ -111,6 +111,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
+  // Helper to extract hex from color_class or return null
+  const extractHex = (colorClass: string): string | null => {
+    const match = colorClass.match(/#[0-9a-fA-F]{3,8}/);
+    return match ? match[0] : null;
+  };
+
+  const getColorStyle = (colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return { style: { backgroundColor: `${hex}20`, color: hex, borderColor: `${hex}40` }, className: 'hover:opacity-80' };
+    }
+    return { style: {}, className: colorClass };
+  };
+
   const statusColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     statusOptions.forEach(s => { map[s.value] = s.color_class; });
@@ -268,15 +282,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
           >
             Todos: {statusCounts.total}
           </Badge>
-          {statusOptions.map(s => (
-            <Badge
-              key={s.value}
-              className={`cursor-pointer ${filterStatus === s.value ? s.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
-              onClick={() => handleFilterStatus(filterStatus === s.value ? 'all' : s.value)}
-            >
-              {s.label}: {statusCounts[s.value] || 0}
-            </Badge>
-          ))}
+          {statusOptions.map(s => {
+            const cs = getColorStyle(s.color_class);
+            const isActive = filterStatus === s.value;
+            return (
+              <Badge
+                key={s.value}
+                className={`cursor-pointer ${isActive ? cs.className : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                style={isActive ? cs.style : {}}
+                onClick={() => handleFilterStatus(filterStatus === s.value ? 'all' : s.value)}
+              >
+                {s.label}: {statusCounts[s.value] || 0}
+              </Badge>
+            );
+          })}
         </div>
 
         {/* Profile filter badges */}
@@ -290,15 +309,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
             >
               Todos
             </Badge>
-            {profileOptions.map(p => (
-              <Badge
-                key={p.value}
-                className={`cursor-pointer ${filterPerfil === p.value ? p.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
-                onClick={() => handleFilterPerfil(filterPerfil === p.value ? 'all' : p.value)}
-              >
-                {p.label}: {perfilCounts[p.value] || 0}
-              </Badge>
-            ))}
+            {profileOptions.map(p => {
+              const cp = getColorStyle(p.color_class);
+              const isActive = filterPerfil === p.value;
+              return (
+                <Badge
+                  key={p.value}
+                  className={`cursor-pointer ${isActive ? cp.className : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                  style={isActive ? cp.style : {}}
+                  onClick={() => handleFilterPerfil(filterPerfil === p.value ? 'all' : p.value)}
+                >
+                  {p.label}: {perfilCounts[p.value] || 0}
+                </Badge>
+              );
+            })}
           </div>
         )}
 
@@ -427,18 +451,22 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                           {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                         </TableCell>
                         <TableCell>
-                          {lead.perfil ? (
-                            <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>
-                              {lead.perfil}
-                            </Badge>
-                          ) : '-'}
+                          {lead.perfil ? (() => {
+                            const cp = getColorStyle(profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground');
+                            return (
+                              <Badge className={cp.className} style={cp.style}>
+                                {lead.perfil}
+                              </Badge>
+                            );
+                          })() : '-'}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
                             <SelectTrigger className="h-7 w-32 text-xs border-0 p-1">
-                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>
-                                {lead.status}
-                              </Badge>
+                              {(() => {
+                                const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
+                                return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>;
+                              })()}
                             </SelectTrigger>
                             <SelectContent>
                               {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}

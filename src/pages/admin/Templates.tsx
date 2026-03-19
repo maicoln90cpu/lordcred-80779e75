@@ -31,6 +31,7 @@ interface Template {
   media_filename?: string | null;
   visible_to?: string | null;
   visible_to_list?: string[] | null;
+  trigger_word?: string | null;
 }
 
 const CATEGORIES = [
@@ -66,6 +67,7 @@ export default function Templates() {
   const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
   const [visibleToList, setVisibleToList] = useState<string[]>([]);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>([]);
+  const [triggerWord, setTriggerWord] = useState('');
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -125,6 +127,7 @@ export default function Templates() {
     setExistingMediaUrl(null);
     setExistingMediaType(null);
     setVisibleToList([]);
+    setTriggerWord('');
     setDialogOpen(true);
   };
 
@@ -136,11 +139,11 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
-    // Load from visible_to_list, fallback to visible_to
     const list = t.visible_to_list && t.visible_to_list.length > 0
       ? t.visible_to_list
       : t.visible_to ? [t.visible_to] : [];
     setVisibleToList(list);
+    setTriggerWord(t.trigger_word || '');
     setDialogOpen(true);
   };
 
@@ -180,6 +183,7 @@ export default function Templates() {
         media_filename: uploadedMediaFilename,
         visible_to: finalVisibleTo,
         visible_to_list: finalVisibleToList,
+        trigger_word: triggerWord.trim() || null,
       };
 
       if (editTemplate) {
@@ -282,6 +286,11 @@ export default function Templates() {
               {catStyle.label}
             </Badge>
             <h3 className="font-medium text-sm truncate">{t.title}</h3>
+            {t.trigger_word && (
+              <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0 border-primary/40 text-primary">
+                ⚡ {t.trigger_word}
+              </Badge>
+            )}
             {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
             {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
           </div>
@@ -432,6 +441,15 @@ export default function Templates() {
               <Label>Conteúdo</Label>
               <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Texto do template..." rows={6} />
               <p className="text-xs text-muted-foreground">Use {'{nome}'}, {'{telefone}'} como variáveis</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Palavra-gatilho (opcional)</Label>
+              <Input
+                value={triggerWord}
+                onChange={e => setTriggerWord(e.target.value)}
+                placeholder="Ex: /ola, #vendas..."
+              />
+              <p className="text-xs text-muted-foreground">Ao digitar esta palavra no chat, o template será sugerido automaticamente (como atalho)</p>
             </div>
             <div className="space-y-2">
               <Label>Mídia (opcional)</Label>
