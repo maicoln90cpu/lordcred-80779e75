@@ -82,7 +82,9 @@ export default function InternalChat() {
   const [configGroupName, setConfigGroupName] = useState('');
   const [configGroupDesc, setConfigGroupDesc] = useState('');
   const [configAdminOnly, setConfigAdminOnly] = useState(false);
+  const [configAllowedUsers, setConfigAllowedUsers] = useState<string[]>([]);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [supportUserId, setSupportUserId] = useState<string | null>(null);
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profilesMapRef = useRef<Record<string, UserProfile>>({});
