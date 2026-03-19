@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause, Settings } from 'lucide-react';
+import { Plus, Send, Users, Trash2, UserPlus, MessageSquare, User, Paperclip, Image, FileText, Film, Mic, MicOff, X, Download, Play, Pause, Settings, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Channel {
