@@ -217,10 +217,14 @@ export default function Performance() {
     const totalLeads = filteredLeads.length;
     const totalContacted = filteredLeads.filter(l => l.contacted_at).length;
     const totalApproved = filteredLeads.filter(l => l.status?.toUpperCase() === 'APROVADO').length;
-    const totalSent = filteredMessages.filter(m => m.direction === 'outgoing').length;
-    const totalReceived = filteredMessages.filter(m => m.direction === 'incoming').length;
-    return { totalLeads, totalContacted, totalApproved, totalSent, totalReceived, activeSellers: sellerStats.length };
-  }, [filteredLeads, filteredMessages, sellerStats]);
+    const totalPending = filteredLeads.filter(l => !l.status || l.status === 'pendente').length;
+    // Only count messages from non-warming chips
+    const nonWarmingChipIds = new Set(nonWarmingChips.map(c => c.id));
+    const relevantMessages = filteredMessages.filter(m => nonWarmingChipIds.has(m.chip_id));
+    const totalSent = relevantMessages.filter(m => m.direction === 'outgoing').length;
+    const totalReceived = relevantMessages.filter(m => m.direction === 'incoming').length;
+    return { totalLeads, totalContacted, totalApproved, totalPending, totalSent, totalReceived, activeSellers: sellerStats.length };
+  }, [filteredLeads, filteredMessages, sellerStats, nonWarmingChips]);
 
   const statusDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
