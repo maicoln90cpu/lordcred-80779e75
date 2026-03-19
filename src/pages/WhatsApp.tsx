@@ -38,7 +38,7 @@ export default function WhatsApp() {
   const [selectedChipStatus, setSelectedChipStatus] = useState<string>('disconnected');
   const [selectedChipInstanceName, setSelectedChipInstanceName] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [whatsappProfileOpen, setWhatsappProfileOpen] = useState(false);
   const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
