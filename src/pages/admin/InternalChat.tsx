@@ -73,6 +73,12 @@ export default function InternalChat() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; type: string; url: string } | null>(null);
+  // Group config state
+  const [configGroupName, setConfigGroupName] = useState('');
+  const [configGroupDesc, setConfigGroupDesc] = useState('');
+  const [configAdminOnly, setConfigAdminOnly] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profilesMapRef = useRef<Record<string, UserProfile>>({});
   const selectedChannelRef = useRef<Channel | null>(null);
