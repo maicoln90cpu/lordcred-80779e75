@@ -147,7 +147,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   const perfilCounts = useMemo(() => {
     let subset = allLeads;
-    if (filterStatus !== 'all') subset = subset.filter((l: any) => l.status === filterStatus);
+    if (filterStatus !== 'all') subset = subset.filter((l: any) => (l.status || 'pendente') === filterStatus);
     const counts: Record<string, number> = {};
     profileOptions.forEach(p => { counts[p.value] = 0; });
     subset.forEach((l: any) => {
