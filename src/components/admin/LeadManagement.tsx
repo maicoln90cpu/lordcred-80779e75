@@ -257,45 +257,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
 
   return (
     <div className="space-y-4">
-      {/* Counter Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Users className="w-4 h-4" /> Total
-            </div>
-            <p className="text-2xl font-bold mt-1">{globalMetrics.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Clock className="w-4 h-4" /> Pendentes
-            </div>
-            <p className="text-2xl font-bold mt-1">{globalMetrics.pendentes}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <CheckCircle className="w-4 h-4" /> Contatados
-            </div>
-            <p className="text-2xl font-bold mt-1">{globalMetrics.contatados}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <TrendingUp className="w-4 h-4" /> Aprovados
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {globalMetrics.aprovados}{' '}
-              <span className="text-sm text-muted-foreground font-normal">({globalMetrics.taxaAprovacao}%)</span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Global Filters */}
       <Card>
         <CardHeader className="pb-3">

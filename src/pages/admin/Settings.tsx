@@ -103,6 +103,61 @@ interface ConnectedChip {
   warming_phase?: string;
 }
 
+function SupportChatSettings() {
+  const { toast } = useToast();
+  const [supportUserId, setSupportUserId] = useState<string>('');
+  const [allProfiles, setAllProfiles] = useState<{ user_id: string; name: string | null; email: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [{ data: settings }, { data: profiles }] = await Promise.all([
+        supabase.from('system_settings').select('support_chat_user_id').single(),
+        supabase.rpc('get_all_chat_profiles' as any),
+      ]);
+      if (settings && (settings as any).support_chat_user_id) setSupportUserId((settings as any).support_chat_user_id);
+      if (profiles) setAllProfiles(profiles as any);
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportUserId || null } as any).neq('id', '');
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else toast({ title: 'Responsável pelo suporte atualizado' });
+    setSaving(false);
+  };
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-primary" />
+          Suporte do Chat Interno
+        </CardTitle>
+        <CardDescription>Defina o responsável pelo suporte que aparecerá como botão para vendedores</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Responsável pelo Suporte</Label>
+          <Select value={supportUserId} onValueChange={setSupportUserId}>
+            <SelectTrigger><SelectValue placeholder="Selecione um usuário" /></SelectTrigger>
+            <SelectContent>
+              {allProfiles.map(p => (
+                <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Salvar
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Settings() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -360,6 +415,7 @@ export default function Settings() {
           <TabsList>
             <TabsTrigger value="config">Configurações</TabsTrigger>
             <TabsTrigger value="mensagens">Mensagens</TabsTrigger>
+            <TabsTrigger value="chat">Chat Interno</TabsTrigger>
           </TabsList>
 
           {/* Tab: Configurações */}
@@ -941,6 +997,11 @@ export default function Settings() {
                 )}
               </Button>
             </div>
+          </TabsContent>
+
+          {/* Tab: Chat Interno */}
+          <TabsContent value="chat" className="space-y-6">
+            <SupportChatSettings />
           </TabsContent>
 
           {/* Tab: Mensagens */}

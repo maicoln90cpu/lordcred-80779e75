@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, FileText } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, DollarSign, Link2, MessageCircle, Ticket, FileText } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -353,7 +353,7 @@ export default function WhatsApp() {
             <LayoutDashboard className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setLeadsOpen(true)} className="text-muted-foreground hover:text-foreground" title="Meus Leads">
-            <ClipboardList className="w-4 h-4" />
+            <DollarSign className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />

@@ -398,6 +398,7 @@ export type Database = {
         Row: {
           admin_only_messages: boolean | null
           avatar_url: string | null
+          config_allowed_users: string[] | null
           created_at: string
           created_by: string
           description: string | null
@@ -409,6 +410,7 @@ export type Database = {
         Insert: {
           admin_only_messages?: boolean | null
           avatar_url?: string | null
+          config_allowed_users?: string[] | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -420,6 +422,7 @@ export type Database = {
         Update: {
           admin_only_messages?: boolean | null
           avatar_url?: string | null
+          config_allowed_users?: string[] | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -782,6 +785,7 @@ export type Database = {
           title: string
           updated_at: string
           visible_to: string | null
+          visible_to_list: string[] | null
         }
         Insert: {
           category?: string
@@ -797,6 +801,7 @@ export type Database = {
           title: string
           updated_at?: string
           visible_to?: string | null
+          visible_to_list?: string[] | null
         }
         Update: {
           category?: string
@@ -812,6 +817,7 @@ export type Database = {
           title?: string
           updated_at?: string
           visible_to?: string | null
+          visible_to_list?: string[] | null
         }
         Relationships: []
       }
@@ -927,6 +933,7 @@ export type Database = {
           random_delay_variation: number
           read_delay_seconds: number
           start_hour: number
+          support_chat_user_id: string | null
           timezone: string | null
           typing_simulation: boolean
           typing_speed_chars_sec: number
@@ -973,6 +980,7 @@ export type Database = {
           random_delay_variation?: number
           read_delay_seconds?: number
           start_hour?: number
+          support_chat_user_id?: string | null
           timezone?: string | null
           typing_simulation?: boolean
           typing_speed_chars_sec?: number
@@ -1019,6 +1027,7 @@ export type Database = {
           random_delay_variation?: number
           read_delay_seconds?: number
           start_hour?: number
+          support_chat_user_id?: string | null
           timezone?: string | null
           typing_simulation?: boolean
           typing_speed_chars_sec?: number

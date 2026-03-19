@@ -57,14 +57,14 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         .order('category')
         .order('sort_order');
       // Client-side visibility filter
-      let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string }));
+      let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string; visible_to_list?: string[] }));
       if (user) {
         filtered = filtered.filter(t => {
-          // Creator always sees their own
           if ((t as any).created_by === user.id) return true;
-          // Global (visible_to null) = everyone sees
+          // Check visible_to_list first (new), fallback to visible_to (legacy)
+          const list = (t as any).visible_to_list;
+          if (list && list.length > 0) return list.includes(user.id);
           if (!(t as any).visible_to) return true;
-          // Targeted = only that user sees
           return (t as any).visible_to === user.id;
         });
       }
