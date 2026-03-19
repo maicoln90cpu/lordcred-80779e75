@@ -431,7 +431,7 @@ export default function Users() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditDialogOpen(true); }}
+                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditMaxChips(user.max_chips); setResetPasswordValue(''); setShowResetPassword(false); setEditDialogOpen(true); }}
                             >
                               <Pencil className="w-4 h-4 mr-1" />Editar
                             </Button>
