@@ -100,8 +100,8 @@ export default function Users() {
 
       // Filter based on caller's role
       if (isMaster) {
-        // Master sees all non-admin users (users + sellers + support), excluding self
-        enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin');
+        // Master sees all non-master users, excluding self
+        enrichedUsers = enrichedUsers.filter(u => u.role !== 'master');
       } else if (isSupport) {
         // Support sees all sellers and other supports, excluding admins and self
         enrichedUsers = enrichedUsers.filter(u => 
@@ -109,7 +109,7 @@ export default function Users() {
         );
       } else {
         // Administrador vê todos exceto master, excluindo a si mesmo
-        enrichedUsers = enrichedUsers.filter(u => u.role !== 'admin' && u.user_id !== currentUser?.id);
+        enrichedUsers = enrichedUsers.filter(u => u.role !== 'master' && u.user_id !== currentUser?.id);
       }
 
       setUsers(enrichedUsers);
