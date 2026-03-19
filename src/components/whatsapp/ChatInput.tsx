@@ -35,7 +35,7 @@ interface ChatInputProps {
   lastIncomingText?: string;
 }
 
-export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId }: ChatInputProps) {
+export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId, lastIncomingText }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
