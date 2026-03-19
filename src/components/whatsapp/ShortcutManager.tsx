@@ -334,7 +334,7 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
 
       {/* Create/Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Editar atalho' : 'Novo atalho de mensagem'}</DialogTitle>
           </DialogHeader>
@@ -386,7 +386,7 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{mediaFile?.name || existingMediaFilename || 'Mídia'}</p>
+                    <p className="text-sm truncate max-w-[200px]">{mediaFile?.name || existingMediaFilename || 'Mídia'}</p>
                     <p className="text-xs text-muted-foreground">{getMediaTypeLabel(mediaFile?.type || existingMediaType || null)}</p>
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearMedia}>
