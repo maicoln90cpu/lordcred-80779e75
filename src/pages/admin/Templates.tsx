@@ -438,6 +438,15 @@ export default function Templates() {
               <p className="text-xs text-muted-foreground">Use {'{nome}'}, {'{telefone}'} como variáveis</p>
             </div>
             <div className="space-y-2">
+              <Label>Palavra-gatilho (opcional)</Label>
+              <Input
+                value={triggerWord}
+                onChange={e => setTriggerWord(e.target.value)}
+                placeholder="Ex: /ola, #vendas..."
+              />
+              <p className="text-xs text-muted-foreground">Ao digitar esta palavra no chat, o template será sugerido automaticamente (como atalho)</p>
+            </div>
+            <div className="space-y-2">
               <Label>Mídia (opcional)</Label>
               <input
                 ref={fileInputRef}
