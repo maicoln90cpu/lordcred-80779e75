@@ -850,7 +850,7 @@ export default function Leads() {
                     <p className="text-sm text-muted-foreground">Perfis configurados atualmente:</p>
                     <div className="flex flex-wrap gap-2">
                       {profileOptions.map(p => (
-                        <Badge key={p.value} className={p.color_class}>{p.label}</Badge>
+                        <span key={p.value}>{renderColorBadge(p.label, p.color_class)}</span>
                       ))}
                     </div>
                   </div>
