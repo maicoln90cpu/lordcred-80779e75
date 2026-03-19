@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import LeadImporter from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
+import LeadManagement from '@/components/admin/LeadManagement';
 
 interface StatusOption {
   value: string;
