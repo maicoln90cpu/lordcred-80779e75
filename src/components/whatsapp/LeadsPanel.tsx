@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown } from 'lucide-react';
+import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface LeadsPanelProps {
