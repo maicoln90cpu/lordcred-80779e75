@@ -753,7 +753,7 @@ export default function Leads() {
                     <p className="text-sm text-muted-foreground">Status configurados atualmente:</p>
                     <div className="flex flex-wrap gap-2">
                       {statusOptions.map(s => (
-                        <Badge key={s.value} className={s.color_class}>{s.label}</Badge>
+                        <span key={s.value}>{renderColorBadge(s.label, s.color_class)}</span>
                       ))}
                     </div>
                   </div>
