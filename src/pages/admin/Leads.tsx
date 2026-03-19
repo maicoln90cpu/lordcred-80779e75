@@ -647,33 +647,9 @@ export default function Leads() {
                                 {new Date(b.created).toLocaleDateString('pt-BR')}
                               </TableCell>
                               <TableCell>
-                                <div className="flex gap-2 items-center">
-                                  {reassignBatch === b.batch ? (
-                                    <div className="flex gap-2 items-center">
-                                      <Select value={reassignSeller} onValueChange={setReassignSeller}>
-                                        <SelectTrigger className="w-40 h-8">
-                                          <SelectValue placeholder="Vendedor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {sellers.map((s: any) => (
-                                            <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <Button size="sm" onClick={handleReassignBatch} disabled={isReassigning || !reassignSeller}>
-                                        {isReassigning ? <Loader2 className="w-3 h-3 animate-spin" /> : 'OK'}
-                                      </Button>
-                                      <Button size="sm" variant="ghost" onClick={() => setReassignBatch(null)}>✕</Button>
-                                    </div>
-                                  ) : (
-                                    <Button size="sm" variant="outline" onClick={() => { setReassignBatch(b.batch); setReassignSeller(''); }}>
-                                      Reatribuir
-                                    </Button>
-                                  )}
-                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
+                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
