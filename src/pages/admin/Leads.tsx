@@ -502,6 +502,12 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
+  // Color hex presets for lead status/profiles
+  const COLOR_HEX_PRESETS = [
+    '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
+    '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6',
+  ];
+
   // Convert hex to a storable format that works with inline styles
   const hexToColorClass = (hex: string) => {
     return `hex:${hex}`;
