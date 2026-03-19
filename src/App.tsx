@@ -55,8 +55,9 @@ const App = () => (
               <Route path="/messages" element={<ProtectedRoute blockSellers><Messages /></ProtectedRoute>} />
               <Route path="/history" element={<Navigate to="/messages" replace />} />
               <Route path="/admin/users" element={<ProtectedRoute blockSellers><Users /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
+              <Route path="/settingsaquecimento" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
+              <Route path="/settings" element={<Navigate to="/settingsaquecimento" replace />} />
+              <Route path="/admin/settings" element={<Navigate to="/settingsaquecimento" replace />} />
               <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
               <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
               <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
