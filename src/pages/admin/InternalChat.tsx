@@ -128,7 +128,19 @@ export default function InternalChat() {
     // Fallback to original if v2 doesn't exist
     const chatProfiles = chatData || (await supabase.rpc('get_internal_chat_profiles')).data;
     
-    const users = (allData || chatProfiles || []) as unknown as UserProfile[];
+    let users = (allData || chatProfiles || []) as unknown as UserProfile[];
+
+    // Hide master users from non-master roles
+    let masterIds = new Set<string>();
+    if (!isMaster) {
+      const { data: masterRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'master');
+      masterIds = new Set((masterRoles || []).map((r: any) => r.user_id));
+      users = users.filter(u => !masterIds.has(u.user_id));
+    }
+
     setAllUsers(users);
     const map: Record<string, UserProfile> = {};
     users.forEach(u => { map[u.user_id] = u; });
@@ -136,6 +148,7 @@ export default function InternalChat() {
     // Also merge chat profiles to ensure we have all senders with avatar_url
     if (chatProfiles && allData) {
       (chatProfiles as unknown as UserProfile[]).forEach(u => {
+        if (masterIds.has(u.user_id)) return; // skip masters for non-master
         if (!map[u.user_id]) map[u.user_id] = u;
         else if (u.avatar_url && !map[u.user_id].avatar_url) {
           map[u.user_id].avatar_url = u.avatar_url;
@@ -152,10 +165,11 @@ export default function InternalChat() {
       .select('user_id, role')
       .in('role', ['support', 'admin', 'master']);
     if (rolesData) {
-      const saUsers = users.filter(u => rolesData.some(r => r.user_id === u.user_id));
+      const filteredRoles = isMaster ? rolesData : rolesData.filter((r: any) => r.role !== 'master');
+      const saUsers = users.filter(u => filteredRoles.some((r: any) => r.user_id === u.user_id));
       setSupportAdminUsers(saUsers);
     }
-  }, []);
+  }, [isMaster]);
 
   // Load last message preview for each channel
   const loadLastMessages = useCallback(async (channelIds: string[]) => {
