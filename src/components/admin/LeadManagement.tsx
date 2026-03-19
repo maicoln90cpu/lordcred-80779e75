@@ -39,8 +39,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Global filters for the management view
-  const [globalStatus, setGlobalStatus] = useState('all');
+  // Global filter (only profile now, status filter removed)
+  const [globalProfile, setGlobalProfile] = useState('all');
   const [globalProfile, setGlobalProfile] = useState('all');
 
   // Per-row state for reassignment
