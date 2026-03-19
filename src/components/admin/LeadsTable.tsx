@@ -523,11 +523,11 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                             <TableCell className="whitespace-nowrap">{lead.nome_mae || '-'}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatDate(lead.data_ref)}</TableCell>
                             <TableCell>
-                              <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>
+                              {renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground')}
                             </TableCell>
                             <TableCell>
                               {lead.perfil
-                                ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+                                ? renderColorBadge(lead.perfil, profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground')
                                 : <span className="text-muted-foreground text-xs">-</span>
                               }
                             </TableCell>
