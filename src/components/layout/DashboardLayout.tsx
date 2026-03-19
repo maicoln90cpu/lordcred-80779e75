@@ -125,7 +125,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const filterItems = (items: NavItem[]) =>
     items.filter(item => {
-      if (item.adminOnly && !isAdmin) return false;
+      if (item.adminOnly && !isMaster) return false;
       if (item.sellerHidden && isSeller) return false;
       if (item.supportHidden && isSupport) return false;
       return true;
