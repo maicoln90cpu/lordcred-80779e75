@@ -197,25 +197,11 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         .select('id')
         .eq('assigned_to', sellerId);
 
-      if (row.filterStatus !== 'all') {
-        if (row.filterStatus === 'pendente') {
-          query = query.or('status.eq.pendente,status.is.null');
-        } else {
-          query = query.eq('status', row.filterStatus);
-        }
-      }
       if (row.filterProfile !== 'all') {
         query = query.eq('perfil', row.filterProfile);
       }
 
-      // Also apply global filters
-      if (globalStatus !== 'all') {
-        if (globalStatus === 'pendente') {
-          query = query.or('status.eq.pendente,status.is.null');
-        } else {
-          query = query.eq('status', globalStatus);
-        }
-      }
+      // Also apply global profile filter
       if (globalProfile !== 'all') {
         query = query.eq('perfil', globalProfile);
       }
