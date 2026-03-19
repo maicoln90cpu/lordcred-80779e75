@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
       .eq('user_id', requesterId)
       .single()
 
-    if (requesterRole?.role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Apenas administradores podem alterar roles' }), { status: 403, headers: corsHeaders })
+    if (requesterRole?.role !== 'master') {
+      return new Response(JSON.stringify({ error: 'Apenas o Master pode alterar roles' }), { status: 403, headers: corsHeaders })
     }
 
     const { targetUserId, newRole } = await req.json()
