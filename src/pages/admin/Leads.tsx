@@ -579,6 +579,10 @@ export default function Leads() {
             />
           </TabsContent>
 
+          <TabsContent value="management">
+            <LeadManagement statusOptions={statusOptions} profileOptions={profileOptions} />
+          </TabsContent>
+
           <TabsContent value="import">
             <LeadImporter />
           </TabsContent>
