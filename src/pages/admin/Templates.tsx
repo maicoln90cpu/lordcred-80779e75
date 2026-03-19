@@ -48,7 +48,7 @@ interface SellerProfile {
 
 export default function Templates() {
   const { toast } = useToast();
-  const { user, isSeller, isAdmin } = useAuth();
+  const { user, isSeller, isAdmin, userRole } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
