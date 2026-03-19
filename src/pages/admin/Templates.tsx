@@ -379,6 +379,23 @@ export default function Templates() {
                 </Button>
               )}
             </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label>Visível para</Label>
+                <Select value={visibleTo} onValueChange={setVisibleTo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os usuários</SelectItem>
+                    {sellerProfiles.filter(s => s.user_id !== user?.id).map(s => (
+                      <SelectItem key={s.user_id} value={s.user_id}>
+                        {s.name || s.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Selecione um usuário específico ou deixe para todos</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
