@@ -106,17 +106,23 @@ interface ConnectedChip {
 function SupportChatSettings() {
   const { toast } = useToast();
   const [supportUserId, setSupportUserId] = useState<string>('');
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const [allProfiles, setAllProfiles] = useState<{ user_id: string; name: string | null; email: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       const [{ data: settings }, { data: profiles }, { data: masterIds }] = await Promise.all([
-        supabase.from('system_settings').select('support_chat_user_id').single(),
+        supabase.from('system_settings').select('id,support_chat_user_id').maybeSingle(),
         supabase.rpc('get_all_chat_profiles' as any),
         supabase.rpc('get_master_user_ids'),
       ]);
-      if (settings && (settings as any).support_chat_user_id) setSupportUserId((settings as any).support_chat_user_id);
+
+      if (settings?.id) {
+        setSettingsId(settings.id);
+        if (settings.support_chat_user_id) setSupportUserId(settings.support_chat_user_id);
+      }
+
       if (profiles) {
         const masterSet = new Set((masterIds as string[]) || []);
         setAllProfiles((profiles as any[]).filter(p => !masterSet.has(p.user_id)));
@@ -129,8 +135,12 @@ function SupportChatSettings() {
       toast({ title: 'Selecione um usuário', variant: 'destructive' });
       return;
     }
+    if (!settingsId) {
+      toast({ title: 'Configuração não encontrada', description: 'Recarregue a página e tente novamente', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportUserId } as any).neq('id', '');
+    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportUserId } as any).eq('id', settingsId);
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else toast({ title: 'Responsável pelo suporte atualizado' });
     setSaving(false);
