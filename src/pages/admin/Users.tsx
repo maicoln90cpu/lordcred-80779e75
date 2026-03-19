@@ -228,8 +228,8 @@ export default function Users() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return 'Master';
-      case 'user': return 'Administrador';
+      case 'master': return 'Master';
+      case 'admin': return 'Administrador';
       case 'seller': return 'Vendedor';
       case 'support': return 'Suporte';
       default: return role;
