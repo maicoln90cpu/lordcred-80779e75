@@ -157,6 +157,7 @@ export default function Templates() {
         media_url: uploadedMediaUrl,
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
+        visible_to: visibleTo === 'all' ? null : visibleTo,
       };
 
       if (editTemplate) {
