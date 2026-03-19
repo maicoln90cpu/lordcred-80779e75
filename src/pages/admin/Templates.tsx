@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy, Upload, X, Image, Mic } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy, Upload, X, Image, Mic, User } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +30,7 @@ interface Template {
   media_type?: string | null;
   media_filename?: string | null;
   visible_to?: string | null;
+  visible_to_list?: string[] | null;
 }
 
 const CATEGORIES = [
@@ -61,7 +64,7 @@ export default function Templates() {
   const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
   const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
-  const [visibleTo, setVisibleTo] = useState<string>('all');
+  const [visibleToList, setVisibleToList] = useState<string[]>([]);
   const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>([]);
 
   // Form fields
@@ -71,7 +74,6 @@ export default function Templates() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
-  // Load seller profiles for visible_to selector (admin/support)
   const canSetVisibility = isAdmin || userRole === 'support';
   useEffect(() => {
     if (!canSetVisibility) return;
@@ -89,14 +91,13 @@ export default function Templates() {
       .order('sort_order');
     const { data, error } = await query;
     if (!error && user) {
-      // Client-side visibility filter
-      let filtered = (data as Template[]) || [];
+      let filtered = (data as any[] || []).map(d => ({ ...d } as Template));
       if (isSeller) {
-        // Seller sees: own templates OR visible_to is null (global) OR visible_to matches self
         filtered = filtered.filter(t =>
           t.created_by === user.id ||
-          !t.visible_to ||
-          t.visible_to === user.id
+          (!t.visible_to && (!t.visible_to_list || t.visible_to_list.length === 0)) ||
+          t.visible_to === user.id ||
+          (t.visible_to_list && t.visible_to_list.includes(user.id))
         );
       }
       setTemplates(filtered);
@@ -114,7 +115,7 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(null);
     setExistingMediaType(null);
-    setVisibleTo('all');
+    setVisibleToList([]);
     setDialogOpen(true);
   };
 
@@ -126,7 +127,11 @@ export default function Templates() {
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
-    setVisibleTo((t as any).visible_to || 'all');
+    // Load from visible_to_list, fallback to visible_to
+    const list = t.visible_to_list && t.visible_to_list.length > 0
+      ? t.visible_to_list
+      : t.visible_to ? [t.visible_to] : [];
+    setVisibleToList(list);
     setDialogOpen(true);
   };
 
@@ -138,7 +143,6 @@ export default function Templates() {
       let uploadedMediaType: string | null = existingMediaType;
       let uploadedMediaFilename: string | null = editTemplate?.media_filename || null;
 
-      // Upload new media file if selected
       if (mediaFile) {
         const ext = mediaFile.file.name.split('.').pop() || 'bin';
         const path = `${crypto.randomUUID()}.${ext}`;
@@ -154,8 +158,9 @@ export default function Templates() {
         uploadedMediaFilename = mediaFile.file.name;
       }
 
-      // Sellers: force visible_to = own user id (private templates only)
-      const finalVisibleTo = isSeller ? user!.id : (visibleTo === 'all' ? null : visibleTo);
+      // Sellers: force private
+      const finalVisibleToList = isSeller ? [user!.id] : visibleToList;
+      const finalVisibleTo = isSeller ? user!.id : (finalVisibleToList.length === 1 ? finalVisibleToList[0] : null);
 
       const payload: any = {
         title: title.trim(),
@@ -165,6 +170,7 @@ export default function Templates() {
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
         visible_to: finalVisibleTo,
+        visible_to_list: finalVisibleToList,
       };
 
       if (editTemplate) {
@@ -220,11 +226,96 @@ export default function Templates() {
     return true;
   });
 
-  const grouped = CATEGORIES.reduce((acc, cat) => {
-    const items = filtered.filter(t => t.category === cat.value);
-    if (items.length > 0) acc.push({ ...cat, items });
-    return acc;
-  }, [] as (typeof CATEGORIES[0] & { items: Template[] })[]);
+  // Group by user for admin view
+  const profileMap = useMemo(() => {
+    const m: Record<string, SellerProfile> = {};
+    sellerProfiles.forEach(p => { m[p.user_id] = p; });
+    return m;
+  }, [sellerProfiles]);
+
+  const groupedByUser = useMemo(() => {
+    if (isSeller) return null; // Sellers see flat view
+    const map = new Map<string, Template[]>();
+    filtered.forEach(t => {
+      const key = t.created_by;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    });
+    return Array.from(map.entries()).map(([userId, items]) => ({
+      userId,
+      name: profileMap[userId]?.name || profileMap[userId]?.email || userId,
+      email: profileMap[userId]?.email || '',
+      items,
+    })).sort((a, b) => b.items.length - a.items.length);
+  }, [filtered, profileMap, isSeller]);
+
+  // For seller: group by category
+  const groupedByCategory = useMemo(() => {
+    if (!isSeller) return null;
+    return CATEGORIES.reduce((acc, cat) => {
+      const items = filtered.filter(t => t.category === cat.value);
+      if (items.length > 0) acc.push({ ...cat, items });
+      return acc;
+    }, [] as (typeof CATEGORIES[0] & { items: Template[] })[]);
+  }, [filtered, isSeller]);
+
+  const renderTemplateCard = (t: Template) => {
+    const catStyle = getCategoryStyle(t.category);
+    const visibleUsers = t.visible_to_list && t.visible_to_list.length > 0
+      ? t.visible_to_list
+      : t.visible_to ? [t.visible_to] : [];
+
+    return (
+      <div key={t.id} className={`p-3 rounded-lg border transition-colors ${t.is_active ? 'border-border/50 bg-card/50 hover:bg-secondary/30' : 'border-border/30 bg-muted/20 opacity-60'}`}>
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 shrink-0 ${catStyle.color}`}>
+              {catStyle.label}
+            </Badge>
+            <h3 className="font-medium text-sm truncate">{t.title}</h3>
+            {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+            {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            {(!isSeller || t.created_by === user?.id) && (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(t)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        {t.media_url && t.media_type === 'image' && (
+          <img src={t.media_url} alt="" className="w-full h-20 object-cover rounded mb-1.5" />
+        )}
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">{t.content}</p>
+        <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
+            {t.is_active ? 'Ativo' : 'Inativo'}
+          </Button>
+          {visibleUsers.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {visibleUsers.slice(0, 2).map(uid => (
+                <Badge key={uid} variant="outline" className="text-[10px] h-5">
+                  {profileMap[uid]?.name || profileMap[uid]?.email?.split('@')[0] || 'Usuário'}
+                </Badge>
+              ))}
+              {visibleUsers.length > 2 && (
+                <Badge variant="outline" className="text-[10px] h-5">+{visibleUsers.length - 2}</Badge>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -232,7 +323,7 @@ export default function Templates() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{isSeller ? 'Meus Templates' : 'Templates de Mensagem'}</h1>
-            <p className="text-muted-foreground">{isSeller ? 'Crie e gerencie seus templates pessoais' : 'Gerencie templates globais por categoria'}</p>
+            <p className="text-muted-foreground">{isSeller ? 'Crie e gerencie seus templates pessoais' : 'Templates organizados por usuário'}</p>
           </div>
           <Button onClick={openNew}>
             <Plus className="w-4 h-4 mr-2" />
@@ -258,66 +349,53 @@ export default function Templates() {
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
-        ) : grouped.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum template encontrado</CardContent></Card>
-        ) : (
+        ) : isSeller && groupedByCategory ? (
           <div className="space-y-6">
-            {grouped.map(group => (
+            {groupedByCategory.map(group => (
               <Card key={group.value}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Badge className={group.color}>{group.label}</Badge>
-                    <span className="text-sm text-muted-foreground font-normal">{group.items.length} template(s)</span>
+                    <span className="text-sm text-muted-foreground font-normal">{group.items.length}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.items.map(t => (
-                      <div key={t.id} className={`p-4 rounded-lg border transition-colors ${t.is_active ? 'border-border/50 bg-card/50 hover:bg-secondary/30' : 'border-border/30 bg-muted/20 opacity-60'}`}>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="font-medium text-sm">{t.title}</h3>
-                            {t.media_type === 'image' && <Image className="w-3.5 h-3.5 text-muted-foreground" />}
-                            {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground" />}
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
-                              <Copy className="w-3.5 h-3.5" />
-                            </Button>
-                            {(!isSeller || t.created_by === user?.id) && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteTarget(t)}>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {t.media_url && t.media_type === 'image' && (
-                          <img src={t.media_url} alt="" className="w-full h-24 object-cover rounded mb-2" />
-                        )}
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{t.content}</p>
-                        <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
-                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
-                            {t.is_active ? 'Ativo' : 'Inativo'}
-                          </Button>
-                          {(t as any).visible_to && (
-                            <Badge variant="outline" className="text-[10px] h-5">
-                              {sellerProfiles.find(s => s.user_id === (t as any).visible_to)?.name || 'Usuário específico'}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                    {group.items.map(renderTemplateCard)}
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
-        )}
+        ) : groupedByUser ? (
+          <div className="space-y-4">
+            {groupedByUser.map(({ userId, name, email, items }) => (
+              <Card key={userId}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-3 text-base">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                        {(name?.[0] || 'U').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{name}</p>
+                      {email && name !== email && <p className="text-xs text-muted-foreground truncate">{email}</p>}
+                    </div>
+                    <Badge variant="secondary" className="shrink-0">{items.length} template(s)</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map(renderTemplateCard)}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Create/Edit Dialog */}
@@ -389,18 +467,28 @@ export default function Templates() {
             {canSetVisibility && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
-                <Select value={visibleTo} onValueChange={setVisibleTo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os usuários</SelectItem>
-                    {sellerProfiles.filter(s => s.user_id !== user?.id).map(s => (
-                      <SelectItem key={s.user_id} value={s.user_id}>
-                        {s.name || s.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Selecione um usuário específico ou deixe para todos</p>
+                <p className="text-xs text-muted-foreground mb-1">Selecione os usuários que podem ver este template. Deixe vazio para todos.</p>
+                <ScrollArea className="h-40 border rounded-md p-2">
+                  {sellerProfiles.filter(s => s.user_id !== user?.id).map(s => (
+                    <label key={s.user_id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
+                      <Checkbox
+                        checked={visibleToList.includes(s.user_id)}
+                        onCheckedChange={(checked) => {
+                          setVisibleToList(prev =>
+                            checked ? [...prev, s.user_id] : prev.filter(id => id !== s.user_id)
+                          );
+                        }}
+                      />
+                      <span className="text-sm">{s.name || s.email}</span>
+                    </label>
+                  ))}
+                </ScrollArea>
+                {visibleToList.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">{visibleToList.length} selecionado(s)</Badge>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setVisibleToList([])}>Limpar</Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
