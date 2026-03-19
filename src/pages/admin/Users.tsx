@@ -401,7 +401,7 @@ export default function Users() {
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <Smartphone className="w-4 h-4 text-muted-foreground" />
-                          <span>{user.chip_count}/5</span>
+                          <span>{user.chip_count}/{user.max_chips}</span>
                         </div>
                       </TableCell>
                       <TableCell>
