@@ -763,6 +763,7 @@ export type Database = {
           email: string
           id: string
           is_blocked: boolean
+          max_chips: number
           name: string | null
           updated_at: string
           user_id: string
@@ -773,6 +774,7 @@ export type Database = {
           email: string
           id?: string
           is_blocked?: boolean
+          max_chips?: number
           name?: string | null
           updated_at?: string
           user_id: string
@@ -783,6 +785,7 @@ export type Database = {
           email?: string
           id?: string
           is_blocked?: boolean
+          max_chips?: number
           name?: string | null
           updated_at?: string
           user_id?: string
