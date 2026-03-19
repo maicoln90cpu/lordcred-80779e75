@@ -409,12 +409,6 @@ export default function WhatsApp() {
         <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
       </div>
 
-      <FavoritesPanel
-        open={favoritesOpen}
-        onClose={() => setFavoritesOpen(false)}
-        chipId={selectedChipId}
-        onOpenChat={(chat) => { setSelectedChat(chat); setFavoritesOpen(false); }}
-      />
 
       <WhatsAppProfileDialog
         open={whatsappProfileOpen}
