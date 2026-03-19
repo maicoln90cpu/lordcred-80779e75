@@ -6,12 +6,13 @@ import { Loader2 } from 'lucide-react';
 interface ProtectedRouteProps {
   children: ReactNode;
   requireAdmin?: boolean;
+  requireMaster?: boolean;
   blockSellers?: boolean;
   blockSupport?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false, blockSellers = false, blockSupport = false }: ProtectedRouteProps) {
-  const { user, isAdmin, isSeller, isSupport, isLoading, isBlocked } = useAuth();
+export default function ProtectedRoute({ children, requireAdmin = false, requireMaster = false, blockSellers = false, blockSupport = false }: ProtectedRouteProps) {
+  const { user, isMaster, isAdmin, isSeller, isSupport, isLoading, isBlocked } = useAuth();
 
   if (isLoading) {
     return (
