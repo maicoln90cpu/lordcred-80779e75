@@ -159,14 +159,17 @@ export default function Performance() {
     return result;
   }, [messages, cutoffDate, cutoffDateTo]);
 
+  // Exclude warming chips from performance metrics
+  const nonWarmingChips = useMemo(() => chips.filter(c => c.chip_type !== 'warming'), [chips]);
+
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
-    chips.forEach(c => {
+    nonWarmingChips.forEach(c => {
       if (!map[c.user_id]) map[c.user_id] = [];
       map[c.user_id].push(c.id);
     });
     return map;
-  }, [chips]);
+  }, [nonWarmingChips]);
 
   const getSellerName = (s: SellerProfile) => s.name || s.email?.split('@')[0] || 'Sem nome';
 
