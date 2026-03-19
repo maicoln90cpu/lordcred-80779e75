@@ -1224,7 +1224,7 @@ export type Database = {
       reset_daily_message_count: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "seller" | "support"
+      app_role: "admin" | "user" | "seller" | "support" | "master"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1352,7 +1352,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "seller", "support"],
+      app_role: ["admin", "user", "seller", "support", "master"],
     },
   },
 } as const
