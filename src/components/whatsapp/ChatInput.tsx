@@ -357,6 +357,23 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
   return (
     <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
+      {/* Shortcut suggestion banner */}
+      {shortcutSuggestion && (
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center gap-3 p-2 rounded-lg bg-accent/20 border-l-4 border-accent">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-accent-foreground">⚡ Atalho detectado: <span className="font-mono">{shortcutSuggestion.trigger_word}</span></p>
+              <p className="text-sm truncate text-muted-foreground">{shortcutSuggestion.response_text}</p>
+            </div>
+            <Button size="sm" variant="secondary" className="shrink-0 text-xs" onClick={() => { setMessage(shortcutSuggestion.response_text); setShortcutSuggestion(null); inputRef.current?.focus(); }}>
+              Usar
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShortcutSuggestion(null)} className="shrink-0 h-6 w-6">
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Reply preview */}
       {replyTo && (
         <div className="px-4 pt-3 pb-1">
