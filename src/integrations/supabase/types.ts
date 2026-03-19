@@ -711,6 +711,47 @@ export type Database = {
           },
         ]
       }
+      message_shortcuts: {
+        Row: {
+          chip_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          response_text: string
+          trigger_word: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chip_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          response_text: string
+          trigger_word: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chip_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          response_text?: string
+          trigger_word?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_shortcuts_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_templates: {
         Row: {
           category: string
