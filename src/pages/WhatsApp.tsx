@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle, Ticket } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle, Ticket, FileText } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -357,6 +357,9 @@ export default function WhatsApp() {
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/templates')} className="text-muted-foreground hover:text-foreground" title="Templates de Mensagem">
+            <FileText className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/chat')} className="text-muted-foreground hover:text-foreground relative" title="Chat Interno">
             <MessageCircle className="w-4 h-4" />

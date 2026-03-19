@@ -782,7 +782,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           chipId={chipId}
-          lastIncomingText={messages.filter(m => !m.fromMe).at(-1)?.text}
         />
       )}
 

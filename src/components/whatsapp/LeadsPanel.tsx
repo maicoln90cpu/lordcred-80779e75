@@ -135,21 +135,26 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     return Array.from(names).sort();
   }, [allLeads]);
 
+  // Dynamic cross-filtered counts: status counts respect perfil filter and vice-versa
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { total: allLeads.length };
+    let subset = allLeads;
+    if (filterPerfil !== 'all') subset = subset.filter((l: any) => l.perfil === filterPerfil);
+    const counts: Record<string, number> = { total: subset.length };
     statusOptions.forEach(s => { counts[s.value] = 0; });
-    allLeads.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    subset.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
     return counts;
-  }, [allLeads, statusOptions]);
+  }, [allLeads, statusOptions, filterPerfil]);
 
   const perfilCounts = useMemo(() => {
+    let subset = allLeads;
+    if (filterStatus !== 'all') subset = subset.filter((l: any) => l.status === filterStatus);
     const counts: Record<string, number> = {};
     profileOptions.forEach(p => { counts[p.value] = 0; });
-    allLeads.forEach((l: any) => {
+    subset.forEach((l: any) => {
       if (l.perfil) counts[l.perfil] = (counts[l.perfil] || 0) + 1;
     });
     return counts;
-  }, [allLeads, profileOptions]);
+  }, [allLeads, profileOptions, filterStatus]);
 
   const contactedPercent = useMemo(() => {
     if (allLeads.length === 0) return 0;
