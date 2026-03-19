@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown } from 'lucide-react';
+import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface LeadsPanelProps {
@@ -396,10 +396,30 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                   </TableHeader>
                   <TableBody>
                     {pagedLeads.map((lead: any) => (
-                      <TableRow key={lead.id} className="cursor-pointer" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
+                      <TableRow key={lead.id} className="cursor-pointer group" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
                         <TableCell className="font-medium">{lead.nome}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{lead.cpf || '-'}</TableCell>
-                        <TableCell>{lead.telefone}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground" onClick={(e) => {
+                          if (!lead.cpf) return;
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(lead.cpf);
+                          toast({ title: 'CPF copiado!' });
+                        }}>
+                          <span className={lead.cpf ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors' : ''}>
+                            {lead.cpf || '-'}
+                            {lead.cpf && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                          </span>
+                        </TableCell>
+                        <TableCell onClick={(e) => {
+                          if (!lead.telefone) return;
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(lead.telefone);
+                          toast({ title: 'Telefone copiado!' });
+                        }}>
+                          <span className={lead.telefone ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors text-xs text-muted-foreground' : ''}>
+                            {lead.telefone || '-'}
+                            {lead.telefone && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                         </TableCell>

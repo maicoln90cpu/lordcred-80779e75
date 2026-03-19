@@ -40,6 +40,7 @@ interface MessageData {
 interface ChipData {
   id: string;
   user_id: string;
+  chip_type: string;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -110,7 +111,7 @@ export default function Performance() {
     setLoading(true);
     const [sellersRes, chipsRes] = await Promise.all([
       supabase.from('profiles').select('user_id, email, name'),
-      supabase.from('chips').select('id, user_id'),
+      supabase.from('chips').select('id, user_id, chip_type'),
     ]);
     const [leadsData, messagesData] = await Promise.all([
       fetchAllLeads(),
@@ -158,14 +159,17 @@ export default function Performance() {
     return result;
   }, [messages, cutoffDate, cutoffDateTo]);
 
+  // Exclude warming chips from performance metrics
+  const nonWarmingChips = useMemo(() => chips.filter(c => c.chip_type !== 'warming'), [chips]);
+
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
-    chips.forEach(c => {
+    nonWarmingChips.forEach(c => {
       if (!map[c.user_id]) map[c.user_id] = [];
       map[c.user_id].push(c.id);
     });
     return map;
-  }, [chips]);
+  }, [nonWarmingChips]);
 
   const getSellerName = (s: SellerProfile) => s.name || s.email?.split('@')[0] || 'Sem nome';
 
@@ -213,10 +217,14 @@ export default function Performance() {
     const totalLeads = filteredLeads.length;
     const totalContacted = filteredLeads.filter(l => l.contacted_at).length;
     const totalApproved = filteredLeads.filter(l => l.status?.toUpperCase() === 'APROVADO').length;
-    const totalSent = filteredMessages.filter(m => m.direction === 'outgoing').length;
-    const totalReceived = filteredMessages.filter(m => m.direction === 'incoming').length;
-    return { totalLeads, totalContacted, totalApproved, totalSent, totalReceived, activeSellers: sellerStats.length };
-  }, [filteredLeads, filteredMessages, sellerStats]);
+    const totalPending = filteredLeads.filter(l => !l.status || l.status === 'pendente').length;
+    // Only count messages from non-warming chips
+    const nonWarmingChipIds = new Set(nonWarmingChips.map(c => c.id));
+    const relevantMessages = filteredMessages.filter(m => nonWarmingChipIds.has(m.chip_id));
+    const totalSent = relevantMessages.filter(m => m.direction === 'outgoing').length;
+    const totalReceived = relevantMessages.filter(m => m.direction === 'incoming').length;
+    return { totalLeads, totalContacted, totalApproved, totalPending, totalSent, totalReceived, activeSellers: sellerStats.length };
+  }, [filteredLeads, filteredMessages, sellerStats, nonWarmingChips]);
 
   const statusDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -377,9 +385,10 @@ export default function Performance() {
           {/* ===== ABA GERAL ===== */}
           <TabsContent value="geral" className="space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
               <KPICard icon={Users} label="Vendedores Ativos" value={globalStats.activeSellers} />
               <KPICard icon={Phone} label="Total Leads" value={globalStats.totalLeads} />
+              <KPICard icon={Clock} label="Pendentes" value={globalStats.totalPending} />
               <KPICard icon={TrendingUp} label="Contatados" value={globalStats.totalContacted} />
               <KPICard icon={CheckCircle} label="Aprovados" value={globalStats.totalApproved} />
               <KPICard icon={MessageSquare} label="Msgs Enviadas" value={globalStats.totalSent} />
@@ -515,10 +524,14 @@ export default function Performance() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-2xl font-bold">{seller.totalLeads}</p>
                         <p className="text-xs text-muted-foreground">Total Leads</p>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-muted/50">
+                        <p className="text-2xl font-bold">{seller.pending}</p>
+                        <p className="text-xs text-muted-foreground">Pendentes</p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-2xl font-bold text-green-400">{seller.approvalRate.toFixed(1)}%</p>

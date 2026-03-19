@@ -502,16 +502,16 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
-  const COLOR_PRESETS = [
-    { label: 'Cinza', value: 'bg-muted text-muted-foreground hover:bg-muted/80' },
-    { label: 'Azul', value: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
-    { label: 'Amarelo', value: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
-    { label: 'Vermelho', value: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
-    { label: 'Verde', value: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
-    { label: 'Roxo', value: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' },
-    { label: 'Rosa', value: 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30' },
-    { label: 'Laranja', value: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
+  // Color hex presets for lead status/profiles (same style as Kanban)
+  const COLOR_HEX_PRESETS = [
+    '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
+    '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6',
   ];
+
+  // Convert hex to tailwind-compatible color_class
+  const hexToColorClass = (hex: string) => {
+    return `bg-[${hex}]/20 text-[${hex}] hover:bg-[${hex}]/30`;
+  };
 
   return (
     <DashboardLayout>
@@ -759,24 +759,28 @@ export default function Leads() {
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
-                            <Select value={status.color_class} onValueChange={(v) => updateStatusField(idx, 'color_class', v)}>
-                              <SelectTrigger className="h-8 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={status.color_class + ' text-xs'}>Aa</Badge>
-                                  <span className="truncate">{COLOR_PRESETS.find(p => p.value === status.color_class)?.label || 'Custom'}</span>
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COLOR_PRESETS.map(p => (
-                                  <SelectItem key={p.value} value={p.value}>
-                                    <div className="flex items-center gap-2">
-                                      <Badge className={p.value + ' text-xs'}>Aa</Badge>
-                                      {p.label}
-                                    </div>
-                                  </SelectItem>
+                            <div className="flex items-center gap-2 mt-1">
+                              <input
+                                type="color"
+                                value={status.color_class.match(/#[0-9a-fA-F]{6}/)?.[0] || '#6b7280'}
+                                onChange={(e) => updateStatusField(idx, 'color_class', hexToColorClass(e.target.value))}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
+                              />
+                              <div className="flex flex-wrap gap-1">
+                                {COLOR_HEX_PRESETS.map(hex => (
+                                  <button
+                                    key={hex}
+                                    type="button"
+                                    onClick={() => updateStatusField(idx, 'color_class', hexToColorClass(hex))}
+                                    className="w-5 h-5 rounded-full border-2 transition-all shrink-0"
+                                    style={{
+                                      backgroundColor: hex,
+                                      borderColor: status.color_class.includes(hex) ? 'hsl(var(--foreground))' : 'transparent',
+                                    }}
+                                  />
                                 ))}
-                              </SelectContent>
-                            </Select>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -852,24 +856,28 @@ export default function Leads() {
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
-                            <Select value={profile.color_class} onValueChange={(v) => updateProfileField(idx, 'color_class', v)}>
-                              <SelectTrigger className="h-8 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={profile.color_class + ' text-xs'}>Aa</Badge>
-                                  <span className="truncate">{COLOR_PRESETS.find(p => p.value === profile.color_class)?.label || 'Custom'}</span>
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COLOR_PRESETS.map(p => (
-                                  <SelectItem key={p.value} value={p.value}>
-                                    <div className="flex items-center gap-2">
-                                      <Badge className={p.value + ' text-xs'}>Aa</Badge>
-                                      {p.label}
-                                    </div>
-                                  </SelectItem>
+                            <div className="flex items-center gap-2 mt-1">
+                              <input
+                                type="color"
+                                value={profile.color_class.match(/#[0-9a-fA-F]{6}/)?.[0] || '#6b7280'}
+                                onChange={(e) => updateProfileField(idx, 'color_class', hexToColorClass(e.target.value))}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
+                              />
+                              <div className="flex flex-wrap gap-1">
+                                {COLOR_HEX_PRESETS.map(hex => (
+                                  <button
+                                    key={hex}
+                                    type="button"
+                                    onClick={() => updateProfileField(idx, 'color_class', hexToColorClass(hex))}
+                                    className="w-5 h-5 rounded-full border-2 transition-all shrink-0"
+                                    style={{
+                                      backgroundColor: hex,
+                                      borderColor: profile.color_class.includes(hex) ? 'hsl(var(--foreground))' : 'transparent',
+                                    }}
+                                  />
                                 ))}
-                              </SelectContent>
-                            </Select>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
