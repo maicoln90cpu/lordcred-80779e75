@@ -142,6 +142,16 @@ export default function InternalChat() {
     
     setProfilesMap(map);
     profilesMapRef.current = map;
+
+    // Load support/admin/master users for seller direct chat list
+    const { data: rolesData } = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .in('role', ['support', 'admin', 'master']);
+    if (rolesData) {
+      const saUsers = users.filter(u => rolesData.some(r => r.user_id === u.user_id));
+      setSupportAdminUsers(saUsers);
+    }
   }, []);
 
   // Load last message preview for each channel
