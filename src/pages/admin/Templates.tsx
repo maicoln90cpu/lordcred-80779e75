@@ -41,7 +41,7 @@ const CATEGORIES = [
 
 export default function Templates() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isSeller } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
