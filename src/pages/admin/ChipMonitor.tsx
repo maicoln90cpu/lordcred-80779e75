@@ -397,7 +397,6 @@ export default function ChipMonitor() {
         <Tabs defaultValue="status" className="space-y-4">
           <TabsList>
             <TabsTrigger value="status">Status dos Chips</TabsTrigger>
-            <TabsTrigger value="warming">Relatórios de Aquecimento</TabsTrigger>
             <TabsTrigger value="logs">Logs de Atividade</TabsTrigger>
           </TabsList>
 
