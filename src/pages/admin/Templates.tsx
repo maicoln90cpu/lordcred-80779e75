@@ -293,10 +293,15 @@ export default function Templates() {
                           <img src={t.media_url} alt="" className="w-full h-24 object-cover rounded mb-2" />
                         )}
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">{t.content}</p>
-                        <div className="flex items-center justify-between mt-3">
+                        <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                           <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
                             {t.is_active ? 'Ativo' : 'Inativo'}
                           </Button>
+                          {(t as any).visible_to && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {sellerProfiles.find(s => s.user_id === (t as any).visible_to)?.name || 'Usuário específico'}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}
