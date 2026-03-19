@@ -25,6 +25,7 @@ interface UserProfile {
   created_at: string;
   created_by: string | null;
   chip_count: number;
+  max_chips: number;
   role: string;
 }
 
