@@ -300,6 +300,9 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                         <TableCell className="text-center">
                           <Badge variant="secondary">{total}</Badge>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={pendentes > 0 ? "destructive" : "secondary"}>{pendentes}</Badge>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 justify-center">
                             <Progress value={pctContacted} className="h-2 w-16" />
@@ -308,22 +311,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                         </TableCell>
                         <TableCell className="text-center text-sm text-muted-foreground whitespace-nowrap">
                           {lastUpdate ? new Date(lastUpdate).toLocaleDateString('pt-BR') : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={row.filterStatus}
-                            onValueChange={(v) => updateRowState(sellerId, { filterStatus: v })}
-                          >
-                            <SelectTrigger className="w-36 h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">Todos</SelectItem>
-                              {statusOptions.map(s => (
-                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
                         </TableCell>
                         <TableCell>
                           <Select
