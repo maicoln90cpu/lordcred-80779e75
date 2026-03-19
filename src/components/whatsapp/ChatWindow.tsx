@@ -795,6 +795,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
         chipId={chipId}
+      />
 
       <ForwardDialog
         open={!!forwardMsg}
