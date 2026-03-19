@@ -39,8 +39,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Global filter (only profile now, status filter removed)
-  const [globalProfile, setGlobalProfile] = useState('all');
+  // Global filter (only profile, status filter removed)
   const [globalProfile, setGlobalProfile] = useState('all');
 
   // Per-row state for reassignment
@@ -52,7 +51,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     sellerName: string;
     targetName: string;
     qty: number;
-    status: string;
     profile: string;
   } | null>(null);
   const [isReassigning, setIsReassigning] = useState(false);
