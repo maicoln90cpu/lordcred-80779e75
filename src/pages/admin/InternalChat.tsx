@@ -206,7 +206,15 @@ export default function InternalChat() {
     if (data) setChannelMembers(data.map(m => m.user_id));
   }, []);
 
-  useEffect(() => { loadChannels(); loadUsers(); }, [loadChannels, loadUsers]);
+  useEffect(() => { loadChannels(); loadUsers(); loadSupportUser(); }, [loadChannels, loadUsers]);
+
+  // Load support user from system_settings
+  const loadSupportUser = useCallback(async () => {
+    const { data } = await supabase.from('system_settings').select('support_chat_user_id').single();
+    if (data && (data as any).support_chat_user_id) {
+      setSupportUserId((data as any).support_chat_user_id);
+    }
+  }, []);
 
   useEffect(() => {
     if (channels.length > 0 && Object.keys(profilesMap).length > 0) {
