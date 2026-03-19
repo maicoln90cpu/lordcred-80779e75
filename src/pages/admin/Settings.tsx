@@ -957,10 +957,7 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Responsável pelo Suporte</Label>
-                  <SupportUserSelector settingsId={settings?.id} />
-                </div>
+                <SupportUserSelectorInline />
               </CardContent>
             </Card>
           </TabsContent>
