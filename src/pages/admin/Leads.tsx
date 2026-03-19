@@ -502,16 +502,16 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
-  const COLOR_PRESETS = [
-    { label: 'Cinza', value: 'bg-muted text-muted-foreground hover:bg-muted/80' },
-    { label: 'Azul', value: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
-    { label: 'Amarelo', value: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' },
-    { label: 'Vermelho', value: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
-    { label: 'Verde', value: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
-    { label: 'Roxo', value: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' },
-    { label: 'Rosa', value: 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30' },
-    { label: 'Laranja', value: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
+  // Color hex presets for lead status/profiles (same style as Kanban)
+  const COLOR_HEX_PRESETS = [
+    '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
+    '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6',
   ];
+
+  // Convert hex to tailwind-compatible color_class
+  const hexToColorClass = (hex: string) => {
+    return `bg-[${hex}]/20 text-[${hex}] hover:bg-[${hex}]/30`;
+  };
 
   return (
     <DashboardLayout>
