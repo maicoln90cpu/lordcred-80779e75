@@ -127,6 +127,7 @@ export default function Templates() {
     setExistingMediaUrl(null);
     setExistingMediaType(null);
     setVisibleToList([]);
+    setTriggerWord('');
     setDialogOpen(true);
   };
 
