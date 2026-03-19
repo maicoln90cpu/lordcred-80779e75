@@ -360,7 +360,7 @@ export default function Users() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {isMaster && user.role !== 'admin' ? (
+                        {isMaster && user.role !== 'master' ? (
                           <Select
                             value={user.role}
                             onValueChange={async (value) => {
@@ -389,7 +389,7 @@ export default function Users() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="user">Administrador</SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
                               <SelectItem value="seller">Vendedor</SelectItem>
                               <SelectItem value="support">Suporte</SelectItem>
                             </SelectContent>
