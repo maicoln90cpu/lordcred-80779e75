@@ -94,6 +94,7 @@ export default function Users() {
       let enrichedUsers = (profilesData || []).map(profile => ({
         ...profile,
         chip_count: chipCounts[profile.user_id] || 0,
+        max_chips: (profile as any).max_chips ?? 5,
         role: rolesMap[profile.user_id] || 'seller',
       }));
 
