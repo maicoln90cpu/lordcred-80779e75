@@ -131,9 +131,9 @@ Deno.serve(async (req) => {
 
     // Validate role based on caller's permissions
     let validRole: string
-    if (callerRole === 'admin') {
-      validRole = ['user', 'seller', 'support'].includes(role) ? role : 'seller'
-    } else if (callerRole === 'user') {
+    if (callerRole === 'master') {
+      validRole = ['admin', 'seller', 'support'].includes(role) ? role : 'seller'
+    } else if (callerRole === 'admin') {
       validRole = ['seller', 'support'].includes(role) ? role : 'seller'
     } else {
       validRole = 'seller'

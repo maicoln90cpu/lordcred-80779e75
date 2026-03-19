@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     const { targetUserId, newRole } = await req.json()
 
-    if (!targetUserId || !newRole || !['admin', 'user', 'seller', 'support'].includes(newRole)) {
+    if (!targetUserId || !newRole || !['admin', 'seller', 'support'].includes(newRole)) {
       return new Response(JSON.stringify({ error: 'Dados inválidos' }), { status: 400, headers: corsHeaders })
     }
 

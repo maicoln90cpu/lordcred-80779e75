@@ -80,8 +80,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If caller is 'user' (Administrador), verify they created the target
-    if (callerRole?.role === 'user') {
+    // If caller is 'admin' (Administrador), verify they created the target
+    if (callerRole?.role === 'admin') {
       const { data: targetProfile } = await adminClient
         .from('profiles')
         .select('created_by')
