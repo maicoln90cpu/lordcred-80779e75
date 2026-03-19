@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
       .eq('user_id', caller.id)
       .single();
 
-    // Allow admin and user (Administrador) roles
-    if (callerRole?.role !== 'admin' && callerRole?.role !== 'user') {
+    // Allow master and admin (Administrador) roles
+    if (callerRole?.role !== 'master' && callerRole?.role !== 'admin') {
       return new Response(
         JSON.stringify({ error: 'Permissão negada' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
