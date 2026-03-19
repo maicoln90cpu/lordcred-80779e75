@@ -82,24 +82,27 @@ export default function Templates() {
   }, [canSetVisibility]);
 
   const fetchTemplates = async () => {
-    let query = supabase
+    const query = supabase
       .from('message_templates')
       .select('*')
       .order('category')
       .order('sort_order');
-    // Sellers see their own + admin-created templates
-    if (isSeller && user) {
-      // Get master + admin user IDs
-      const { data: adminRoles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('role', ['master', 'admin'] as any);
-      const adminIds = (adminRoles || []).map(r => r.user_id);
-      const allowedIds = [user.id, ...adminIds];
-      query = query.in('created_by', allowedIds);
-    }
     const { data, error } = await query;
-    if (!error) setTemplates((data as Template[]) || []);
+    if (!error && user) {
+      // Client-side visibility filter
+      let filtered = (data as Template[]) || [];
+      if (isSeller) {
+        // Seller sees: own templates OR visible_to is null (global) OR visible_to matches self
+        filtered = filtered.filter(t =>
+          t.created_by === user.id ||
+          !t.visible_to ||
+          t.visible_to === user.id
+        );
+      }
+      setTemplates(filtered);
+    } else {
+      setTemplates((data as Template[]) || []);
+    }
     setIsLoading(false);
   };
 
