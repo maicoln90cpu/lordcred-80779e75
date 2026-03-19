@@ -44,7 +44,7 @@ const SQL_SECTIONS: SQLSection[] = [
     icon: <Code className="w-4 h-4" />,
     description: 'Tipos customizados usados pelo sistema',
     sql: `-- Enum de roles
-CREATE TYPE public.app_role AS ENUM ('admin', 'user', 'seller');`,
+CREATE TYPE public.app_role AS ENUM ('master', 'admin', 'seller', 'support');`,
   },
   {
     title: '2. Tabelas',
