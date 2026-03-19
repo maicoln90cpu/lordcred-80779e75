@@ -78,17 +78,28 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   // Fetch shortcuts from DB when chipId changes
   useEffect(() => {
     if (!chipId) return;
-    if (shortcutCache[chipId]) return;
-    (async () => {
+    const loadShortcuts = async () => {
       try {
         const { data } = await supabase
           .from('message_shortcuts' as any)
-          .select('trigger_word,response_text,is_active')
+          .select('trigger_word,response_text,is_active,media_url,media_type,media_filename')
           .or(`chip_id.eq.${chipId},chip_id.is.null`)
           .eq('is_active', true);
         shortcutCache[chipId] = (data as any[]) || [];
       } catch {}
-    })();
+    };
+    if (!shortcutCache[chipId]) loadShortcuts();
+
+    // Listen for cache invalidation from ShortcutManager
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === chipId) {
+        delete shortcutCache[chipId];
+        loadShortcuts();
+      }
+    };
+    window.addEventListener('shortcut-cache-invalidate', handler);
+    return () => window.removeEventListener('shortcut-cache-invalidate', handler);
   }, [chipId]);
 
   // Handle "/" trigger for quick replies AND shortcut detection while typing
