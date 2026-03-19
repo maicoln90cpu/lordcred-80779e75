@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
-import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
+
 import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import LeadsPanel from '@/components/whatsapp/LeadsPanel';
