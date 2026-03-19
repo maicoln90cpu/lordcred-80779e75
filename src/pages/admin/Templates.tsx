@@ -27,6 +27,7 @@ interface Template {
   media_url?: string | null;
   media_type?: string | null;
   media_filename?: string | null;
+  visible_to?: string | null;
 }
 
 const CATEGORIES = [
@@ -39,9 +40,15 @@ const CATEGORIES = [
   { value: 'geral', label: 'Geral', color: 'bg-muted text-muted-foreground' },
 ];
 
+interface SellerProfile {
+  user_id: string;
+  email: string;
+  name: string | null;
+}
+
 export default function Templates() {
   const { toast } = useToast();
-  const { user, isSeller } = useAuth();
+  const { user, isSeller, isAdmin } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,6 +61,8 @@ export default function Templates() {
   const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
   const [existingMediaType, setExistingMediaType] = useState<string | null>(null);
+  const [visibleTo, setVisibleTo] = useState<string>('all');
+  const [sellerProfiles, setSellerProfiles] = useState<SellerProfile[]>([]);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -62,15 +71,31 @@ export default function Templates() {
 
   useEffect(() => { fetchTemplates(); }, []);
 
+  // Load seller profiles for visible_to selector (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      const { data } = await supabase.rpc('get_all_chat_profiles' as any);
+      if (data) setSellerProfiles(data as unknown as SellerProfile[]);
+    })();
+  }, [isAdmin]);
+
   const fetchTemplates = async () => {
     let query = supabase
       .from('message_templates')
       .select('*')
       .order('category')
       .order('sort_order');
-    // Sellers only see their own templates
+    // Sellers see their own + admin-created templates
     if (isSeller && user) {
-      query = query.eq('created_by', user.id);
+      // Get admin user IDs
+      const { data: adminRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      const adminIds = (adminRoles || []).map(r => r.user_id);
+      const allowedIds = [user.id, ...adminIds];
+      query = query.in('created_by', allowedIds);
     }
     const { data, error } = await query;
     if (!error) setTemplates((data as Template[]) || []);
