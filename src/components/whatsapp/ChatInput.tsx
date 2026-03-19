@@ -46,6 +46,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [quickReplyFilter, setQuickReplyFilter] = useState('');
+  const [shortcutSuggestion, setShortcutSuggestion] = useState<ShortcutMatch | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -54,6 +55,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastMatchedTextRef = useRef<string>('');
 
   // Fetch quick replies when chipId changes
   useEffect(() => {
