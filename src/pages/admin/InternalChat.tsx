@@ -989,28 +989,74 @@ export default function InternalChat() {
         </DialogContent>
       </Dialog>
 
-      {/* Manage Members Dialog */}
+      {/* Group Config Dialog */}
       <Dialog open={manageMembersOpen} onOpenChange={setManageMembersOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gerenciar Membros</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              Configurações do Grupo
+            </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="h-64 border rounded-md p-2">
-            {allUsers.map(u => (
-              <label key={u.user_id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
-                <Checkbox
-                  checked={selectedUsers.includes(u.user_id)}
-                  onCheckedChange={(checked) => {
-                    setSelectedUsers(prev => checked ? [...prev, u.user_id] : prev.filter(id => id !== u.user_id));
-                  }}
-                />
-                <span className="text-sm">{u.name || u.email}</span>
-              </label>
-            ))}
-          </ScrollArea>
+          <input ref={groupAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleGroupAvatarUpload} />
+          <Tabs defaultValue="info" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="info">Info</TabsTrigger>
+              <TabsTrigger value="members">Membros</TabsTrigger>
+              <TabsTrigger value="permissions">Permissões</TabsTrigger>
+            </TabsList>
+            <TabsContent value="info" className="space-y-4 mt-3">
+              <div className="flex items-center gap-4">
+                <div className="relative cursor-pointer" onClick={() => groupAvatarInputRef.current?.click()}>
+                  <Avatar className="w-16 h-16">
+                    {(selectedChannel as any)?.avatar_url && <AvatarImage src={(selectedChannel as any).avatar_url} />}
+                    <AvatarFallback className="bg-primary/20 text-primary text-lg">{selectedChannel?.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Image className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label>Nome do grupo</Label>
+                  <Input value={configGroupName} onChange={e => setConfigGroupName(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea value={configGroupDesc} onChange={e => setConfigGroupDesc(e.target.value)} placeholder="Descrição do grupo (opcional)" rows={3} />
+              </div>
+            </TabsContent>
+            <TabsContent value="members" className="mt-3">
+              <ScrollArea className="h-64 border rounded-md p-2">
+                {allUsers.map(u => (
+                  <label key={u.user_id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-accent/50 rounded cursor-pointer">
+                    <Checkbox
+                      checked={selectedUsers.includes(u.user_id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedUsers(prev => checked ? [...prev, u.user_id] : prev.filter(id => id !== u.user_id));
+                      }}
+                    />
+                    <span className="text-sm">{u.name || u.email}</span>
+                  </label>
+                ))}
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="permissions" className="mt-3 space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                <div>
+                  <p className="text-sm font-medium">Somente admins podem enviar</p>
+                  <p className="text-xs text-muted-foreground">Apenas administradores poderão enviar mensagens neste grupo</p>
+                </div>
+                <Switch checked={configAdminOnly} onCheckedChange={setConfigAdminOnly} />
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageMembersOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveMembers}>Salvar</Button>
+            <Button onClick={handleSaveGroupConfig} disabled={savingConfig}>
+              {savingConfig && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
