@@ -856,24 +856,28 @@ export default function Leads() {
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
-                            <Select value={profile.color_class} onValueChange={(v) => updateProfileField(idx, 'color_class', v)}>
-                              <SelectTrigger className="h-8 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={profile.color_class + ' text-xs'}>Aa</Badge>
-                                  <span className="truncate">{COLOR_PRESETS.find(p => p.value === profile.color_class)?.label || 'Custom'}</span>
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COLOR_PRESETS.map(p => (
-                                  <SelectItem key={p.value} value={p.value}>
-                                    <div className="flex items-center gap-2">
-                                      <Badge className={p.value + ' text-xs'}>Aa</Badge>
-                                      {p.label}
-                                    </div>
-                                  </SelectItem>
+                            <div className="flex items-center gap-2 mt-1">
+                              <input
+                                type="color"
+                                value={profile.color_class.match(/#[0-9a-fA-F]{6}/)?.[0] || '#6b7280'}
+                                onChange={(e) => updateProfileField(idx, 'color_class', hexToColorClass(e.target.value))}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
+                              />
+                              <div className="flex flex-wrap gap-1">
+                                {COLOR_HEX_PRESETS.map(hex => (
+                                  <button
+                                    key={hex}
+                                    type="button"
+                                    onClick={() => updateProfileField(idx, 'color_class', hexToColorClass(hex))}
+                                    className="w-5 h-5 rounded-full border-2 transition-all shrink-0"
+                                    style={{
+                                      backgroundColor: hex,
+                                      borderColor: profile.color_class.includes(hex) ? 'hsl(var(--foreground))' : 'transparent',
+                                    }}
+                                  />
                                 ))}
-                              </SelectContent>
-                            </Select>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

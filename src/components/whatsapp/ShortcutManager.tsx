@@ -368,7 +368,7 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                accept="image/*,audio/*,.ogg,audio/ogg,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                 onChange={handleFileSelect}
               />
               {!mediaFile && !existingMediaUrl ? (

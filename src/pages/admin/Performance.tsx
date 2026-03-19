@@ -524,10 +524,14 @@ export default function Performance() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-2xl font-bold">{seller.totalLeads}</p>
                         <p className="text-xs text-muted-foreground">Total Leads</p>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-muted/50">
+                        <p className="text-2xl font-bold">{seller.pending}</p>
+                        <p className="text-xs text-muted-foreground">Pendentes</p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-2xl font-bold text-green-400">{seller.approvalRate.toFixed(1)}%</p>

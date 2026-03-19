@@ -311,7 +311,7 @@ export default function Templates() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,audio/*"
+                accept="image/*,audio/*,.ogg,audio/ogg"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];

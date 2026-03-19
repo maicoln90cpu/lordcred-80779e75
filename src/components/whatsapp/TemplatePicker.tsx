@@ -48,16 +48,29 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    supabase
-      .from('message_templates')
-      .select('id, title, content, category, media_url, media_type, media_filename')
-      .eq('is_active', true)
-      .order('category')
-      .order('sort_order')
-      .then(({ data }) => {
-        setTemplates((data as Template[]) || []);
-        setLoading(false);
-      });
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      let query = supabase
+        .from('message_templates')
+        .select('id, title, content, category, media_url, media_type, media_filename')
+        .eq('is_active', true)
+        .order('category')
+        .order('sort_order');
+      // Non-admin users only see their own templates
+      if (user) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        if (roleData?.role === 'seller') {
+          query = query.eq('created_by', user.id);
+        }
+      }
+      const { data } = await query;
+      setTemplates((data as Template[]) || []);
+      setLoading(false);
+    })();
   }, [open]);
 
   const filtered = templates.filter(t =>
