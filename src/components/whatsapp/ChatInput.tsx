@@ -77,15 +77,16 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   useEffect(() => {
     if (!chipId) return;
     if (shortcutCache[chipId]) return;
-    supabase
-      .from('message_shortcuts' as any)
-      .select('trigger_word,response_text,is_active')
-      .or(`chip_id.eq.${chipId},chip_id.is.null`)
-      .eq('is_active', true)
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('message_shortcuts' as any)
+          .select('trigger_word,response_text,is_active')
+          .or(`chip_id.eq.${chipId},chip_id.is.null`)
+          .eq('is_active', true);
         shortcutCache[chipId] = (data as any[]) || [];
-      })
-      .catch(() => {});
+      } catch {}
+    })();
   }, [chipId]);
 
   // Detect trigger words in last incoming message
