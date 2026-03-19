@@ -141,13 +141,13 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     if (filterPerfil !== 'all') subset = subset.filter((l: any) => l.perfil === filterPerfil);
     const counts: Record<string, number> = { total: subset.length };
     statusOptions.forEach(s => { counts[s.value] = 0; });
-    subset.forEach((l: any) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    subset.forEach((l: any) => { const st = l.status || 'pendente'; counts[st] = (counts[st] || 0) + 1; });
     return counts;
   }, [allLeads, statusOptions, filterPerfil]);
 
   const perfilCounts = useMemo(() => {
     let subset = allLeads;
-    if (filterStatus !== 'all') subset = subset.filter((l: any) => l.status === filterStatus);
+    if (filterStatus !== 'all') subset = subset.filter((l: any) => (l.status || 'pendente') === filterStatus);
     const counts: Record<string, number> = {};
     profileOptions.forEach(p => { counts[p.value] = 0; });
     subset.forEach((l: any) => {
@@ -158,13 +158,13 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   const contactedPercent = useMemo(() => {
     if (allLeads.length === 0) return 0;
-    const contacted = allLeads.filter((l: any) => l.status !== 'pendente').length;
+    const contacted = allLeads.filter((l: any) => l.status && l.status !== 'pendente').length;
     return Math.round((contacted / allLeads.length) * 100);
   }, [allLeads]);
 
   const filteredLeads = useMemo(() => {
     let result = [...allLeads];
-    if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
+    if (filterStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === filterStatus);
     if (filterPerfil !== 'all') result = result.filter((l: any) => l.perfil === filterPerfil);
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
     if (searchTerm) {

@@ -1190,6 +1190,7 @@ export type Database = {
       get_all_chat_profiles: {
         Args: never
         Returns: {
+          avatar_url: string
           email: string
           name: string
           user_id: string

@@ -48,7 +48,7 @@ interface SellerProfile {
 
 export default function Templates() {
   const { toast } = useToast();
-  const { user, isSeller, isAdmin } = useAuth();
+  const { user, isSeller, isAdmin, userRole } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -379,7 +379,7 @@ export default function Templates() {
                 </Button>
               )}
             </div>
-            {isAdmin && (
+            {(isAdmin || userRole === 'user') && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
                 <Select value={visibleTo} onValueChange={setVisibleTo}>
