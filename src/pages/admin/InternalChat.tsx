@@ -524,9 +524,65 @@ export default function InternalChat() {
     toast({ title: 'Membros atualizados' });
   };
 
-  const openManageMembers = () => {
+  const openGroupConfig = () => {
+    if (!selectedChannel) return;
     setSelectedUsers(channelMembers);
+    setConfigGroupName(selectedChannel.name);
+    setConfigGroupDesc(selectedChannel.description || '');
+    setConfigAdminOnly((selectedChannel as any).admin_only_messages || false);
     setManageMembersOpen(true);
+  };
+
+  const handleSaveGroupConfig = async () => {
+    if (!selectedChannel) return;
+    setSavingConfig(true);
+    try {
+      const { error } = await supabase
+        .from('internal_channels')
+        .update({
+          name: configGroupName.trim() || selectedChannel.name,
+          description: configGroupDesc.trim() || null,
+          admin_only_messages: configAdminOnly,
+        } as any)
+        .eq('id', selectedChannel.id);
+      if (error) throw error;
+      // Also save members
+      await supabase.from('internal_channel_members').delete().eq('channel_id', selectedChannel.id);
+      const memberIds = [...new Set([selectedChannel.created_by, ...selectedUsers])];
+      await supabase.from('internal_channel_members').insert(
+        memberIds.map(uid => ({ channel_id: selectedChannel.id, user_id: uid }))
+      );
+      setSelectedChannel({ ...selectedChannel, name: configGroupName.trim() || selectedChannel.name, description: configGroupDesc.trim() || null, admin_only_messages: configAdminOnly } as any);
+      loadChannels();
+      loadMembers(selectedChannel.id);
+      toast({ title: 'Configurações do grupo salvas' });
+      setManageMembersOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setSavingConfig(false);
+  };
+
+  const handleGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChannel) return;
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `group-avatars/${selectedChannel.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('internal-chat-media')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      await supabase.from('internal_channels').update({ avatar_url: avatarUrl } as any).eq('id', selectedChannel.id);
+      setSelectedChannel({ ...selectedChannel, avatar_url: avatarUrl } as any);
+      loadChannels();
+      toast({ title: 'Avatar do grupo atualizado' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    if (groupAvatarInputRef.current) groupAvatarInputRef.current.value = '';
   };
 
   const formatTime = (dateStr: string) => {
