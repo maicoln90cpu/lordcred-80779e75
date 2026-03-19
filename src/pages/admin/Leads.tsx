@@ -905,7 +905,7 @@ export default function Leads() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge className={profile.color_class}>{profile.label || '...'}</Badge>
+                          {renderColorBadge(profile.label || '...', profile.color_class)}
                           <Button variant="ghost" size="icon" onClick={() => removeProfile(idx)} className="text-destructive hover:text-destructive h-8 w-8">
                             <Trash2 className="w-4 h-4" />
                           </Button>
