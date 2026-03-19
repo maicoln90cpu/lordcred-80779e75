@@ -164,7 +164,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   const filteredLeads = useMemo(() => {
     let result = [...allLeads];
-    if (filterStatus !== 'all') result = result.filter((l: any) => l.status === filterStatus);
+    if (filterStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === filterStatus);
     if (filterPerfil !== 'all') result = result.filter((l: any) => l.perfil === filterPerfil);
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
     if (searchTerm) {

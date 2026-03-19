@@ -379,7 +379,7 @@ export default function Templates() {
                 </Button>
               )}
             </div>
-            {isAdmin && (
+            {(isAdmin || userRole === 'user') && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
                 <Select value={visibleTo} onValueChange={setVisibleTo}>

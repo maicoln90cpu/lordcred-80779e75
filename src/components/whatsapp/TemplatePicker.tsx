@@ -52,7 +52,7 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
       const { data: { user } } = await supabase.auth.getUser();
       let query = supabase
         .from('message_templates')
-        .select('id, title, content, category, media_url, media_type, media_filename')
+        .select('id, title, content, category, media_url, media_type, media_filename, visible_to')
         .eq('is_active', true)
         .order('category')
         .order('sort_order');
