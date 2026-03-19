@@ -76,25 +76,25 @@ export default function ShortcutManager({ open, onOpenChange, chipId }: Shortcut
         .select('*')
         .order('trigger_word');
 
-      if (roleData?.role === 'seller') {
-        // Sellers see own + master/admin shortcuts
-        const { data: adminRoles } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .in('role', ['master', 'admin'] as any);
-        const adminIds = (adminRoles || []).map((r: any) => r.user_id);
-        const allowedIds = [user.id, ...adminIds];
-        query = query.in('user_id', allowedIds);
-      }
-      // Admin/support/user see all (no filter on user_id)
-
       if (chipId) {
         query = query.or(`chip_id.eq.${chipId},chip_id.is.null`);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      setShortcuts((data as any[]) || []);
+      let results = (data as any[]) || [];
+
+      // Sellers: see own + shortcuts from master/admin/support
+      if (roleData?.role === 'seller') {
+        const { data: nonSellerRoles } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('role', ['master', 'admin', 'support'] as any);
+        const allowedIds = new Set([user.id, ...(nonSellerRoles || []).map((r: any) => r.user_id)]);
+        results = results.filter((s: any) => allowedIds.has(s.user_id));
+      }
+
+      setShortcuts(results);
     } catch {
       toast({ title: 'Erro ao carregar atalhos', variant: 'destructive' });
     }

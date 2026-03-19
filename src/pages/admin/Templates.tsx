@@ -386,7 +386,7 @@ export default function Templates() {
                 </Button>
               )}
             </div>
-            {isAdmin && (
+            {canSetVisibility && (
               <div className="space-y-2">
                 <Label>Visível para</Label>
                 <Select value={visibleTo} onValueChange={setVisibleTo}>
