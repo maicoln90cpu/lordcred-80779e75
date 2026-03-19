@@ -110,6 +110,25 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return map;
   }, [profileOptions]);
 
+  // Extract hex from color_class — supports "hex:#abc123" and legacy "bg-[#abc123]/20"
+  const extractHex = (colorClass: string): string | null => {
+    if (colorClass.startsWith('hex:')) return colorClass.slice(4);
+    const match = colorClass.match(/#[0-9a-fA-F]{6}/);
+    return match ? match[0] : null;
+  };
+
+  const renderColorBadge = (label: string, colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return (
+        <Badge variant="secondary" style={{ backgroundColor: hex + '33', color: hex, borderColor: hex + '44' }}>
+          {label}
+        </Badge>
+      );
+    }
+    return <Badge className={colorClass}>{label}</Badge>;
+  };
+
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
