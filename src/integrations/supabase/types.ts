@@ -1204,6 +1204,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_internal_chat_profiles_v2: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
       get_lead_counts: { Args: { _user_id: string }; Returns: Json }
       get_performance_stats: {
         Args: { _date_from?: string; _date_to?: string }
