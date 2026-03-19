@@ -32,6 +32,7 @@ interface ChatInputProps {
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
   chipId?: string | null;
+  lastIncomingText?: string;
 }
 
 export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId }: ChatInputProps) {
