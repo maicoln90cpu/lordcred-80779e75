@@ -119,7 +119,13 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       const typed = value.trim().toLowerCase();
       const match = shortcuts.find(s => s.is_active && typed.includes(s.trigger_word));
       if (match) {
-        setShortcutSuggestion({ trigger_word: match.trigger_word, response_text: match.response_text });
+        setShortcutSuggestion({
+          trigger_word: match.trigger_word,
+          response_text: match.response_text,
+          media_url: match.media_url,
+          media_type: match.media_type,
+          media_filename: match.media_filename,
+        });
       } else {
         setShortcutSuggestion(null);
       }
