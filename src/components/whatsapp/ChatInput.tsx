@@ -89,26 +89,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     })();
   }, [chipId]);
 
-  // Detect trigger words in last incoming message
-  useEffect(() => {
-    if (!lastIncomingText || !chipId) {
-      setShortcutSuggestion(null);
-      return;
-    }
-    if (lastMatchedTextRef.current === lastIncomingText) return;
-    lastMatchedTextRef.current = lastIncomingText;
-
-    const shortcuts = shortcutCache[chipId] || [];
-    const incomingLower = lastIncomingText.toLowerCase();
-    const match = shortcuts.find(s => s.is_active && incomingLower.includes(s.trigger_word));
-    if (match) {
-      setShortcutSuggestion({ trigger_word: match.trigger_word, response_text: match.response_text });
-    } else {
-      setShortcutSuggestion(null);
-    }
-  }, [lastIncomingText, chipId]);
-
-  // Handle "/" trigger for quick replies
+  // Handle "/" trigger for quick replies AND shortcut detection while typing
   const handleMessageChange = (value: string) => {
     setMessage(value);
     if (value.startsWith('/') && quickReplies.length > 0) {
@@ -117,6 +98,20 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       setShowQuickReplies(true);
     } else {
       setShowQuickReplies(false);
+    }
+
+    // Detect trigger words as user types
+    if (chipId && value.trim().length >= 2) {
+      const shortcuts = shortcutCache[chipId] || [];
+      const typed = value.trim().toLowerCase();
+      const match = shortcuts.find(s => s.is_active && typed.includes(s.trigger_word));
+      if (match) {
+        setShortcutSuggestion({ trigger_word: match.trigger_word, response_text: match.response_text });
+      } else {
+        setShortcutSuggestion(null);
+      }
+    } else {
+      setShortcutSuggestion(null);
     }
   };
 

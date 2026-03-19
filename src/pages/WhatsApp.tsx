@@ -358,6 +358,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/templates')} className="text-muted-foreground hover:text-foreground" title="Templates de Mensagem">
+            <FileText className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/chat')} className="text-muted-foreground hover:text-foreground relative" title="Chat Interno">
             <MessageCircle className="w-4 h-4" />
             {chatUnreadCount > 0 && (
