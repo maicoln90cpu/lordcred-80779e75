@@ -48,6 +48,10 @@ export default function Users() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'user' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
+  const [editMaxChips, setEditMaxChips] = useState(5);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const isMaster = isAdmin; // role === 'admin'
   const isRegularAdmin = userRole === 'user'; // Administrador (not master)
