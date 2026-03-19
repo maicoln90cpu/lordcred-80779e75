@@ -51,7 +51,7 @@ interface SellerProfile {
 
 export default function Templates() {
   const { toast } = useToast();
-  const { user, isSeller, isAdmin, userRole } = useAuth();
+  const { user, isSeller, isAdmin, isMaster, userRole } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -79,9 +79,21 @@ export default function Templates() {
     if (!canSetVisibility) return;
     (async () => {
       const { data } = await supabase.rpc('get_all_chat_profiles' as any);
-      if (data) setSellerProfiles(data as unknown as SellerProfile[]);
+      if (data) {
+        let profiles = data as unknown as SellerProfile[];
+        // Hide master users from non-master roles
+        if (!isMaster) {
+          const { data: masterRoles } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('role', 'master');
+          const masterIds = new Set((masterRoles || []).map((r: any) => r.user_id));
+          profiles = profiles.filter(p => !masterIds.has(p.user_id));
+        }
+        setSellerProfiles(profiles);
+      }
     })();
-  }, [canSetVisibility]);
+  }, [canSetVisibility, isMaster]);
 
   const fetchTemplates = async () => {
     const query = supabase
