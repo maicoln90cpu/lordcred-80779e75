@@ -782,11 +782,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         chipId={chipId}
       />
 
-      <ShortcutManager
-        open={shortcutsOpen}
-        onOpenChange={setShortcutsOpen}
-        chipId={chipId}
-      />
 
       <ForwardDialog
         open={!!forwardMsg}
