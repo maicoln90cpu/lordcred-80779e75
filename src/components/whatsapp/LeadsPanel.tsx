@@ -309,15 +309,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
             >
               Todos
             </Badge>
-            {profileOptions.map(p => (
-              <Badge
-                key={p.value}
-                className={`cursor-pointer ${filterPerfil === p.value ? p.color_class : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
-                onClick={() => handleFilterPerfil(filterPerfil === p.value ? 'all' : p.value)}
-              >
-                {p.label}: {perfilCounts[p.value] || 0}
-              </Badge>
-            ))}
+            {profileOptions.map(p => {
+              const cp = getColorStyle(p.color_class);
+              const isActive = filterPerfil === p.value;
+              return (
+                <Badge
+                  key={p.value}
+                  className={`cursor-pointer ${isActive ? cp.className : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                  style={isActive ? cp.style : {}}
+                  onClick={() => handleFilterPerfil(filterPerfil === p.value ? 'all' : p.value)}
+                >
+                  {p.label}: {perfilCounts[p.value] || 0}
+                </Badge>
+              );
+            })}
           </div>
         )}
 
