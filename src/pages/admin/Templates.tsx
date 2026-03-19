@@ -81,13 +81,10 @@ export default function Templates() {
       const { data } = await supabase.rpc('get_all_chat_profiles' as any);
       if (data) {
         let profiles = data as unknown as SellerProfile[];
-        // Hide master users from non-master roles
+        // Hide master users from non-master roles using SECURITY DEFINER function
         if (!isMaster) {
-          const { data: masterRoles } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .eq('role', 'master');
-          const masterIds = new Set((masterRoles || []).map((r: any) => r.user_id));
+          const { data: masterIdsArr } = await supabase.rpc('get_master_user_ids' as any);
+          const masterIds = new Set<string>((masterIdsArr as string[]) || []);
           profiles = profiles.filter(p => !masterIds.has(p.user_id));
         }
         setSellerProfiles(profiles);

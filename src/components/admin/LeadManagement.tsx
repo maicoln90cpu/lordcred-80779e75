@@ -25,7 +25,6 @@ interface ProfileOption {
 }
 
 interface SellerRowState {
-  filterStatus: string;
   filterProfile: string;
   qty: string;
   targetSeller: string;
@@ -40,8 +39,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Global filters for the management view
-  const [globalStatus, setGlobalStatus] = useState('all');
+  // Global filter (only profile, status filter removed)
   const [globalProfile, setGlobalProfile] = useState('all');
 
   // Per-row state for reassignment
@@ -53,7 +51,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     sellerName: string;
     targetName: string;
     qty: number;
-    status: string;
     profile: string;
   } | null>(null);
   const [isReassigning, setIsReassigning] = useState(false);
@@ -95,7 +92,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   };
 
   const getRowState = (sellerId: string): SellerRowState => {
-    return rowStates[sellerId] || { filterStatus: 'all', filterProfile: 'all', qty: '', targetSeller: '' };
+    return rowStates[sellerId] || { filterProfile: 'all', qty: '', targetSeller: '' };
   };
 
   const updateRowState = (sellerId: string, partial: Partial<SellerRowState>) => {
@@ -105,13 +102,12 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }));
   };
 
-  // Apply global filters first
+  // Apply global profile filter
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
-    if (globalStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === globalStatus);
     if (globalProfile !== 'all') result = result.filter((l: any) => l.perfil === globalProfile);
     return result;
-  }, [allLeads, globalStatus, globalProfile]);
+  }, [allLeads, globalProfile]);
 
   // Global counter metrics
   const globalMetrics = useMemo(() => {
@@ -123,7 +119,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     return { total, pendentes, contatados, aprovados, taxaAprovacao };
   }, [globalFiltered]);
 
-  // Group leads by seller
+  // Group leads by seller — compute pendentes from raw allLeads (not filtered)
   const sellerData = useMemo(() => {
     const map = new Map<string, { leads: any[] }>();
     globalFiltered.forEach((l: any) => {
@@ -131,21 +127,28 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       map.get(l.assigned_to)!.leads.push(l);
     });
 
+    // Count pendentes from RAW allLeads (unfiltered) per seller
+    const pendentesMap = new Map<string, number>();
+    allLeads.forEach((l: any) => {
+      if (!l.status || l.status === 'pendente') {
+        pendentesMap.set(l.assigned_to, (pendentesMap.get(l.assigned_to) || 0) + 1);
+      }
+    });
+
     return Array.from(map.entries()).map(([sellerId, { leads }]) => {
       const total = leads.length;
       const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
       const pctContacted = total > 0 ? Math.round((contacted / total) * 100) : 0;
-      // Most recent updated_at
+      const pendentes = pendentesMap.get(sellerId) || 0;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
-      return { sellerId, total, contacted, pctContacted, lastUpdate };
+      return { sellerId, total, contacted, pctContacted, pendentes, lastUpdate };
     }).sort((a, b) => b.total - a.total);
-  }, [globalFiltered]);
+  }, [globalFiltered, allLeads]);
 
-  // Count leads available for reassignment based on per-row filters
+  // Count leads available for reassignment based on per-row filters (profile only)
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
     let leads = globalFiltered.filter((l: any) => l.assigned_to === sellerId);
-    if (row.filterStatus !== 'all') leads = leads.filter((l: any) => (l.status || 'pendente') === row.filterStatus);
     if (row.filterProfile !== 'all') leads = leads.filter((l: any) => l.perfil === row.filterProfile);
     return leads.length;
   };
@@ -177,7 +180,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       sellerName: getSellerName(sellerId),
       targetName: getSellerName(row.targetSeller),
       qty: finalQty,
-      status: row.filterStatus,
       profile: row.filterProfile,
     });
   };
@@ -195,25 +197,11 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         .select('id')
         .eq('assigned_to', sellerId);
 
-      if (row.filterStatus !== 'all') {
-        if (row.filterStatus === 'pendente') {
-          query = query.or('status.eq.pendente,status.is.null');
-        } else {
-          query = query.eq('status', row.filterStatus);
-        }
-      }
       if (row.filterProfile !== 'all') {
         query = query.eq('perfil', row.filterProfile);
       }
 
-      // Also apply global filters
-      if (globalStatus !== 'all') {
-        if (globalStatus === 'pendente') {
-          query = query.or('status.eq.pendente,status.is.null');
-        } else {
-          query = query.eq('status', globalStatus);
-        }
-      }
+      // Also apply global profile filter
       if (globalProfile !== 'all') {
         query = query.eq('perfil', globalProfile);
       }
@@ -246,7 +234,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
 
       // Reset row state
-      updateRowState(sellerId, { qty: '', targetSeller: '', filterStatus: 'all', filterProfile: 'all' });
+      updateRowState(sellerId, { qty: '', targetSeller: '', filterProfile: 'all' });
       setConfirmDialog(null);
     } catch (e: any) {
       toast({ title: 'Erro na reatribuição', description: e.message, variant: 'destructive' });
@@ -267,18 +255,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
-            <span className="text-sm text-muted-foreground">Filtros globais:</span>
-            <Select value={globalStatus} onValueChange={setGlobalStatus}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                {statusOptions.map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-sm text-muted-foreground">Filtro global:</span>
             <Select value={globalProfile} onValueChange={setGlobalProfile}>
               <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder="Perfil" />
@@ -301,9 +278,9 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   <TableRow>
                     <TableHead>Vendedor</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
+                    <TableHead className="text-center">Pendentes</TableHead>
                     <TableHead className="text-center">% Contatos</TableHead>
                     <TableHead className="text-center">Última Alteração</TableHead>
-                    <TableHead>Filtro Status</TableHead>
                     <TableHead>Filtro Perfil</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
                     <TableHead>Vendedor Destino</TableHead>
@@ -311,7 +288,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sellerData.map(({ sellerId, total, pctContacted, lastUpdate }) => {
+                  {sellerData.map(({ sellerId, total, pctContacted, pendentes, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
@@ -323,6 +300,9 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                         <TableCell className="text-center">
                           <Badge variant="secondary">{total}</Badge>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={pendentes > 0 ? "destructive" : "secondary"}>{pendentes}</Badge>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 justify-center">
                             <Progress value={pctContacted} className="h-2 w-16" />
@@ -331,22 +311,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                         </TableCell>
                         <TableCell className="text-center text-sm text-muted-foreground whitespace-nowrap">
                           {lastUpdate ? new Date(lastUpdate).toLocaleDateString('pt-BR') : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={row.filterStatus}
-                            onValueChange={(v) => updateRowState(sellerId, { filterStatus: v })}
-                          >
-                            <SelectTrigger className="w-36 h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">Todos</SelectItem>
-                              {statusOptions.map(s => (
-                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
                         </TableCell>
                         <TableCell>
                           <Select
@@ -431,9 +395,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 <strong>{confirmDialog?.sellerName}</strong> para{' '}
                 <strong>{confirmDialog?.targetName}</strong>.
               </p>
-              {confirmDialog?.status !== 'all' && (
-                <p className="text-sm">Filtro status: <Badge variant="outline">{confirmDialog?.status}</Badge></p>
-              )}
               {confirmDialog?.profile !== 'all' && (
                 <p className="text-sm">Filtro perfil: <Badge variant="outline">{confirmDialog?.profile}</Badge></p>
               )}
