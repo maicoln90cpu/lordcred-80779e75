@@ -783,6 +783,7 @@ export type Database = {
           media_url: string | null
           sort_order: number | null
           title: string
+          trigger_word: string | null
           updated_at: string
           visible_to: string | null
           visible_to_list: string[] | null
@@ -799,6 +800,7 @@ export type Database = {
           media_url?: string | null
           sort_order?: number | null
           title: string
+          trigger_word?: string | null
           updated_at?: string
           visible_to?: string | null
           visible_to_list?: string[] | null
@@ -815,6 +817,7 @@ export type Database = {
           media_url?: string | null
           sort_order?: number | null
           title?: string
+          trigger_word?: string | null
           updated_at?: string
           visible_to?: string | null
           visible_to_list?: string[] | null
