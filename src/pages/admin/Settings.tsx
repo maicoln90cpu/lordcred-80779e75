@@ -946,7 +946,23 @@ export default function Settings() {
 
           {/* Tab: Chat Interno */}
           <TabsContent value="chat" className="space-y-6">
-            <ChatInternalSettings />
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Suporte do Chat Interno
+                </CardTitle>
+                <CardDescription>
+                  Defina o responsável pelo suporte que aparecerá como botão para vendedores
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Responsável pelo Suporte</Label>
+                  <SupportUserSelector settingsId={settings?.id} />
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tab: Mensagens */}
