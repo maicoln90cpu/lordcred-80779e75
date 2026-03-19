@@ -396,6 +396,8 @@ export type Database = {
       }
       internal_channels: {
         Row: {
+          admin_only_messages: boolean | null
+          avatar_url: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -405,6 +407,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_only_messages?: boolean | null
+          avatar_url?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -414,6 +418,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_only_messages?: boolean | null
+          avatar_url?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -775,6 +781,7 @@ export type Database = {
           sort_order: number | null
           title: string
           updated_at: string
+          visible_to: string | null
         }
         Insert: {
           category?: string
@@ -789,6 +796,7 @@ export type Database = {
           sort_order?: number | null
           title: string
           updated_at?: string
+          visible_to?: string | null
         }
         Update: {
           category?: string
@@ -803,11 +811,13 @@ export type Database = {
           sort_order?: number | null
           title?: string
           updated_at?: string
+          visible_to?: string | null
         }
         Relationships: []
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           created_by: string | null
           email: string
@@ -819,6 +829,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           email: string
@@ -830,6 +841,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           email?: string
