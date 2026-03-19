@@ -40,6 +40,7 @@ interface MessageData {
 interface ChipData {
   id: string;
   user_id: string;
+  chip_type: string;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
