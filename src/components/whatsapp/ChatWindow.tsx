@@ -624,15 +624,6 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setShortcutsOpen(true)}
-            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-            title="Atalhos de mensagem"
-          >
-            <Wand2 className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
             onClick={() => setNotesOpen(!notesOpen)}
             className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors", notesOpen && "text-primary bg-primary/10")}
             title="Notas internas"
