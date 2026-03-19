@@ -111,6 +111,20 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
+  // Helper to extract hex from color_class or return null
+  const extractHex = (colorClass: string): string | null => {
+    const match = colorClass.match(/#[0-9a-fA-F]{3,8}/);
+    return match ? match[0] : null;
+  };
+
+  const getColorStyle = (colorClass: string) => {
+    const hex = extractHex(colorClass);
+    if (hex) {
+      return { style: { backgroundColor: `${hex}20`, color: hex, borderColor: `${hex}40` }, className: 'hover:opacity-80' };
+    }
+    return { style: {}, className: colorClass };
+  };
+
   const statusColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     statusOptions.forEach(s => { map[s.value] = s.color_class; });

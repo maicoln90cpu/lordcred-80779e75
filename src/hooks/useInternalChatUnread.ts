@@ -33,34 +33,54 @@ export function useInternalChatUnread() {
     activeChannelRef.current = channelId;
   }, []);
 
-  // Load user's channels and profiles
+  // Load user's channels and profiles — expose a refresh function
+  const refreshChannels = useCallback(async () => {
+    if (!user) return;
+    const [membershipRes, profilesRes] = await Promise.all([
+      supabase
+        .from('internal_channel_members')
+        .select('channel_id')
+        .eq('user_id', user.id),
+      supabase.rpc('get_internal_chat_profiles'),
+    ]);
+
+    if (membershipRes.data) {
+      channelIdsRef.current = membershipRes.data.map(m => m.channel_id);
+    }
+
+    if (profilesRes.data) {
+      const map: Record<string, { name: string | null; email: string }> = {};
+      (profilesRes.data as any[]).forEach((p: any) => {
+        map[p.user_id] = { name: p.name, email: p.email };
+      });
+      profilesRef.current = map;
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refreshChannels();
+  }, [refreshChannels]);
+
+  // Also listen for channel member changes to refresh channelIds
   useEffect(() => {
     if (!user) return;
 
-    const init = async () => {
-      const [membershipRes, profilesRes] = await Promise.all([
-        supabase
-          .from('internal_channel_members')
-          .select('channel_id')
-          .eq('user_id', user.id),
-        supabase.rpc('get_internal_chat_profiles'),
-      ]);
+    const memberChannel = supabase
+      .channel('channel-member-tracker')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'internal_channel_members',
+      }, (payload) => {
+        const row = (payload.new || payload.old) as any;
+        if (row?.user_id === user.id) {
+          refreshChannels();
+        }
+      })
+      .subscribe();
 
-      if (membershipRes.data) {
-        channelIdsRef.current = membershipRes.data.map(m => m.channel_id);
-      }
-
-      if (profilesRes.data) {
-        const map: Record<string, { name: string | null; email: string }> = {};
-        (profilesRes.data as any[]).forEach((p: any) => {
-          map[p.user_id] = { name: p.name, email: p.email };
-        });
-        profilesRef.current = map;
-      }
-    };
-
-    init();
-  }, [user]);
+    return () => { supabase.removeChannel(memberChannel); };
+  }, [user, refreshChannels]);
 
   // Subscribe to new messages globally
   useEffect(() => {
