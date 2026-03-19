@@ -580,6 +580,7 @@ export default function InternalChat() {
           name: configGroupName.trim() || selectedChannel.name,
           description: configGroupDesc.trim() || null,
           admin_only_messages: configAdminOnly,
+          config_allowed_users: configAllowedUsers,
         } as any)
         .eq('id', selectedChannel.id);
       if (error) throw error;
