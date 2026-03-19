@@ -45,6 +45,7 @@ const App = () => (
               <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/" element={<Navigate to="/whatsapp" replace />} />
               <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute blockSellers><Dashboard /></ProtectedRoute>} />
