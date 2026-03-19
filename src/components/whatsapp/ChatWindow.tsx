@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, Wand2 } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import ConversationNotes from './ConversationNotes';
 import QuickRepliesManager from './QuickRepliesManager';
+import ShortcutManager from './ShortcutManager';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [chipDisconnected, setChipDisconnected] = useState(false);
@@ -622,6 +624,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setShortcutsOpen(true)}
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            title="Atalhos de mensagem"
+          >
+            <Wand2 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setNotesOpen(!notesOpen)}
             className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors", notesOpen && "text-primary bg-primary/10")}
             title="Notas internas"
@@ -771,12 +782,19 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           chipId={chipId}
+          lastIncomingText={messages.filter(m => !m.fromMe).at(-1)?.text}
         />
       )}
 
       <QuickRepliesManager
         open={quickRepliesOpen}
         onOpenChange={setQuickRepliesOpen}
+        chipId={chipId}
+      />
+
+      <ShortcutManager
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
         chipId={chipId}
       />
 

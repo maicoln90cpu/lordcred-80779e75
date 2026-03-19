@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, Star, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle, Ticket } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, FileSpreadsheet, Link2, MessageCircle, Ticket } from 'lucide-react';
 import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import ChipSelector from '@/components/whatsapp/ChipSelector';
 import ChatSidebar from '@/components/whatsapp/ChatSidebar';
 import ChatWindow from '@/components/whatsapp/ChatWindow';
-import FavoritesPanel from '@/components/whatsapp/FavoritesPanel';
+
 import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import LeadsPanel from '@/components/whatsapp/LeadsPanel';
@@ -38,7 +38,7 @@ export default function WhatsApp() {
   const [selectedChipStatus, setSelectedChipStatus] = useState<string>('disconnected');
   const [selectedChipInstanceName, setSelectedChipInstanceName] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [whatsappProfileOpen, setWhatsappProfileOpen] = useState(false);
   const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
@@ -369,9 +369,6 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin/tickets')} className="text-muted-foreground hover:text-foreground" title="Tickets de Suporte">
             <Ticket className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setFavoritesOpen(true)} className="text-muted-foreground hover:text-foreground" title="Mensagens favoritadas">
-            <Star className="w-4 h-4" />
-          </Button>
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground">
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
@@ -412,12 +409,6 @@ export default function WhatsApp() {
         <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
       </div>
 
-      <FavoritesPanel
-        open={favoritesOpen}
-        onClose={() => setFavoritesOpen(false)}
-        chipId={selectedChipId}
-        onOpenChat={(chat) => { setSelectedChat(chat); setFavoritesOpen(false); }}
-      />
 
       <WhatsAppProfileDialog
         open={whatsappProfileOpen}

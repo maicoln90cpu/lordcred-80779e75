@@ -15,8 +15,15 @@ interface QuickReply {
   text: string;
 }
 
+interface ShortcutMatch {
+  trigger_word: string;
+  response_text: string;
+}
+
 // Cache quick replies per chip to avoid re-fetching
 const quickReplyCache: Record<string, QuickReply[]> = {};
+// Cache shortcuts per chip
+const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean }[]> = {};
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -25,9 +32,10 @@ interface ChatInputProps {
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
   chipId?: string | null;
+  lastIncomingText?: string;
 }
 
-export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId }: ChatInputProps) {
+export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCancelReply, chipId, lastIncomingText }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -38,6 +46,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [quickReplyFilter, setQuickReplyFilter] = useState('');
+  const [shortcutSuggestion, setShortcutSuggestion] = useState<ShortcutMatch | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -46,6 +55,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastMatchedTextRef = useRef<string>('');
 
   // Fetch quick replies when chipId changes
   useEffect(() => {
@@ -62,6 +72,41 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       setQuickReplies(replies);
     }).catch(() => {});
   }, [chipId]);
+
+  // Fetch shortcuts from DB when chipId changes
+  useEffect(() => {
+    if (!chipId) return;
+    if (shortcutCache[chipId]) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('message_shortcuts' as any)
+          .select('trigger_word,response_text,is_active')
+          .or(`chip_id.eq.${chipId},chip_id.is.null`)
+          .eq('is_active', true);
+        shortcutCache[chipId] = (data as any[]) || [];
+      } catch {}
+    })();
+  }, [chipId]);
+
+  // Detect trigger words in last incoming message
+  useEffect(() => {
+    if (!lastIncomingText || !chipId) {
+      setShortcutSuggestion(null);
+      return;
+    }
+    if (lastMatchedTextRef.current === lastIncomingText) return;
+    lastMatchedTextRef.current = lastIncomingText;
+
+    const shortcuts = shortcutCache[chipId] || [];
+    const incomingLower = lastIncomingText.toLowerCase();
+    const match = shortcuts.find(s => s.is_active && incomingLower.includes(s.trigger_word));
+    if (match) {
+      setShortcutSuggestion({ trigger_word: match.trigger_word, response_text: match.response_text });
+    } else {
+      setShortcutSuggestion(null);
+    }
+  }, [lastIncomingText, chipId]);
 
   // Handle "/" trigger for quick replies
   const handleMessageChange = (value: string) => {
@@ -312,6 +357,23 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
   return (
     <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
+      {/* Shortcut suggestion banner */}
+      {shortcutSuggestion && (
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center gap-3 p-2 rounded-lg bg-accent/20 border-l-4 border-accent">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-accent-foreground">⚡ Atalho detectado: <span className="font-mono">{shortcutSuggestion.trigger_word}</span></p>
+              <p className="text-sm truncate text-muted-foreground">{shortcutSuggestion.response_text}</p>
+            </div>
+            <Button size="sm" variant="secondary" className="shrink-0 text-xs" onClick={() => { setMessage(shortcutSuggestion.response_text); setShortcutSuggestion(null); inputRef.current?.focus(); }}>
+              Usar
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShortcutSuggestion(null)} className="shrink-0 h-6 w-6">
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Reply preview */}
       {replyTo && (
         <div className="px-4 pt-3 pb-1">
