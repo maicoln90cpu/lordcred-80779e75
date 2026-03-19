@@ -158,7 +158,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
 
   const contactedPercent = useMemo(() => {
     if (allLeads.length === 0) return 0;
-    const contacted = allLeads.filter((l: any) => l.status !== 'pendente').length;
+    const contacted = allLeads.filter((l: any) => l.status && l.status !== 'pendente').length;
     return Math.round((contacted / allLeads.length) * 100);
   }, [allLeads]);
 
