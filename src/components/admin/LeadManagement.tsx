@@ -147,11 +147,10 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }).sort((a, b) => b.total - a.total);
   }, [globalFiltered, allLeads]);
 
-  // Count leads available for reassignment based on per-row filters
+  // Count leads available for reassignment based on per-row filters (profile only)
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
     let leads = globalFiltered.filter((l: any) => l.assigned_to === sellerId);
-    if (row.filterStatus !== 'all') leads = leads.filter((l: any) => (l.status || 'pendente') === row.filterStatus);
     if (row.filterProfile !== 'all') leads = leads.filter((l: any) => l.perfil === row.filterProfile);
     return leads.length;
   };
