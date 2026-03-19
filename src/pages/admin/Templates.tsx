@@ -204,6 +204,8 @@ export default function Templates() {
       }
       setDialogOpen(false);
       setMediaFile(null);
+      // Invalidate shortcut cache so ChatInput picks up trigger_word changes
+      window.dispatchEvent(new CustomEvent('shortcut-cache-invalidate', { detail: 'all' }));
       fetchTemplates();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
