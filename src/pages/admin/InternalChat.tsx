@@ -819,7 +819,7 @@ export default function InternalChat() {
                       : 'Conversa direta'}
                   </p>
                 </div>
-                {isAdmin && selectedChannel.is_group && (
+                {selectedChannel.is_group && canAccessGroupConfig(selectedChannel) && (
                   <Button variant="outline" size="sm" onClick={openGroupConfig}>
                     <Settings className="w-3.5 h-3.5 mr-1.5" />
                     Configurações
