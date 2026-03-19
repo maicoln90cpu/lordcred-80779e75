@@ -183,6 +183,7 @@ export default function Templates() {
         media_filename: uploadedMediaFilename,
         visible_to: finalVisibleTo,
         visible_to_list: finalVisibleToList,
+        trigger_word: triggerWord.trim() || null,
       };
 
       if (editTemplate) {
