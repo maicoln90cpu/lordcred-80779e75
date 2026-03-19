@@ -27,6 +27,7 @@ interface Channel {
   created_by: string;
   avatar_url?: string | null;
   admin_only_messages?: boolean;
+  config_allowed_users?: string[];
 }
 
 interface Message {
