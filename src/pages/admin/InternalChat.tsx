@@ -801,7 +801,17 @@ export default function InternalChat() {
                       const isMe = msg.user_id === user?.id;
                       const senderName = msg.user_name || msg.user_email?.split('@')[0] || 'Usuário';
                       return (
-                        <div key={msg.id} className={cn("flex mb-2", isMe ? "justify-end" : "justify-start")}>
+                        <div key={msg.id} className={cn("flex mb-2 items-end gap-1.5", isMe ? "justify-end" : "justify-start")}>
+                          {!isMe && (
+                            <Avatar className="w-6 h-6 shrink-0 mb-1">
+                              {profilesMap[msg.user_id]?.avatar_url ? (
+                                <AvatarImage src={profilesMap[msg.user_id].avatar_url!} />
+                              ) : null}
+                              <AvatarFallback className="text-[10px] bg-muted">
+                                {(senderName[0] || 'U').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
                           <div className={cn(
                             "max-w-[70%] rounded-lg px-3 py-2",
                             isMe ? "bg-primary text-primary-foreground" : "bg-muted",
