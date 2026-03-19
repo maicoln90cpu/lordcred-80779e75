@@ -338,10 +338,10 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       case 'data_ref':
         return formatDate(lead[key]);
       case 'status':
-        return <Badge className={statusColorMap[lead.status] || 'bg-muted text-muted-foreground'}>{lead.status}</Badge>;
+        return renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
       case 'perfil':
         return lead.perfil
-          ? <Badge className={profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground'}>{lead.perfil}</Badge>
+          ? renderColorBadge(lead.perfil, profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground')
           : <span className="text-muted-foreground text-xs">-</span>;
       case 'assigned_to':
         return getSellerName(lead.assigned_to);
