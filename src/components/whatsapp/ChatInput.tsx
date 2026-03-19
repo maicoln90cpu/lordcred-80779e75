@@ -371,31 +371,14 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
   return (
     <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
-      {/* Shortcut suggestion banner */}
+      {/* Shortcut suggestion — compact floating pill */}
       {shortcutSuggestion && (
-        <div className="px-4 pt-3 pb-1">
-          <div className="flex items-center gap-3 p-2 rounded-lg bg-accent/20 border-l-4 border-accent">
-            {shortcutSuggestion.media_url && shortcutSuggestion.media_type?.startsWith('image') && (
-              <img src={shortcutSuggestion.media_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
-            )}
-            {shortcutSuggestion.media_url && !shortcutSuggestion.media_type?.startsWith('image') && (
-              <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
-                {shortcutSuggestion.media_type?.startsWith('audio') ? <Mic className="w-4 h-4 text-muted-foreground" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-accent-foreground">⚡ Atalho: <span className="font-mono">{shortcutSuggestion.trigger_word}</span></p>
-              {shortcutSuggestion.response_text && (
-                <p className="text-sm truncate text-muted-foreground">{shortcutSuggestion.response_text}</p>
-              )}
-              {shortcutSuggestion.media_url && !shortcutSuggestion.response_text && (
-                <p className="text-sm truncate text-muted-foreground">📎 {shortcutSuggestion.media_filename || 'Mídia'}</p>
-              )}
-            </div>
-            <Button size="sm" variant="secondary" className="shrink-0 text-xs" onClick={() => {
+        <div className="px-4 pt-2 pb-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
               const s = shortcutSuggestion;
               if (s.media_url) {
-                // Set media preview from URL
                 const mType = s.media_type?.startsWith('audio') ? 'ptt' : s.media_type?.startsWith('image') ? 'image' : s.media_type?.startsWith('video') ? 'video' : 'document';
                 setMediaPreview({ type: mType, name: s.media_filename || 'media', base64: s.media_url, previewUrl: s.media_type?.startsWith('image') ? s.media_url : undefined });
                 if (s.response_text) setMessage(s.response_text);
@@ -404,13 +387,31 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
               }
               setShortcutSuggestion(null);
               inputRef.current?.focus();
-            }}>
-              Usar
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setShortcutSuggestion(null)} className="shrink-0 h-6 w-6">
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+            }}
+            className="inline-flex items-center gap-2 max-w-md rounded-full bg-accent/15 border border-accent/30 px-3 py-1.5 text-sm hover:bg-accent/25 transition-colors cursor-pointer"
+          >
+            {shortcutSuggestion.media_url && shortcutSuggestion.media_type?.startsWith('image') && (
+              <img src={shortcutSuggestion.media_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+            )}
+            {shortcutSuggestion.media_url && !shortcutSuggestion.media_type?.startsWith('image') && (
+              shortcutSuggestion.media_type?.startsWith('audio') ? <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            )}
+            <span className="text-xs text-accent-foreground">⚡</span>
+            <span className="font-mono text-xs font-semibold text-foreground">{shortcutSuggestion.trigger_word}</span>
+            {shortcutSuggestion.response_text && (
+              <span className="text-xs text-muted-foreground truncate max-w-[200px]">{shortcutSuggestion.response_text}</span>
+            )}
+            {shortcutSuggestion.media_url && !shortcutSuggestion.response_text && (
+              <span className="text-xs text-muted-foreground truncate">📎 {shortcutSuggestion.media_filename || 'Mídia'}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShortcutSuggestion(null)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
       {/* Reply preview */}
