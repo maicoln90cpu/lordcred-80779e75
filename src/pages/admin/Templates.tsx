@@ -286,15 +286,22 @@ export default function Templates() {
     })).sort((a, b) => b.items.length - a.items.length);
   }, [filtered, profileMap, isSeller]);
 
-  // For seller: group by category
-  const groupedByCategory = useMemo(() => {
+  // For seller: group into "Meus templates" vs "Templates da administração"
+  const [nonSellerIds, setNonSellerIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isSeller) return;
+    (async () => {
+      const { data } = await supabase.rpc('get_non_seller_user_ids' as any);
+      setNonSellerIds(new Set<string>((data as string[]) || []));
+    })();
+  }, [isSeller]);
+
+  const sellerGrouped = useMemo(() => {
     if (!isSeller) return null;
-    return CATEGORIES.reduce((acc, cat) => {
-      const items = filtered.filter(t => t.category === cat.value);
-      if (items.length > 0) acc.push({ ...cat, items });
-      return acc;
-    }, [] as (typeof CATEGORIES[0] & { items: Template[] })[]);
-  }, [filtered, isSeller]);
+    const mine = filtered.filter(t => t.created_by === user?.id);
+    const admin = filtered.filter(t => t.created_by !== user?.id && nonSellerIds.has(t.created_by));
+    return { mine, admin };
+  }, [filtered, isSeller, user, nonSellerIds]);
 
   const renderTemplateCard = (t: Template) => {
     const catStyle = getCategoryStyle(t.category);
