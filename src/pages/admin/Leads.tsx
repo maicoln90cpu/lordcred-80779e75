@@ -527,6 +527,52 @@ export default function Leads() {
   };
   const handleColumnDragEnd = () => setDragIdx(null);
 
+  // Seller column config functions
+  const startEditingSellerColumns = () => setEditingSellerColumns([...sellerColumnConfig]);
+
+  const toggleSellerColumnVisibility = (idx: number) => {
+    if (!editingSellerColumns) return;
+    const updated = [...editingSellerColumns];
+    updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
+    setEditingSellerColumns(updated);
+  };
+
+  const moveSellerColumn = (from: number, to: number) => {
+    if (!editingSellerColumns || to < 0 || to >= editingSellerColumns.length) return;
+    const updated = [...editingSellerColumns];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    setEditingSellerColumns(updated);
+  };
+
+  const saveSellerColumns = async () => {
+    if (!editingSellerColumns) return;
+    setIsSavingSellerColumns(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ seller_leads_columns: editingSellerColumns as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Colunas do Meus Leads atualizadas' });
+      queryClient.invalidateQueries({ queryKey: ['seller-leads-columns'] });
+      setEditingSellerColumns(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingSellerColumns(false);
+    }
+  };
+
+  const handleSellerColumnDragStart = (idx: number) => setDragSellerIdx(idx);
+  const handleSellerColumnDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragSellerIdx === null || dragSellerIdx === idx) return;
+    moveSellerColumn(dragSellerIdx, idx);
+    setDragSellerIdx(idx);
+  };
+  const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
+
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
     '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
