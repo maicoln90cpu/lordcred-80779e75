@@ -762,7 +762,7 @@ export default function InternalChat() {
                     "group flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-accent/50 transition-colors border-b border-border/30",
                     selectedChannel?.id === ch.id && "bg-accent"
                   )}
-                  onClick={() => setSelectedChannel(ch)}
+                  onClick={() => { setSelectedChannel(ch); markAsRead(ch.id); }}
                 >
                   <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 overflow-hidden">
                     {(ch as any).avatar_url ? (
