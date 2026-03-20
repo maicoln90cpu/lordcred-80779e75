@@ -76,6 +76,7 @@ const App = () => (
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+          </InternalChatUnreadProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
