@@ -756,6 +756,12 @@ export default function InternalChat() {
               <Button variant="ghost" size="icon" className="h-8 w-8" title="Nova conversa direta" onClick={() => setDirectDialogOpen(true)}>
                 <MessageSquare className="w-4 h-4" />
               </Button>
+              {/* Admin: config support user */}
+              {isAdmin && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Config. Suporte" onClick={openSupportConfig}>
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
               {/* Only admin can create groups */}
               {isAdmin && (
                 <Button variant="ghost" size="icon" className="h-8 w-8" title="Criar grupo" onClick={() => { setSelectedUsers([]); setCreateDialogOpen(true); }}>
