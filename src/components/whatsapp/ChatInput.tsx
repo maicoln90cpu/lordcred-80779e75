@@ -48,7 +48,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [quickReplyFilter, setQuickReplyFilter] = useState('');
-  const [shortcutSuggestion, setShortcutSuggestion] = useState<ShortcutMatch | null>(null);
+  const [shortcutSuggestions, setShortcutSuggestions] = useState<ShortcutMatch[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -139,20 +139,20 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     if (chipId && value.trim().length >= 2) {
       const shortcuts = shortcutCache[chipId] || [];
       const typed = value.trim().toLowerCase();
-      const match = shortcuts.find(s => s.is_active && typed.includes(s.trigger_word));
-      if (match) {
-        setShortcutSuggestion({
-          trigger_word: match.trigger_word,
-          response_text: match.response_text,
-          media_url: match.media_url,
-          media_type: match.media_type,
-          media_filename: match.media_filename,
-        });
+      const matches = shortcuts.filter(s => s.is_active && typed.includes(s.trigger_word.toLowerCase()));
+      if (matches.length > 0) {
+        setShortcutSuggestions(matches.map(m => ({
+          trigger_word: m.trigger_word,
+          response_text: m.response_text,
+          media_url: m.media_url,
+          media_type: m.media_type,
+          media_filename: m.media_filename,
+        })));
       } else {
-        setShortcutSuggestion(null);
+        setShortcutSuggestions([]);
       }
     } else {
-      setShortcutSuggestion(null);
+      setShortcutSuggestions([]);
     }
   };
 
@@ -393,43 +393,42 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
 
   return (
     <div className="border-t border-border/30 bg-gradient-to-r from-card/60 to-card/40 backdrop-blur-sm">
-      {/* Shortcut suggestion — compact floating pill */}
-      {shortcutSuggestion && (
-        <div className="px-4 pt-2 pb-1 flex items-center gap-2">
+      {/* Shortcut suggestions — multiple pills side by side */}
+      {shortcutSuggestions.length > 0 && (
+        <div className="px-4 pt-2 pb-1 flex items-center gap-2 flex-wrap">
+          {shortcutSuggestions.map((s, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                if (s.media_url) {
+                  const mType = s.media_type?.startsWith('audio') ? 'ptt' : s.media_type?.startsWith('image') ? 'image' : s.media_type?.startsWith('video') ? 'video' : 'document';
+                  setMediaPreview({ type: mType, name: s.media_filename || 'media', base64: s.media_url, previewUrl: s.media_type?.startsWith('image') ? s.media_url : undefined });
+                  if (s.response_text) setMessage(s.response_text);
+                } else {
+                  setMessage(s.response_text);
+                }
+                setShortcutSuggestions([]);
+                inputRef.current?.focus();
+              }}
+              className="inline-flex items-center gap-2 max-w-xs rounded-full bg-accent/15 border border-accent/30 px-3 py-1.5 text-sm hover:bg-accent/25 transition-colors cursor-pointer"
+            >
+              {s.media_url && s.media_type?.startsWith('image') && (
+                <img src={s.media_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+              )}
+              {s.media_url && !s.media_type?.startsWith('image') && (
+                s.media_type?.startsWith('audio') ? <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-xs text-accent-foreground">⚡</span>
+              <span className="font-mono text-xs font-semibold text-foreground">{s.trigger_word}</span>
+              {s.media_url && !s.response_text && (
+                <span className="text-xs text-muted-foreground truncate">📎 {s.media_filename || 'Mídia'}</span>
+              )}
+            </button>
+          ))}
           <button
             type="button"
-            onClick={() => {
-              const s = shortcutSuggestion;
-              if (s.media_url) {
-                const mType = s.media_type?.startsWith('audio') ? 'ptt' : s.media_type?.startsWith('image') ? 'image' : s.media_type?.startsWith('video') ? 'video' : 'document';
-                setMediaPreview({ type: mType, name: s.media_filename || 'media', base64: s.media_url, previewUrl: s.media_type?.startsWith('image') ? s.media_url : undefined });
-                if (s.response_text) setMessage(s.response_text);
-              } else {
-                setMessage(s.response_text);
-              }
-              setShortcutSuggestion(null);
-              inputRef.current?.focus();
-            }}
-            className="inline-flex items-center gap-2 max-w-md rounded-full bg-accent/15 border border-accent/30 px-3 py-1.5 text-sm hover:bg-accent/25 transition-colors cursor-pointer"
-          >
-            {shortcutSuggestion.media_url && shortcutSuggestion.media_type?.startsWith('image') && (
-              <img src={shortcutSuggestion.media_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
-            )}
-            {shortcutSuggestion.media_url && !shortcutSuggestion.media_type?.startsWith('image') && (
-              shortcutSuggestion.media_type?.startsWith('audio') ? <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            )}
-            <span className="text-xs text-accent-foreground">⚡</span>
-            <span className="font-mono text-xs font-semibold text-foreground">{shortcutSuggestion.trigger_word}</span>
-            {shortcutSuggestion.response_text && (
-              <span className="text-xs text-muted-foreground truncate max-w-[200px]">{shortcutSuggestion.response_text}</span>
-            )}
-            {shortcutSuggestion.media_url && !shortcutSuggestion.response_text && (
-              <span className="text-xs text-muted-foreground truncate">📎 {shortcutSuggestion.media_filename || 'Mídia'}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShortcutSuggestion(null)}
+            onClick={() => setShortcutSuggestions([])}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-3.5 h-3.5" />
