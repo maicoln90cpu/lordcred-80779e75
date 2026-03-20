@@ -400,23 +400,43 @@ export default function Templates() {
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum template encontrado</CardContent></Card>
-        ) : isSeller && groupedByCategory ? (
+        ) : isSeller && sellerGrouped ? (
           <div className="space-y-6">
-            {groupedByCategory.map(group => (
-              <Card key={group.value}>
+            {sellerGrouped.mine.length > 0 && (
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Badge className={group.color}>{group.label}</Badge>
-                    <span className="text-sm text-muted-foreground font-normal">{group.items.length}</span>
+                    <User className="w-5 h-5 text-primary" />
+                    Meus Templates
+                    <Badge variant="secondary" className="ml-1">{sellerGrouped.mine.length}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.items.map(renderTemplateCard)}
+                    {sellerGrouped.mine.map(renderTemplateCard)}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )}
+            {sellerGrouped.admin.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    Templates da Administração
+                    <Badge variant="secondary" className="ml-1">{sellerGrouped.admin.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {sellerGrouped.admin.map(renderTemplateCard)}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {sellerGrouped.mine.length === 0 && sellerGrouped.admin.length === 0 && (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum template encontrado</CardContent></Card>
+            )}
           </div>
         ) : groupedByUser ? (
           <div className="space-y-4">
