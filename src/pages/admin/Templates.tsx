@@ -1,12 +1,10 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Loader2, FileText, Search, Copy, Upload, X, Image, Mic, User } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Search, Copy, Upload, X, Image, Mic, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,16 +32,6 @@ interface Template {
   trigger_word?: string | null;
 }
 
-const CATEGORIES = [
-  { value: 'saudacao', label: 'Saudação', color: 'bg-green-500/20 text-green-400' },
-  { value: 'vendas', label: 'Vendas', color: 'bg-blue-500/20 text-blue-400' },
-  { value: 'suporte', label: 'Suporte', color: 'bg-purple-500/20 text-purple-400' },
-  { value: 'cobranca', label: 'Cobrança', color: 'bg-orange-500/20 text-orange-400' },
-  { value: 'followup', label: 'Follow-up', color: 'bg-yellow-500/20 text-yellow-400' },
-  { value: 'encerramento', label: 'Encerramento', color: 'bg-red-500/20 text-red-400' },
-  { value: 'geral', label: 'Geral', color: 'bg-muted text-muted-foreground' },
-];
-
 interface SellerProfile {
   user_id: string;
   email: string;
@@ -60,7 +48,6 @@ export default function Templates() {
   const [editTemplate, setEditTemplate] = useState<Template | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mediaFile, setMediaFile] = useState<{ file: File; preview?: string; type: string } | null>(null);
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
@@ -71,8 +58,6 @@ export default function Templates() {
 
   // Form fields
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [category, setCategory] = useState('geral');
 
   // Refetch when userRole resolves (fixes admin seeing seller-filtered results on reload)
   const roleResolved = useRef(false);
@@ -92,7 +77,6 @@ export default function Templates() {
       const { data } = await supabase.rpc('get_all_chat_profiles' as any);
       if (data) {
         let profiles = data as unknown as SellerProfile[];
-        // Hide master users from non-master roles using SECURITY DEFINER function
         if (!isMaster) {
           const { data: masterIdsArr } = await supabase.rpc('get_master_user_ids' as any);
           const masterIds = new Set<string>((masterIdsArr as string[]) || []);
@@ -107,28 +91,20 @@ export default function Templates() {
     const query = supabase
       .from('message_templates')
       .select('*')
-      .order('category')
       .order('sort_order');
     const { data, error } = await query;
     if (!error && user) {
       let filtered = (data as any[] || []).map(d => ({ ...d } as Template));
       if (isSeller) {
-        // Fetch non-seller IDs (admin/support/master) to determine which templates are "global"
         const { data: nonSellerIds } = await supabase.rpc('get_non_seller_user_ids' as any);
         const nonSellerSet = new Set<string>((nonSellerIds as string[]) || []);
         filtered = filtered.filter(t => {
-          // Always see own templates
           if (t.created_by === user.id) return true;
-          // Templates created by admin/support/master are "global" — check visibility
           if (nonSellerSet.has(t.created_by)) {
-            // If visible_to_list set, must include this user
             if (t.visible_to_list && t.visible_to_list.length > 0) return t.visible_to_list.includes(user.id);
-            // If visible_to set (legacy), must match
             if (t.visible_to) return t.visible_to === user.id;
-            // No restrictions = visible to all
             return true;
           }
-          // Templates from other sellers = NOT visible
           return false;
         });
       }
@@ -142,8 +118,6 @@ export default function Templates() {
   const openNew = () => {
     setEditTemplate(null);
     setTitle('');
-    setContent('');
-    setCategory('geral');
     setMediaFile(null);
     setExistingMediaUrl(null);
     setExistingMediaType(null);
@@ -155,8 +129,6 @@ export default function Templates() {
   const openEdit = (t: Template) => {
     setEditTemplate(t);
     setTitle(t.title);
-    setContent(t.content);
-    setCategory(t.category);
     setMediaFile(null);
     setExistingMediaUrl(t.media_url || null);
     setExistingMediaType(t.media_type || null);
@@ -169,7 +141,7 @@ export default function Templates() {
   };
 
   const handleSave = async () => {
-    if (!title.trim() || !content.trim()) return;
+    if (!title.trim()) return;
     setSaving(true);
     try {
       let uploadedMediaUrl: string | null = existingMediaUrl;
@@ -191,14 +163,13 @@ export default function Templates() {
         uploadedMediaFilename = mediaFile.file.name;
       }
 
-      // Sellers: force private
       const finalVisibleToList = isSeller ? [user!.id] : visibleToList;
       const finalVisibleTo = isSeller ? user!.id : (finalVisibleToList.length === 1 ? finalVisibleToList[0] : null);
 
       const payload: any = {
         title: title.trim(),
-        content: content.trim(),
-        category,
+        content: '',
+        category: 'geral',
         media_url: uploadedMediaUrl,
         media_type: uploadedMediaType,
         media_filename: uploadedMediaFilename,
@@ -225,7 +196,6 @@ export default function Templates() {
       }
       setDialogOpen(false);
       setMediaFile(null);
-      // Invalidate shortcut cache so ChatInput picks up trigger_word changes
       window.dispatchEvent(new CustomEvent('shortcut-cache-invalidate', { detail: 'all' }));
       fetchTemplates();
     } catch (err: any) {
@@ -255,11 +225,8 @@ export default function Templates() {
     toast({ title: 'Copiado!' });
   };
 
-  const getCategoryStyle = (cat: string) => CATEGORIES.find(c => c.value === cat) || CATEGORIES[CATEGORIES.length - 1];
-
   const filtered = templates.filter(t => {
-    if (filterCategory !== 'all' && t.category !== filterCategory) return false;
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.content.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.trigger_word || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -271,7 +238,7 @@ export default function Templates() {
   }, [sellerProfiles]);
 
   const groupedByUser = useMemo(() => {
-    if (isSeller) return null; // Sellers see flat view
+    if (isSeller) return null;
     const map = new Map<string, Template[]>();
     filtered.forEach(t => {
       const key = t.created_by;
@@ -304,7 +271,6 @@ export default function Templates() {
   }, [filtered, isSeller, user, nonSellerIds]);
 
   const renderTemplateCard = (t: Template) => {
-    const catStyle = getCategoryStyle(t.category);
     const visibleUsers = t.visible_to_list && t.visible_to_list.length > 0
       ? t.visible_to_list
       : t.visible_to ? [t.visible_to] : [];
@@ -312,10 +278,7 @@ export default function Templates() {
     return (
       <div key={t.id} className={`p-3 rounded-lg border transition-colors ${t.is_active ? 'border-border/50 bg-card/50 hover:bg-secondary/30' : 'border-border/30 bg-muted/20 opacity-60'}`}>
         <div className="flex items-start justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 shrink-0 ${catStyle.color}`}>
-              {catStyle.label}
-            </Badge>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <h3 className="font-medium text-sm truncate">{t.title}</h3>
             {t.trigger_word && (
               <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0 border-primary/40 text-primary">
@@ -326,9 +289,11 @@ export default function Templates() {
             {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
-              <Copy className="w-3.5 h-3.5" />
-            </Button>
+            {t.content && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(t.content)} title="Copiar">
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            )}
             {(!isSeller || t.created_by === user?.id) && (
               <>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
@@ -344,7 +309,9 @@ export default function Templates() {
         {t.media_url && t.media_type === 'image' && (
           <img src={t.media_url} alt="" className="w-full h-20 object-cover rounded mb-1.5" />
         )}
-        <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">{t.content}</p>
+        {t.media_filename && (
+          <p className="text-xs text-muted-foreground break-all mb-1">📎 {t.media_filename}</p>
+        )}
         <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
           <Button variant="ghost" size="sm" className="h-5 text-[10px] px-2" onClick={() => handleToggleActive(t)}>
             {t.is_active ? 'Ativo' : 'Inativo'}
@@ -385,15 +352,6 @@ export default function Templates() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar templates..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
 
         {isLoading ? (
@@ -422,7 +380,7 @@ export default function Templates() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    <Mic className="w-5 h-5 text-muted-foreground" />
                     Templates da Administração
                     <Badge variant="secondary" className="ml-1">{sellerGrouped.admin.length}</Badge>
                   </CardTitle>
@@ -480,27 +438,13 @@ export default function Templates() {
               <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Boas-vindas inicial" />
             </div>
             <div className="space-y-2">
-              <Label>Categoria</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Conteúdo</Label>
-              <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Texto do template..." rows={6} />
-              <p className="text-xs text-muted-foreground">Use {'{nome}'}, {'{telefone}'} como variáveis</p>
-            </div>
-            <div className="space-y-2">
               <Label>Palavra-gatilho (opcional)</Label>
               <Input
                 value={triggerWord}
                 onChange={e => setTriggerWord(e.target.value)}
                 placeholder="Ex: /ola, #vendas..."
               />
-              <p className="text-xs text-muted-foreground">Ao digitar esta palavra no chat, o template será sugerido automaticamente (como atalho)</p>
+              <p className="text-xs text-muted-foreground">Ao digitar esta palavra no chat, o template será sugerido automaticamente</p>
             </div>
             <div className="space-y-2">
               <Label>Mídia (opcional)</Label>
@@ -520,17 +464,17 @@ export default function Templates() {
                 }}
               />
               {(mediaFile || existingMediaUrl) ? (
-                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50 min-w-0">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50 overflow-hidden">
                   {mediaFile?.preview ? (
-                    <img src={mediaFile.preview} alt="" className="w-14 h-14 rounded object-cover" />
+                    <img src={mediaFile.preview} alt="" className="w-14 h-14 rounded object-cover shrink-0" />
                   ) : existingMediaType === 'image' && existingMediaUrl ? (
-                    <img src={existingMediaUrl} alt="" className="w-14 h-14 rounded object-cover" />
+                    <img src={existingMediaUrl} alt="" className="w-14 h-14 rounded object-cover shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
                       <Mic className="w-4 h-4 text-muted-foreground" />
                     </div>
                   )}
-                  <span className="text-sm flex-1 min-w-0 truncate">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
+                  <span className="text-sm flex-1 min-w-0 break-all">{mediaFile?.file.name || editTemplate?.media_filename || 'Mídia'}</span>
                   <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => { setMediaFile(null); setExistingMediaUrl(null); setExistingMediaType(null); }}>
                     <X className="w-3.5 h-3.5" />
                   </Button>
@@ -572,7 +516,7 @@ export default function Templates() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !title.trim() || !content.trim()}>
+            <Button onClick={handleSave} disabled={saving || !title.trim()}>
               {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editTemplate ? 'Salvar' : 'Criar'}
             </Button>
