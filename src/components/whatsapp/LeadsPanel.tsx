@@ -359,11 +359,16 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <div><span className="text-muted-foreground">Valor Lib.:</span> {selectedLead.valor_lib ? Number(selectedLead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
                 <div><span className="text-muted-foreground">Prazo:</span> {selectedLead.prazo || '-'} meses</div>
                 <div><span className="text-muted-foreground">Parcela:</span> {selectedLead.vlr_parcela ? Number(selectedLead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
-                <div><span className="text-muted-foreground">Banco:</span> {selectedLead.banco_nome}</div>
+                <div><span className="text-muted-foreground">Banco:</span> {selectedLead.banco_nome || '-'}</div>
+                <div><span className="text-muted-foreground">Banco Simulado:</span> {selectedLead.banco_simulado || '-'}</div>
+                <div><span className="text-muted-foreground">Cód. Banco:</span> {selectedLead.banco_codigo || '-'}</div>
+                <div><span className="text-muted-foreground">Agência:</span> {selectedLead.agencia || '-'}</div>
+                <div><span className="text-muted-foreground">Conta:</span> {selectedLead.conta || '-'}</div>
                 <div><span className="text-muted-foreground">Aprovado:</span> {selectedLead.aprovado || '-'}</div>
                 <div><span className="text-muted-foreground">Reprovado:</span> {selectedLead.reprovado || '-'}</div>
-                <div><span className="text-muted-foreground">Data Nasc.:</span> {selectedLead.data_nasc || '-'}</div>
+                <div><span className="text-muted-foreground">Data Nasc.:</span> {formatDataNasc(selectedLead.data_nasc)}</div>
                 <div><span className="text-muted-foreground">Nome Mãe:</span> {selectedLead.nome_mae || '-'}</div>
+                <div><span className="text-muted-foreground">Data Ref.:</span> {selectedLead.data_ref || '-'}</div>
                 <div><span className="text-muted-foreground">Lote:</span> {selectedLead.batch_name || '-'}</div>
               </div>
               <div className="space-y-2">
