@@ -104,12 +104,24 @@ export default function Templates() {
     if (!error && user) {
       let filtered = (data as any[] || []).map(d => ({ ...d } as Template));
       if (isSeller) {
-        filtered = filtered.filter(t =>
-          t.created_by === user.id ||
-          (!t.visible_to && (!t.visible_to_list || t.visible_to_list.length === 0)) ||
-          t.visible_to === user.id ||
-          (t.visible_to_list && t.visible_to_list.includes(user.id))
-        );
+        // Fetch non-seller IDs (admin/support/master) to determine which templates are "global"
+        const { data: nonSellerIds } = await supabase.rpc('get_non_seller_user_ids' as any);
+        const nonSellerSet = new Set<string>((nonSellerIds as string[]) || []);
+        filtered = filtered.filter(t => {
+          // Always see own templates
+          if (t.created_by === user.id) return true;
+          // Templates created by admin/support/master are "global" — check visibility
+          if (nonSellerSet.has(t.created_by)) {
+            // If visible_to_list set, must include this user
+            if (t.visible_to_list && t.visible_to_list.length > 0) return t.visible_to_list.includes(user.id);
+            // If visible_to set (legacy), must match
+            if (t.visible_to) return t.visible_to === user.id;
+            // No restrictions = visible to all
+            return true;
+          }
+          // Templates from other sellers = NOT visible
+          return false;
+        });
       }
       setTemplates(filtered);
     } else {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,39 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   const [detailCard, setDetailCard] = useState<KanbanCardType | null>(null);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [chips, setChips] = useState<{ id: string; nickname: string | null; phone_number: string | null }[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Auto-scroll on drag near edges
+  const handleDragOver = useCallback((e: DragEvent) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const edgeZone = 80;
+    const speed = 12;
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    const scroll = () => {
+      if (!container) return;
+      if (e.clientX < rect.left + edgeZone) {
+        container.scrollLeft -= speed;
+      } else if (e.clientX > rect.right - edgeZone) {
+        container.scrollLeft += speed;
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(scroll);
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !open) return;
+    container.addEventListener('dragover', handleDragOver);
+    return () => {
+      container.removeEventListener('dragover', handleDragOver);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [open, handleDragOver]);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -155,7 +188,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-x-auto">
+          <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

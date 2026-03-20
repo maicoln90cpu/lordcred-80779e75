@@ -97,8 +97,9 @@ export function useInternalChatUnread() {
         if (msg.user_id === user.id) return;
         if (!channelIdsRef.current.includes(msg.channel_id)) return;
 
-        // If user is actively viewing this channel, don't count as unread
-        if (activeChannelRef.current === msg.channel_id) return;
+        // If user is actively viewing this channel AND this page, don't count as unread
+        // We check window.location to ensure badge persists when on other pages
+        if (activeChannelRef.current === msg.channel_id && window.location.pathname.includes('/chat')) return;
 
         // Increment unread
         unreadMap.current[msg.channel_id] = (unreadMap.current[msg.channel_id] || 0) + 1;
