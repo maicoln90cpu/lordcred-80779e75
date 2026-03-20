@@ -139,20 +139,20 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     if (chipId && value.trim().length >= 2) {
       const shortcuts = shortcutCache[chipId] || [];
       const typed = value.trim().toLowerCase();
-      const match = shortcuts.find(s => s.is_active && typed.includes(s.trigger_word));
-      if (match) {
-        setShortcutSuggestion({
-          trigger_word: match.trigger_word,
-          response_text: match.response_text,
-          media_url: match.media_url,
-          media_type: match.media_type,
-          media_filename: match.media_filename,
-        });
+      const matches = shortcuts.filter(s => s.is_active && typed.includes(s.trigger_word.toLowerCase()));
+      if (matches.length > 0) {
+        setShortcutSuggestions(matches.map(m => ({
+          trigger_word: m.trigger_word,
+          response_text: m.response_text,
+          media_url: m.media_url,
+          media_type: m.media_type,
+          media_filename: m.media_filename,
+        })));
       } else {
-        setShortcutSuggestion(null);
+        setShortcutSuggestions([]);
       }
     } else {
-      setShortcutSuggestion(null);
+      setShortcutSuggestions([]);
     }
   };
 
