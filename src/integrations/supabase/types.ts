@@ -938,6 +938,7 @@ export type Database = {
           provider_api_url: string | null
           random_delay_variation: number
           read_delay_seconds: number
+          seller_leads_columns: Json | null
           start_hour: number
           support_chat_user_id: string | null
           timezone: string | null
@@ -985,6 +986,7 @@ export type Database = {
           provider_api_url?: string | null
           random_delay_variation?: number
           read_delay_seconds?: number
+          seller_leads_columns?: Json | null
           start_hour?: number
           support_chat_user_id?: string | null
           timezone?: string | null
@@ -1032,6 +1034,7 @@ export type Database = {
           provider_api_url?: string | null
           random_delay_variation?: number
           read_delay_seconds?: number
+          seller_leads_columns?: Json | null
           start_hour?: number
           support_chat_user_id?: string | null
           timezone?: string | null
@@ -1202,6 +1205,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_direct_channel: {
+        Args: { _channel_name: string; _target_user_id: string }
+        Returns: string
+      }
       get_all_chat_profiles: {
         Args: never
         Returns: {
