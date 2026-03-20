@@ -85,6 +85,11 @@ export default function InternalChat() {
   const [configAllowedUsers, setConfigAllowedUsers] = useState<string[]>([]);
   const [savingConfig, setSavingConfig] = useState(false);
   const [supportUserId, setSupportUserId] = useState<string | null>(null);
+  const [supportConfigOpen, setSupportConfigOpen] = useState(false);
+  const [supportConfigUserId, setSupportConfigUserId] = useState<string>('');
+  const [supportConfigProfiles, setSupportConfigProfiles] = useState<{ user_id: string; name: string | null; email: string }[]>([]);
+  const [savingSupport, setSavingSupport] = useState(false);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const profilesMapRef = useRef<Record<string, UserProfile>>({});
@@ -220,11 +225,39 @@ export default function InternalChat() {
 
   // Load support user from system_settings
   const loadSupportUser = useCallback(async () => {
-    const { data } = await supabase.from('system_settings').select('support_chat_user_id').single();
-    if (data && (data as any).support_chat_user_id) {
-      setSupportUserId((data as any).support_chat_user_id);
+    const { data } = await supabase.from('system_settings').select('id,support_chat_user_id').single();
+    if (data) {
+      setSettingsId(data.id);
+      if ((data as any).support_chat_user_id) {
+        setSupportUserId((data as any).support_chat_user_id);
+      }
     }
   }, []);
+
+  // Open support config dialog (admin only)
+  const openSupportConfig = async () => {
+    const [{ data: profiles }, { data: masterIds }] = await Promise.all([
+      supabase.rpc('get_all_chat_profiles' as any),
+      supabase.rpc('get_master_user_ids'),
+    ]);
+    const masterSet = new Set((masterIds as string[]) || []);
+    setSupportConfigProfiles((profiles as any[] || []).filter((p: any) => !masterSet.has(p.user_id)));
+    setSupportConfigUserId(supportUserId || '');
+    setSupportConfigOpen(true);
+  };
+
+  const saveSupportConfig = async () => {
+    if (!supportConfigUserId || !settingsId) return;
+    setSavingSupport(true);
+    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportConfigUserId } as any).eq('id', settingsId);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else {
+      setSupportUserId(supportConfigUserId);
+      toast({ title: 'Responsável pelo suporte atualizado' });
+    }
+    setSavingSupport(false);
+    setSupportConfigOpen(false);
+  };
 
   useEffect(() => {
     if (channels.length > 0 && Object.keys(profilesMap).length > 0) {
@@ -491,46 +524,27 @@ export default function InternalChat() {
 
   const handleStartDirectChat = async (targetUserId: string) => {
     if (!user) return;
-    const { data: myChannels } = await supabase
-      .from('internal_channel_members')
-      .select('channel_id')
-      .eq('user_id', user.id);
-    if (myChannels) {
-      for (const mc of myChannels) {
-        const { data: ch } = await supabase
-          .from('internal_channels')
-          .select('*')
-          .eq('id', mc.channel_id)
-          .eq('is_group', false)
-          .single();
-        if (ch) {
-          const { data: members } = await supabase
-            .from('internal_channel_members')
-            .select('user_id')
-            .eq('channel_id', ch.id);
-          if (members && members.length === 2 && members.some(m => m.user_id === targetUserId)) {
-            setSelectedChannel(ch);
-            setDirectDialogOpen(false);
-            return;
-          }
-        }
-      }
-    }
     const targetProfile = profilesMap[targetUserId];
     const channelDisplayName = targetProfile?.name || targetProfile?.email?.split('@')[0] || 'Chat Direto';
-    const { data, error } = await supabase.from('internal_channels').insert({
-      name: channelDisplayName,
-      is_group: false,
-      created_by: user.id,
-    }).select().single();
+    
+    // Use SECURITY DEFINER function to bypass RLS for sellers
+    const { data: channelId, error } = await supabase.rpc('create_direct_channel' as any, {
+      _target_user_id: targetUserId,
+      _channel_name: channelDisplayName,
+    });
+    
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
-    await supabase.from('internal_channel_members').insert([
-      { channel_id: data.id, user_id: user.id },
-      { channel_id: data.id, user_id: targetUserId },
-    ]);
+    
     setDirectDialogOpen(false);
     await loadChannels();
-    setSelectedChannel(data);
+    
+    // Select the newly created/found channel
+    const { data: ch } = await supabase
+      .from('internal_channels')
+      .select('*')
+      .eq('id', channelId)
+      .single();
+    if (ch) setSelectedChannel(ch);
     toast({ title: 'Conversa direta iniciada' });
   };
 
@@ -742,6 +756,12 @@ export default function InternalChat() {
               <Button variant="ghost" size="icon" className="h-8 w-8" title="Nova conversa direta" onClick={() => setDirectDialogOpen(true)}>
                 <MessageSquare className="w-4 h-4" />
               </Button>
+              {/* Admin: config support user */}
+              {isAdmin && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Config. Suporte" onClick={openSupportConfig}>
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
               {/* Only admin can create groups */}
               {isAdmin && (
                 <Button variant="ghost" size="icon" className="h-8 w-8" title="Criar grupo" onClick={() => { setSelectedUsers([]); setCreateDialogOpen(true); }}>
@@ -1241,6 +1261,39 @@ export default function InternalChat() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Support Config Dialog */}
+      <Dialog open={supportConfigOpen} onOpenChange={setSupportConfigOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              Suporte do Chat Interno
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Defina o responsável pelo suporte que aparecerá como botão para vendedores</p>
+          <div className="space-y-3">
+            <Label>Responsável pelo Suporte</Label>
+            <select
+              value={supportConfigUserId}
+              onChange={e => setSupportConfigUserId(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Selecione um usuário</option>
+              {supportConfigProfiles.map(p => (
+                <option key={p.user_id} value={p.user_id}>{p.name || p.email}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSupportConfigOpen(false)}>Cancelar</Button>
+            <Button onClick={saveSupportConfig} disabled={savingSupport || !supportConfigUserId}>
+              {savingSupport && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -66,6 +66,11 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
 
 const PAGE_SIZE = 50;
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
 type SortField = 'nome' | 'valor_lib' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
@@ -135,7 +140,36 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
-  // Helper to extract hex from color_class or return null
+  // Fetch seller column config from system_settings
+  const { data: sellerColumnConfig } = useQuery({
+    queryKey: ['seller-leads-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('seller_leads_columns')
+        .maybeSingle();
+      if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
+        return (data as any).seller_leads_columns as ColumnConfig[];
+      }
+      return null;
+    }
+  });
+
+  const visibleColumns = useMemo(() => {
+    if (!sellerColumnConfig) {
+      return [
+        { key: 'nome', label: 'Nome' },
+        { key: 'cpf', label: 'CPF' },
+        { key: 'telefone', label: 'Telefone' },
+        { key: 'valor_lib', label: 'Valor Lib.' },
+        { key: 'perfil', label: 'Perfil' },
+        { key: 'status', label: 'Status' },
+      ];
+    }
+    return sellerColumnConfig.filter(c => c.visible).map(c => ({ key: c.key, label: c.label }));
+  }, [sellerColumnConfig]);
+
+
   const extractHex = (colorClass: string): string | null => {
     const match = colorClass.match(/#[0-9a-fA-F]{3,8}/);
     return match ? match[0] : null;
@@ -435,73 +469,58 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="cursor-pointer" onClick={() => toggleSort('nome')}>
-                        Nome <ArrowUpDown className="inline w-3 h-3 ml-1" />
-                      </TableHead>
-                      <TableHead>CPF</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => toggleSort('valor_lib')}>
-                        Valor Lib. <ArrowUpDown className="inline w-3 h-3 ml-1" />
-                      </TableHead>
-                      <TableHead>Perfil</TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
-                        Status <ArrowUpDown className="inline w-3 h-3 ml-1" />
-                      </TableHead>
+                      {visibleColumns.map(col => (
+                        <TableHead key={col.key} className={['nome','valor_lib','status'].includes(col.key) ? 'cursor-pointer' : ''} onClick={() => { if (['nome','valor_lib','status','created_at'].includes(col.key)) toggleSort(col.key as SortField); }}>
+                          {col.label} {['nome','valor_lib','status'].includes(col.key) && <ArrowUpDown className="inline w-3 h-3 ml-1" />}
+                        </TableHead>
+                      ))}
                       <TableHead className="w-24">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pagedLeads.map((lead: any) => (
                       <TableRow key={lead.id} className="cursor-pointer group" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
-                        <TableCell className="font-medium">{lead.nome}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground" onClick={(e) => {
-                          if (!lead.cpf) return;
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(lead.cpf);
-                          toast({ title: 'CPF copiado!' });
-                        }}>
-                          <span className={lead.cpf ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors' : ''}>
-                            {lead.cpf || '-'}
-                            {lead.cpf && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
-                          </span>
-                        </TableCell>
-                        <TableCell onClick={(e) => {
-                          if (!lead.telefone) return;
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(lead.telefone);
-                          toast({ title: 'Telefone copiado!' });
-                        }}>
-                          <span className={lead.telefone ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors text-xs text-muted-foreground' : ''}>
-                            {lead.telefone || '-'}
-                            {lead.telefone && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {lead.perfil ? (() => {
-                            const cp = getColorStyle(profileColorMap[lead.perfil] || 'bg-muted text-muted-foreground');
+                        {visibleColumns.map(col => {
+                          const val = lead[col.key];
+                          if (col.key === 'cpf' || col.key === 'telefone') {
                             return (
-                              <Badge className={cp.className} style={cp.style}>
-                                {lead.perfil}
-                              </Badge>
+                              <TableCell key={col.key} className="text-xs text-muted-foreground" onClick={(e) => { if (!val) return; e.stopPropagation(); navigator.clipboard.writeText(val); toast({ title: `${col.label} copiado!` }); }}>
+                                <span className={val ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors' : ''}>
+                                  {val || '-'}
+                                  {val && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                                </span>
+                              </TableCell>
                             );
-                          })() : '-'}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
-                            <SelectTrigger className="h-7 w-32 text-xs border-0 p-1">
-                              {(() => {
-                                const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
-                                return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>;
-                              })()}
-                            </SelectTrigger>
-                            <SelectContent>
-                              {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
+                          }
+                          if (col.key === 'valor_lib' || col.key === 'vlr_parcela') {
+                            return <TableCell key={col.key}>{val ? Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</TableCell>;
+                          }
+                          if (col.key === 'perfil') {
+                            return (
+                              <TableCell key={col.key}>
+                                {val ? (() => { const cp = getColorStyle(profileColorMap[val] || 'bg-muted text-muted-foreground'); return <Badge className={cp.className} style={cp.style}>{val}</Badge>; })() : '-'}
+                              </TableCell>
+                            );
+                          }
+                          if (col.key === 'status') {
+                            return (
+                              <TableCell key={col.key} onClick={(e) => e.stopPropagation()}>
+                                <Select value={lead.status} onValueChange={(v) => handleQuickStatus(lead, v)}>
+                                  <SelectTrigger className="h-7 w-32 text-xs border-0 p-1">
+                                    {(() => { const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground'); return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>; })()}
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            );
+                          }
+                          if (col.key === 'data_nasc') {
+                            return <TableCell key={col.key}>{formatDataNasc(val)}</TableCell>;
+                          }
+                          return <TableCell key={col.key}>{val ?? '-'}</TableCell>;
+                        })}
                         <TableCell>
                           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleContact(lead); }} title="Iniciar conversa">
                             <MessageCircle className="w-4 h-4" />

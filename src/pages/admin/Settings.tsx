@@ -433,7 +433,6 @@ export default function Settings() {
           <TabsList>
             <TabsTrigger value="config">Configurações</TabsTrigger>
             <TabsTrigger value="mensagens">Mensagens</TabsTrigger>
-            <TabsTrigger value="chat">Chat Interno</TabsTrigger>
           </TabsList>
 
           {/* Tab: Configurações */}
@@ -1017,10 +1016,7 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          {/* Tab: Chat Interno */}
-          <TabsContent value="chat" className="space-y-6">
-            <SupportChatSettings />
-          </TabsContent>
+
 
           {/* Tab: Mensagens */}
           <TabsContent value="mensagens" className="space-y-6">

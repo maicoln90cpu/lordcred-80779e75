@@ -100,6 +100,11 @@ export default function Leads() {
   const [isSavingColumns, setIsSavingColumns] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
+  // Seller column config state
+  const [editingSellerColumns, setEditingSellerColumns] = useState<ColumnConfig[] | null>(null);
+  const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
+  const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
+
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
     queryKey: ['lead-status-options'],
@@ -149,6 +154,47 @@ export default function Leads() {
         return saved;
       }
       return ALL_COLUMNS;
+    }
+  });
+
+  // Fetch seller leads column config
+  const SELLER_LEADS_COLUMNS: ColumnConfig[] = [
+    { key: 'nome', label: 'Nome', visible: true },
+    { key: 'perfil', label: 'Perfil', visible: true },
+    { key: 'telefone', label: 'Telefone', visible: true },
+    { key: 'cpf', label: 'CPF', visible: true },
+    { key: 'valor_lib', label: 'Valor Lib.', visible: true },
+    { key: 'prazo', label: 'Prazo', visible: true },
+    { key: 'vlr_parcela', label: 'Parcela', visible: true },
+    { key: 'banco_nome', label: 'Banco', visible: true },
+    { key: 'banco_simulado', label: 'Banco Simulado', visible: false },
+    { key: 'banco_codigo', label: 'Cód. Banco', visible: false },
+    { key: 'agencia', label: 'Agência', visible: false },
+    { key: 'conta', label: 'Conta', visible: false },
+    { key: 'aprovado', label: 'Aprovado', visible: true },
+    { key: 'reprovado', label: 'Reprovado', visible: false },
+    { key: 'data_nasc', label: 'Data Nasc.', visible: false },
+    { key: 'nome_mae', label: 'Nome Mãe', visible: false },
+    { key: 'data_ref', label: 'Data Ref.', visible: false },
+    { key: 'status', label: 'Status', visible: true },
+    { key: 'batch_name', label: 'Lote', visible: true },
+    { key: 'notes', label: 'Observações', visible: false },
+  ];
+
+  const { data: sellerColumnConfig = SELLER_LEADS_COLUMNS } = useQuery({
+    queryKey: ['seller-leads-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('seller_leads_columns')
+        .maybeSingle();
+      if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
+        const saved = (data as any).seller_leads_columns as ColumnConfig[];
+        const savedKeys = new Set(saved.map(c => c.key));
+        const newCols = SELLER_LEADS_COLUMNS.filter(c => !savedKeys.has(c.key));
+        return newCols.length > 0 ? [...saved, ...newCols] : saved;
+      }
+      return SELLER_LEADS_COLUMNS;
     }
   });
 
@@ -480,6 +526,52 @@ export default function Leads() {
     setDragIdx(idx);
   };
   const handleColumnDragEnd = () => setDragIdx(null);
+
+  // Seller column config functions
+  const startEditingSellerColumns = () => setEditingSellerColumns([...sellerColumnConfig]);
+
+  const toggleSellerColumnVisibility = (idx: number) => {
+    if (!editingSellerColumns) return;
+    const updated = [...editingSellerColumns];
+    updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
+    setEditingSellerColumns(updated);
+  };
+
+  const moveSellerColumn = (from: number, to: number) => {
+    if (!editingSellerColumns || to < 0 || to >= editingSellerColumns.length) return;
+    const updated = [...editingSellerColumns];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    setEditingSellerColumns(updated);
+  };
+
+  const saveSellerColumns = async () => {
+    if (!editingSellerColumns) return;
+    setIsSavingSellerColumns(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ seller_leads_columns: editingSellerColumns as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Colunas do Meus Leads atualizadas' });
+      queryClient.invalidateQueries({ queryKey: ['seller-leads-columns'] });
+      setEditingSellerColumns(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingSellerColumns(false);
+    }
+  };
+
+  const handleSellerColumnDragStart = (idx: number) => setDragSellerIdx(idx);
+  const handleSellerColumnDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragSellerIdx === null || dragSellerIdx === idx) return;
+    moveSellerColumn(dragSellerIdx, idx);
+    setDragSellerIdx(idx);
+  };
+  const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
 
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
@@ -939,6 +1031,77 @@ export default function Leads() {
                           variant="ghost"
                           size="sm"
                           onClick={() => toggleColumnVisibility(idx)}
+                          className={col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}
+                        >
+                          {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Seller Leads Column Configuration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Eye className="w-5 h-5" />
+                      Colunas do Meus Leads (Vendedores)
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Configure quais colunas e em qual ordem aparecem no modal "Meus Leads" dos vendedores</p>
+                  </div>
+                  {!editingSellerColumns ? (
+                    <Button onClick={startEditingSellerColumns}>Editar Colunas</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingSellerColumns(null)}>Cancelar</Button>
+                      <Button onClick={saveSellerColumns} disabled={isSavingSellerColumns}>
+                        {isSavingSellerColumns && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingSellerColumns ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Colunas ativas para vendedores:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sellerColumnConfig.filter(c => c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                      {sellerColumnConfig.filter(c => !c.visible).map(c => (
+                        <Badge key={c.key} variant="outline" className="flex items-center gap-1 opacity-40">
+                          <EyeOff className="w-3 h-3" /> {c.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Arraste para reordenar e alterne a visibilidade. Vendedores verão apenas as colunas visíveis nesta ordem.</p>
+                    {editingSellerColumns.map((col, idx) => (
+                      <div
+                        key={col.key}
+                        draggable
+                        onDragStart={() => handleSellerColumnDragStart(idx)}
+                        onDragOver={(e) => handleSellerColumnDragOver(e, idx)}
+                        onDragEnd={handleSellerColumnDragEnd}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${dragSellerIdx === idx ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'}`}
+                      >
+                        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1 text-sm font-medium">{col.label}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{col.key}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleSellerColumnVisibility(idx)}
                           className={col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}
                         >
                           {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
