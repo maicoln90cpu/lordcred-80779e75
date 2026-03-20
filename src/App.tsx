@@ -43,6 +43,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+          <InternalChatUnreadProvider>
             <Routes>
               <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />

@@ -124,7 +124,7 @@ export function InternalChatUnreadProvider({ children }: { children: ReactNode }
         // Increment locally
         setUnreadByChannel(prev => {
           const next = { ...prev, [msg.channel_id]: (prev[msg.channel_id] || 0) + 1 };
-          setTotalUnread(Object.values(next).reduce((a, b) => a + b, 0));
+          setTotalUnread(Object.values(next).reduce((a: number, b: number) => a + b, 0));
           return next;
         });
 
