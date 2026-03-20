@@ -1261,6 +1261,39 @@ export default function InternalChat() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Support Config Dialog */}
+      <Dialog open={supportConfigOpen} onOpenChange={setSupportConfigOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              Suporte do Chat Interno
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Defina o responsável pelo suporte que aparecerá como botão para vendedores</p>
+          <div className="space-y-3">
+            <Label>Responsável pelo Suporte</Label>
+            <select
+              value={supportConfigUserId}
+              onChange={e => setSupportConfigUserId(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Selecione um usuário</option>
+              {supportConfigProfiles.map(p => (
+                <option key={p.user_id} value={p.user_id}>{p.name || p.email}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSupportConfigOpen(false)}>Cancelar</Button>
+            <Button onClick={saveSupportConfig} disabled={savingSupport || !supportConfigUserId}>
+              {savingSupport && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
