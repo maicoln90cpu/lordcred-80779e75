@@ -225,11 +225,39 @@ export default function InternalChat() {
 
   // Load support user from system_settings
   const loadSupportUser = useCallback(async () => {
-    const { data } = await supabase.from('system_settings').select('support_chat_user_id').single();
-    if (data && (data as any).support_chat_user_id) {
-      setSupportUserId((data as any).support_chat_user_id);
+    const { data } = await supabase.from('system_settings').select('id,support_chat_user_id').single();
+    if (data) {
+      setSettingsId(data.id);
+      if ((data as any).support_chat_user_id) {
+        setSupportUserId((data as any).support_chat_user_id);
+      }
     }
   }, []);
+
+  // Open support config dialog (admin only)
+  const openSupportConfig = async () => {
+    const [{ data: profiles }, { data: masterIds }] = await Promise.all([
+      supabase.rpc('get_all_chat_profiles' as any),
+      supabase.rpc('get_master_user_ids'),
+    ]);
+    const masterSet = new Set((masterIds as string[]) || []);
+    setSupportConfigProfiles((profiles as any[] || []).filter((p: any) => !masterSet.has(p.user_id)));
+    setSupportConfigUserId(supportUserId || '');
+    setSupportConfigOpen(true);
+  };
+
+  const saveSupportConfig = async () => {
+    if (!supportConfigUserId || !settingsId) return;
+    setSavingSupport(true);
+    const { error } = await supabase.from('system_settings').update({ support_chat_user_id: supportConfigUserId } as any).eq('id', settingsId);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else {
+      setSupportUserId(supportConfigUserId);
+      toast({ title: 'Responsável pelo suporte atualizado' });
+    }
+    setSavingSupport(false);
+    setSupportConfigOpen(false);
+  };
 
   useEffect(() => {
     if (channels.length > 0 && Object.keys(profilesMap).length > 0) {
