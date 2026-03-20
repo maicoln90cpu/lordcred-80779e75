@@ -157,6 +157,47 @@ export default function Leads() {
     }
   });
 
+  // Fetch seller leads column config
+  const SELLER_LEADS_COLUMNS: ColumnConfig[] = [
+    { key: 'nome', label: 'Nome', visible: true },
+    { key: 'perfil', label: 'Perfil', visible: true },
+    { key: 'telefone', label: 'Telefone', visible: true },
+    { key: 'cpf', label: 'CPF', visible: true },
+    { key: 'valor_lib', label: 'Valor Lib.', visible: true },
+    { key: 'prazo', label: 'Prazo', visible: true },
+    { key: 'vlr_parcela', label: 'Parcela', visible: true },
+    { key: 'banco_nome', label: 'Banco', visible: true },
+    { key: 'banco_simulado', label: 'Banco Simulado', visible: false },
+    { key: 'banco_codigo', label: 'Cód. Banco', visible: false },
+    { key: 'agencia', label: 'Agência', visible: false },
+    { key: 'conta', label: 'Conta', visible: false },
+    { key: 'aprovado', label: 'Aprovado', visible: true },
+    { key: 'reprovado', label: 'Reprovado', visible: false },
+    { key: 'data_nasc', label: 'Data Nasc.', visible: false },
+    { key: 'nome_mae', label: 'Nome Mãe', visible: false },
+    { key: 'data_ref', label: 'Data Ref.', visible: false },
+    { key: 'status', label: 'Status', visible: true },
+    { key: 'batch_name', label: 'Lote', visible: true },
+    { key: 'notes', label: 'Observações', visible: false },
+  ];
+
+  const { data: sellerColumnConfig = SELLER_LEADS_COLUMNS } = useQuery({
+    queryKey: ['seller-leads-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('seller_leads_columns')
+        .maybeSingle();
+      if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
+        const saved = (data as any).seller_leads_columns as ColumnConfig[];
+        const savedKeys = new Set(saved.map(c => c.key));
+        const newCols = SELLER_LEADS_COLUMNS.filter(c => !savedKeys.has(c.key));
+        return newCols.length > 0 ? [...saved, ...newCols] : saved;
+      }
+      return SELLER_LEADS_COLUMNS;
+    }
+  });
+
   const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
