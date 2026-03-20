@@ -66,6 +66,11 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
 
 const PAGE_SIZE = 50;
 
+interface ColumnConfig {
+  key: string;
+  label: string;
+  visible: boolean;
+}
 type SortField = 'nome' | 'valor_lib' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
