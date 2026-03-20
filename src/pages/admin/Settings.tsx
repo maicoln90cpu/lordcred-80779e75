@@ -1016,10 +1016,7 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          {/* Tab: Chat Interno */}
-          <TabsContent value="chat" className="space-y-6">
-            <SupportChatSettings />
-          </TabsContent>
+
 
           {/* Tab: Mensagens */}
           <TabsContent value="mensagens" className="space-y-6">
