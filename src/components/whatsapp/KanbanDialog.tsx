@@ -188,7 +188,7 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-x-auto">
+          <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
