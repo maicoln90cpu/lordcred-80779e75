@@ -74,6 +74,15 @@ export default function Templates() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('geral');
 
+  // Refetch when userRole resolves (fixes admin seeing seller-filtered results on reload)
+  const roleResolved = useRef(false);
+  useEffect(() => {
+    if (roleResolved.current) {
+      fetchTemplates();
+    }
+    roleResolved.current = true;
+  }, [userRole]);
+
   useEffect(() => { fetchTemplates(); }, []);
 
   const canSetVisibility = isAdmin || userRole === 'support';
