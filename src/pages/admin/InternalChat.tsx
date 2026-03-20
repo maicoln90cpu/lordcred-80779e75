@@ -524,46 +524,27 @@ export default function InternalChat() {
 
   const handleStartDirectChat = async (targetUserId: string) => {
     if (!user) return;
-    const { data: myChannels } = await supabase
-      .from('internal_channel_members')
-      .select('channel_id')
-      .eq('user_id', user.id);
-    if (myChannels) {
-      for (const mc of myChannels) {
-        const { data: ch } = await supabase
-          .from('internal_channels')
-          .select('*')
-          .eq('id', mc.channel_id)
-          .eq('is_group', false)
-          .single();
-        if (ch) {
-          const { data: members } = await supabase
-            .from('internal_channel_members')
-            .select('user_id')
-            .eq('channel_id', ch.id);
-          if (members && members.length === 2 && members.some(m => m.user_id === targetUserId)) {
-            setSelectedChannel(ch);
-            setDirectDialogOpen(false);
-            return;
-          }
-        }
-      }
-    }
     const targetProfile = profilesMap[targetUserId];
     const channelDisplayName = targetProfile?.name || targetProfile?.email?.split('@')[0] || 'Chat Direto';
-    const { data, error } = await supabase.from('internal_channels').insert({
-      name: channelDisplayName,
-      is_group: false,
-      created_by: user.id,
-    }).select().single();
+    
+    // Use SECURITY DEFINER function to bypass RLS for sellers
+    const { data: channelId, error } = await supabase.rpc('create_direct_channel' as any, {
+      _target_user_id: targetUserId,
+      _channel_name: channelDisplayName,
+    });
+    
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
-    await supabase.from('internal_channel_members').insert([
-      { channel_id: data.id, user_id: user.id },
-      { channel_id: data.id, user_id: targetUserId },
-    ]);
+    
     setDirectDialogOpen(false);
     await loadChannels();
-    setSelectedChannel(data);
+    
+    // Select the newly created/found channel
+    const { data: ch } = await supabase
+      .from('internal_channels')
+      .select('*')
+      .eq('id', channelId)
+      .single();
+    if (ch) setSelectedChannel(ch);
     toast({ title: 'Conversa direta iniciada' });
   };
 
