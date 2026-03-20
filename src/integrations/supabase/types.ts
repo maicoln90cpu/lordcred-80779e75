@@ -370,18 +370,21 @@ export type Database = {
           channel_id: string
           id: string
           joined_at: string
+          last_read_at: string | null
           user_id: string
         }
         Insert: {
           channel_id: string
           id?: string
           joined_at?: string
+          last_read_at?: string | null
           user_id: string
         }
         Update: {
           channel_id?: string
           id?: string
           joined_at?: string
+          last_read_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1225,6 +1228,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_internal_unread_counts: {
+        Args: never
+        Returns: {
+          channel_id: string
+          unread_count: number
+        }[]
+      }
       get_lead_counts: { Args: { _user_id: string }; Returns: Json }
       get_master_user_ids: { Args: never; Returns: string[] }
       get_non_seller_user_ids: { Args: never; Returns: string[] }
@@ -1244,6 +1254,7 @@ export type Database = {
         Args: { _channel_id: string; _user_id: string }
         Returns: boolean
       }
+      mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       reset_daily_message_count: { Args: never; Returns: undefined }
     }
     Enums: {
