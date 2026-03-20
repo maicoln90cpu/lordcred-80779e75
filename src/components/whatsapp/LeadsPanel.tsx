@@ -140,7 +140,36 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   });
 
-  // Helper to extract hex from color_class or return null
+  // Fetch seller column config from system_settings
+  const { data: sellerColumnConfig } = useQuery({
+    queryKey: ['seller-leads-columns'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('seller_leads_columns')
+        .maybeSingle();
+      if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
+        return (data as any).seller_leads_columns as ColumnConfig[];
+      }
+      return null;
+    }
+  });
+
+  const visibleColumns = useMemo(() => {
+    if (!sellerColumnConfig) {
+      return [
+        { key: 'nome', label: 'Nome' },
+        { key: 'cpf', label: 'CPF' },
+        { key: 'telefone', label: 'Telefone' },
+        { key: 'valor_lib', label: 'Valor Lib.' },
+        { key: 'perfil', label: 'Perfil' },
+        { key: 'status', label: 'Status' },
+      ];
+    }
+    return sellerColumnConfig.filter(c => c.visible).map(c => ({ key: c.key, label: c.label }));
+  }, [sellerColumnConfig]);
+
+
   const extractHex = (colorClass: string): string | null => {
     const match = colorClass.match(/#[0-9a-fA-F]{3,8}/);
     return match ? match[0] : null;
