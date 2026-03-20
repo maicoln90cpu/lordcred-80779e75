@@ -548,7 +548,12 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
           <TemplatePicker
             disabled={disabled}
             onInsertText={(text) => { setMessage(text); inputRef.current?.focus(); }}
-            onSendMedia={onSendMedia}
+            onLoadMedia={(base64, type, caption, fileName) => {
+              const mType = type === 'audio' ? 'ptt' : type;
+              setMediaPreview({ type: mType, name: fileName || 'media', base64, previewUrl: type === 'image' ? base64 : undefined });
+              if (caption) setMessage(caption);
+              inputRef.current?.focus();
+            }}
           />
 
           <div className="relative flex-1">

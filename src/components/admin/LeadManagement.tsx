@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Users, Clock, CheckCircle, TrendingUp, Loader2, ArrowRightLeft } from 'lucide-react';
+import { Loader2, ArrowRightLeft } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,13 +39,9 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Global filter (only profile, status filter removed)
   const [globalProfile, setGlobalProfile] = useState('all');
-
-  // Per-row state for reassignment
+  const [globalStatus, setGlobalStatus] = useState('all');
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
-
-  // Confirmation dialog
   const [confirmDialog, setConfirmDialog] = useState<{
     sellerId: string;
     sellerName: string;
@@ -55,7 +51,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   } | null>(null);
   const [isReassigning, setIsReassigning] = useState(false);
 
-  // Fetch all leads with relevant fields
   const { data: allLeads = [] } = useQuery({
     queryKey: ['management-leads'],
     queryFn: async () => {
@@ -77,7 +72,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }
   });
 
-  // Fetch sellers with roles to filter only sellers
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
@@ -102,24 +96,15 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }));
   };
 
-  // Apply global profile filter
+  // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
     if (globalProfile !== 'all') result = result.filter((l: any) => l.perfil === globalProfile);
+    if (globalStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === globalStatus);
     return result;
-  }, [allLeads, globalProfile]);
+  }, [allLeads, globalProfile, globalStatus]);
 
-  // Global counter metrics
-  const globalMetrics = useMemo(() => {
-    const total = globalFiltered.length;
-    const pendentes = globalFiltered.filter((l: any) => !l.status || l.status === 'pendente').length;
-    const contatados = globalFiltered.filter((l: any) => l.status && l.status !== 'pendente').length;
-    const aprovados = globalFiltered.filter((l: any) => l.status === 'APROVADO').length;
-    const taxaAprovacao = total > 0 ? Math.round((aprovados / total) * 100) : 0;
-    return { total, pendentes, contatados, aprovados, taxaAprovacao };
-  }, [globalFiltered]);
-
-  // Group leads by seller — compute pendentes from raw allLeads (not filtered)
+  // Group leads by seller
   const sellerData = useMemo(() => {
     const map = new Map<string, { leads: any[] }>();
     globalFiltered.forEach((l: any) => {
@@ -127,25 +112,17 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       map.get(l.assigned_to)!.leads.push(l);
     });
 
-    // Count pendentes from RAW allLeads (unfiltered) per seller
-    const pendentesMap = new Map<string, number>();
-    allLeads.forEach((l: any) => {
-      if (!l.status || l.status === 'pendente') {
-        pendentesMap.set(l.assigned_to, (pendentesMap.get(l.assigned_to) || 0) + 1);
-      }
-    });
-
     return Array.from(map.entries()).map(([sellerId, { leads }]) => {
       const total = leads.length;
       const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
       const pctContacted = total > 0 ? Math.round((contacted / total) * 100) : 0;
-      const pendentes = pendentesMap.get(sellerId) || 0;
+      // "Total Filtrado" = count of leads for this seller matching global filters (already filtered)
+      const totalFiltrado = total;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
-      return { sellerId, total, contacted, pctContacted, pendentes, lastUpdate };
+      return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
     }).sort((a, b) => b.total - a.total);
-  }, [globalFiltered, allLeads]);
+  }, [globalFiltered]);
 
-  // Count leads available for reassignment based on per-row filters (profile only)
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
     let leads = globalFiltered.filter((l: any) => l.assigned_to === sellerId);
@@ -191,28 +168,20 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       const { sellerId } = confirmDialog;
       const row = getRowState(sellerId);
 
-      // Build query to get lead IDs matching filters
       let query = supabase
         .from('client_leads')
         .select('id')
         .eq('assigned_to', sellerId);
 
-      if (row.filterProfile !== 'all') {
-        query = query.eq('perfil', row.filterProfile);
-      }
-
-      // Also apply global profile filter
-      if (globalProfile !== 'all') {
-        query = query.eq('perfil', globalProfile);
-      }
+      if (row.filterProfile !== 'all') query = query.eq('perfil', row.filterProfile);
+      if (globalProfile !== 'all') query = query.eq('perfil', globalProfile);
+      if (globalStatus !== 'all') query = query.eq('status', globalStatus);
 
       const { data: leads, error: fetchErr } = await query.limit(confirmDialog.qty);
       if (fetchErr) throw fetchErr;
       if (!leads || leads.length === 0) throw new Error('Nenhum lead encontrado');
 
       const ids = leads.map((l: any) => l.id);
-
-      // Update in batches of 100
       let updated = 0;
       for (let i = 0; i < ids.length; i += 100) {
         const batch = ids.slice(i, i + 100);
@@ -233,7 +202,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
       queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
 
-      // Reset row state
       updateRowState(sellerId, { qty: '', targetSeller: '', filterProfile: 'all' });
       setConfirmDialog(null);
     } catch (e: any) {
@@ -245,7 +213,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
 
   return (
     <div className="space-y-4">
-      {/* Global Filters */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -267,6 +234,17 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 ))}
               </SelectContent>
             </Select>
+            <Select value={globalStatus} onValueChange={setGlobalStatus}>
+              <SelectTrigger className="w-44 h-9">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                {statusOptions.map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {sellerData.length === 0 ? (
@@ -278,7 +256,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   <TableRow>
                     <TableHead>Vendedor</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
-                    <TableHead className="text-center">Pendentes</TableHead>
+                    <TableHead className="text-center">Total Filtrado</TableHead>
                     <TableHead className="text-center">% Contatos</TableHead>
                     <TableHead className="text-center">Última Alteração</TableHead>
                     <TableHead>Filtro Perfil</TableHead>
@@ -288,7 +266,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sellerData.map(({ sellerId, total, pctContacted, pendentes, lastUpdate }) => {
+                  {sellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
@@ -301,7 +279,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                           <Badge variant="secondary">{total}</Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={pendentes > 0 ? "destructive" : "secondary"}>{pendentes}</Badge>
+                          <Badge variant="outline">{totalFiltrado}</Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 justify-center">
@@ -384,7 +362,6 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
       <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

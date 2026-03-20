@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Search, Image, Mic, Loader2 } from 'lucide-react';
+import { Headphones, Search, Image, Mic, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Template {
@@ -15,30 +15,16 @@ interface Template {
   media_url?: string | null;
   media_type?: string | null;
   media_filename?: string | null;
+  trigger_word?: string | null;
 }
-
-const CATEGORY_COLORS: Record<string, string> = {
-  saudacao: 'bg-green-500/20 text-green-400',
-  vendas: 'bg-blue-500/20 text-blue-400',
-  suporte: 'bg-purple-500/20 text-purple-400',
-  cobranca: 'bg-orange-500/20 text-orange-400',
-  followup: 'bg-yellow-500/20 text-yellow-400',
-  encerramento: 'bg-red-500/20 text-red-400',
-  geral: 'bg-muted text-muted-foreground',
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  saudacao: 'Saudação', vendas: 'Vendas', suporte: 'Suporte',
-  cobranca: 'Cobrança', followup: 'Follow-up', encerramento: 'Encerramento', geral: 'Geral',
-};
 
 interface TemplatePickerProps {
   disabled?: boolean;
   onInsertText: (text: string) => void;
-  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => void;
+  onLoadMedia: (base64: string, type: string, caption: string, fileName?: string) => void;
 }
 
-export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: TemplatePickerProps) {
+export default function TemplatePicker({ disabled, onInsertText, onLoadMedia }: TemplatePickerProps) {
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,28 +40,22 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         .from('message_templates')
         .select('id, title, content, category, media_url, media_type, media_filename, visible_to, visible_to_list, created_by, trigger_word')
         .eq('is_active', true)
-        .order('category')
         .order('sort_order');
       let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string; visible_to_list?: string[]; trigger_word?: string }));
       if (user) {
-        // Fetch non-seller IDs to know which templates are "global" (from admin/support/master)
         const { data: nonSellerIds } = await supabase.rpc('get_non_seller_user_ids' as any);
         const nonSellerSet = new Set<string>((nonSellerIds as string[]) || []);
-        // Check if current user is a seller (not in non-seller set)
         const isSeller = !nonSellerSet.has(user.id);
 
         filtered = filtered.filter(t => {
-          // Always see own templates
           if ((t as any).created_by === user.id) return true;
           if (isSeller) {
-            // Seller: only see templates from admin/support/master (not other sellers)
             if (!nonSellerSet.has((t as any).created_by)) return false;
           }
-          // Check visible_to_list first (new), fallback to visible_to (legacy)
           const list = (t as any).visible_to_list;
           if (list && list.length > 0) return list.includes(user.id);
           if ((t as any).visible_to) return (t as any).visible_to === user.id;
-          return true; // No restrictions
+          return true;
         });
       }
       setTemplates(filtered);
@@ -83,14 +63,13 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
     })();
   }, [open]);
 
-  const filtered = templates.filter(t =>
+  const filteredTemplates = templates.filter(t =>
     t.title.toLowerCase().includes(search.toLowerCase()) ||
-    t.content.toLowerCase().includes(search.toLowerCase())
+    (t.trigger_word || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSelect = async (t: Template) => {
     if (t.media_url && t.media_type) {
-      // Send media template
       setSendingId(t.id);
       try {
         const resp = await fetch(t.media_url);
@@ -98,20 +77,21 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
-          const sendType = t.media_type === 'audio' ? 'ptt' : t.media_type!;
-          onSendMedia(base64, sendType, t.content || '', t.media_filename || undefined);
+          const loadType = t.media_type === 'audio' ? 'ptt' : t.media_type!;
+          onLoadMedia(base64, loadType, t.content || '', t.media_filename || undefined);
           setOpen(false);
           setSendingId(null);
         };
         reader.readAsDataURL(blob);
       } catch {
-        // Fallback: just insert text
-        onInsertText(t.content);
+        if (t.content) onInsertText(t.content);
         setOpen(false);
         setSendingId(null);
       }
-    } else {
+    } else if (t.content) {
       onInsertText(t.content);
+      setOpen(false);
+    } else {
       setOpen(false);
     }
   };
@@ -126,7 +106,7 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
           disabled={disabled}
           title="Templates"
         >
-          <FileText className="w-5 h-5" />
+          <Headphones className="w-5 h-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-80 p-0">
@@ -146,11 +126,11 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
             <div className="flex justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filteredTemplates.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum template</p>
           ) : (
             <div className="p-2 space-y-1">
-              {filtered.map(t => (
+              {filteredTemplates.map(t => (
                 <button
                   key={t.id}
                   onClick={() => handleSelect(t)}
@@ -158,15 +138,14 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
                   className="w-full text-left p-2.5 rounded-lg hover:bg-secondary/50 transition-colors group"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${CATEGORY_COLORS[t.category] || CATEGORY_COLORS.geral}`}>
-                      {CATEGORY_LABELS[t.category] || t.category}
-                    </Badge>
                     {t.media_type === 'image' && <Image className="w-3 h-3 text-muted-foreground" />}
                     {(t.media_type === 'audio' || t.media_type === 'ptt') && <Mic className="w-3 h-3 text-muted-foreground" />}
                     {sendingId === t.id && <Loader2 className="w-3 h-3 animate-spin ml-auto" />}
                   </div>
                   <p className="text-sm font-medium truncate">{t.title}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{t.content}</p>
+                  {t.trigger_word && (
+                    <p className="text-xs text-primary mt-0.5">⚡ Gatilho: <span className="font-mono font-semibold">{t.trigger_word}</span></p>
+                  )}
                 </button>
               ))}
             </div>

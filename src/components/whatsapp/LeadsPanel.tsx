@@ -14,6 +14,30 @@ import { Progress } from '@/components/ui/progress';
 import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+/** Convert Excel serial number or ISO date to DD/MM/AAAA */
+function formatDataNasc(value: any): string {
+  if (!value) return '-';
+  const s = String(value).trim();
+  // Already DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // Pure number = Excel serial
+  if (/^\d+$/.test(s)) {
+    const serial = parseInt(s, 10);
+    // Excel epoch: 1900-01-01, with the leap year bug offset
+    const epoch = new Date(1900, 0, 1);
+    const date = new Date(epoch.getTime() + (serial - 2) * 86400000);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  }
+  // ISO or parseable date string
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  return s;
+}
+
 interface LeadsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -359,11 +383,16 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <div><span className="text-muted-foreground">Valor Lib.:</span> {selectedLead.valor_lib ? Number(selectedLead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
                 <div><span className="text-muted-foreground">Prazo:</span> {selectedLead.prazo || '-'} meses</div>
                 <div><span className="text-muted-foreground">Parcela:</span> {selectedLead.vlr_parcela ? Number(selectedLead.vlr_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
-                <div><span className="text-muted-foreground">Banco:</span> {selectedLead.banco_nome}</div>
+                <div><span className="text-muted-foreground">Banco:</span> {selectedLead.banco_nome || '-'}</div>
+                <div><span className="text-muted-foreground">Banco Simulado:</span> {selectedLead.banco_simulado || '-'}</div>
+                <div><span className="text-muted-foreground">Cód. Banco:</span> {selectedLead.banco_codigo || '-'}</div>
+                <div><span className="text-muted-foreground">Agência:</span> {selectedLead.agencia || '-'}</div>
+                <div><span className="text-muted-foreground">Conta:</span> {selectedLead.conta || '-'}</div>
                 <div><span className="text-muted-foreground">Aprovado:</span> {selectedLead.aprovado || '-'}</div>
                 <div><span className="text-muted-foreground">Reprovado:</span> {selectedLead.reprovado || '-'}</div>
-                <div><span className="text-muted-foreground">Data Nasc.:</span> {selectedLead.data_nasc || '-'}</div>
+                <div><span className="text-muted-foreground">Data Nasc.:</span> {formatDataNasc(selectedLead.data_nasc)}</div>
                 <div><span className="text-muted-foreground">Nome Mãe:</span> {selectedLead.nome_mae || '-'}</div>
+                <div><span className="text-muted-foreground">Data Ref.:</span> {selectedLead.data_ref || '-'}</div>
                 <div><span className="text-muted-foreground">Lote:</span> {selectedLead.batch_name || '-'}</div>
               </div>
               <div className="space-y-2">
