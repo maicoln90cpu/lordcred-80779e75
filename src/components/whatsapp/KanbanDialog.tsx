@@ -35,6 +35,39 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   const [detailCard, setDetailCard] = useState<KanbanCardType | null>(null);
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [chips, setChips] = useState<{ id: string; nickname: string | null; phone_number: string | null }[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Auto-scroll on drag near edges
+  const handleDragOver = useCallback((e: DragEvent) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const edgeZone = 80;
+    const speed = 12;
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    const scroll = () => {
+      if (!container) return;
+      if (e.clientX < rect.left + edgeZone) {
+        container.scrollLeft -= speed;
+      } else if (e.clientX > rect.right - edgeZone) {
+        container.scrollLeft += speed;
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(scroll);
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !open) return;
+    container.addEventListener('dragover', handleDragOver);
+    return () => {
+      container.removeEventListener('dragover', handleDragOver);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [open, handleDragOver]);
 
   useEffect(() => {
     if (!open || !user) return;
