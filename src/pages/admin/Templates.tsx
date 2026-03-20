@@ -74,6 +74,15 @@ export default function Templates() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('geral');
 
+  // Refetch when userRole resolves (fixes admin seeing seller-filtered results on reload)
+  const roleResolved = useRef(false);
+  useEffect(() => {
+    if (roleResolved.current) {
+      fetchTemplates();
+    }
+    roleResolved.current = true;
+  }, [userRole]);
+
   useEffect(() => { fetchTemplates(); }, []);
 
   const canSetVisibility = isAdmin || userRole === 'support';
@@ -277,15 +286,22 @@ export default function Templates() {
     })).sort((a, b) => b.items.length - a.items.length);
   }, [filtered, profileMap, isSeller]);
 
-  // For seller: group by category
-  const groupedByCategory = useMemo(() => {
+  // For seller: group into "Meus templates" vs "Templates da administração"
+  const [nonSellerIds, setNonSellerIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isSeller) return;
+    (async () => {
+      const { data } = await supabase.rpc('get_non_seller_user_ids' as any);
+      setNonSellerIds(new Set<string>((data as string[]) || []));
+    })();
+  }, [isSeller]);
+
+  const sellerGrouped = useMemo(() => {
     if (!isSeller) return null;
-    return CATEGORIES.reduce((acc, cat) => {
-      const items = filtered.filter(t => t.category === cat.value);
-      if (items.length > 0) acc.push({ ...cat, items });
-      return acc;
-    }, [] as (typeof CATEGORIES[0] & { items: Template[] })[]);
-  }, [filtered, isSeller]);
+    const mine = filtered.filter(t => t.created_by === user?.id);
+    const admin = filtered.filter(t => t.created_by !== user?.id && nonSellerIds.has(t.created_by));
+    return { mine, admin };
+  }, [filtered, isSeller, user, nonSellerIds]);
 
   const renderTemplateCard = (t: Template) => {
     const catStyle = getCategoryStyle(t.category);
@@ -384,23 +400,43 @@ export default function Templates() {
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum template encontrado</CardContent></Card>
-        ) : isSeller && groupedByCategory ? (
+        ) : isSeller && sellerGrouped ? (
           <div className="space-y-6">
-            {groupedByCategory.map(group => (
-              <Card key={group.value}>
+            {sellerGrouped.mine.length > 0 && (
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Badge className={group.color}>{group.label}</Badge>
-                    <span className="text-sm text-muted-foreground font-normal">{group.items.length}</span>
+                    <User className="w-5 h-5 text-primary" />
+                    Meus Templates
+                    <Badge variant="secondary" className="ml-1">{sellerGrouped.mine.length}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.items.map(renderTemplateCard)}
+                    {sellerGrouped.mine.map(renderTemplateCard)}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )}
+            {sellerGrouped.admin.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    Templates da Administração
+                    <Badge variant="secondary" className="ml-1">{sellerGrouped.admin.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {sellerGrouped.admin.map(renderTemplateCard)}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {sellerGrouped.mine.length === 0 && sellerGrouped.admin.length === 0 && (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum template encontrado</CardContent></Card>
+            )}
           </div>
         ) : groupedByUser ? (
           <div className="space-y-4">
