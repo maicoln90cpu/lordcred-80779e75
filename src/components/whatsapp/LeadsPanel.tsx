@@ -14,6 +14,30 @@ import { Progress } from '@/components/ui/progress';
 import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+/** Convert Excel serial number or ISO date to DD/MM/AAAA */
+function formatDataNasc(value: any): string {
+  if (!value) return '-';
+  const s = String(value).trim();
+  // Already DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // Pure number = Excel serial
+  if (/^\d+$/.test(s)) {
+    const serial = parseInt(s, 10);
+    // Excel epoch: 1900-01-01, with the leap year bug offset
+    const epoch = new Date(1900, 0, 1);
+    const date = new Date(epoch.getTime() + (serial - 2) * 86400000);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  }
+  // ISO or parseable date string
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  return s;
+}
+
 interface LeadsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
