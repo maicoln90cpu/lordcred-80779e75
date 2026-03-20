@@ -52,20 +52,30 @@ export default function TemplatePicker({ disabled, onInsertText, onSendMedia }: 
       const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
         .from('message_templates')
-        .select('id, title, content, category, media_url, media_type, media_filename, visible_to, created_by')
+        .select('id, title, content, category, media_url, media_type, media_filename, visible_to, visible_to_list, created_by, trigger_word')
         .eq('is_active', true)
         .order('category')
         .order('sort_order');
-      // Client-side visibility filter
-      let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string; visible_to_list?: string[] }));
+      let filtered = (data as any[] || []).map(d => ({ ...d } as Template & { created_by?: string; visible_to_list?: string[]; trigger_word?: string }));
       if (user) {
+        // Fetch non-seller IDs to know which templates are "global" (from admin/support/master)
+        const { data: nonSellerIds } = await supabase.rpc('get_non_seller_user_ids' as any);
+        const nonSellerSet = new Set<string>((nonSellerIds as string[]) || []);
+        // Check if current user is a seller (not in non-seller set)
+        const isSeller = !nonSellerSet.has(user.id);
+
         filtered = filtered.filter(t => {
+          // Always see own templates
           if ((t as any).created_by === user.id) return true;
+          if (isSeller) {
+            // Seller: only see templates from admin/support/master (not other sellers)
+            if (!nonSellerSet.has((t as any).created_by)) return false;
+          }
           // Check visible_to_list first (new), fallback to visible_to (legacy)
           const list = (t as any).visible_to_list;
           if (list && list.length > 0) return list.includes(user.id);
-          if (!(t as any).visible_to) return true;
-          return (t as any).visible_to === user.id;
+          if ((t as any).visible_to) return (t as any).visible_to === user.id;
+          return true; // No restrictions
         });
       }
       setTemplates(filtered);

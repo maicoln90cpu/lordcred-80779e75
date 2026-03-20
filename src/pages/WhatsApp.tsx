@@ -353,7 +353,7 @@ export default function WhatsApp() {
             <LayoutDashboard className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setLeadsOpen(true)} className="text-muted-foreground hover:text-foreground" title="Meus Leads">
-            <DollarSign className="w-4 h-4" />
+            <ClipboardList className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
