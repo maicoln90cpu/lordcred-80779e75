@@ -102,14 +102,13 @@ export default function InternalChat() {
     selectedChannelRef.current = selectedChannel;
   }, [selectedChannel]);
 
-  // Set active channel for notification suppression
+  // Set active channel for notification suppression — only markAsRead on EXPLICIT click
   useEffect(() => {
     if (selectedChannel) {
       setActiveChannel(selectedChannel.id);
-      markAsRead(selectedChannel.id);
     }
     return () => setActiveChannel(null);
-  }, [selectedChannel, setActiveChannel, markAsRead]);
+  }, [selectedChannel, setActiveChannel]);
 
   // Load channels
   const loadChannels = useCallback(async () => {

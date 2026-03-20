@@ -168,10 +168,11 @@ export function InternalChatUnreadProvider({ children }: { children: ReactNode }
   // Mark as read: update server + clear local
   const markAsRead = useCallback(async (channelId: string) => {
     await supabase.rpc('mark_channel_read' as any, { _channel_id: channelId });
-    setUnreadByChannel(prev => {
-      const next = { ...prev };
+    setUnreadByChannel((prev: Record<string, number>) => {
+      const next: Record<string, number> = { ...prev };
       delete next[channelId];
-      setTotalUnread(Object.values(next).reduce((a, b) => a + b, 0));
+      const total = Object.keys(next).reduce((sum, k) => sum + next[k], 0);
+      setTotalUnread(total);
       return next;
     });
   }, []);
