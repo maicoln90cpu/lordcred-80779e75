@@ -37,37 +37,62 @@ export default function KanbanDialog({ open, onOpenChange, onOpenChat }: Props) 
   const [chips, setChips] = useState<{ id: string; nickname: string | null; phone_number: string | null }[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number | null>(null);
+  const scrollDirectionRef = useRef<number>(0); // -1 left, 0 none, 1 right
 
-  // Auto-scroll on drag near edges
+  // Continuous RAF scroll loop — runs while dragging near edges
+  const scrollLoop = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || scrollDirectionRef.current === 0) {
+      animFrameRef.current = null;
+      return;
+    }
+    const speed = 14;
+    container.scrollLeft += scrollDirectionRef.current * speed;
+    animFrameRef.current = requestAnimationFrame(scrollLoop);
+  }, []);
+
   const handleDragOver = useCallback((e: DragEvent) => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const edgeZone = 80;
-    const speed = 12;
+    const edgeZone = 100;
 
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    let dir = 0;
+    if (e.clientX < rect.left + edgeZone) dir = -1;
+    else if (e.clientX > rect.right - edgeZone) dir = 1;
 
-    const scroll = () => {
-      if (!container) return;
-      if (e.clientX < rect.left + edgeZone) {
-        container.scrollLeft -= speed;
-      } else if (e.clientX > rect.right - edgeZone) {
-        container.scrollLeft += speed;
-      }
-    };
-    animFrameRef.current = requestAnimationFrame(scroll);
+    const wasScrolling = scrollDirectionRef.current !== 0;
+    scrollDirectionRef.current = dir;
+
+    // Start loop if not already running and direction is non-zero
+    if (dir !== 0 && !animFrameRef.current) {
+      animFrameRef.current = requestAnimationFrame(scrollLoop);
+    }
+  }, [scrollLoop]);
+
+  const stopAutoScroll = useCallback(() => {
+    scrollDirectionRef.current = 0;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container || !open) return;
     container.addEventListener('dragover', handleDragOver);
+    container.addEventListener('drop', stopAutoScroll);
+    container.addEventListener('dragend', stopAutoScroll);
+    document.addEventListener('dragend', stopAutoScroll);
     return () => {
       container.removeEventListener('dragover', handleDragOver);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      container.removeEventListener('drop', stopAutoScroll);
+      container.removeEventListener('dragend', stopAutoScroll);
+      document.removeEventListener('dragend', stopAutoScroll);
+      stopAutoScroll();
     };
-  }, [open, handleDragOver]);
+  }, [open, handleDragOver, stopAutoScroll]);
 
   useEffect(() => {
     if (!open || !user) return;
