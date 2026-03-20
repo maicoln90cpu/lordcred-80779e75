@@ -48,7 +48,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [quickReplyFilter, setQuickReplyFilter] = useState('');
-  const [shortcutSuggestion, setShortcutSuggestion] = useState<ShortcutMatch | null>(null);
+  const [shortcutSuggestions, setShortcutSuggestions] = useState<ShortcutMatch[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
