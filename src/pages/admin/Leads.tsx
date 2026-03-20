@@ -100,6 +100,11 @@ export default function Leads() {
   const [isSavingColumns, setIsSavingColumns] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
+  // Seller column config state
+  const [editingSellerColumns, setEditingSellerColumns] = useState<ColumnConfig[] | null>(null);
+  const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
+  const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
+
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
     queryKey: ['lead-status-options'],
