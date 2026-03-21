@@ -202,7 +202,25 @@ export default function Leads() {
     }
   });
 
-  const { data: allLeads = [] } = useQuery({
+  // Fetch column aliases
+  const { data: columnAliases = DEFAULT_ALIASES } = useQuery({
+    queryKey: ['lead-column-aliases'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_column_aliases')
+        .maybeSingle();
+      if (data && (data as any).lead_column_aliases && Array.isArray((data as any).lead_column_aliases)) {
+        const saved = (data as any).lead_column_aliases as ColumnAlias[];
+        // Merge with defaults: add any new keys from DEFAULT_ALIASES
+        const savedKeys = new Set(saved.map(a => a.key));
+        const newAliases = DEFAULT_ALIASES.filter(a => !savedKeys.has(a.key));
+        return newAliases.length > 0 ? [...saved, ...newAliases] : saved;
+      }
+      return DEFAULT_ALIASES;
+    }
+  });
+
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
       const allData: any[] = [];
