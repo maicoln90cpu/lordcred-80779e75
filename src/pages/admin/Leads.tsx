@@ -724,6 +724,7 @@ export default function Leads() {
               statusOptions={statusOptions}
               columnConfig={columnConfig}
               profileOptions={profileOptions}
+              columnAliases={columnAliases}
             />
           </TabsContent>
 
