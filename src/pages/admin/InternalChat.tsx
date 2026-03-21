@@ -72,6 +72,7 @@ export default function InternalChat() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [channelMembers, setChannelMembers] = useState<string[]>([]);
+  const [allChannelMembers, setAllChannelMembers] = useState<Record<string, string[]>>({});
   const [profilesMap, setProfilesMap] = useState<Record<string, UserProfile>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
