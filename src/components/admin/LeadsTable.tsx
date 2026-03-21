@@ -62,9 +62,10 @@ interface LeadsTableProps {
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
   columnConfig?: ColumnConfig[];
   profileOptions?: ProfileOption[];
+  columnAliases?: ColumnAlias[];
 }
 
-export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, filterProfile: extProfile, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig, profileOptions = [] }: LeadsTableProps) {
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, filterProfile: extProfile, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig, profileOptions = [], columnAliases = DEFAULT_ALIASES }: LeadsTableProps) {
   const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
