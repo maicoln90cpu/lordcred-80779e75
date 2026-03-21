@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Users, Clock, CheckCircle, XCircle, Loader2, Plus, Trash2, Settings2, GripVertical, Eye, EyeOff, Download, FileJson, FileSpreadsheet, Upload, UserCircle, BarChart3 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import LeadImporter from '@/components/admin/LeadImporter';
+import LeadImporter, { DEFAULT_ALIASES, type ColumnAlias } from '@/components/admin/LeadImporter';
 import LeadsTable from '@/components/admin/LeadsTable';
 import LeadManagement from '@/components/admin/LeadManagement';
 
@@ -104,6 +104,10 @@ export default function Leads() {
   const [editingSellerColumns, setEditingSellerColumns] = useState<ColumnConfig[] | null>(null);
   const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
   const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
+
+  // Column aliases state
+  const [editingAliases, setEditingAliases] = useState<ColumnAlias[] | null>(null);
+  const [isSavingAliases, setIsSavingAliases] = useState(false);
 
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
@@ -195,6 +199,25 @@ export default function Leads() {
         return newCols.length > 0 ? [...saved, ...newCols] : saved;
       }
       return SELLER_LEADS_COLUMNS;
+    }
+  });
+
+  // Fetch column aliases
+  const { data: columnAliases = DEFAULT_ALIASES } = useQuery({
+    queryKey: ['lead-column-aliases'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_column_aliases')
+        .maybeSingle();
+      if (data && (data as any).lead_column_aliases && Array.isArray((data as any).lead_column_aliases)) {
+        const saved = (data as any).lead_column_aliases as ColumnAlias[];
+        // Merge with defaults: add any new keys from DEFAULT_ALIASES
+        const savedKeys = new Set(saved.map(a => a.key));
+        const newAliases = DEFAULT_ALIASES.filter(a => !savedKeys.has(a.key));
+        return newAliases.length > 0 ? [...saved, ...newAliases] : saved;
+      }
+      return DEFAULT_ALIASES;
     }
   });
 
@@ -573,6 +596,39 @@ export default function Leads() {
   };
   const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
 
+  // Column aliases management
+  const startEditingAliases = () => setEditingAliases([...columnAliases]);
+
+  const updateAliasField = (idx: number, field: 'system_label' | 'aliases', val: string) => {
+    if (!editingAliases) return;
+    const updated = [...editingAliases];
+    if (field === 'aliases') {
+      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
+    } else {
+      updated[idx] = { ...updated[idx], [field]: val };
+    }
+    setEditingAliases(updated);
+  };
+
+  const saveAliases = async () => {
+    if (!editingAliases) return;
+    setIsSavingAliases(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_column_aliases: editingAliases as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Mapeamento de colunas atualizado' });
+      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
+      setEditingAliases(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingAliases(false);
+    }
+  };
+
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
     '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
@@ -668,6 +724,7 @@ export default function Leads() {
               statusOptions={statusOptions}
               columnConfig={columnConfig}
               profileOptions={profileOptions}
+              columnAliases={columnAliases}
             />
           </TabsContent>
 
@@ -1106,6 +1163,84 @@ export default function Leads() {
                         >
                           {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Column Aliases for Import/Export */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-5 h-5" />
+                      Mapeamento de Colunas para Importação
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Configure os nomes de exportação e variações aceitas na importação de planilhas</p>
+                  </div>
+                  {!editingAliases ? (
+                    <Button onClick={startEditingAliases}>Editar Mapeamento</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingAliases(null)}>Cancelar</Button>
+                      <Button onClick={saveAliases} disabled={isSavingAliases}>
+                        {isSavingAliases && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingAliases ? (
+                  <div className="border rounded-lg overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Coluna (interno)</TableHead>
+                          <TableHead>Nome na Exportação</TableHead>
+                          <TableHead>Variações aceitas na importação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {columnAliases.map(a => (
+                          <TableRow key={a.key}>
+                            <TableCell className="font-mono text-xs">{a.key}</TableCell>
+                            <TableCell className="font-medium">{a.system_label}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{a.aliases.join(', ')}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">O campo "interno" não pode ser alterado. Edite o nome de exportação e as variações (separadas por vírgula) que o importador aceitará.</p>
+                    {editingAliases.map((alias, idx) => (
+                      <div key={alias.key} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <span className="font-mono text-xs text-muted-foreground w-28 flex-shrink-0">{alias.key}</span>
+                        <div className="flex-1 grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Nome Exportação</label>
+                            <Input
+                              value={alias.system_label}
+                              onChange={(e) => updateAliasField(idx, 'system_label', e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Variações (separadas por vírgula)</label>
+                            <Input
+                              value={alias.aliases.join(', ')}
+                              onChange={(e) => updateAliasField(idx, 'aliases', e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder="nome, name, Nome Completo"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

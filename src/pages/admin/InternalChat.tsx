@@ -72,6 +72,7 @@ export default function InternalChat() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [channelMembers, setChannelMembers] = useState<string[]>([]);
+  const [allChannelMembers, setAllChannelMembers] = useState<Record<string, string[]>>({});
   const [profilesMap, setProfilesMap] = useState<Record<string, UserProfile>>({});
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
@@ -115,13 +116,31 @@ export default function InternalChat() {
     return () => setActiveChannel(null);
   }, [selectedChannel, setActiveChannel]);
 
-  // Load channels
+  // Load channels and all their members
   const loadChannels = useCallback(async () => {
     const { data } = await supabase
       .from('internal_channels')
       .select('*')
       .order('updated_at', { ascending: false });
-    if (data) setChannels(data);
+    if (data) {
+      setChannels(data);
+      // Load all members for all channels to resolve direct chat names
+      const channelIds = data.map(c => c.id);
+      if (channelIds.length > 0) {
+        const { data: members } = await supabase
+          .from('internal_channel_members')
+          .select('channel_id, user_id')
+          .in('channel_id', channelIds);
+        if (members) {
+          const map: Record<string, string[]> = {};
+          members.forEach(m => {
+            if (!map[m.channel_id]) map[m.channel_id] = [];
+            map[m.channel_id].push(m.user_id);
+          });
+          setAllChannelMembers(map);
+        }
+      }
+    }
   }, []);
 
   // Load all users (use get_all_chat_profiles for starting new chats)
@@ -663,19 +682,31 @@ export default function InternalChat() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const getChannelDisplayName = (ch: Channel) => ch.name;
-
-  // Get the other user in a direct channel for online status
+  // Get the other user in a direct channel using allChannelMembers
   const getDirectChatUserId = (ch: Channel): string | null => {
     if (ch.is_group) return null;
-    // For channels, we check members, but we don't always have them loaded for all channels
-    // Use a heuristic: if channel name matches a profile name, find that user
+    const members = allChannelMembers[ch.id];
+    if (members) {
+      const other = members.find(uid => uid !== user?.id);
+      if (other) return other;
+    }
+    // Fallback heuristic
     for (const [uid, profile] of Object.entries(profilesMap)) {
       if (uid !== user?.id && (profile.name === ch.name || profile.email?.split('@')[0] === ch.name)) {
         return uid;
       }
     }
     return null;
+  };
+
+  const getChannelDisplayName = (ch: Channel) => {
+    if (!ch.is_group) {
+      const otherUserId = getDirectChatUserId(ch);
+      if (otherUserId && profilesMap[otherUserId]) {
+        return profilesMap[otherUserId].name || profilesMap[otherUserId].email?.split('@')[0] || ch.name;
+      }
+    }
+    return ch.name;
   };
 
   // Group messages by date
