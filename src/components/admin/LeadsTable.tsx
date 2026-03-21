@@ -279,23 +279,28 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   };
 
   const handleExport = () => {
+    // Use system_label from aliases for export headers
+    const getLabel = (key: string, fallback: string) => {
+      const alias = columnAliases.find(a => a.key === key);
+      return alias ? alias.system_label : fallback;
+    };
     const exportData = leads.map((l: any) => ({
-      Nome: l.nome,
-      Telefone: l.telefone,
-      CPF: l.cpf,
-      'Valor Lib.': l.valor_lib,
-      Prazo: l.prazo,
-      Parcela: l.vlr_parcela,
-      'Banco Nome': l.banco_nome,
-      'Banco Código': l.banco_codigo,
-      'Banco Simulado': l.banco_simulado,
-      Agência: l.agencia,
+      [getLabel('nome', 'Nome')]: l.nome,
+      [getLabel('telefone', 'Telefone')]: l.telefone,
+      [getLabel('cpf', 'CPF')]: l.cpf,
+      [getLabel('valor_lib', 'Valor Lib.')]: l.valor_lib,
+      [getLabel('prazo', 'Prazo')]: l.prazo,
+      [getLabel('vlr_parcela', 'Parcela')]: l.vlr_parcela,
+      [getLabel('banco_nome', 'Banco Nome')]: l.banco_nome,
+      [getLabel('banco_codigo', 'Banco Código')]: l.banco_codigo,
+      [getLabel('banco_simulado', 'Banco Simulado')]: l.banco_simulado,
+      [getLabel('agencia', 'Agência')]: l.agencia,
       Conta: l.conta,
       Aprovado: l.aprovado,
       Reprovado: l.reprovado,
-      'Data Nasc.': l.data_nasc,
-      'Nome Mãe': l.nome_mae,
-      'Data Ref.': l.data_ref,
+      [getLabel('data_nasc', 'Data Nasc.')]: l.data_nasc,
+      [getLabel('nome_mae', 'Nome Mãe')]: l.nome_mae,
+      [getLabel('data_ref', 'Data Ref.')]: l.data_ref,
       Status: l.status,
       Perfil: l.perfil || '',
       Vendedor: getSellerName(l.assigned_to),
