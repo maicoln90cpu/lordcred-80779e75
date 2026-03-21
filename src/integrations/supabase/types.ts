@@ -921,6 +921,7 @@ export type Database = {
           human_pattern_mode: boolean
           id: string
           is_warming_active: boolean
+          lead_column_aliases: Json | null
           lead_profile_options: Json | null
           lead_status_options: Json | null
           lead_table_columns: Json | null
@@ -969,6 +970,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_column_aliases?: Json | null
           lead_profile_options?: Json | null
           lead_status_options?: Json | null
           lead_table_columns?: Json | null
@@ -1017,6 +1019,7 @@ export type Database = {
           human_pattern_mode?: boolean
           id?: string
           is_warming_active?: boolean
+          lead_column_aliases?: Json | null
           lead_profile_options?: Json | null
           lead_status_options?: Json | null
           lead_table_columns?: Json | null
