@@ -118,24 +118,41 @@ export default function LeadImporter() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
 
-      const parsed: ParsedLead[] = rows.map(row => ({
-        data_ref: String(row['DATA'] || ''),
-        banco_simulado: String(row['BANCO SIMULADO'] || ''),
-        nome: String(row['NOME'] || ''),
-        telefone: cleanPhone(row['TELEFONE']),
-        cpf: String(row['CPF'] || ''),
-        valor_lib: cleanCurrency(row['VALOR LIB']),
-        prazo: row['PRAZO'] ? parseInt(String(row['PRAZO'])) : null,
-        vlr_parcela: cleanCurrency(row['VLR PARCELA']),
-        status: String(row['STATUS'] || 'pendente'),
-        aprovado: String(row['APROVADO'] || ''),
-        reprovado: String(row['REPROVADO'] || ''),
-        data_nasc: String(row['DATA NASC'] || ''),
-        banco_codigo: String(row['BANCO'] || ''),
-        banco_nome: String(row['BANCO_NOME'] || ''),
-        agencia: String(row['AGENCIA'] || ''),
-        conta: String(row['CONTA'] || ''),
-        nome_mae: String(row['NOME_MAE'] || ''),
+      // Normalize all keys to lowercase+trimmed for case-insensitive matching
+      const normalized = rows.map(row => {
+        const norm: Record<string, any> = {};
+        for (const key of Object.keys(row)) {
+          norm[key.toLowerCase().trim()] = row[key];
+        }
+        return norm;
+      });
+
+      const get = (row: Record<string, any>, ...keys: string[]) => {
+        for (const k of keys) {
+          const val = row[k.toLowerCase().trim()];
+          if (val !== undefined && val !== '') return val;
+        }
+        return '';
+      };
+
+      const parsed: ParsedLead[] = normalized.map(row => ({
+        data_ref: String(get(row, 'data', 'data ref.', 'data ref', 'data_ref')),
+        banco_simulado: String(get(row, 'banco simulado', 'banco_simulado')),
+        nome: String(get(row, 'nome')),
+        telefone: cleanPhone(get(row, 'telefone')),
+        cpf: String(get(row, 'cpf')),
+        valor_lib: cleanCurrency(get(row, 'valor lib', 'valor lib.', 'valor_lib')),
+        prazo: get(row, 'prazo') ? parseInt(String(get(row, 'prazo'))) : null,
+        vlr_parcela: cleanCurrency(get(row, 'vlr parcela', 'parcela', 'vlr_parcela')),
+        status: String(get(row, 'status') || 'pendente'),
+        aprovado: String(get(row, 'aprovado')),
+        reprovado: String(get(row, 'reprovado')),
+        data_nasc: String(get(row, 'data nasc', 'data nasc.', 'data_nasc')),
+        banco_codigo: String(get(row, 'banco', 'banco código', 'banco codigo', 'banco_codigo')),
+        banco_nome: String(get(row, 'banco_nome', 'banco nome')),
+        agencia: String(get(row, 'agencia', 'agência')),
+        conta: String(get(row, 'conta')),
+        nome_mae: String(get(row, 'nome_mae', 'nome mãe', 'nome mae')),
       }));
 
       setParsedData(parsed.filter(p => p.nome.trim() !== ''));
