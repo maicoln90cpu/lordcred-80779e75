@@ -1169,6 +1169,84 @@ export default function Leads() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Column Aliases for Import/Export */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-5 h-5" />
+                      Mapeamento de Colunas para Importação
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Configure os nomes de exportação e variações aceitas na importação de planilhas</p>
+                  </div>
+                  {!editingAliases ? (
+                    <Button onClick={startEditingAliases}>Editar Mapeamento</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setEditingAliases(null)}>Cancelar</Button>
+                      <Button onClick={saveAliases} disabled={isSavingAliases}>
+                        {isSavingAliases && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!editingAliases ? (
+                  <div className="border rounded-lg overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Coluna (interno)</TableHead>
+                          <TableHead>Nome na Exportação</TableHead>
+                          <TableHead>Variações aceitas na importação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {columnAliases.map(a => (
+                          <TableRow key={a.key}>
+                            <TableCell className="font-mono text-xs">{a.key}</TableCell>
+                            <TableCell className="font-medium">{a.system_label}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{a.aliases.join(', ')}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">O campo "interno" não pode ser alterado. Edite o nome de exportação e as variações (separadas por vírgula) que o importador aceitará.</p>
+                    {editingAliases.map((alias, idx) => (
+                      <div key={alias.key} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <span className="font-mono text-xs text-muted-foreground w-28 flex-shrink-0">{alias.key}</span>
+                        <div className="flex-1 grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Nome Exportação</label>
+                            <Input
+                              value={alias.system_label}
+                              onChange={(e) => updateAliasField(idx, 'system_label', e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Variações (separadas por vírgula)</label>
+                            <Input
+                              value={alias.aliases.join(', ')}
+                              onChange={(e) => updateAliasField(idx, 'aliases', e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder="nome, name, Nome Completo"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
