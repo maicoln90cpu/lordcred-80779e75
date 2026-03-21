@@ -596,6 +596,39 @@ export default function Leads() {
   };
   const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
 
+  // Column aliases management
+  const startEditingAliases = () => setEditingAliases([...columnAliases]);
+
+  const updateAliasField = (idx: number, field: 'system_label' | 'aliases', val: string) => {
+    if (!editingAliases) return;
+    const updated = [...editingAliases];
+    if (field === 'aliases') {
+      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
+    } else {
+      updated[idx] = { ...updated[idx], [field]: val };
+    }
+    setEditingAliases(updated);
+  };
+
+  const saveAliases = async () => {
+    if (!editingAliases) return;
+    setIsSavingAliases(true);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ lead_column_aliases: editingAliases as any, updated_at: new Date().toISOString() } as any)
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+      toast({ title: 'Mapeamento de colunas atualizado' });
+      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
+      setEditingAliases(null);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSavingAliases(false);
+    }
+  };
+
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
     '#6b7280', '#3b82f6', '#eab308', '#ef4444', '#10b981',
