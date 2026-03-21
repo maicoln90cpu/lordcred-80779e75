@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
+import { DEFAULT_ALIASES, type ColumnAlias } from './LeadImporter';
 
 function formatDate(value: string | number | null | undefined): string {
   if (!value) return '-';

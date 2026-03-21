@@ -61,6 +61,35 @@ interface ProfileOption {
   color_class: string;
 }
 
+interface ColumnAlias {
+  key: string;
+  system_label: string;
+  aliases: string[];
+}
+
+const DEFAULT_ALIASES: ColumnAlias[] = [
+  { key: 'nome', system_label: 'Nome', aliases: ['nome', 'name'] },
+  { key: 'telefone', system_label: 'Telefone', aliases: ['telefone', 'phone', 'tel'] },
+  { key: 'cpf', system_label: 'CPF', aliases: ['cpf'] },
+  { key: 'valor_lib', system_label: 'Valor Lib.', aliases: ['valor lib', 'valor lib.', 'valor_lib'] },
+  { key: 'prazo', system_label: 'Prazo', aliases: ['prazo'] },
+  { key: 'vlr_parcela', system_label: 'Parcela', aliases: ['vlr parcela', 'parcela', 'vlr_parcela'] },
+  { key: 'status', system_label: 'Status', aliases: ['status'] },
+  { key: 'aprovado', system_label: 'Aprovado', aliases: ['aprovado'] },
+  { key: 'reprovado', system_label: 'Reprovado', aliases: ['reprovado'] },
+  { key: 'data_nasc', system_label: 'Data Nasc.', aliases: ['data nasc', 'data nasc.', 'data_nasc'] },
+  { key: 'banco_codigo', system_label: 'Banco Código', aliases: ['banco', 'banco código', 'banco codigo', 'banco_codigo'] },
+  { key: 'banco_nome', system_label: 'Banco Nome', aliases: ['banco_nome', 'banco nome'] },
+  { key: 'banco_simulado', system_label: 'Banco Simulado', aliases: ['banco simulado', 'banco_simulado'] },
+  { key: 'agencia', system_label: 'Agência', aliases: ['agencia', 'agência'] },
+  { key: 'conta', system_label: 'Conta', aliases: ['conta'] },
+  { key: 'nome_mae', system_label: 'Nome Mãe', aliases: ['nome_mae', 'nome mãe', 'nome mae'] },
+  { key: 'data_ref', system_label: 'Data Ref.', aliases: ['data', 'data ref.', 'data ref', 'data_ref'] },
+];
+
+export { DEFAULT_ALIASES };
+export type { ColumnAlias };
+
 export default function LeadImporter() {
   const [parsedData, setParsedData] = useState<ParsedLead[]>([]);
   const [batchName, setBatchName] = useState('');
@@ -105,6 +134,20 @@ export default function LeadImporter() {
     }
   });
 
+  const { data: columnAliases = DEFAULT_ALIASES } = useQuery({
+    queryKey: ['lead-column-aliases'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('lead_column_aliases')
+        .maybeSingle();
+      if (data && (data as any).lead_column_aliases && Array.isArray((data as any).lead_column_aliases)) {
+        return (data as any).lead_column_aliases as ColumnAlias[];
+      }
+      return DEFAULT_ALIASES;
+    }
+  });
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -127,7 +170,10 @@ export default function LeadImporter() {
         return norm;
       });
 
-      const get = (row: Record<string, any>, ...keys: string[]) => {
+      // Build a lookup: for each system key, try all configured aliases
+      const getByKey = (row: Record<string, any>, key: string) => {
+        const alias = columnAliases.find(a => a.key === key);
+        const keys = alias ? alias.aliases : [key];
         for (const k of keys) {
           const val = row[k.toLowerCase().trim()];
           if (val !== undefined && val !== '') return val;
@@ -136,29 +182,29 @@ export default function LeadImporter() {
       };
 
       const parsed: ParsedLead[] = normalized.map(row => ({
-        data_ref: String(get(row, 'data', 'data ref.', 'data ref', 'data_ref')),
-        banco_simulado: String(get(row, 'banco simulado', 'banco_simulado')),
-        nome: String(get(row, 'nome')),
-        telefone: cleanPhone(get(row, 'telefone')),
-        cpf: String(get(row, 'cpf')),
-        valor_lib: cleanCurrency(get(row, 'valor lib', 'valor lib.', 'valor_lib')),
-        prazo: get(row, 'prazo') ? parseInt(String(get(row, 'prazo'))) : null,
-        vlr_parcela: cleanCurrency(get(row, 'vlr parcela', 'parcela', 'vlr_parcela')),
-        status: String(get(row, 'status') || 'pendente'),
-        aprovado: String(get(row, 'aprovado')),
-        reprovado: String(get(row, 'reprovado')),
-        data_nasc: String(get(row, 'data nasc', 'data nasc.', 'data_nasc')),
-        banco_codigo: String(get(row, 'banco', 'banco código', 'banco codigo', 'banco_codigo')),
-        banco_nome: String(get(row, 'banco_nome', 'banco nome')),
-        agencia: String(get(row, 'agencia', 'agência')),
-        conta: String(get(row, 'conta')),
-        nome_mae: String(get(row, 'nome_mae', 'nome mãe', 'nome mae')),
+        data_ref: String(getByKey(row, 'data_ref')),
+        banco_simulado: String(getByKey(row, 'banco_simulado')),
+        nome: String(getByKey(row, 'nome')),
+        telefone: cleanPhone(getByKey(row, 'telefone')),
+        cpf: String(getByKey(row, 'cpf')),
+        valor_lib: cleanCurrency(getByKey(row, 'valor_lib')),
+        prazo: getByKey(row, 'prazo') ? parseInt(String(getByKey(row, 'prazo'))) : null,
+        vlr_parcela: cleanCurrency(getByKey(row, 'vlr_parcela')),
+        status: String(getByKey(row, 'status') || 'pendente'),
+        aprovado: String(getByKey(row, 'aprovado')),
+        reprovado: String(getByKey(row, 'reprovado')),
+        data_nasc: String(getByKey(row, 'data_nasc')),
+        banco_codigo: String(getByKey(row, 'banco_codigo')),
+        banco_nome: String(getByKey(row, 'banco_nome')),
+        agencia: String(getByKey(row, 'agencia')),
+        conta: String(getByKey(row, 'conta')),
+        nome_mae: String(getByKey(row, 'nome_mae')),
       }));
 
       setParsedData(parsed.filter(p => p.nome.trim() !== ''));
     };
     reader.readAsArrayBuffer(file);
-  }, []);
+  }, [columnAliases]);
 
   const handleImport = async () => {
     if (!selectedSeller || parsedData.length === 0) {
