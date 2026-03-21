@@ -221,6 +221,7 @@ export default function Leads() {
     }
   });
 
+  const { data: allLeads = [] } = useQuery({
     queryKey: ['admin-leads-metrics'],
     queryFn: async () => {
       const allData: any[] = [];
