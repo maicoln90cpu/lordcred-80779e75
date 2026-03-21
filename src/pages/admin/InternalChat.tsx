@@ -116,13 +116,31 @@ export default function InternalChat() {
     return () => setActiveChannel(null);
   }, [selectedChannel, setActiveChannel]);
 
-  // Load channels
+  // Load channels and all their members
   const loadChannels = useCallback(async () => {
     const { data } = await supabase
       .from('internal_channels')
       .select('*')
       .order('updated_at', { ascending: false });
-    if (data) setChannels(data);
+    if (data) {
+      setChannels(data);
+      // Load all members for all channels to resolve direct chat names
+      const channelIds = data.map(c => c.id);
+      if (channelIds.length > 0) {
+        const { data: members } = await supabase
+          .from('internal_channel_members')
+          .select('channel_id, user_id')
+          .in('channel_id', channelIds);
+        if (members) {
+          const map: Record<string, string[]> = {};
+          members.forEach(m => {
+            if (!map[m.channel_id]) map[m.channel_id] = [];
+            map[m.channel_id].push(m.user_id);
+          });
+          setAllChannelMembers(map);
+        }
+      }
+    }
   }, []);
 
   // Load all users (use get_all_chat_profiles for starting new chats)
