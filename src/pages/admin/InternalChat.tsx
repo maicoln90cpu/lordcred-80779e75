@@ -682,19 +682,31 @@ export default function InternalChat() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const getChannelDisplayName = (ch: Channel) => ch.name;
-
-  // Get the other user in a direct channel for online status
+  // Get the other user in a direct channel using allChannelMembers
   const getDirectChatUserId = (ch: Channel): string | null => {
     if (ch.is_group) return null;
-    // For channels, we check members, but we don't always have them loaded for all channels
-    // Use a heuristic: if channel name matches a profile name, find that user
+    const members = allChannelMembers[ch.id];
+    if (members) {
+      const other = members.find(uid => uid !== user?.id);
+      if (other) return other;
+    }
+    // Fallback heuristic
     for (const [uid, profile] of Object.entries(profilesMap)) {
       if (uid !== user?.id && (profile.name === ch.name || profile.email?.split('@')[0] === ch.name)) {
         return uid;
       }
     }
     return null;
+  };
+
+  const getChannelDisplayName = (ch: Channel) => {
+    if (!ch.is_group) {
+      const otherUserId = getDirectChatUserId(ch);
+      if (otherUserId && profilesMap[otherUserId]) {
+        return profilesMap[otherUserId].name || profilesMap[otherUserId].email?.split('@')[0] || ch.name;
+      }
+    }
+    return ch.name;
   };
 
   // Group messages by date
