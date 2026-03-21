@@ -105,6 +105,10 @@ export default function Leads() {
   const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
   const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
 
+  // Column aliases state
+  const [editingAliases, setEditingAliases] = useState<ColumnAlias[] | null>(null);
+  const [isSavingAliases, setIsSavingAliases] = useState(false);
+
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
     queryKey: ['lead-status-options'],
