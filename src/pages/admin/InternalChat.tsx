@@ -648,14 +648,14 @@ export default function InternalChat() {
     const file = e.target.files?.[0];
     if (!file || !selectedChannel) return;
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `group-avatars/${selectedChannel.id}.${ext}`;
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `group-avatars/${selectedChannel.id}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('internal-chat-media')
-        .upload(path, file, { upsert: true });
+        .upload(path, file);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
-      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      const avatarUrl = urlData.publicUrl;
       await supabase.rpc('update_channel_info', { _channel_id: selectedChannel.id, _avatar_url: avatarUrl } as any);
       setSelectedChannel({ ...selectedChannel, avatar_url: avatarUrl } as any);
       loadChannels();
