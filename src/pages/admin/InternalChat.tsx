@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import MyProfilePanel from '@/components/profile/MyProfilePanel';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -86,6 +87,7 @@ export default function InternalChat() {
   const [configAllowedUsers, setConfigAllowedUsers] = useState<string[]>([]);
   const [savingConfig, setSavingConfig] = useState(false);
   const [supportUserId, setSupportUserId] = useState<string | null>(null);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [supportConfigOpen, setSupportConfigOpen] = useState(false);
   const [supportConfigUserId, setSupportConfigUserId] = useState<string>('');
   const [supportConfigProfiles, setSupportConfigProfiles] = useState<{ user_id: string; name: string | null; email: string }[]>([]);
@@ -781,6 +783,10 @@ export default function InternalChat() {
           <div className="p-3 border-b border-border flex items-center justify-between">
             <h2 className="font-semibold text-sm">Chat Interno</h2>
             <div className="flex gap-1">
+              {/* My profile */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Meu Perfil" onClick={() => setProfilePanelOpen(true)}>
+                <User className="w-4 h-4" />
+              </Button>
               {/* All users can start direct chats */}
               <Button variant="ghost" size="icon" className="h-8 w-8" title="Nova conversa direta" onClick={() => setDirectDialogOpen(true)}>
                 <MessageSquare className="w-4 h-4" />
@@ -1321,6 +1327,16 @@ export default function InternalChat() {
               Salvar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Panel Dialog */}
+      <Dialog open={profilePanelOpen} onOpenChange={setProfilePanelOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meu Perfil</DialogTitle>
+          </DialogHeader>
+          <MyProfilePanel />
         </DialogContent>
       </Dialog>
     </DashboardLayout>

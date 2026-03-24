@@ -1277,6 +1277,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_own_profile: {
+        Args: { _avatar_url?: string; _name?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "seller" | "support" | "master"

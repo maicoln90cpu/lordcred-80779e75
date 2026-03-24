@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, Headphones } from 'lucide-react';
-import UserProfileMenu from '@/components/whatsapp/UserProfileMenu';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
@@ -345,7 +344,7 @@ export default function WhatsApp() {
           <ChipSelector selectedChipId={selectedChipId} onSelectChip={handleSelectChip} unreadCounts={unreadCounts} onOpenSettings={(chipId) => { setSelectedChipId(chipId); setWhatsappProfileOpen(true); }} onSyncHistory={handleSyncHistory} refreshTrigger={refreshTrigger} />
         </div>
         <div className="flex items-center gap-2 ml-4">
-          <UserProfileMenu />
+          
           <Button variant="ghost" size="icon" onClick={handleRefreshAllChips} disabled={isRefreshing} className="text-muted-foreground hover:text-foreground" title="Atualizar status dos chips">
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           </Button>

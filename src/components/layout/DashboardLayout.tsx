@@ -1,4 +1,6 @@
 import { ReactNode, useState } from 'react';
+import MyProfilePanel from '@/components/profile/MyProfilePanel';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -22,7 +24,8 @@ import {
   ListOrdered,
   Webhook,
   FileText,
-  Eye
+  Eye,
+  User
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -118,6 +121,7 @@ const navGroups: NavGroupWithChildren[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const { user, isMaster, isAdmin, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -244,20 +248,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <ArrowLeft className="w-4 h-4" />
             {sidebarOpen && <span className="ml-2">Voltar ao Chat</span>}
           </Button>
-
-          <div className={cn("flex items-center gap-2", !sidebarOpen && "justify-center")}>
-            <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
-              <span className="text-xs font-medium text-primary">
-                {user?.email?.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{user?.email}</p>
-                <p className="text-[10px] text-muted-foreground">{getRoleLabel()}</p>
-              </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setProfileDialogOpen(true)}
+            className={cn(
+              "w-full justify-start text-muted-foreground hover:text-foreground hover:bg-sidebar-accent",
+              !sidebarOpen && "justify-center"
             )}
-          </div>
+          >
+            <User className="w-4 h-4" />
+            {sidebarOpen && <span className="ml-2">Meu Perfil</span>}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -353,6 +355,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => { setProfileDialogOpen(true); setMobileMenuOpen(false); }}
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Meu Perfil
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleSignOut}
                 className="w-full justify-start text-muted-foreground hover:text-foreground"
               >
@@ -376,6 +387,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Profile Dialog */}
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meu Perfil</DialogTitle>
+          </DialogHeader>
+          <MyProfilePanel />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
