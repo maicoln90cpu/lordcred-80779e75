@@ -782,6 +782,10 @@ export default function InternalChat() {
           <div className="p-3 border-b border-border flex items-center justify-between">
             <h2 className="font-semibold text-sm">Chat Interno</h2>
             <div className="flex gap-1">
+              {/* My profile */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Meu Perfil" onClick={() => setProfilePanelOpen(true)}>
+                <User className="w-4 h-4" />
+              </Button>
               {/* All users can start direct chats */}
               <Button variant="ghost" size="icon" className="h-8 w-8" title="Nova conversa direta" onClick={() => setDirectDialogOpen(true)}>
                 <MessageSquare className="w-4 h-4" />
