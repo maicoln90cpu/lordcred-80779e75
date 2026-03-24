@@ -101,6 +101,7 @@ export default function LeadImporter() {
   const [fileName, setFileName] = useState('');
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-for-leads'],
