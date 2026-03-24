@@ -617,15 +617,13 @@ export default function InternalChat() {
     if (!selectedChannel) return;
     setSavingConfig(true);
     try {
-      const { error } = await supabase
-        .from('internal_channels')
-        .update({
-          name: configGroupName.trim() || selectedChannel.name,
-          description: configGroupDesc.trim() || null,
-          admin_only_messages: configAdminOnly,
-          config_allowed_users: configAllowedUsers,
-        } as any)
-        .eq('id', selectedChannel.id);
+      const { error } = await supabase.rpc('update_channel_info', {
+        _channel_id: selectedChannel.id,
+        _name: configGroupName.trim() || selectedChannel.name,
+        _description: configGroupDesc.trim() || null,
+        _admin_only: configAdminOnly,
+        _config_allowed: configAllowedUsers,
+      } as any);
       if (error) throw error;
       // Also save members
       await supabase.from('internal_channel_members').delete().eq('channel_id', selectedChannel.id);
@@ -656,7 +654,7 @@ export default function InternalChat() {
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
       const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-      await supabase.from('internal_channels').update({ avatar_url: avatarUrl } as any).eq('id', selectedChannel.id);
+      await supabase.rpc('update_channel_info', { _channel_id: selectedChannel.id, _avatar_url: avatarUrl } as any);
       setSelectedChannel({ ...selectedChannel, avatar_url: avatarUrl } as any);
       loadChannels();
       toast({ title: 'Avatar do grupo atualizado' });
@@ -862,7 +860,7 @@ export default function InternalChat() {
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-sm">{selectedChannel.name}</h3>
+                    <h3 className="font-semibold text-sm">{getChannelDisplayName(selectedChannel)}</h3>
                     {/* Online status in header for direct chats */}
                     {!selectedChannel.is_group && (() => {
                       const uid = getDirectChatUserId(selectedChannel);

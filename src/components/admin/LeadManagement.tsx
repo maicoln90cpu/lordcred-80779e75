@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowRightLeft } from 'lucide-react';
+import { Loader2, ArrowRightLeft, Check } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface StatusOption {
   value: string;
@@ -39,8 +41,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [globalProfile, setGlobalProfile] = useState('all');
-  const [globalStatus, setGlobalStatus] = useState('all');
+  const [globalProfiles, setGlobalProfiles] = useState<string[]>([]);
+  const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     sellerId: string;
@@ -99,10 +101,10 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
-    if (globalProfile !== 'all') result = result.filter((l: any) => l.perfil === globalProfile);
-    if (globalStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === globalStatus);
+    if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
+    if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
     return result;
-  }, [allLeads, globalProfile, globalStatus]);
+  }, [allLeads, globalProfiles, globalStatuses]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
@@ -174,8 +176,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         .eq('assigned_to', sellerId);
 
       if (row.filterProfile !== 'all') query = query.eq('perfil', row.filterProfile);
-      if (globalProfile !== 'all') query = query.eq('perfil', globalProfile);
-      if (globalStatus !== 'all') query = query.eq('status', globalStatus);
+      if (globalProfiles.length > 0) query = query.in('perfil', globalProfiles);
+      if (globalStatuses.length > 0) query = query.in('status', globalStatuses);
 
       const { data: leads, error: fetchErr } = await query.limit(confirmDialog.qty);
       if (fetchErr) throw fetchErr;
@@ -223,28 +225,64 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
             <span className="text-sm text-muted-foreground">Filtro global:</span>
-            <Select value={globalProfile} onValueChange={setGlobalProfile}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Perfil" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os perfis</SelectItem>
-                {profileOptions.map(p => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={globalStatus} onValueChange={setGlobalStatus}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                {statusOptions.map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalProfiles.length === 0 ? 'Todos os perfis' : `Perfis (${globalProfiles.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  {profileOptions.map(p => (
+                    <label key={p.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalProfiles.includes(p.value)}
+                        onCheckedChange={(checked) => {
+                          setGlobalProfiles(prev =>
+                            checked ? [...prev, p.value] : prev.filter(v => v !== p.value)
+                          );
+                        }}
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                  {globalProfiles.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalProfiles([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalStatuses.length === 0 ? 'Todos os status' : `Status (${globalStatuses.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  {statusOptions.map(s => (
+                    <label key={s.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalStatuses.includes(s.value)}
+                        onCheckedChange={(checked) => {
+                          setGlobalStatuses(prev =>
+                            checked ? [...prev, s.value] : prev.filter(v => v !== s.value)
+                          );
+                        }}
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                  {globalStatuses.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalStatuses([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {sellerData.length === 0 ? (

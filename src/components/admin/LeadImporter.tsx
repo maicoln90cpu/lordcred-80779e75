@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -100,6 +101,7 @@ export default function LeadImporter() {
   const [fileName, setFileName] = useState('');
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-for-leads'],
@@ -248,6 +250,9 @@ export default function LeadImporter() {
       setImported(true);
       setParsedData([]);
       setFileName('');
+      queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['management-leads'] });
     } catch (error: any) {
       toast({ title: 'Erro ao importar', description: error.message, variant: 'destructive' });
     } finally {
