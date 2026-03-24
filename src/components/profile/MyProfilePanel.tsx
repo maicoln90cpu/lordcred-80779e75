@@ -75,14 +75,14 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
     if (!file || !user) return;
     setIsSaving(true);
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `avatars/${user.id}.${ext}`;
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `avatars/${user.id}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('internal-chat-media')
-        .upload(path, file, { upsert: true });
+        .upload(path, file);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
-      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      const avatarUrl = urlData.publicUrl;
       const { error: updateError } = await supabase.rpc('update_own_profile', { _avatar_url: avatarUrl });
       if (updateError) throw updateError;
       setProfile(prev => prev ? { ...prev, avatar_url: avatarUrl } : prev);
