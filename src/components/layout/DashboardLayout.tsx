@@ -121,6 +121,7 @@ const navGroups: NavGroupWithChildren[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const { user, isMaster, isAdmin, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
