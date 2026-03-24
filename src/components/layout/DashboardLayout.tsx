@@ -1,4 +1,6 @@
 import { ReactNode, useState } from 'react';
+import MyProfilePanel from '@/components/profile/MyProfilePanel';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
