@@ -41,8 +41,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [globalProfile, setGlobalProfile] = useState('all');
-  const [globalStatus, setGlobalStatus] = useState('all');
+  const [globalProfiles, setGlobalProfiles] = useState<string[]>([]);
+  const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     sellerId: string;
