@@ -656,7 +656,7 @@ export default function InternalChat() {
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('internal-chat-media').getPublicUrl(path);
       const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-      await supabase.from('internal_channels').update({ avatar_url: avatarUrl } as any).eq('id', selectedChannel.id);
+      await supabase.rpc('update_channel_info', { _channel_id: selectedChannel.id, _avatar_url: avatarUrl } as any);
       setSelectedChannel({ ...selectedChannel, avatar_url: avatarUrl } as any);
       loadChannels();
       toast({ title: 'Avatar do grupo atualizado' });
