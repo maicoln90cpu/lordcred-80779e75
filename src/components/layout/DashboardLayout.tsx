@@ -387,6 +387,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Profile Dialog */}
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meu Perfil</DialogTitle>
+          </DialogHeader>
+          <MyProfilePanel />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
