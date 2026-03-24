@@ -86,6 +86,7 @@ export default function InternalChat() {
   const [configAllowedUsers, setConfigAllowedUsers] = useState<string[]>([]);
   const [savingConfig, setSavingConfig] = useState(false);
   const [supportUserId, setSupportUserId] = useState<string | null>(null);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [supportConfigOpen, setSupportConfigOpen] = useState(false);
   const [supportConfigUserId, setSupportConfigUserId] = useState<string>('');
   const [supportConfigProfiles, setSupportConfigProfiles] = useState<{ user_id: string; name: string | null; email: string }[]>([]);
