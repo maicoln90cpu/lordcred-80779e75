@@ -225,28 +225,64 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
             <span className="text-sm text-muted-foreground">Filtro global:</span>
-            <Select value={globalProfile} onValueChange={setGlobalProfile}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Perfil" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os perfis</SelectItem>
-                {profileOptions.map(p => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={globalStatus} onValueChange={setGlobalStatus}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                {statusOptions.map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalProfiles.length === 0 ? 'Todos os perfis' : `Perfis (${globalProfiles.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  {profileOptions.map(p => (
+                    <label key={p.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalProfiles.includes(p.value)}
+                        onCheckedChange={(checked) => {
+                          setGlobalProfiles(prev =>
+                            checked ? [...prev, p.value] : prev.filter(v => v !== p.value)
+                          );
+                        }}
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                  {globalProfiles.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalProfiles([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalStatuses.length === 0 ? 'Todos os status' : `Status (${globalStatuses.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  {statusOptions.map(s => (
+                    <label key={s.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalStatuses.includes(s.value)}
+                        onCheckedChange={(checked) => {
+                          setGlobalStatuses(prev =>
+                            checked ? [...prev, s.value] : prev.filter(v => v !== s.value)
+                          );
+                        }}
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                  {globalStatuses.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalStatuses([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {sellerData.length === 0 ? (
