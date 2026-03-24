@@ -1328,6 +1328,16 @@ export default function InternalChat() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Profile Panel Dialog */}
+      <Dialog open={profilePanelOpen} onOpenChange={setProfilePanelOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meu Perfil</DialogTitle>
+          </DialogHeader>
+          <MyProfilePanel />
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
