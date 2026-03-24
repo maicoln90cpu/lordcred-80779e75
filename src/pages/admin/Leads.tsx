@@ -275,9 +275,10 @@ export default function Leads() {
   const batchHistory = useMemo(() => {
     const map = new Map<string, { batch: string; seller: string; total: number; contacted: number; created: string }>();
     allLeads.forEach((l: any) => {
-      const key = l.batch_name || 'Sem lote';
+      const batchName = l.batch_name || 'Sem lote';
+      const key = `${batchName}::${l.assigned_to}`;
       if (!map.has(key)) {
-        map.set(key, { batch: key, seller: l.assigned_to, total: 0, contacted: 0, created: l.created_at });
+        map.set(key, { batch: batchName, seller: l.assigned_to, total: 0, contacted: 0, created: l.created_at });
       }
       const entry = map.get(key)!;
       entry.total++;
