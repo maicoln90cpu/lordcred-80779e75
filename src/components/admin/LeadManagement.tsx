@@ -101,10 +101,10 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
-    if (globalProfile !== 'all') result = result.filter((l: any) => l.perfil === globalProfile);
-    if (globalStatus !== 'all') result = result.filter((l: any) => (l.status || 'pendente') === globalStatus);
+    if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
+    if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
     return result;
-  }, [allLeads, globalProfile, globalStatus]);
+  }, [allLeads, globalProfiles, globalStatuses]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
