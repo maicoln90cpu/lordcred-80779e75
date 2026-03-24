@@ -176,8 +176,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         .eq('assigned_to', sellerId);
 
       if (row.filterProfile !== 'all') query = query.eq('perfil', row.filterProfile);
-      if (globalProfile !== 'all') query = query.eq('perfil', globalProfile);
-      if (globalStatus !== 'all') query = query.eq('status', globalStatus);
+      if (globalProfiles.length > 0) query = query.in('perfil', globalProfiles);
+      if (globalStatuses.length > 0) query = query.in('status', globalStatuses);
 
       const { data: leads, error: fetchErr } = await query.limit(confirmDialog.qty);
       if (fetchErr) throw fetchErr;
