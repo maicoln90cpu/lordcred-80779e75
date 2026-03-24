@@ -355,6 +355,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => { setProfileDialogOpen(true); setMobileMenuOpen(false); }}
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Meu Perfil
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleSignOut}
                 className="w-full justify-start text-muted-foreground hover:text-foreground"
               >
