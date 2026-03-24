@@ -617,15 +617,13 @@ export default function InternalChat() {
     if (!selectedChannel) return;
     setSavingConfig(true);
     try {
-      const { error } = await supabase
-        .from('internal_channels')
-        .update({
-          name: configGroupName.trim() || selectedChannel.name,
-          description: configGroupDesc.trim() || null,
-          admin_only_messages: configAdminOnly,
-          config_allowed_users: configAllowedUsers,
-        } as any)
-        .eq('id', selectedChannel.id);
+      const { error } = await supabase.rpc('update_channel_info', {
+        _channel_id: selectedChannel.id,
+        _name: configGroupName.trim() || selectedChannel.name,
+        _description: configGroupDesc.trim() || null,
+        _admin_only: configAdminOnly,
+        _config_allowed: configAllowedUsers,
+      } as any);
       if (error) throw error;
       // Also save members
       await supabase.from('internal_channel_members').delete().eq('channel_id', selectedChannel.id);
