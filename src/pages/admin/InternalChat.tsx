@@ -862,7 +862,7 @@ export default function InternalChat() {
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-sm">{selectedChannel.name}</h3>
+                    <h3 className="font-semibold text-sm">{getChannelDisplayName(selectedChannel)}</h3>
                     {/* Online status in header for direct chats */}
                     {!selectedChannel.is_group && (() => {
                       const uid = getDirectChatUserId(selectedChannel);

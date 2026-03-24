@@ -248,6 +248,10 @@ export default function LeadImporter() {
       setImported(true);
       setParsedData([]);
       setFileName('');
+      // Invalidate lead queries so batch history and metrics update
+      const { queryClient: qc } = await import('@tanstack/react-query').then(() => ({ queryClient: null }));
+      // Use window dispatch to trigger refetch across components
+      window.dispatchEvent(new CustomEvent('leads-imported'));
     } catch (error: any) {
       toast({ title: 'Erro ao importar', description: error.message, variant: 'destructive' });
     } finally {
