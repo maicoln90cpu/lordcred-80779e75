@@ -1266,6 +1266,17 @@ export type Database = {
       }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       reset_daily_message_count: { Args: never; Returns: undefined }
+      update_channel_info: {
+        Args: {
+          _admin_only?: boolean
+          _avatar_url?: string
+          _channel_id: string
+          _config_allowed?: string[]
+          _description?: string
+          _name?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "seller" | "support" | "master"
