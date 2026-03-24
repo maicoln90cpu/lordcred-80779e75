@@ -108,22 +108,32 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
 
   // Group leads by seller
   const sellerData = useMemo(() => {
-    const map = new Map<string, { leads: any[] }>();
-    globalFiltered.forEach((l: any) => {
-      if (!map.has(l.assigned_to)) map.set(l.assigned_to, { leads: [] });
-      map.get(l.assigned_to)!.leads.push(l);
+    // Total absoluto (sem filtros)
+    const totalMap = new Map<string, number>();
+    allLeads.forEach((l: any) => {
+      totalMap.set(l.assigned_to, (totalMap.get(l.assigned_to) || 0) + 1);
     });
 
-    return Array.from(map.entries()).map(([sellerId, { leads }]) => {
-      const total = leads.length;
+    // Leads filtrados agrupados por seller
+    const filteredMap = new Map<string, any[]>();
+    globalFiltered.forEach((l: any) => {
+      if (!filteredMap.has(l.assigned_to)) filteredMap.set(l.assigned_to, []);
+      filteredMap.get(l.assigned_to)!.push(l);
+    });
+
+    // Unir todos os sellers que existem em qualquer dos dois maps
+    const allSellerIds = new Set([...totalMap.keys(), ...filteredMap.keys()]);
+
+    return Array.from(allSellerIds).map((sellerId) => {
+      const total = totalMap.get(sellerId) || 0;
+      const leads = filteredMap.get(sellerId) || [];
+      const totalFiltrado = leads.length;
       const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
-      const pctContacted = total > 0 ? Math.round((contacted / total) * 100) : 0;
-      // "Total Filtrado" = count of leads for this seller matching global filters (already filtered)
-      const totalFiltrado = total;
+      const pctContacted = totalFiltrado > 0 ? Math.round((contacted / totalFiltrado) * 100) : 0;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
       return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
     }).sort((a, b) => b.total - a.total);
-  }, [globalFiltered]);
+  }, [allLeads, globalFiltered]);
 
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
