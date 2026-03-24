@@ -24,7 +24,7 @@ import {
   ListOrdered,
   Webhook,
   FileText,
-  Eye
+  Eye,
   User
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
