@@ -25,6 +25,7 @@ import {
   Webhook,
   FileText,
   Eye
+  User
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
