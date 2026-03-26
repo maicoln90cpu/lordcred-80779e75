@@ -320,12 +320,12 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (chipId) fetchChats();
   }, [fetchChats, chipId, refreshKey]);
 
-  // Polling: re-fetch every 10 seconds as safety net against lost realtime events
+  // Polling: re-fetch every 30 seconds as safety net against lost realtime events
   useEffect(() => {
     if (!chipId) return;
     const interval = setInterval(() => {
       fetchChats(1, false);
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [chipId, fetchChats]);
 
