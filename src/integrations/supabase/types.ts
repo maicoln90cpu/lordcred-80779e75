@@ -827,6 +827,127 @@ export type Database = {
         }
         Relationships: []
       }
+      product_info_cells: {
+        Row: {
+          column_id: string
+          content: string
+          id: string
+          row_id: string
+          updated_at: string
+        }
+        Insert: {
+          column_id: string
+          content?: string
+          id?: string
+          row_id: string
+          updated_at?: string
+        }
+        Update: {
+          column_id?: string
+          content?: string
+          id?: string
+          row_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_info_cells_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "product_info_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_info_cells_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "product_info_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_info_columns: {
+        Row: {
+          column_name: string
+          created_at: string
+          id: string
+          sort_order: number
+          tab_id: string
+        }
+        Insert: {
+          column_name: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_id: string
+        }
+        Update: {
+          column_name?: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_info_columns_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "product_info_tabs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_info_rows: {
+        Row: {
+          created_at: string
+          id: string
+          sort_order: number
+          tab_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_info_rows_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "product_info_tabs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_info_tabs: {
+        Row: {
+          created_at: string
+          id: string
+          sort_order: number
+          tab_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tab_name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
