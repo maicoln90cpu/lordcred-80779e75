@@ -12,13 +12,13 @@ interface CorbanAuth {
 }
 
 // Actions that require admin/master/support role
-const WRITE_ACTIONS = ['insertQueueFGTS', 'createProposta']
+const WRITE_ACTIONS = ['insertQueueFGTS', 'createProposta', 'rawProxy']
 
 // All valid actions
 const VALID_ACTIONS = [
   'getPropostas', 'getAssets', 'listLogins',
   'insertQueueFGTS', 'listQueueFGTS', 'createProposta',
-  'testConnection'
+  'testConnection', 'rawProxy'
 ]
 
 Deno.serve(async (req) => {
