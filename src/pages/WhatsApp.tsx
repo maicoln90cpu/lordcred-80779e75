@@ -359,6 +359,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setProductInfoOpen(true)} className="text-muted-foreground hover:text-foreground" title="Info Produtos">
+            <PackageSearch className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin/templates')} className="text-muted-foreground hover:text-foreground" title="Templates de Mensagem">
             <Headphones className="w-4 h-4" />
           </Button>
