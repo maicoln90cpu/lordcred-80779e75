@@ -62,6 +62,7 @@ export default function CorbanPropostas() {
 
     const { data, error } = await invokeCorban('getPropostas', { filters });
     setLoading(false);
+    console.log('[CorbanPropostas] Raw API data:', JSON.stringify(data).substring(0, 1000));
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
