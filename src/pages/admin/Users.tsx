@@ -586,18 +586,37 @@ export default function Users() {
                   if (!userToEdit) return;
                   setIsEditing(true);
                   try {
+                    // Update profile
                     const { error } = await supabase
                       .from('profiles')
                       .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
                       .eq('user_id', userToEdit.user_id);
                     if (error) throw error;
+
+                    // Update role if changed
+                    if (editRole !== userToEdit.role && canManageUsers) {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const token = sessionData?.session?.access_token;
+                      if (!token) throw new Error('Sessão expirada');
+                      const response = await fetch(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user-role`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ targetUserId: userToEdit.user_id, newRole: editRole }),
+                        }
+                      );
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Erro ao atualizar role');
+                    }
+
                     toast({ title: 'Usuário atualizado' });
                     setEditDialogOpen(false);
                     fetchUsers();
                   } catch (error: any) {
                     toast({ title: 'Erro', description: error.message, variant: 'destructive' });
                   } finally {
-                    setIsEditing(false);
+                    setIsEditing(true);
                   }
                 }}
               >
