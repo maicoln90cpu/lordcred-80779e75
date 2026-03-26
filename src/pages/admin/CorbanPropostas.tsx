@@ -64,9 +64,16 @@ export default function CorbanPropostas() {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = Array.isArray(data) ? data : (data?.propostas || data?.data || []);
+    const list = Array.isArray(data) 
+      ? data 
+      : (data?.propostas || data?.data || data?.result || data?.results || []);
     setPropostas(list);
-    if (list.length === 0) toast.info('Nenhuma proposta encontrada para os filtros informados');
+    if (list.length === 0 && data) {
+      console.warn('[CorbanPropostas] Response structure:', JSON.stringify(data).substring(0, 500));
+      toast.info('Nenhuma proposta encontrada para os filtros informados');
+    } else if (list.length === 0) {
+      toast.info('Nenhuma proposta encontrada para os filtros informados');
+    }
   };
 
   return (

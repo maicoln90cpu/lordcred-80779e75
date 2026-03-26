@@ -139,13 +139,14 @@ Deno.serve(async (req) => {
     })
 
     const responseText = await corbanResponse.text()
+    console.log(`[corban-api] Response status: ${corbanResponse.status}, body preview:`, responseText.substring(0, 500))
     try {
       result = JSON.parse(responseText)
     } catch {
       result = { raw: responseText }
     }
 
-    // Log to audit_logs
+    // Log to audit_logs (include truncated response for debugging)
     await supabaseAdmin.from('audit_logs').insert({
       user_id: userId,
       user_email: userEmail,
@@ -156,6 +157,7 @@ Deno.serve(async (req) => {
         params: params || {},
         status_code: corbanResponse.status,
         success: corbanResponse.ok,
+        response_preview: responseText.substring(0, 500),
       },
     })
 
