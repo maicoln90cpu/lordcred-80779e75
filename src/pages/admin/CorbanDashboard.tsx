@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
-import { useState as _s } from 'react';
 import { toast } from 'sonner';
 
 export default function CorbanDashboard() {
