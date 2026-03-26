@@ -4,8 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PackageSearch } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 interface Tab { id: string; tab_name: string; sort_order: number; }
 interface Column { id: string; tab_id: string; column_name: string; sort_order: number; }
@@ -75,59 +76,80 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Info Produtos</DialogTitle>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-border/50 bg-muted/30">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <PackageSearch className="w-5 h-5 text-primary" />
           </div>
-        ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-            <TabsList className="flex-wrap h-auto gap-1 shrink-0">
-              {tabs.map(tab => (
-                <TabsTrigger key={tab.id} value={tab.id}>{tab.tab_name}</TabsTrigger>
-              ))}
-            </TabsList>
+          <div>
+            <DialogTitle className="text-lg font-semibold">Info Produtos</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Consulta de informações de produtos</p>
+          </div>
+        </div>
 
-            {tabs.map(tab => (
-              <TabsContent key={tab.id} value={tab.id} className="flex-1 min-h-0">
-                <ScrollArea className="h-[60vh]">
-                  {columns.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">Nenhuma informação cadastrada nesta aba.</p>
-                  ) : rows.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">Nenhum dado cadastrado.</p>
-                  ) : (
-                    <div className="border rounded-lg overflow-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {columns.map(col => (
-                              <TableHead key={col.id} className="min-w-[120px] font-semibold">{col.column_name}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {rows.map(row => (
-                            <TableRow key={row.id}>
+        <div className="flex-1 min-h-0 px-6 py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
+              <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1 shrink-0">
+                {tabs.map(tab => (
+                  <TabsTrigger key={tab.id} value={tab.id} className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    {tab.tab_name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {tabs.map(tab => (
+                <TabsContent key={tab.id} value={tab.id} className="flex-1 min-h-0 mt-3">
+                  <ScrollArea className="h-[58vh]">
+                    {columns.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                        <PackageSearch className="w-10 h-10 mb-3 opacity-20" />
+                        <p className="text-sm">Nenhuma informação cadastrada nesta aba</p>
+                      </div>
+                    ) : rows.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                        <p className="text-sm">Nenhum dado cadastrado</p>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg overflow-hidden border-border/50">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border/50">
                               {columns.map(col => (
-                                <TableCell key={col.id} className="whitespace-pre-wrap text-sm">
-                                  {getCellContent(row.id, col.id) || <span className="text-muted-foreground">—</span>}
-                                </TableCell>
+                                <TableHead key={col.id} className="min-w-[130px] text-xs font-semibold uppercase tracking-wide text-foreground/80 py-3">
+                                  {col.column_name}
+                                </TableHead>
                               ))}
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-            ))}
-          </Tabs>
-        )}
+                          </TableHeader>
+                          <TableBody>
+                            {rows.map((row, idx) => (
+                              <TableRow key={row.id} className="even:bg-muted/15 hover:bg-muted/25 border-b border-border/20 transition-colors">
+                                {columns.map(col => {
+                                  const content = getCellContent(row.id, col.id);
+                                  return (
+                                    <TableCell key={col.id} className="whitespace-pre-wrap text-sm py-2.5 px-4">
+                                      {content || <span className="text-muted-foreground/50">—</span>}
+                                    </TableCell>
+                                  );
+                                })}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </ScrollArea>
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

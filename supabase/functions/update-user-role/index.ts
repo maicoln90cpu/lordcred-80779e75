@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
     const requesterId = claimsData.claims.sub
 
-    // Verify requester is admin using service role
+    // Verify requester role using service role
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -42,18 +42,35 @@ Deno.serve(async (req) => {
       .eq('user_id', requesterId)
       .single()
 
-    if (requesterRole?.role !== 'master') {
-      return new Response(JSON.stringify({ error: 'Apenas o Master pode alterar roles' }), { status: 403, headers: corsHeaders })
+    const isMaster = requesterRole?.role === 'master'
+    const isAdmin = requesterRole?.role === 'admin'
+
+    if (!isMaster && !isAdmin) {
+      return new Response(JSON.stringify({ error: 'Permissão negada' }), { status: 403, headers: corsHeaders })
     }
 
     const { targetUserId, newRole } = await req.json()
 
-    if (!targetUserId || !newRole || !['admin', 'seller', 'support'].includes(newRole)) {
+    // Validate allowed roles
+    const allowedRoles = isMaster ? ['admin', 'seller', 'support'] : ['admin', 'seller', 'support']
+    if (!targetUserId || !newRole || !allowedRoles.includes(newRole)) {
       return new Response(JSON.stringify({ error: 'Dados inválidos' }), { status: 400, headers: corsHeaders })
     }
 
     if (targetUserId === requesterId) {
       return new Response(JSON.stringify({ error: 'Você não pode alterar sua própria role' }), { status: 400, headers: corsHeaders })
+    }
+
+    // Admin cannot change a master's role
+    if (!isMaster) {
+      const { data: targetRole } = await adminClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', targetUserId)
+        .single()
+      if (targetRole?.role === 'master') {
+        return new Response(JSON.stringify({ error: 'Não é possível alterar a role de um Master' }), { status: 403, headers: corsHeaders })
+      }
     }
 
     const { error: updateError } = await adminClient
