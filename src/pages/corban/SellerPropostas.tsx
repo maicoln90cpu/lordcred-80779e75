@@ -1,12 +1,13 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search } from 'lucide-react';
+import { ClipboardList, Search, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useState } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function SellerPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
@@ -57,7 +58,7 @@ export default function SellerPropostas() {
                 className="max-w-xs"
               />
               <Button onClick={handleSearch} disabled={loading}>
-                <Search className="w-4 h-4 mr-2" />
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                 {loading ? 'Buscando...' : 'Buscar'}
               </Button>
             </div>
@@ -66,29 +67,36 @@ export default function SellerPropostas() {
 
         {propostas.length > 0 && (
           <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{propostas.length} proposta(s)</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Banco</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Parcela</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {propostas.map((p: any, i: number) => (
-                    <TableRow key={i}>
-                      <TableCell>{p.nome || p.cliente?.pessoais?.nome || '—'}</TableCell>
-                      <TableCell>{p.banco || p.banco_nome || '—'}</TableCell>
-                      <TableCell>{p.status || '—'}</TableCell>
-                      <TableCell>{p.valor_liberado ? `R$ ${p.valor_liberado}` : '—'}</TableCell>
-                      <TableCell>{p.valor_parcela ? `R$ ${p.valor_parcela}` : '—'}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Banco</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Parcela</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {propostas.map((p: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell>{p.nome || p.cliente?.pessoais?.nome || '—'}</TableCell>
+                        <TableCell>{p.banco || p.banco_nome || '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{p.status || '—'}</Badge>
+                        </TableCell>
+                        <TableCell>{p.valor_liberado ? `R$ ${Number(p.valor_liberado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                        <TableCell>{p.valor_parcela ? `R$ ${Number(p.valor_parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         )}
