@@ -43,6 +43,16 @@ interface RpcMsgStat {
   received: number;
 }
 
+interface StatusDistItem {
+  status: string;
+  count: number;
+}
+
+interface AvgResponseItem {
+  user_id: string;
+  avg_hours: number;
+}
+
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
   { label: 'Hoje', value: -2 },
