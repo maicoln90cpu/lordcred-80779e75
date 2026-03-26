@@ -97,7 +97,20 @@ Deno.serve(async (req) => {
       }
       case 'getPropostas': {
         corbanBody.requestType = 'getPropostas'
-        corbanBody.filters = params?.filters || {}
+        const gpFilters = params?.filters || {}
+        if (!gpFilters.data) {
+          const now = new Date()
+          const from = new Date(now)
+          from.setDate(from.getDate() - 90)
+          gpFilters.data = {
+            tipo: 'cadastro',
+            startDate: from.toISOString().split('T')[0],
+            endDate: now.toISOString().split('T')[0],
+          }
+        } else if (!gpFilters.data.tipo) {
+          gpFilters.data.tipo = 'cadastro'
+        }
+        corbanBody.filters = gpFilters
         break
       }
       case 'getAssets': {
