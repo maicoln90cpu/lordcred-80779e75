@@ -106,6 +106,8 @@ export default function Performance() {
   const [chips, setChips] = useState<ChipData[]>([]);
   const [rpcLeadStats, setRpcLeadStats] = useState<RpcLeadStat[]>([]);
   const [rpcMsgStats, setRpcMsgStats] = useState<RpcMsgStat[]>([]);
+  const [statusDistribution, setStatusDistribution] = useState<StatusDistItem[]>([]);
+  const [avgResponseTimes, setAvgResponseTimes] = useState<AvgResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
