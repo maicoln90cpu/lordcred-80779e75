@@ -170,6 +170,43 @@ export default function ProductInfo() {
     setDropTargetRowId(null);
   };
 
+  // Drag-and-drop column reorder
+  const handleColDragStart = (e: React.DragEvent, idx: number, colId: string) => {
+    e.dataTransfer.setData('text/plain', 'col'); // differentiate from row drag
+    setDragColId(colId);
+    dragColIdxRef.current = idx;
+  };
+
+  const handleColDragOver = (e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    setDropTargetColId(colId);
+  };
+
+  const handleColDrop = async (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    const fromIdx = dragColIdxRef.current;
+    if (fromIdx === null || fromIdx === dropIdx) {
+      setDragColId(null);
+      setDropTargetColId(null);
+      return;
+    }
+    const reordered = [...columns];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(dropIdx, 0, moved);
+    setDragColId(null);
+    setDropTargetColId(null);
+
+    for (let i = 0; i < reordered.length; i++) {
+      await supabase.from('product_info_columns').update({ sort_order: i }).eq('id', reordered[i].id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['product-info-columns', activeTab] });
+  };
+
+  const handleColDragEnd = () => {
+    setDragColId(null);
+    setDropTargetColId(null);
+  };
+
   const handleAddRow = async () => {
     if (!activeTab) return;
     const maxOrder = rows.length > 0 ? Math.max(...rows.map(r => r.sort_order)) + 1 : 0;
