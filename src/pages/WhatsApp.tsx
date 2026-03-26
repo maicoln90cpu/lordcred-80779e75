@@ -15,6 +15,7 @@ import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import LeadsPanel from '@/components/whatsapp/LeadsPanel';
 import UsefulLinksPanel from '@/components/whatsapp/UsefulLinksPanel';
+import ProductInfoPanel from '@/components/whatsapp/ProductInfoPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
 
