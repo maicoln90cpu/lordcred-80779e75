@@ -107,6 +107,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const [editingPhone, setEditingPhone] = useState(false);
   const [editPhoneValue, setEditPhoneValue] = useState('');
   const [page, setPage] = useState(0);
+  const [createPropostaOpen, setCreatePropostaOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const { user } = useAuth();
