@@ -335,6 +335,23 @@ export default function Dashboard() {
     }
   };
 
+  // Generate sparkline data from recent messages
+  const sparklineData = useMemo(() => {
+    if (recentMessages.length === 0) return [];
+    const days: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days[d.toISOString().slice(0, 10)] = 0;
+    }
+    recentMessages.forEach(m => {
+      const key = m.created_at.slice(0, 10);
+      if (days[key] !== undefined) days[key]++;
+    });
+    return Object.entries(days).map(([date, count]) => ({ date, count }));
+  }, [recentMessages]);
+
   const statCards = [
     {
       title: 'Chips Ativos',
@@ -343,6 +360,7 @@ export default function Dashboard() {
       description: `${chipStats.connected} online`,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
+      sparkColor: 'hsl(var(--primary))',
     },
     {
       title: 'Mensagens Hoje',
@@ -351,6 +369,7 @@ export default function Dashboard() {
       description: 'enviadas e recebidas',
       color: 'text-blue-400',
       bgColor: 'bg-blue-400/10',
+      sparkColor: '#60a5fa',
     },
     {
       title: 'Esta Semana',
@@ -359,6 +378,7 @@ export default function Dashboard() {
       description: 'mensagens trocadas',
       color: 'text-amber-400',
       bgColor: 'bg-amber-400/10',
+      sparkColor: '#fbbf24',
     },
     {
       title: 'Este Mês',
@@ -367,6 +387,7 @@ export default function Dashboard() {
       description: 'total de mensagens',
       color: 'text-purple-400',
       bgColor: 'bg-purple-400/10',
+      sparkColor: '#c084fc',
     },
   ];
 
