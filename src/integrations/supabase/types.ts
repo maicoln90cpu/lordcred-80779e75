@@ -341,6 +341,72 @@ export type Database = {
           },
         ]
       }
+      corban_assets_cache: {
+        Row: {
+          asset_id: string
+          asset_label: string
+          asset_type: string
+          id: string
+          raw_data: Json | null
+          synced_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          asset_label: string
+          asset_type: string
+          id?: string
+          raw_data?: Json | null
+          synced_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          asset_label?: string
+          asset_type?: string
+          id?: string
+          raw_data?: Json | null
+          synced_at?: string | null
+        }
+        Relationships: []
+      }
+      corban_feature_config: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          feature_key: string
+          feature_label: string
+          id: string
+          sort_order: number | null
+          updated_at: string | null
+          visible_to_sellers: boolean | null
+          visible_to_support: boolean | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          feature_key: string
+          feature_label: string
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+          visible_to_sellers?: boolean | null
+          visible_to_support?: boolean | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          feature_key?: string
+          feature_label?: string
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+          visible_to_sellers?: boolean | null
+          visible_to_support?: boolean | null
+        }
+        Relationships: []
+      }
       external_numbers: {
         Row: {
           created_at: string

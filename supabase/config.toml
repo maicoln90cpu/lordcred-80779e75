@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.chip-health-check]
 verify_jwt = false
+
+[functions.corban-api]
+verify_jwt = false
