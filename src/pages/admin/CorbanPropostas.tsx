@@ -24,8 +24,10 @@ export default function CorbanPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
   const [propostas, setPropostas] = useState<any[]>([]);
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 90); return d;
+  });
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [bancoFilter, setBancoFilter] = useState<string>('');
   const [cachedStatus, setCachedStatus] = useState<CachedAsset[]>([]);

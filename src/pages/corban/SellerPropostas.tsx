@@ -20,8 +20,18 @@ export default function SellerPropostas() {
       return;
     }
     setLoading(true);
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(from.getDate() - 90);
     const { data, error } = await invokeCorban('getPropostas', {
-      filters: { searchString: searchCpf.replace(/\D/g, '') }
+      filters: {
+        searchString: searchCpf.replace(/\D/g, ''),
+        data: {
+          tipo: 'cadastro',
+          startDate: from.toISOString().split('T')[0],
+          endDate: now.toISOString().split('T')[0],
+        }
+      }
     });
     setLoading(false);
     if (error) {

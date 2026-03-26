@@ -43,7 +43,8 @@ export default function CorbanFGTS() {
       const { data, error } = await invokeCorban('listLogins', { instituicao });
       setLoadingLogins(false);
       if (!error && data) {
-        const list = Array.isArray(data) ? data : (data?.logins || data?.data || []);
+        const raw = Array.isArray(data) ? data : (data?.logins || data?.data || []);
+        const list = Array.isArray(raw) ? raw.map((l: any) => typeof l === 'string' ? { id: l, nome: l } : l) : [];
         setLogins(list);
         if (list.length > 0) setSelectedLogin(String(list[0].id || ''));
       }
