@@ -361,7 +361,7 @@ export default function Users() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {isMaster && user.role !== 'master' ? (
+                        {(isMaster || isRegularAdmin) && user.role !== 'master' ? (
                           <Select
                             value={user.role}
                             onValueChange={async (value) => {
