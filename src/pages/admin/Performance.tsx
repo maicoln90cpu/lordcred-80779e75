@@ -385,8 +385,8 @@ export default function Performance() {
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={statusDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
-                          {statusDistribution.map((_, i) => (
+                        <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                          {pieChartData.map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>
