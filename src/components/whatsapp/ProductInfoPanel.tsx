@@ -119,9 +119,9 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
                       <div className="border rounded-lg overflow-hidden border-border/50">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border/50">
+                             <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                               {columns.map(col => (
-                                <TableHead key={col.id} className="min-w-[130px] text-xs font-semibold uppercase tracking-wide text-foreground/80 py-3">
+                                <TableHead key={col.id} className="min-w-[130px] text-xs font-semibold uppercase tracking-wide text-foreground/80 py-3.5 px-5 text-center">
                                   {col.column_name}
                                 </TableHead>
                               ))}
@@ -133,7 +133,7 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
                                 {columns.map(col => {
                                   const content = getCellContent(row.id, col.id);
                                   return (
-                                    <TableCell key={col.id} className="whitespace-pre-wrap text-sm py-2.5 px-4">
+                                    <TableCell key={col.id} className="whitespace-pre-wrap text-sm py-3 px-5 text-center align-middle">
                                       {content || <span className="text-muted-foreground/50">—</span>}
                                     </TableCell>
                                   );

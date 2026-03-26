@@ -316,18 +316,17 @@ export default function ProductInfo() {
                           ) : (
                             rows.map((row, idx) => (
                               <TableRow key={row.id} className="group/row hover:bg-muted/20 even:bg-muted/10 border-b border-border/30">
-                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-10">{idx + 1}</TableCell>
+                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-10 align-middle">{idx + 1}</TableCell>
                                 {columns.map(col => (
-                                  <TableCell key={col.id} className="p-1.5">
+                                  <TableCell key={col.id} className="p-1.5 text-center align-middle">
                                     <Textarea
                                       value={getCellContent(row.id, col.id)}
                                       onChange={e => setCellValue(row.id, col.id, e.target.value)}
-                                      className="min-h-[32px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-2 py-1.5"
-                                      rows={1}
+                                      className="min-h-[48px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-3 py-2 text-center whitespace-pre-wrap"
                                     />
                                   </TableCell>
                                 ))}
-                                <TableCell className="p-1.5 text-center w-12">
+                                <TableCell className="p-1.5 text-center w-12 align-middle">
                                   <Button
                                     variant="ghost"
                                     size="icon"
