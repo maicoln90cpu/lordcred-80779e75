@@ -43,6 +43,16 @@ interface RpcMsgStat {
   received: number;
 }
 
+interface StatusDistItem {
+  status: string;
+  count: number;
+}
+
+interface AvgResponseItem {
+  user_id: string;
+  avg_hours: number;
+}
+
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
   { label: 'Hoje', value: -2 },
@@ -96,6 +106,8 @@ export default function Performance() {
   const [chips, setChips] = useState<ChipData[]>([]);
   const [rpcLeadStats, setRpcLeadStats] = useState<RpcLeadStat[]>([]);
   const [rpcMsgStats, setRpcMsgStats] = useState<RpcMsgStat[]>([]);
+  const [statusDistribution, setStatusDistribution] = useState<StatusDistItem[]>([]);
+  const [avgResponseTimes, setAvgResponseTimes] = useState<AvgResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -123,14 +135,31 @@ export default function Performance() {
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc('get_performance_stats', {
-          _date_from: dateFrom || undefined,
-          _date_to: dateTo || undefined,
-        });
-        if (error) throw error;
-        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        const [perfRes, statusRes, responseRes] = await Promise.all([
+          supabase.rpc('get_performance_stats', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          }),
+          supabase.rpc('get_lead_status_distribution', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          } as any),
+          supabase.rpc('get_avg_response_time', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          } as any),
+        ]);
+
+        if (perfRes.error) throw perfRes.error;
+        const parsed = typeof perfRes.data === 'string' ? JSON.parse(perfRes.data) : perfRes.data;
         setRpcLeadStats(parsed?.leads || []);
         setRpcMsgStats(parsed?.messages || []);
+
+        const statusData = typeof statusRes.data === 'string' ? JSON.parse(statusRes.data) : statusRes.data;
+        setStatusDistribution(statusData || []);
+
+        const responseData = typeof responseRes.data === 'string' ? JSON.parse(responseRes.data) : responseRes.data;
+        setAvgResponseTimes(responseData || []);
       } catch (err) {
         console.error('Error fetching performance stats:', err);
       }
@@ -162,6 +191,8 @@ export default function Performance() {
       const approved = leadStat?.approved || 0;
       const pending = leadStat?.pending || 0;
 
+      const avgResp = avgResponseTimes.find(r => r.user_id === seller.user_id);
+
       return {
         userId: seller.user_id,
         name: getSellerName(seller),
@@ -173,12 +204,12 @@ export default function Performance() {
         pending,
         approvalRate: totalLeads > 0 ? (approved / totalLeads * 100) : 0,
         contactRate: totalLeads > 0 ? (contacted / totalLeads * 100) : 0,
-        avgResponseTime: 0, // No longer computed client-side (would need another RPC)
+        avgResponseTime: avgResp?.avg_hours || 0,
         messagesSent: sent,
         messagesReceived: received,
       };
     }).filter(s => s.totalLeads > 0 || s.messagesSent > 0);
-  }, [sellers, rpcLeadStats, rpcMsgStats, chipsByUser]);
+  }, [sellers, rpcLeadStats, rpcMsgStats, chipsByUser, avgResponseTimes]);
 
   const globalStats = useMemo(() => {
     const totalLeads = rpcLeadStats.reduce((a, l) => a + l.total, 0);
@@ -190,19 +221,12 @@ export default function Performance() {
     return { totalLeads, totalContacted, totalApproved, totalPending, totalSent, totalReceived, activeSellers: sellerStats.length };
   }, [rpcLeadStats, rpcMsgStats, sellerStats]);
 
-  const statusDistribution = useMemo(() => {
-    // Approximate from RPC data
-    const dist: { name: string; value: number }[] = [];
-    const totalPending = rpcLeadStats.reduce((a, l) => a + l.pending, 0);
-    const totalApproved = rpcLeadStats.reduce((a, l) => a + l.approved, 0);
-    const totalContacted = rpcLeadStats.reduce((a, l) => a + l.contacted, 0);
-    const totalAll = rpcLeadStats.reduce((a, l) => a + l.total, 0);
-    const other = totalAll - totalPending - totalApproved;
-    if (totalPending > 0) dist.push({ name: 'pendente', value: totalPending });
-    if (totalApproved > 0) dist.push({ name: 'APROVADO', value: totalApproved });
-    if (other > 0) dist.push({ name: 'Outros', value: other });
-    return dist;
-  }, [rpcLeadStats]);
+  const pieChartData = useMemo(() => {
+    return statusDistribution.map(item => ({
+      name: item.status,
+      value: item.count,
+    }));
+  }, [statusDistribution]);
 
   const leadsPerSellerChart = useMemo(() => {
     return sellerStats.map(s => ({
@@ -216,10 +240,11 @@ export default function Performance() {
   // CSV Export
   const exportCSV = useCallback(() => {
     const sorted = [...sellerStats].sort((a, b) => b.approvalRate - a.approvalRate);
-    const headers = ['#', 'Vendedor', 'Email', 'Leads', 'Contatados', 'Aprovados', 'Taxa Aprov.(%)', 'Msgs Env.', 'Msgs Rec.'];
+    const headers = ['#', 'Vendedor', 'Email', 'Leads', 'Contatados', 'Aprovados', 'Taxa Aprov.(%)', 'Tempo Méd. Resp.(h)', 'Msgs Env.', 'Msgs Rec.'];
     const rows = sorted.map((s, i) => [
       i + 1, s.name, s.email, s.totalLeads, s.contacted, s.approved,
-      s.approvalRate.toFixed(1), s.messagesSent, s.messagesReceived,
+      s.approvalRate.toFixed(1), s.avgResponseTime > 0 ? s.avgResponseTime.toFixed(1) : '-',
+      s.messagesSent, s.messagesReceived,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -361,8 +386,8 @@ export default function Performance() {
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={statusDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
-                          {statusDistribution.map((_, i) => (
+                        <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                          {pieChartData.map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>
@@ -399,6 +424,7 @@ export default function Performance() {
                         <th className="py-2 pr-4">Contatados</th>
                         <th className="py-2 pr-4">Aprovados</th>
                         <th className="py-2 pr-4">Taxa Aprov.</th>
+                        <th className="py-2 pr-4">Tempo Méd. Resp.</th>
                         <th className="py-2 pr-4">Msgs Env.</th>
                         <th className="py-2">Msgs Rec.</th>
                       </tr>
@@ -417,6 +443,15 @@ export default function Performance() {
                             <Badge variant={s.approvalRate > 20 ? 'default' : 'secondary'}>
                               {s.approvalRate.toFixed(1)}%
                             </Badge>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {s.avgResponseTime > 0 ? (
+                              <span className={cn("text-xs font-medium", s.avgResponseTime < 2 ? "text-green-400" : s.avgResponseTime < 8 ? "text-amber-400" : "text-red-400")}>
+                                {s.avgResponseTime < 1 ? `${Math.round(s.avgResponseTime * 60)}min` : `${s.avgResponseTime.toFixed(1)}h`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="py-2 pr-4">{s.messagesSent}</td>
                           <td className="py-2">{s.messagesReceived}</td>
