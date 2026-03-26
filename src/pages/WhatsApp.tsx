@@ -413,7 +413,8 @@ export default function WhatsApp() {
             onStartNewChat={handleStartNewChat}
           />
         </main>
-        <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
+      <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
+      <ProductInfoPanel open={productInfoOpen} onOpenChange={setProductInfoOpen} />
       </div>
 
 
