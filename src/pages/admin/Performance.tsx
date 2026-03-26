@@ -131,10 +131,32 @@ export default function Performance() {
   // Filter data by period
   const cutoffDate = useMemo(() => {
     if (periodDays === -1) {
-      // Custom date range
       return customDateFrom ? customDateFrom.toISOString() : null;
     }
     if (periodDays === 0) return null;
+    const now = new Date();
+    if (periodDays === -2) {
+      // Hoje
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return d.toISOString();
+    }
+    if (periodDays === -3) {
+      // Ontem
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      return d.toISOString();
+    }
+    if (periodDays === -4) {
+      // Essa Semana (domingo até hoje)
+      const day = now.getDay(); // 0=domingo
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+      return d.toISOString();
+    }
+    if (periodDays === -5) {
+      // Semana Passada (domingo a sábado anterior)
+      const day = now.getDay();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 7);
+      return d.toISOString();
+    }
     const d = new Date();
     d.setDate(d.getDate() - periodDays);
     return d.toISOString();
