@@ -87,7 +87,7 @@ export default function CorbanFGTS() {
       content: {
         cpf: insertCpf.replace(/\D/g, ''),
         instituicao,
-        loginId: selectedLogin,
+        login_banco: selectedLogin,
       }
     });
     setInserting(false);
