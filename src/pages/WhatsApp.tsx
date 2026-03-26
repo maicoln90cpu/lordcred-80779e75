@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, Headphones } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, Headphones, PackageSearch } from 'lucide-react';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
