@@ -1,13 +1,21 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 import { useCorbanFeatures } from '@/hooks/useCorbanFeatures';
+
+interface Login {
+  id: string;
+  nome?: string;
+  label?: string;
+}
 
 export default function SellerFGTS() {
   const [searchCpf, setSearchCpf] = useState('');
@@ -15,14 +23,29 @@ export default function SellerFGTS() {
   const [filaItems, setFilaItems] = useState<any[]>([]);
   const [insertCpf, setInsertCpf] = useState('');
   const [inserting, setInserting] = useState(false);
+  const [instituicao, setInstituicao] = useState('facta');
+  const [logins, setLogins] = useState<Login[]>([]);
+  const [selectedLogin, setSelectedLogin] = useState('');
   const { isFeatureVisible } = useCorbanFeatures();
 
   const canInsert = isFeatureVisible('seller_consulta_fgts');
 
+  useEffect(() => {
+    if (!canInsert) return;
+    (async () => {
+      const { data } = await invokeCorban('listLogins', { instituicao });
+      if (data) {
+        const list = Array.isArray(data) ? data : (data?.logins || data?.data || []);
+        setLogins(list);
+        if (list.length > 0) setSelectedLogin(String(list[0].id || ''));
+      }
+    })();
+  }, [instituicao, canInsert]);
+
   const handleSearch = async () => {
     setLoading(true);
     const { data, error } = await invokeCorban('listQueueFGTS', {
-      filters: { searchString: searchCpf.replace(/\D/g, '') }
+      filters: { searchString: searchCpf.replace(/\D/g, ''), instituicao }
     });
     setLoading(false);
     if (error) {
@@ -41,7 +64,7 @@ export default function SellerFGTS() {
     }
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
-      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao: 'facta' }
+      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, loginId: selectedLogin }
     });
     setInserting(false);
     if (error) {
@@ -69,15 +92,44 @@ export default function SellerFGTS() {
               <CardTitle className="text-base">Enviar CPF para Consulta</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-3">
-                <Input
-                  placeholder="CPF..."
-                  value={insertCpf}
-                  onChange={(e) => setInsertCpf(e.target.value)}
-                  className="max-w-xs"
-                />
-                <Button onClick={handleInsert} disabled={inserting}>
-                  <Plus className="w-4 h-4 mr-2" />
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">CPF</label>
+                  <Input
+                    placeholder="Somente números..."
+                    value={insertCpf}
+                    onChange={(e) => setInsertCpf(e.target.value)}
+                    className="w-48"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Instituição</label>
+                  <Select value={instituicao} onValueChange={setInstituicao}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="facta">Facta</SelectItem>
+                      <SelectItem value="mercantil">Mercantil</SelectItem>
+                      <SelectItem value="pan">Pan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Login</label>
+                  <Select value={selectedLogin} onValueChange={setSelectedLogin} disabled={logins.length === 0}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder={logins.length === 0 ? 'Nenhum login' : 'Selecione'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {logins.map(l => (
+                        <SelectItem key={l.id} value={String(l.id)}>{l.nome || l.label || l.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleInsert} disabled={inserting || !selectedLogin}>
+                  {inserting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                   {inserting ? 'Enviando...' : 'Consultar FGTS'}
                 </Button>
               </div>
@@ -99,7 +151,7 @@ export default function SellerFGTS() {
                 className="max-w-xs"
               />
               <Button variant="outline" onClick={handleSearch} disabled={loading}>
-                <Search className="w-4 h-4 mr-2" />
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                 {loading ? 'Buscando...' : 'Buscar'}
               </Button>
             </div>
@@ -111,6 +163,7 @@ export default function SellerFGTS() {
                     <TableHead>CPF</TableHead>
                     <TableHead>Instituição</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Valor</TableHead>
                     <TableHead>Data</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -118,9 +171,12 @@ export default function SellerFGTS() {
                   {filaItems.map((item: any, i: number) => (
                     <TableRow key={i}>
                       <TableCell className="font-mono text-xs">{item.cpf || '—'}</TableCell>
-                      <TableCell>{item.instituicao || '—'}</TableCell>
-                      <TableCell>{item.status || '—'}</TableCell>
-                      <TableCell>{item.data || item.created_at || '—'}</TableCell>
+                      <TableCell>{item.instituicao || instituicao}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{item.status || '—'}</Badge>
+                      </TableCell>
+                      <TableCell>{item.valor ? `R$ ${Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                      <TableCell className="text-xs">{item.data || item.created_at || '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
