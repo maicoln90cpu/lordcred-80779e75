@@ -29,6 +29,7 @@ import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WarmingReports from "./pages/admin/WarmingReports";
+import ProductInfo from "./pages/admin/ProductInfo";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
@@ -73,6 +74,7 @@ const App = () => (
               <Route path="/admin/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
               <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
               <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
+              <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

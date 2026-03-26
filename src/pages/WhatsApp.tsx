@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, Headphones } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, RefreshCw, Loader2, LayoutDashboard, ClipboardList, Link2, MessageCircle, Ticket, Headphones, PackageSearch } from 'lucide-react';
 import WhatsAppProfileDialog from '@/components/whatsapp/WhatsAppProfileDialog';
 import logoExtended from '@/assets/logo-new.png';
 import { useTheme } from 'next-themes';
@@ -15,6 +15,7 @@ import ChipConnectDialog from '@/components/whatsapp/ChipConnectDialog';
 import KanbanDialog from '@/components/whatsapp/KanbanDialog';
 import LeadsPanel from '@/components/whatsapp/LeadsPanel';
 import UsefulLinksPanel from '@/components/whatsapp/UsefulLinksPanel';
+import ProductInfoPanel from '@/components/whatsapp/ProductInfoPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
 
@@ -47,6 +48,7 @@ export default function WhatsApp() {
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [leadsOpen, setLeadsOpen] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
+  const [productInfoOpen, setProductInfoOpen] = useState(false);
   const { user, isSeller, isSupport, signOut } = useAuth();
   const { totalUnread: chatUnreadCount } = useInternalChatUnread();
   const navigate = useNavigate();
@@ -357,6 +359,9 @@ export default function WhatsApp() {
           <Button variant="ghost" size="icon" onClick={() => setLinksOpen(true)} className="text-muted-foreground hover:text-foreground" title="Links Úteis">
             <Link2 className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={() => setProductInfoOpen(true)} className="text-muted-foreground hover:text-foreground" title="Info Produtos">
+            <PackageSearch className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/admin/templates')} className="text-muted-foreground hover:text-foreground" title="Templates de Mensagem">
             <Headphones className="w-4 h-4" />
           </Button>
@@ -408,7 +413,8 @@ export default function WhatsApp() {
             onStartNewChat={handleStartNewChat}
           />
         </main>
-        <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
+      <UsefulLinksPanel open={linksOpen} onClose={() => setLinksOpen(false)} />
+      <ProductInfoPanel open={productInfoOpen} onOpenChange={setProductInfoOpen} />
       </div>
 
 
