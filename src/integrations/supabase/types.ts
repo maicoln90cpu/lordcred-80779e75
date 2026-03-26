@@ -1408,6 +1408,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_avg_response_time: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: Json
+      }
       get_internal_chat_profiles: {
         Args: never
         Returns: {
@@ -1433,6 +1437,10 @@ export type Database = {
         }[]
       }
       get_lead_counts: { Args: { _user_id: string }; Returns: Json }
+      get_lead_status_distribution: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: Json
+      }
       get_master_user_ids: { Args: never; Returns: string[] }
       get_non_seller_user_ids: { Args: never; Returns: string[] }
       get_performance_stats: {
