@@ -389,8 +389,20 @@ export default function ProductInfo() {
                          <TableHeader className="sticky top-0 z-10">
                           <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                             <TableHead className="w-14 text-center text-xs font-medium text-muted-foreground">#</TableHead>
-                            {columns.map(col => (
-                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center">
+                            {columns.map((col, colIdx) => (
+                              <TableHead
+                                key={col.id}
+                                draggable
+                                onDragStart={(e) => handleColDragStart(e, colIdx, col.id)}
+                                onDragOver={(e) => handleColDragOver(e, col.id)}
+                                onDrop={(e) => handleColDrop(e, colIdx)}
+                                onDragEnd={handleColDragEnd}
+                                className={cn(
+                                  "min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center cursor-grab active:cursor-grabbing transition-all",
+                                  dragColId === col.id && "opacity-40",
+                                  dropTargetColId === col.id && dragColId !== col.id && "border-l-2 border-l-primary"
+                                )}
+                              >
                                 {editingColId === col.id ? (
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -405,6 +417,7 @@ export default function ProductInfo() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-center gap-1.5 group/col">
+                                    <GripVertical className="w-3 h-3 text-muted-foreground/40 shrink-0" />
                                     <button
                                       className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
                                       onClick={() => handleColumnSort(col.id)}
