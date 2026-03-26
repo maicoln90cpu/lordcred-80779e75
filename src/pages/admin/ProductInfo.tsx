@@ -30,10 +30,15 @@ export default function ProductInfo() {
   const [editColName, setEditColName] = useState('');
   const [cellEdits, setCellEdits] = useState<Record<string, string>>({});
 
-  // Drag state
+  // Row drag state
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+
+  // Column drag state
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [dropTargetColId, setDropTargetColId] = useState<string | null>(null);
+  const dragColIdxRef = useRef<number | null>(null);
 
   // Sort state
   const [sortColId, setSortColId] = useState<string | null>(null);
@@ -163,6 +168,43 @@ export default function ProductInfo() {
   const handleRowDragEnd = () => {
     setDragRowId(null);
     setDropTargetRowId(null);
+  };
+
+  // Drag-and-drop column reorder
+  const handleColDragStart = (e: React.DragEvent, idx: number, colId: string) => {
+    e.dataTransfer.setData('text/plain', 'col'); // differentiate from row drag
+    setDragColId(colId);
+    dragColIdxRef.current = idx;
+  };
+
+  const handleColDragOver = (e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    setDropTargetColId(colId);
+  };
+
+  const handleColDrop = async (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    const fromIdx = dragColIdxRef.current;
+    if (fromIdx === null || fromIdx === dropIdx) {
+      setDragColId(null);
+      setDropTargetColId(null);
+      return;
+    }
+    const reordered = [...columns];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(dropIdx, 0, moved);
+    setDragColId(null);
+    setDropTargetColId(null);
+
+    for (let i = 0; i < reordered.length; i++) {
+      await supabase.from('product_info_columns').update({ sort_order: i }).eq('id', reordered[i].id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['product-info-columns', activeTab] });
+  };
+
+  const handleColDragEnd = () => {
+    setDragColId(null);
+    setDropTargetColId(null);
   };
 
   const handleAddRow = async () => {
@@ -347,8 +389,20 @@ export default function ProductInfo() {
                          <TableHeader className="sticky top-0 z-10">
                           <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                             <TableHead className="w-14 text-center text-xs font-medium text-muted-foreground">#</TableHead>
-                            {columns.map(col => (
-                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center">
+                            {columns.map((col, colIdx) => (
+                              <TableHead
+                                key={col.id}
+                                draggable
+                                onDragStart={(e) => handleColDragStart(e, colIdx, col.id)}
+                                onDragOver={(e) => handleColDragOver(e, col.id)}
+                                onDrop={(e) => handleColDrop(e, colIdx)}
+                                onDragEnd={handleColDragEnd}
+                                className={cn(
+                                  "min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center cursor-grab active:cursor-grabbing transition-all",
+                                  dragColId === col.id && "opacity-40",
+                                  dropTargetColId === col.id && dragColId !== col.id && "border-l-2 border-l-primary"
+                                )}
+                              >
                                 {editingColId === col.id ? (
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -363,6 +417,7 @@ export default function ProductInfo() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-center gap-1.5 group/col">
+                                    <GripVertical className="w-3 h-3 text-muted-foreground/40 shrink-0" />
                                     <button
                                       className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
                                       onClick={() => handleColumnSort(col.id)}
