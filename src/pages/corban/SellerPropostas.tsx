@@ -28,9 +28,16 @@ export default function SellerPropostas() {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = Array.isArray(data) ? data : (data?.propostas || data?.data || []);
+    const list = Array.isArray(data) 
+      ? data 
+      : (data?.propostas || data?.data || data?.result || data?.results || []);
     setPropostas(list);
-    if (list.length === 0) toast.info('Nenhuma proposta encontrada');
+    if (list.length === 0 && data) {
+      console.warn('[SellerPropostas] Response structure:', JSON.stringify(data).substring(0, 500));
+      toast.info('Nenhuma proposta encontrada');
+    } else if (list.length === 0) {
+      toast.info('Nenhuma proposta encontrada');
+    }
   };
 
   return (

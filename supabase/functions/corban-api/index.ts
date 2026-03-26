@@ -41,14 +41,14 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token)
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+    if (userError || !user) {
+      console.error('[corban-api] Auth error:', userError?.message)
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const userId = claimsData.claims.sub as string
-    const userEmail = claimsData.claims.email as string || 'unknown'
+    const userId = user.id
+    const userEmail = user.email || 'unknown'
 
     // Get user role
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
     // Call NewCorban API
     const apiUrl = `${corbanUrl.replace(/\/$/, '')}/api/propostas/`
     console.log(`[corban-api] Calling ${action} for user ${userEmail} (${userRole})`)
+    console.log(`[corban-api] Request body:`, JSON.stringify(corbanBody).substring(0, 500))
 
     const corbanResponse = await fetch(apiUrl, {
       method: 'POST',
@@ -138,13 +139,14 @@ Deno.serve(async (req) => {
     })
 
     const responseText = await corbanResponse.text()
+    console.log(`[corban-api] Response status: ${corbanResponse.status}, body preview:`, responseText.substring(0, 500))
     try {
       result = JSON.parse(responseText)
     } catch {
       result = { raw: responseText }
     }
 
-    // Log to audit_logs
+    // Log to audit_logs (include truncated response for debugging)
     await supabaseAdmin.from('audit_logs').insert({
       user_id: userId,
       user_email: userEmail,
@@ -155,6 +157,7 @@ Deno.serve(async (req) => {
         params: params || {},
         status_code: corbanResponse.status,
         success: corbanResponse.ok,
+        response_preview: responseText.substring(0, 500),
       },
     })
 
