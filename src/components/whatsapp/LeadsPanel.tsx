@@ -467,6 +467,12 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <div><span className="text-muted-foreground">Nome Mãe:</span> {selectedLead.nome_mae || '-'}</div>
                 <div><span className="text-muted-foreground">Data Ref.:</span> {selectedLead.data_ref || '-'}</div>
                 <div><span className="text-muted-foreground">Lote:</span> {selectedLead.batch_name || '-'}</div>
+                {selectedLead.corban_proposta_id && (
+                  <>
+                    <div><span className="text-muted-foreground">Proposta NewCorban:</span> <Badge variant="secondary">{selectedLead.corban_proposta_id}</Badge></div>
+                    <div><span className="text-muted-foreground">Status Corban:</span> <Badge variant="outline">{selectedLead.corban_status || 'Aguardando sync'}</Badge></div>
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Status</label>
