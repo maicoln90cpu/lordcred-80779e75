@@ -34,6 +34,7 @@ export default function SellerPropostas() {
       }
     });
     setLoading(false);
+    console.log('[SellerPropostas] Raw API data:', JSON.stringify(data).substring(0, 1000));
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;

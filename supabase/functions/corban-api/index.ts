@@ -226,9 +226,22 @@ Deno.serve(async (req) => {
       }), { status: corbanResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // Convert keyed-object responses to arrays (NewCorban returns { "ID": {...} })
+    let finalData = result
+    if ((action === 'getPropostas' || action === 'listQueueFGTS') && typeof result === 'object' && result !== null && !Array.isArray(result)) {
+      const entries = Object.entries(result as Record<string, unknown>)
+      if (entries.length > 0 && entries.every(([k]) => /^\d+$/.test(k))) {
+        finalData = entries.map(([id, value]) => ({
+          proposta_id: id,
+          ...(typeof value === 'object' && value !== null ? value as Record<string, unknown> : { raw: value }),
+        }))
+        console.log(`[corban-api] Converted keyed object to array: ${(finalData as any[]).length} items`)
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
-      data: result,
+      data: finalData,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (error) {
