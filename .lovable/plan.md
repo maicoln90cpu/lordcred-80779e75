@@ -1,36 +1,32 @@
 
+# Plano: Fases 7-8 + Correções de Egress
 
-# Nova aba "API Tester" na página de Logs de Auditoria
+## Etapa 1: Correções de Egress ✅ CONCLUÍDA
 
-## O que será feito
+### Alterações realizadas:
+1. **ChatSidebar polling**: 10s → 30s (reduz ~66% das queries de polling)
+2. **ChatSidebar select**: `select('*')` → campos específicos (reduz ~30% payload por query)
+3. **useRealtimeMessages**: filtro `chip_id` no canal realtime (cada usuário só recebe mensagens dos seus chips)
 
-Adicionar uma sub-aba na página `AuditLogs.tsx` com um testador manual da API Corban. A página terá:
+---
 
-1. **Campo URL** (pré-preenchido com `https://api.newcorban.com.br/api/`)
-2. **Textarea de Payload** (JSON completo que o usuário monta manualmente, incluindo auth)
-3. **Botão Enviar**
-4. **Campo de Resposta** (exibe o JSON retornado pela API, com status HTTP)
+## Etapa 2: FASE 7 — Formulário createProposta (PENDENTE)
 
-## Implementação
+### Objetivo
+Botão "Criar Proposta" no detalhe do lead que abre formulário pré-preenchido.
 
-### Arquivo: `src/pages/admin/AuditLogs.tsx`
+### Arquivos
+- `src/components/whatsapp/CreatePropostaDialog.tsx` (novo)
+- `src/components/whatsapp/LeadsPanel.tsx` (botão)
 
-- Importar `Tabs, TabsList, TabsTrigger, TabsContent` e `Textarea`
-- Envolver o conteúdo existente em `TabsContent value="logs"`
-- Criar nova `TabsContent value="api-tester"` com:
-  - Input para URL (default: `https://api.newcorban.com.br/api/`)
-  - Textarea para payload JSON (placeholder com exemplo de getPropostas completo)
-  - Botão "Enviar Requisição"
-  - Textarea readonly para resposta (status + body)
-- A chamada será feita via `supabase.functions.invoke('corban-api')` passando uma nova action `rawProxy` que encaminha o body direto para a URL
+---
 
-### Arquivo: `supabase/functions/corban-api/index.ts`
+## Etapa 3: FASE 8 — Monitoramento de Status (PENDENTE)
 
-- Adicionar action `rawProxy` à lista de valid actions
-- No switch, quando `rawProxy`: pegar `params.url` e `params.body`, fazer `fetch(url, { method: 'POST', body })` direto e retornar o resultado bruto
-- Restrito a role `admin` (já coberto pelo check existente, basta adicionar `rawProxy` ao `WRITE_ACTIONS`)
+### Objetivo
+Edge function agendada para sincronizar status de propostas.
 
-### Segurança
-- `rawProxy` será restrito a admins via role check existente
-- O payload é enviado exatamente como o usuário digitou -- é um testador manual
-
+### Arquivos
+- Migration: coluna `corban_proposta_id` em `client_leads`
+- `supabase/functions/corban-status-sync/index.ts` (novo)
+- pg_cron job via SQL insert
