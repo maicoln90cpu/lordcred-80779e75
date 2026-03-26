@@ -45,6 +45,10 @@ interface ChipData {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
+  { label: 'Hoje', value: -2 },
+  { label: 'Ontem', value: -3 },
+  { label: 'Essa Semana', value: -4 },
+  { label: 'Semana Passada', value: -5 },
   { label: '7 dias', value: 7 },
   { label: '30 dias', value: 30 },
   { label: '90 dias', value: 90 },
