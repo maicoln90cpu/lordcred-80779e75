@@ -135,14 +135,31 @@ export default function Performance() {
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc('get_performance_stats', {
-          _date_from: dateFrom || undefined,
-          _date_to: dateTo || undefined,
-        });
-        if (error) throw error;
-        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        const [perfRes, statusRes, responseRes] = await Promise.all([
+          supabase.rpc('get_performance_stats', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          }),
+          supabase.rpc('get_lead_status_distribution', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          } as any),
+          supabase.rpc('get_avg_response_time', {
+            _date_from: dateFrom || undefined,
+            _date_to: dateTo || undefined,
+          } as any),
+        ]);
+
+        if (perfRes.error) throw perfRes.error;
+        const parsed = typeof perfRes.data === 'string' ? JSON.parse(perfRes.data) : perfRes.data;
         setRpcLeadStats(parsed?.leads || []);
         setRpcMsgStats(parsed?.messages || []);
+
+        const statusData = typeof statusRes.data === 'string' ? JSON.parse(statusRes.data) : statusRes.data;
+        setStatusDistribution(statusData || []);
+
+        const responseData = typeof responseRes.data === 'string' ? JSON.parse(responseRes.data) : responseRes.data;
+        setAvgResponseTimes(responseData || []);
       } catch (err) {
         console.error('Error fetching performance stats:', err);
       }
