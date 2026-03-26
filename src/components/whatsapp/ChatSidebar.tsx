@@ -236,7 +236,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
       const { data: dbConvos, error } = await supabase
         .from('conversations')
-        .select('*')
+        .select('id, remote_jid, contact_name, wa_name, contact_phone, last_message_text, last_message_at, unread_count, is_group, is_pinned, is_archived, is_starred, is_blocked, is_muted, custom_status, label_ids, profile_pic_url')
         .eq('chip_id', requestChipId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(from, to);
@@ -320,12 +320,12 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     if (chipId) fetchChats();
   }, [fetchChats, chipId, refreshKey]);
 
-  // Polling: re-fetch every 10 seconds as safety net against lost realtime events
+  // Polling: re-fetch every 30 seconds as safety net against lost realtime events
   useEffect(() => {
     if (!chipId) return;
     const interval = setInterval(() => {
       fetchChats(1, false);
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [chipId, fetchChats]);
 
