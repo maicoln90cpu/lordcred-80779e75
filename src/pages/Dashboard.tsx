@@ -464,21 +464,50 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((stat) => (
-            <Card key={stat.title} className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-3xl font-bold mt-1">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+          {statCards.map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.08 }}
+            >
+              <Card className="border-border/50 overflow-hidden group hover:border-primary/30 transition-colors duration-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{stat.title}</p>
+                      <p className="text-3xl font-bold mt-1">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                    </div>
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200", stat.bgColor)}>
+                      <stat.icon className={cn("w-6 h-6", stat.color)} />
+                    </div>
                   </div>
-                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", stat.bgColor)}>
-                    <stat.icon className={cn("w-6 h-6", stat.color)} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  {sparklineData.length > 0 && (
+                    <div className="mt-3 h-8 -mx-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={sparklineData}>
+                          <defs>
+                            <linearGradient id={`spark-${index}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={stat.sparkColor} stopOpacity={0.3} />
+                              <stop offset="100%" stopColor={stat.sparkColor} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area
+                            type="monotone"
+                            dataKey="count"
+                            stroke={stat.sparkColor}
+                            strokeWidth={1.5}
+                            fill={`url(#spark-${index})`}
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
 
