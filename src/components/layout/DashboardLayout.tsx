@@ -118,6 +118,16 @@ const navGroups: NavGroupWithChildren[] = [
     ],
   },
   {
+    groupLabel: 'Corban',
+    items: [
+      { label: 'Dashboard Corban', icon: Building2, href: '/admin/corban', sellerHidden: true },
+      { label: 'Propostas', icon: ClipboardList, href: '/admin/corban/propostas', sellerHidden: true },
+      { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
+      { label: 'Assets/Tabelas', icon: Database, href: '/admin/corban/assets', sellerHidden: true },
+      { label: 'Config Corban', icon: Cog, href: '/admin/corban/config', sellerHidden: true },
+    ],
+  },
+  {
     groupLabel: 'Sistema',
     items: [
       { label: 'Master Admin', icon: Crown, href: '/admin/master', adminOnly: true },
