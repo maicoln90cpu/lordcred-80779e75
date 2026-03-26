@@ -191,6 +191,8 @@ export default function Performance() {
       const approved = leadStat?.approved || 0;
       const pending = leadStat?.pending || 0;
 
+      const avgResp = avgResponseTimes.find(r => r.user_id === seller.user_id);
+
       return {
         userId: seller.user_id,
         name: getSellerName(seller),
@@ -202,12 +204,12 @@ export default function Performance() {
         pending,
         approvalRate: totalLeads > 0 ? (approved / totalLeads * 100) : 0,
         contactRate: totalLeads > 0 ? (contacted / totalLeads * 100) : 0,
-        avgResponseTime: 0, // No longer computed client-side (would need another RPC)
+        avgResponseTime: avgResp?.avg_hours || 0,
         messagesSent: sent,
         messagesReceived: received,
       };
     }).filter(s => s.totalLeads > 0 || s.messagesSent > 0);
-  }, [sellers, rpcLeadStats, rpcMsgStats, chipsByUser]);
+  }, [sellers, rpcLeadStats, rpcMsgStats, chipsByUser, avgResponseTimes]);
 
   const globalStats = useMemo(() => {
     const totalLeads = rpcLeadStats.reduce((a, l) => a + l.total, 0);
