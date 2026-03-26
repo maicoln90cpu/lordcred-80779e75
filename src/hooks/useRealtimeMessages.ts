@@ -38,21 +38,45 @@ export function useRealtimeMessages(
   );
 
   useEffect(() => {
-    const channel = supabase
-      .channel('messages-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message_history',
-        },
-        handleChange
-      )
-      .subscribe();
+    // If we have specific chip IDs, create filtered subscriptions to reduce egress
+    // Otherwise fall back to unfiltered (admin/global views)
+    if (chipIds && chipIds.length > 0) {
+      const channels = chipIds.map((cid, idx) =>
+        supabase
+          .channel(`messages-realtime-${cid}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'message_history',
+              filter: `chip_id=eq.${cid}`,
+            },
+            handleChange
+          )
+          .subscribe()
+      );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [handleChange]);
+      return () => {
+        channels.forEach(ch => supabase.removeChannel(ch));
+      };
+    } else {
+      const channel = supabase
+        .channel('messages-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'message_history',
+          },
+          handleChange
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [handleChange, chipIds]);
 }
