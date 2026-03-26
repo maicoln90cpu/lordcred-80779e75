@@ -1,48 +1,36 @@
 
 
-# Fix: NewCorban API returns object, frontend expects array
+# Nova aba "API Tester" na página de Logs de Auditoria
 
-## Root Cause (confirmed via logs)
+## O que será feito
 
-The NewCorban API returns proposals as a **keyed object**, not an array:
-```json
-{ "11341357": { "averbacao": {...}, "api": {...}, ... } }
-```
+Adicionar uma sub-aba na página `AuditLogs.tsx` com um testador manual da API Corban. A página terá:
 
-The edge function passes this object as-is in `data`. The frontend then tries `Array.isArray(data)` which is `false`, then `data?.propostas` / `data?.data` / `data?.result` -- all undefined. Result: empty array, "Nenhuma proposta encontrada".
+1. **Campo URL** (pré-preenchido com `https://api.newcorban.com.br/api/`)
+2. **Textarea de Payload** (JSON completo que o usuário monta manualmente, incluindo auth)
+3. **Botão Enviar**
+4. **Campo de Resposta** (exibe o JSON retornado pela API, com status HTTP)
 
-## Fix
+## Implementação
 
-### 1. Edge Function (`supabase/functions/corban-api/index.ts`)
+### Arquivo: `src/pages/admin/AuditLogs.tsx`
 
-For `getPropostas` action, convert the keyed object to an array before returning:
+- Importar `Tabs, TabsList, TabsTrigger, TabsContent` e `Textarea`
+- Envolver o conteúdo existente em `TabsContent value="logs"`
+- Criar nova `TabsContent value="api-tester"` com:
+  - Input para URL (default: `https://api.newcorban.com.br/api/`)
+  - Textarea para payload JSON (placeholder com exemplo de getPropostas completo)
+  - Botão "Enviar Requisição"
+  - Textarea readonly para resposta (status + body)
+- A chamada será feita via `supabase.functions.invoke('corban-api')` passando uma nova action `rawProxy` que encaminha o body direto para a URL
 
-```typescript
-// Before the final return (line ~229), add conversion for getPropostas
-let finalData = result;
-if (action === 'getPropostas' && typeof result === 'object' && result !== null && !Array.isArray(result)) {
-  finalData = Object.entries(result).map(([id, value]) => ({
-    proposta_id: id,
-    ...(typeof value === 'object' ? value : { raw: value }),
-  }));
-}
+### Arquivo: `supabase/functions/corban-api/index.ts`
 
-return new Response(JSON.stringify({
-  success: true,
-  data: finalData,
-}), ...)
-```
+- Adicionar action `rawProxy` à lista de valid actions
+- No switch, quando `rawProxy`: pegar `params.url` e `params.body`, fazer `fetch(url, { method: 'POST', body })` direto e retornar o resultado bruto
+- Restrito a role `admin` (já coberto pelo check existente, basta adicionar `rawProxy` ao `WRITE_ACTIONS`)
 
-Similarly for `listQueueFGTS` if it returns the same pattern.
-
-### 2. Additional debug safety in frontend
-
-Add `console.log` of raw `data` in `CorbanPropostas.tsx` handleSearch so if the structure changes again, we see it immediately in browser console.
-
-### Files Changed
-| File | Change |
-|------|--------|
-| `supabase/functions/corban-api/index.ts` | Convert object-keyed responses to arrays for getPropostas and listQueueFGTS |
-| `src/pages/admin/CorbanPropostas.tsx` | Add console.log of raw data for debug |
-| `src/pages/corban/SellerPropostas.tsx` | Same debug log |
+### Segurança
+- `rawProxy` será restrito a admins via role check existente
+- O payload é enviado exatamente como o usuário digitou -- é um testador manual
 
