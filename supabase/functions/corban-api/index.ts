@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         if (!fgtsFilters.data) {
           const now = new Date()
           const from = new Date(now)
-          from.setDate(from.getDate() - 90)
+          from.setDate(from.getDate() - 30)
           fgtsFilters.data = {
             startDate: from.toISOString().split('T')[0],
             endDate: now.toISOString().split('T')[0],
