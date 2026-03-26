@@ -402,6 +402,7 @@ export default function Dashboard() {
         </div>
 
         {/* Automation Control Panel */}
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -461,6 +462,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
