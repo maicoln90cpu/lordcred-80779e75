@@ -171,12 +171,14 @@ Deno.serve(async (req) => {
       case 'listQueueFGTS': {
         const fgtsFilters = params?.filters || {}
         if (!fgtsFilters.data) {
-          const now = new Date()
-          const from = new Date(now)
-          from.setDate(from.getDate() - 30)
-          fgtsFilters.data = {
-            startDate: from.toISOString().split('T')[0],
-            endDate: now.toISOString().split('T')[0],
+          const today = new Date().toISOString().split('T')[0]
+          fgtsFilters.data = { startDate: today, endDate: today }
+        } else {
+          // Enforce max 1-day range required by the API
+          const start = new Date(fgtsFilters.data.startDate)
+          const end = new Date(fgtsFilters.data.endDate)
+          if ((end.getTime() - start.getTime()) / (1000 * 3600 * 24) > 1) {
+            fgtsFilters.data.endDate = fgtsFilters.data.startDate
           }
         }
         corbanBody.requestType = 'listQueueFGTS'
