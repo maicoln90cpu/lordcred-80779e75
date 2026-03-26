@@ -29,6 +29,7 @@ import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WarmingReports from "./pages/admin/WarmingReports";
+import ProductInfo from "./pages/admin/ProductInfo";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
