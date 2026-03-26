@@ -348,6 +348,14 @@ export default function InternalChat() {
           ...prev,
           [msg.channel_id]: `${senderName}: ${content}`.slice(0, 60),
         }));
+        // Move channel to top (most recent first)
+        setChannels(prev => {
+          const idx = prev.findIndex(c => c.id === msg.channel_id);
+          if (idx <= 0) return prev;
+          const updated = [...prev];
+          const [ch] = updated.splice(idx, 1);
+          return [ch, ...updated];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(notifChannel); };
