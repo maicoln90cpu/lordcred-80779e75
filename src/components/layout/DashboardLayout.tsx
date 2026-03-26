@@ -26,7 +26,12 @@ import {
   FileText,
   Eye,
   User,
-  PackageSearch
+  PackageSearch,
+  Building2,
+  ClipboardList,
+  Landmark,
+  Database,
+  Cog
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,6 +115,18 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
       { label: 'Assistência Remota', icon: Eye, href: '/admin/remote', sellerHidden: true },
       { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Corban',
+    items: [
+      { label: 'Dashboard Corban', icon: Building2, href: '/admin/corban', sellerHidden: true },
+      { label: 'Propostas', icon: ClipboardList, href: '/admin/corban/propostas', sellerHidden: true },
+      { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
+      { label: 'Assets/Tabelas', icon: Database, href: '/admin/corban/assets', sellerHidden: true },
+      { label: 'Config Corban', icon: Cog, href: '/admin/corban/config', sellerHidden: true },
+      { label: 'Minhas Propostas', icon: ClipboardList, href: '/corban/propostas', supportHidden: true },
+      { label: 'Consulta FGTS', icon: Landmark, href: '/corban/fgts', supportHidden: true },
     ],
   },
   {

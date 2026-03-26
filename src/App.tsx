@@ -30,6 +30,13 @@ import Templates from "./pages/admin/Templates";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WarmingReports from "./pages/admin/WarmingReports";
 import ProductInfo from "./pages/admin/ProductInfo";
+import CorbanDashboard from "./pages/admin/CorbanDashboard";
+import CorbanPropostas from "./pages/admin/CorbanPropostas";
+import CorbanFGTS from "./pages/admin/CorbanFGTS";
+import CorbanAssets from "./pages/admin/CorbanAssets";
+import CorbanConfig from "./pages/admin/CorbanConfig";
+import SellerPropostas from "./pages/corban/SellerPropostas";
+import SellerFGTS from "./pages/corban/SellerFGTS";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
@@ -75,6 +82,13 @@ const App = () => (
               <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
               <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
               <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />
+              <Route path="/admin/corban" element={<ProtectedRoute blockSellers><CorbanDashboard /></ProtectedRoute>} />
+              <Route path="/admin/corban/propostas" element={<ProtectedRoute blockSellers><CorbanPropostas /></ProtectedRoute>} />
+              <Route path="/admin/corban/fgts" element={<ProtectedRoute blockSellers><CorbanFGTS /></ProtectedRoute>} />
+              <Route path="/admin/corban/assets" element={<ProtectedRoute blockSellers><CorbanAssets /></ProtectedRoute>} />
+              <Route path="/admin/corban/config" element={<ProtectedRoute blockSellers><CorbanConfig /></ProtectedRoute>} />
+              <Route path="/corban/propostas" element={<ProtectedRoute><SellerPropostas /></ProtectedRoute>} />
+              <Route path="/corban/fgts" element={<ProtectedRoute><SellerFGTS /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
