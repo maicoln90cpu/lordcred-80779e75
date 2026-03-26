@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.corban-api]
 verify_jwt = false
+
+[functions.corban-status-sync]
+verify_jwt = false
