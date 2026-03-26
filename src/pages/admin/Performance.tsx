@@ -366,8 +366,8 @@ export default function Performance() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
               <Card>
-                <CardHeader>
                   <CardTitle className="text-base">Leads por Vendedor</CardTitle>
                   <CardDescription>Pendentes vs Contatados vs Aprovados</CardDescription>
                 </CardHeader>
