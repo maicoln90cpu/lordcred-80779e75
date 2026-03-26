@@ -12,13 +12,13 @@ interface CorbanAuth {
 }
 
 // Actions that require admin/master/support role
-const WRITE_ACTIONS = ['insertQueueFGTS', 'createProposta']
+const WRITE_ACTIONS = ['insertQueueFGTS', 'createProposta', 'rawProxy']
 
 // All valid actions
 const VALID_ACTIONS = [
   'getPropostas', 'getAssets', 'listLogins',
   'insertQueueFGTS', 'listQueueFGTS', 'createProposta',
-  'testConnection'
+  'testConnection', 'rawProxy'
 ]
 
 Deno.serve(async (req) => {
@@ -66,6 +66,38 @@ Deno.serve(async (req) => {
     // Check write permissions
     if (WRITE_ACTIONS.includes(action) && !['master', 'admin', 'support'].includes(userRole)) {
       return new Response(JSON.stringify({ error: 'Insufficient permissions for write operations' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // --- rawProxy: forward arbitrary payload to arbitrary URL (admin only) ---
+    if (action === 'rawProxy') {
+      if (!['master', 'admin'].includes(userRole)) {
+        return new Response(JSON.stringify({ error: 'rawProxy restricted to admin/master' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const proxyUrl = params?.url
+      const proxyBody = params?.body
+      if (!proxyUrl) {
+        return new Response(JSON.stringify({ error: 'Missing params.url' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      console.log(`[corban-api] rawProxy to ${proxyUrl} by ${userEmail}`)
+      const proxyResp = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proxyBody),
+      })
+      const proxyText = await proxyResp.text()
+      console.log(`[corban-api] rawProxy response: ${proxyResp.status}, preview: ${proxyText.substring(0, 500)}`)
+
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: userId, user_email: userEmail, action: 'corban_rawProxy',
+        target_table: 'corban_api',
+        details: { url: proxyUrl, status_code: proxyResp.status, response_preview: proxyText.substring(0, 500) },
+      })
+
+      return new Response(JSON.stringify({
+        success: true,
+        status_code: proxyResp.status,
+        data: proxyText,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Get Corban credentials from secrets
