@@ -169,6 +169,31 @@ Deno.serve(async (req) => {
       result = { raw: responseText }
     }
 
+    // Detect logical errors (API returns {"error":true} with HTTP 200)
+    if (typeof result === 'object' && result !== null && (result as any).error === true) {
+      const errMsg = (result as any).mensagem || 'Erro retornado pela API Corban'
+      console.error(`[corban-api] Logical error from NewCorban:`, errMsg)
+      
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: userId,
+        user_email: userEmail,
+        action: `corban_${action}`,
+        target_table: 'corban_api',
+        details: {
+          action, params: params || {},
+          status_code: corbanResponse.status,
+          success: false,
+          error_message: errMsg,
+          response_preview: responseText.substring(0, 500),
+        },
+      })
+
+      return new Response(JSON.stringify({
+        error: errMsg,
+        details: result,
+      }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // Log to audit_logs (include truncated response for debugging)
     await supabaseAdmin.from('audit_logs').insert({
       user_id: userId,
