@@ -240,10 +240,11 @@ export default function Performance() {
   // CSV Export
   const exportCSV = useCallback(() => {
     const sorted = [...sellerStats].sort((a, b) => b.approvalRate - a.approvalRate);
-    const headers = ['#', 'Vendedor', 'Email', 'Leads', 'Contatados', 'Aprovados', 'Taxa Aprov.(%)', 'Msgs Env.', 'Msgs Rec.'];
+    const headers = ['#', 'Vendedor', 'Email', 'Leads', 'Contatados', 'Aprovados', 'Taxa Aprov.(%)', 'Tempo Méd. Resp.(h)', 'Msgs Env.', 'Msgs Rec.'];
     const rows = sorted.map((s, i) => [
       i + 1, s.name, s.email, s.totalLeads, s.contacted, s.approved,
-      s.approvalRate.toFixed(1), s.messagesSent, s.messagesReceived,
+      s.approvalRate.toFixed(1), s.avgResponseTime > 0 ? s.avgResponseTime.toFixed(1) : '-',
+      s.messagesSent, s.messagesReceived,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
