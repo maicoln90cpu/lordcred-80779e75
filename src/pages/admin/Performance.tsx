@@ -168,6 +168,19 @@ export default function Performance() {
       d.setHours(23, 59, 59, 999);
       return d.toISOString();
     }
+    if (periodDays === -3) {
+      // Ontem — até fim do dia de ontem
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      return d.toISOString();
+    }
+    if (periodDays === -5) {
+      // Semana Passada — até sábado 23:59
+      const now = new Date();
+      const day = now.getDay();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 1, 23, 59, 59, 999);
+      return d.toISOString();
+    }
     return null;
   }, [periodDays, customDateTo]);
 

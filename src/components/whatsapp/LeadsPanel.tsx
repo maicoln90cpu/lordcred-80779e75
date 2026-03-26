@@ -413,7 +413,42 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
               </Button>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Nome:</span> <strong>{selectedLead.nome}</strong></div>
-                <div><span className="text-muted-foreground">Telefone:</span> <strong>{selectedLead.telefone}</strong></div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Telefone:</span>
+                  {editingPhone ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editPhoneValue}
+                        onChange={(e) => setEditPhoneValue(e.target.value)}
+                        className="h-7 w-40 text-sm"
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const { error } = await supabase.from('client_leads' as any).update({ telefone: editPhoneValue, updated_at: new Date().toISOString() }).eq('id', selectedLead.id);
+                            if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); }
+                            else { setSelectedLead({ ...selectedLead, telefone: editPhoneValue }); queryClient.invalidateQueries({ queryKey: ['my-leads-all'] }); toast({ title: 'Telefone atualizado' }); }
+                            setEditingPhone(false);
+                          }
+                          if (e.key === 'Escape') setEditingPhone(false);
+                        }}
+                        autoFocus
+                      />
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
+                        const { error } = await supabase.from('client_leads' as any).update({ telefone: editPhoneValue, updated_at: new Date().toISOString() }).eq('id', selectedLead.id);
+                        if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); }
+                        else { setSelectedLead({ ...selectedLead, telefone: editPhoneValue }); queryClient.invalidateQueries({ queryKey: ['my-leads-all'] }); toast({ title: 'Telefone atualizado' }); }
+                        setEditingPhone(false);
+                      }}><Check className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingPhone(false)}><X className="w-3 h-3" /></Button>
+                    </div>
+                  ) : (
+                    <>
+                      <strong>{selectedLead.telefone || '-'}</strong>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditPhoneValue(selectedLead.telefone || ''); setEditingPhone(true); }}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <div><span className="text-muted-foreground">CPF:</span> {selectedLead.cpf || '-'}</div>
                 <div><span className="text-muted-foreground">Perfil:</span> {selectedLead.perfil || '-'}</div>
                 <div><span className="text-muted-foreground">Valor Lib.:</span> {selectedLead.valor_lib ? Number(selectedLead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>

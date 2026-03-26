@@ -978,51 +978,57 @@ export default function InternalChat() {
               )}
 
               {/* Input area */}
-              <div className="p-3 border-t border-border flex gap-2 items-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                {isRecording ? (
-                  <div className="flex-1 flex items-center gap-3">
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={cancelRecording}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                      <span className="text-sm text-destructive font-mono">{formatRecordingTime(recordingTime)}</span>
-                    </div>
-                    <Button size="icon" className="h-9 w-9 rounded-full" onClick={stopRecording}>
-                      <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileInputRef.current?.click()}>
-                      <Paperclip className="w-4 h-4" />
-                    </Button>
-                    <Input
-                      value={newMessage}
-                      onChange={e => { setNewMessage(e.target.value); broadcastTyping(); }}
-                      placeholder="Digite sua mensagem..."
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                      className="flex-1"
-                    />
-                    {newMessage.trim() || mediaPreview ? (
-                      <Button onClick={() => handleSendMessage()} className="h-9 w-9 shrink-0" size="icon">
+              {selectedChannel?.admin_only_messages && isSeller ? (
+                <div className="p-4 border-t border-border text-center text-sm text-muted-foreground">
+                  Somente administradores podem enviar mensagens neste grupo.
+                </div>
+              ) : (
+                <div className="p-3 border-t border-border flex gap-2 items-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  {isRecording ? (
+                    <div className="flex-1 flex items-center gap-3">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={cancelRecording}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                        <span className="text-sm text-destructive font-mono">{formatRecordingTime(recordingTime)}</span>
+                      </div>
+                      <Button size="icon" className="h-9 w-9 rounded-full" onClick={stopRecording}>
                         <Send className="w-4 h-4" />
                       </Button>
-                    ) : (
-                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={startRecording}>
-                        <Mic className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileInputRef.current?.click()}>
+                        <Paperclip className="w-4 h-4" />
                       </Button>
-                    )}
-                  </>
-                )}
-              </div>
+                      <Input
+                        value={newMessage}
+                        onChange={e => { setNewMessage(e.target.value); broadcastTyping(); }}
+                        placeholder="Digite sua mensagem..."
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                        className="flex-1"
+                      />
+                      {newMessage.trim() || mediaPreview ? (
+                        <Button onClick={() => handleSendMessage()} className="h-9 w-9 shrink-0" size="icon">
+                          <Send className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={startRecording}>
+                          <Mic className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
