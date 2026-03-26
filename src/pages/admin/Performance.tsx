@@ -423,6 +423,7 @@ export default function Performance() {
                         <th className="py-2 pr-4">Contatados</th>
                         <th className="py-2 pr-4">Aprovados</th>
                         <th className="py-2 pr-4">Taxa Aprov.</th>
+                        <th className="py-2 pr-4">Tempo Méd. Resp.</th>
                         <th className="py-2 pr-4">Msgs Env.</th>
                         <th className="py-2">Msgs Rec.</th>
                       </tr>
@@ -441,6 +442,15 @@ export default function Performance() {
                             <Badge variant={s.approvalRate > 20 ? 'default' : 'secondary'}>
                               {s.approvalRate.toFixed(1)}%
                             </Badge>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {s.avgResponseTime > 0 ? (
+                              <span className={cn("text-xs font-medium", s.avgResponseTime < 2 ? "text-green-400" : s.avgResponseTime < 8 ? "text-amber-400" : "text-red-400")}>
+                                {s.avgResponseTime < 1 ? `${Math.round(s.avgResponseTime * 60)}min` : `${s.avgResponseTime.toFixed(1)}h`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="py-2 pr-4">{s.messagesSent}</td>
                           <td className="py-2">{s.messagesReceived}</td>
