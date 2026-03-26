@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
+  PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area
 } from 'recharts';
 import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -343,60 +344,75 @@ export default function Performance() {
           <TabsContent value="geral" className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-              <KPICard icon={Users} label="Vendedores Ativos" value={globalStats.activeSellers} />
-              <KPICard icon={Phone} label="Total Leads" value={globalStats.totalLeads} />
-              <KPICard icon={Clock} label="Pendentes" value={globalStats.totalPending} />
-              <KPICard icon={TrendingUp} label="Contatados" value={globalStats.totalContacted} />
-              <KPICard icon={CheckCircle} label="Aprovados" value={globalStats.totalApproved} />
-              <KPICard icon={MessageSquare} label="Msgs Enviadas" value={globalStats.totalSent} />
-              <KPICard icon={MessageSquare} label="Msgs Recebidas" value={globalStats.totalReceived} />
+              {[
+                { icon: Users, label: 'Vendedores Ativos', value: globalStats.activeSellers },
+                { icon: Phone, label: 'Total Leads', value: globalStats.totalLeads },
+                { icon: Clock, label: 'Pendentes', value: globalStats.totalPending },
+                { icon: TrendingUp, label: 'Contatados', value: globalStats.totalContacted },
+                { icon: CheckCircle, label: 'Aprovados', value: globalStats.totalApproved },
+                { icon: MessageSquare, label: 'Msgs Enviadas', value: globalStats.totalSent },
+                { icon: MessageSquare, label: 'Msgs Recebidas', value: globalStats.totalReceived },
+              ].map((kpi, index) => (
+                <motion.div
+                  key={kpi.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <KPICard icon={kpi.icon} label={kpi.label} value={kpi.value} />
+                </motion.div>
+              ))}
             </div>
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Leads por Vendedor</CardTitle>
-                  <CardDescription>Pendentes vs Contatados vs Aprovados</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={leadsPerSellerChart}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-                        <Legend />
-                        <Bar dataKey="Pendentes" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Contatados" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Aprovados" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Leads por Vendedor</CardTitle>
+                    <CardDescription>Pendentes vs Contatados vs Aprovados</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={leadsPerSellerChart}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                          <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
+                          <Legend />
+                          <Bar dataKey="Pendentes" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Contatados" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Aprovados" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Distribuição de Status</CardTitle>
-                  <CardDescription>Todos os leads do período</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
-                          {pieChartData.map((_, i) => (
-                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.3 }}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Distribuição de Status</CardTitle>
+                    <CardDescription>Todos os leads do período</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                            {pieChartData.map((_, i) => (
+                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </div>
 
             {/* Ranking Table */}
@@ -530,13 +546,20 @@ export default function Performance() {
 
 function KPICard({ icon: Icon, label, value }: { icon: any; label: string; value: number | string }) {
   return (
-    <Card>
+    <Card className="overflow-hidden group hover:border-primary/30 transition-colors duration-200">
       <CardContent className="p-4 flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10">
+        <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-200">
           <Icon className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <p className="text-2xl font-bold">{value}</p>
+          <motion.p
+            className="text-2xl font-bold"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            key={String(value)}
+          >
+            {value}
+          </motion.p>
           <p className="text-xs text-muted-foreground">{label}</p>
         </div>
       </CardContent>

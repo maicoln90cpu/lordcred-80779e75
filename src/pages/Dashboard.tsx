@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Smartphone, 
   MessageSquare, 
@@ -21,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { cn } from '@/lib/utils';
 import { useRealtimeChips } from '@/hooks/useRealtimeChips';
@@ -333,6 +335,23 @@ export default function Dashboard() {
     }
   };
 
+  // Generate sparkline data from recent messages
+  const sparklineData = useMemo(() => {
+    if (recentMessages.length === 0) return [];
+    const days: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days[d.toISOString().slice(0, 10)] = 0;
+    }
+    recentMessages.forEach(m => {
+      const key = m.created_at.slice(0, 10);
+      if (days[key] !== undefined) days[key]++;
+    });
+    return Object.entries(days).map(([date, count]) => ({ date, count }));
+  }, [recentMessages]);
+
   const statCards = [
     {
       title: 'Chips Ativos',
@@ -341,6 +360,7 @@ export default function Dashboard() {
       description: `${chipStats.connected} online`,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
+      sparkColor: 'hsl(var(--primary))',
     },
     {
       title: 'Mensagens Hoje',
@@ -349,6 +369,7 @@ export default function Dashboard() {
       description: 'enviadas e recebidas',
       color: 'text-blue-400',
       bgColor: 'bg-blue-400/10',
+      sparkColor: '#60a5fa',
     },
     {
       title: 'Esta Semana',
@@ -357,6 +378,7 @@ export default function Dashboard() {
       description: 'mensagens trocadas',
       color: 'text-amber-400',
       bgColor: 'bg-amber-400/10',
+      sparkColor: '#fbbf24',
     },
     {
       title: 'Este Mês',
@@ -365,6 +387,7 @@ export default function Dashboard() {
       description: 'total de mensagens',
       color: 'text-purple-400',
       bgColor: 'bg-purple-400/10',
+      sparkColor: '#c084fc',
     },
   ];
 
@@ -379,6 +402,7 @@ export default function Dashboard() {
         </div>
 
         {/* Automation Control Panel */}
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -438,24 +462,54 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((stat) => (
-            <Card key={stat.title} className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-3xl font-bold mt-1">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+          {statCards.map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.08 }}
+            >
+              <Card className="border-border/50 overflow-hidden group hover:border-primary/30 transition-colors duration-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{stat.title}</p>
+                      <p className="text-3xl font-bold mt-1">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                    </div>
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200", stat.bgColor)}>
+                      <stat.icon className={cn("w-6 h-6", stat.color)} />
+                    </div>
                   </div>
-                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", stat.bgColor)}>
-                    <stat.icon className={cn("w-6 h-6", stat.color)} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  {sparklineData.length > 0 && (
+                    <div className="mt-3 h-8 -mx-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={sparklineData}>
+                          <defs>
+                            <linearGradient id={`spark-${index}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={stat.sparkColor} stopOpacity={0.3} />
+                              <stop offset="100%" stopColor={stat.sparkColor} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area
+                            type="monotone"
+                            dataKey="count"
+                            stroke={stat.sparkColor}
+                            strokeWidth={1.5}
+                            fill={`url(#spark-${index})`}
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
 
