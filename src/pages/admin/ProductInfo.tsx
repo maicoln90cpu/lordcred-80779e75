@@ -30,10 +30,15 @@ export default function ProductInfo() {
   const [editColName, setEditColName] = useState('');
   const [cellEdits, setCellEdits] = useState<Record<string, string>>({});
 
-  // Drag state
+  // Row drag state
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+
+  // Column drag state
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [dropTargetColId, setDropTargetColId] = useState<string | null>(null);
+  const dragColIdxRef = useRef<number | null>(null);
 
   // Sort state
   const [sortColId, setSortColId] = useState<string | null>(null);
