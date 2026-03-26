@@ -95,9 +95,9 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-              <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1 shrink-0">
+              <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1.5 rounded-xl shrink-0">
                 {tabs.map(tab => (
-                  <TabsTrigger key={tab.id} value={tab.id} className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <TabsTrigger key={tab.id} value={tab.id} className="text-xs rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
                     {tab.tab_name}
                   </TabsTrigger>
                 ))}
