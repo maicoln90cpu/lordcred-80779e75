@@ -221,19 +221,12 @@ export default function Performance() {
     return { totalLeads, totalContacted, totalApproved, totalPending, totalSent, totalReceived, activeSellers: sellerStats.length };
   }, [rpcLeadStats, rpcMsgStats, sellerStats]);
 
-  const statusDistribution = useMemo(() => {
-    // Approximate from RPC data
-    const dist: { name: string; value: number }[] = [];
-    const totalPending = rpcLeadStats.reduce((a, l) => a + l.pending, 0);
-    const totalApproved = rpcLeadStats.reduce((a, l) => a + l.approved, 0);
-    const totalContacted = rpcLeadStats.reduce((a, l) => a + l.contacted, 0);
-    const totalAll = rpcLeadStats.reduce((a, l) => a + l.total, 0);
-    const other = totalAll - totalPending - totalApproved;
-    if (totalPending > 0) dist.push({ name: 'pendente', value: totalPending });
-    if (totalApproved > 0) dist.push({ name: 'APROVADO', value: totalApproved });
-    if (other > 0) dist.push({ name: 'Outros', value: other });
-    return dist;
-  }, [rpcLeadStats]);
+  const pieChartData = useMemo(() => {
+    return statusDistribution.map(item => ({
+      name: item.status,
+      value: item.count,
+    }));
+  }, [statusDistribution]);
 
   const leadsPerSellerChart = useMemo(() => {
     return sellerStats.map(s => ({
