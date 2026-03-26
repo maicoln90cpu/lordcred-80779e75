@@ -208,9 +208,9 @@ export default function ProductInfo() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => { setCellEdits({}); setActiveTab(v); }}>
-          <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1">
+          <TabsList className="flex-wrap h-auto gap-1.5 bg-muted/50 p-1.5 rounded-xl">
             {tabs.map(tab => (
-              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
                 {editingTabId === tab.id ? (
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <Input
@@ -267,11 +267,11 @@ export default function ProductInfo() {
                   ) : (
                     <div className="overflow-auto max-h-[65vh]">
                       <Table>
-                        <TableHeader className="sticky top-0 z-10">
-                          <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border/50">
+                         <TableHeader className="sticky top-0 z-10">
+                          <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                             <TableHead className="w-10 text-center text-xs font-medium text-muted-foreground">#</TableHead>
                             {columns.map(col => (
-                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center">
                                 {editingColId === col.id ? (
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -285,7 +285,7 @@ export default function ProductInfo() {
                                     <X className="w-3.5 h-3.5 cursor-pointer text-destructive shrink-0" onClick={() => setEditingColId(null)} />
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 group/col">
+                                  <div className="flex items-center justify-center gap-1.5 group/col">
                                     <span>{col.column_name}</span>
                                     <div className="flex items-center gap-0.5 opacity-0 group-hover/col:opacity-100 transition-opacity">
                                       <Pencil
@@ -316,18 +316,17 @@ export default function ProductInfo() {
                           ) : (
                             rows.map((row, idx) => (
                               <TableRow key={row.id} className="group/row hover:bg-muted/20 even:bg-muted/10 border-b border-border/30">
-                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-10">{idx + 1}</TableCell>
+                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-10 align-middle">{idx + 1}</TableCell>
                                 {columns.map(col => (
-                                  <TableCell key={col.id} className="p-1.5">
+                                  <TableCell key={col.id} className="p-1.5 text-center align-middle">
                                     <Textarea
                                       value={getCellContent(row.id, col.id)}
                                       onChange={e => setCellValue(row.id, col.id, e.target.value)}
-                                      className="min-h-[32px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-2 py-1.5"
-                                      rows={1}
+                                      className="min-h-[48px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-3 py-2 text-center whitespace-pre-wrap"
                                     />
                                   </TableCell>
                                 ))}
-                                <TableCell className="p-1.5 text-center w-12">
+                                <TableCell className="p-1.5 text-center w-12 align-middle">
                                   <Button
                                     variant="ghost"
                                     size="icon"

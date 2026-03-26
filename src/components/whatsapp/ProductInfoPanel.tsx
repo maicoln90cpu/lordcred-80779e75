@@ -76,7 +76,7 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-7xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border/50 bg-muted/30">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -95,9 +95,9 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-              <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1 shrink-0">
+              <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1.5 rounded-xl shrink-0">
                 {tabs.map(tab => (
-                  <TabsTrigger key={tab.id} value={tab.id} className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <TabsTrigger key={tab.id} value={tab.id} className="text-xs rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
                     {tab.tab_name}
                   </TabsTrigger>
                 ))}
@@ -119,9 +119,9 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
                       <div className="border rounded-lg overflow-hidden border-border/50">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border/50">
+                             <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                               {columns.map(col => (
-                                <TableHead key={col.id} className="min-w-[130px] text-xs font-semibold uppercase tracking-wide text-foreground/80 py-3">
+                                <TableHead key={col.id} className="min-w-[130px] text-xs font-semibold uppercase tracking-wide text-foreground/80 py-3.5 px-5 text-center">
                                   {col.column_name}
                                 </TableHead>
                               ))}
@@ -133,7 +133,7 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
                                 {columns.map(col => {
                                   const content = getCellContent(row.id, col.id);
                                   return (
-                                    <TableCell key={col.id} className="whitespace-pre-wrap text-sm py-2.5 px-4">
+                                    <TableCell key={col.id} className="whitespace-pre-wrap text-sm py-3 px-5 text-center align-middle">
                                       {content || <span className="text-muted-foreground/50">—</span>}
                                     </TableCell>
                                   );
