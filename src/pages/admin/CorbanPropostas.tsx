@@ -25,7 +25,7 @@ export default function CorbanPropostas() {
   const [loading, setLoading] = useState(false);
   const [propostas, setPropostas] = useState<any[]>([]);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 90); return d;
+    const d = new Date(); d.setDate(d.getDate() - 30); return d;
   });
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [statusFilter, setStatusFilter] = useState<string>('');

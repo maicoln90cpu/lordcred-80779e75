@@ -22,7 +22,7 @@ export default function SellerPropostas() {
     setLoading(true);
     const now = new Date();
     const from = new Date(now);
-    from.setDate(from.getDate() - 90);
+    from.setDate(from.getDate() - 30);
     const { data, error } = await invokeCorban('getPropostas', {
       filters: {
         searchString: searchCpf.replace(/\D/g, ''),

@@ -101,14 +101,22 @@ Deno.serve(async (req) => {
         if (!gpFilters.data) {
           const now = new Date()
           const from = new Date(now)
-          from.setDate(from.getDate() - 90)
+          from.setDate(from.getDate() - 30)
           gpFilters.data = {
             tipo: 'cadastro',
             startDate: from.toISOString().split('T')[0],
             endDate: now.toISOString().split('T')[0],
           }
-        } else if (!gpFilters.data.tipo) {
-          gpFilters.data.tipo = 'cadastro'
+        } else {
+          if (!gpFilters.data.tipo) gpFilters.data.tipo = 'cadastro'
+          // Enforce max 31 days range
+          const start = new Date(gpFilters.data.startDate)
+          const end = new Date(gpFilters.data.endDate)
+          if ((end.getTime() - start.getTime()) / (1000 * 3600 * 24) > 31) {
+            const adjusted = new Date(start)
+            adjusted.setDate(start.getDate() + 30)
+            gpFilters.data.endDate = adjusted.toISOString().split('T')[0]
+          }
         }
         corbanBody.filters = gpFilters
         break
@@ -133,7 +141,7 @@ Deno.serve(async (req) => {
         if (!fgtsFilters.data) {
           const now = new Date()
           const from = new Date(now)
-          from.setDate(from.getDate() - 90)
+          from.setDate(from.getDate() - 30)
           fgtsFilters.data = {
             startDate: from.toISOString().split('T')[0],
             endDate: now.toISOString().split('T')[0],
