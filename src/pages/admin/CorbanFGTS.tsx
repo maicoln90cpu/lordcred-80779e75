@@ -31,8 +31,10 @@ export default function CorbanFGTS() {
   const [logins, setLogins] = useState<Login[]>([]);
   const [selectedLogin, setSelectedLogin] = useState('');
   const [loadingLogins, setLoadingLogins] = useState(false);
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 90); return d;
+  });
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
 
   // Fetch logins when instituicao changes
   useEffect(() => {
@@ -41,7 +43,8 @@ export default function CorbanFGTS() {
       const { data, error } = await invokeCorban('listLogins', { instituicao });
       setLoadingLogins(false);
       if (!error && data) {
-        const list = Array.isArray(data) ? data : (data?.logins || data?.data || []);
+        const raw = Array.isArray(data) ? data : (data?.logins || data?.data || []);
+        const list = Array.isArray(raw) ? raw.map((l: any) => typeof l === 'string' ? { id: l, nome: l } : l) : [];
         setLogins(list);
         if (list.length > 0) setSelectedLogin(String(list[0].id || ''));
       }

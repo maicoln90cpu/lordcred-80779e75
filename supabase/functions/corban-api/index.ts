@@ -97,7 +97,20 @@ Deno.serve(async (req) => {
       }
       case 'getPropostas': {
         corbanBody.requestType = 'getPropostas'
-        corbanBody.filters = params?.filters || {}
+        const gpFilters = params?.filters || {}
+        if (!gpFilters.data) {
+          const now = new Date()
+          const from = new Date(now)
+          from.setDate(from.getDate() - 90)
+          gpFilters.data = {
+            tipo: 'cadastro',
+            startDate: from.toISOString().split('T')[0],
+            endDate: now.toISOString().split('T')[0],
+          }
+        } else if (!gpFilters.data.tipo) {
+          gpFilters.data.tipo = 'cadastro'
+        }
+        corbanBody.filters = gpFilters
         break
       }
       case 'getAssets': {
@@ -116,8 +129,18 @@ Deno.serve(async (req) => {
         break
       }
       case 'listQueueFGTS': {
+        const fgtsFilters = params?.filters || {}
+        if (!fgtsFilters.data) {
+          const now = new Date()
+          const from = new Date(now)
+          from.setDate(from.getDate() - 90)
+          fgtsFilters.data = {
+            startDate: from.toISOString().split('T')[0],
+            endDate: now.toISOString().split('T')[0],
+          }
+        }
         corbanBody.requestType = 'listQueueFGTS'
-        corbanBody.filters = params?.filters || {}
+        corbanBody.filters = fgtsFilters
         break
       }
       case 'createProposta': {
@@ -144,6 +167,31 @@ Deno.serve(async (req) => {
       result = JSON.parse(responseText)
     } catch {
       result = { raw: responseText }
+    }
+
+    // Detect logical errors (API returns {"error":true} with HTTP 200)
+    if (typeof result === 'object' && result !== null && (result as any).error === true) {
+      const errMsg = (result as any).mensagem || 'Erro retornado pela API Corban'
+      console.error(`[corban-api] Logical error from NewCorban:`, errMsg)
+      
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: userId,
+        user_email: userEmail,
+        action: `corban_${action}`,
+        target_table: 'corban_api',
+        details: {
+          action, params: params || {},
+          status_code: corbanResponse.status,
+          success: false,
+          error_message: errMsg,
+          response_preview: responseText.substring(0, 500),
+        },
+      })
+
+      return new Response(JSON.stringify({
+        error: errMsg,
+        details: result,
+      }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Log to audit_logs (include truncated response for debugging)
