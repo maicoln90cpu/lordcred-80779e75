@@ -458,6 +458,14 @@ export default function InternalChat() {
     const senderName = pMap[user.id]?.name || pMap[user.id]?.email?.split('@')[0] || '';
     const previewText = finalMedia ? `📎 ${finalMedia.type === 'image' ? 'Imagem' : finalMedia.type === 'audio' ? 'Áudio' : finalMedia.type === 'video' ? 'Vídeo' : 'Arquivo'}` : content;
     setLastMessages(prev => ({ ...prev, [selectedChannel.id]: `${senderName}: ${previewText}`.slice(0, 60) }));
+    // Move current channel to top
+    setChannels(prev => {
+      const idx = prev.findIndex(c => c.id === selectedChannel.id);
+      if (idx <= 0) return prev;
+      const updated = [...prev];
+      const [ch] = updated.splice(idx, 1);
+      return [ch, ...updated];
+    });
 
     const insertData: any = {
       channel_id: selectedChannel.id,
