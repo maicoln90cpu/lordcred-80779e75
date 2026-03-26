@@ -52,6 +52,7 @@ export default function Users() {
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [editRole, setEditRole] = useState<string>('seller');
 
   const { isMaster } = useAuth();
   const isRegularAdmin = userRole === 'admin'; // Administrador (not master)
