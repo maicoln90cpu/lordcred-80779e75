@@ -103,6 +103,8 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const [editStatus, setEditStatus] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState('');
   const [page, setPage] = useState(0);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
