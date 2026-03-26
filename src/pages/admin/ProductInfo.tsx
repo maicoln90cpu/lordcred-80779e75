@@ -267,11 +267,11 @@ export default function ProductInfo() {
                   ) : (
                     <div className="overflow-auto max-h-[65vh]">
                       <Table>
-                        <TableHeader className="sticky top-0 z-10">
-                          <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border/50">
+                         <TableHeader className="sticky top-0 z-10">
+                          <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
                             <TableHead className="w-10 text-center text-xs font-medium text-muted-foreground">#</TableHead>
                             {columns.map(col => (
-                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                              <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center">
                                 {editingColId === col.id ? (
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -285,7 +285,7 @@ export default function ProductInfo() {
                                     <X className="w-3.5 h-3.5 cursor-pointer text-destructive shrink-0" onClick={() => setEditingColId(null)} />
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 group/col">
+                                  <div className="flex items-center justify-center gap-1.5 group/col">
                                     <span>{col.column_name}</span>
                                     <div className="flex items-center gap-0.5 opacity-0 group-hover/col:opacity-100 transition-opacity">
                                       <Pencil
