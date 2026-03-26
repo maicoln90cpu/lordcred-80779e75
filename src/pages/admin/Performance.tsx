@@ -344,13 +344,24 @@ export default function Performance() {
           <TabsContent value="geral" className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-              <KPICard icon={Users} label="Vendedores Ativos" value={globalStats.activeSellers} />
-              <KPICard icon={Phone} label="Total Leads" value={globalStats.totalLeads} />
-              <KPICard icon={Clock} label="Pendentes" value={globalStats.totalPending} />
-              <KPICard icon={TrendingUp} label="Contatados" value={globalStats.totalContacted} />
-              <KPICard icon={CheckCircle} label="Aprovados" value={globalStats.totalApproved} />
-              <KPICard icon={MessageSquare} label="Msgs Enviadas" value={globalStats.totalSent} />
-              <KPICard icon={MessageSquare} label="Msgs Recebidas" value={globalStats.totalReceived} />
+              {[
+                { icon: Users, label: 'Vendedores Ativos', value: globalStats.activeSellers },
+                { icon: Phone, label: 'Total Leads', value: globalStats.totalLeads },
+                { icon: Clock, label: 'Pendentes', value: globalStats.totalPending },
+                { icon: TrendingUp, label: 'Contatados', value: globalStats.totalContacted },
+                { icon: CheckCircle, label: 'Aprovados', value: globalStats.totalApproved },
+                { icon: MessageSquare, label: 'Msgs Enviadas', value: globalStats.totalSent },
+                { icon: MessageSquare, label: 'Msgs Recebidas', value: globalStats.totalReceived },
+              ].map((kpi, index) => (
+                <motion.div
+                  key={kpi.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <KPICard icon={kpi.icon} label={kpi.label} value={kpi.value} />
+                </motion.div>
+              ))}
             </div>
 
             {/* Charts Row */}
