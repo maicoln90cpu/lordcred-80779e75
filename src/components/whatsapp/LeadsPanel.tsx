@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy, Pencil, Check, X } from 'lucide-react';
+import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy, Pencil, Check, X, FileText } from 'lucide-react';
+import CreatePropostaDialog from './CreatePropostaDialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /** Convert Excel serial number or ISO date to DD/MM/AAAA */
