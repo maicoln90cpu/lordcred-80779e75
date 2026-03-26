@@ -45,6 +45,10 @@ interface ChipData {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
+  { label: 'Hoje', value: -2 },
+  { label: 'Ontem', value: -3 },
+  { label: 'Essa Semana', value: -4 },
+  { label: 'Semana Passada', value: -5 },
   { label: '7 dias', value: 7 },
   { label: '30 dias', value: 30 },
   { label: '90 dias', value: 90 },
@@ -127,10 +131,32 @@ export default function Performance() {
   // Filter data by period
   const cutoffDate = useMemo(() => {
     if (periodDays === -1) {
-      // Custom date range
       return customDateFrom ? customDateFrom.toISOString() : null;
     }
     if (periodDays === 0) return null;
+    const now = new Date();
+    if (periodDays === -2) {
+      // Hoje
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return d.toISOString();
+    }
+    if (periodDays === -3) {
+      // Ontem
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      return d.toISOString();
+    }
+    if (periodDays === -4) {
+      // Essa Semana (domingo até hoje)
+      const day = now.getDay(); // 0=domingo
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+      return d.toISOString();
+    }
+    if (periodDays === -5) {
+      // Semana Passada (domingo a sábado anterior)
+      const day = now.getDay();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 7);
+      return d.toISOString();
+    }
     const d = new Date();
     d.setDate(d.getDate() - periodDays);
     return d.toISOString();
@@ -140,6 +166,19 @@ export default function Performance() {
     if (periodDays === -1 && customDateTo) {
       const d = new Date(customDateTo);
       d.setHours(23, 59, 59, 999);
+      return d.toISOString();
+    }
+    if (periodDays === -3) {
+      // Ontem — até fim do dia de ontem
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      return d.toISOString();
+    }
+    if (periodDays === -5) {
+      // Semana Passada — até sábado 23:59
+      const now = new Date();
+      const day = now.getDay();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 1, 23, 59, 59, 999);
       return d.toISOString();
     }
     return null;

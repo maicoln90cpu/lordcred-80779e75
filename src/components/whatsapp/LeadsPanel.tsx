@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy } from 'lucide-react';
+import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy, Pencil, Check, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /** Convert Excel serial number or ISO date to DD/MM/AAAA */
@@ -103,6 +103,8 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const [editStatus, setEditStatus] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [editPhoneValue, setEditPhoneValue] = useState('');
   const [page, setPage] = useState(0);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -411,7 +413,42 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
               </Button>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Nome:</span> <strong>{selectedLead.nome}</strong></div>
-                <div><span className="text-muted-foreground">Telefone:</span> <strong>{selectedLead.telefone}</strong></div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Telefone:</span>
+                  {editingPhone ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editPhoneValue}
+                        onChange={(e) => setEditPhoneValue(e.target.value)}
+                        className="h-7 w-40 text-sm"
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            const { error } = await supabase.from('client_leads' as any).update({ telefone: editPhoneValue, updated_at: new Date().toISOString() }).eq('id', selectedLead.id);
+                            if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); }
+                            else { setSelectedLead({ ...selectedLead, telefone: editPhoneValue }); queryClient.invalidateQueries({ queryKey: ['my-leads-all'] }); toast({ title: 'Telefone atualizado' }); }
+                            setEditingPhone(false);
+                          }
+                          if (e.key === 'Escape') setEditingPhone(false);
+                        }}
+                        autoFocus
+                      />
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
+                        const { error } = await supabase.from('client_leads' as any).update({ telefone: editPhoneValue, updated_at: new Date().toISOString() }).eq('id', selectedLead.id);
+                        if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); }
+                        else { setSelectedLead({ ...selectedLead, telefone: editPhoneValue }); queryClient.invalidateQueries({ queryKey: ['my-leads-all'] }); toast({ title: 'Telefone atualizado' }); }
+                        setEditingPhone(false);
+                      }}><Check className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingPhone(false)}><X className="w-3 h-3" /></Button>
+                    </div>
+                  ) : (
+                    <>
+                      <strong>{selectedLead.telefone || '-'}</strong>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditPhoneValue(selectedLead.telefone || ''); setEditingPhone(true); }}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <div><span className="text-muted-foreground">CPF:</span> {selectedLead.cpf || '-'}</div>
                 <div><span className="text-muted-foreground">Perfil:</span> {selectedLead.perfil || '-'}</div>
                 <div><span className="text-muted-foreground">Valor Lib.:</span> {selectedLead.valor_lib ? Number(selectedLead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</div>
