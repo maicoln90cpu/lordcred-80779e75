@@ -817,46 +817,74 @@ export default function Leads() {
                 {batchHistory.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">Nenhum lote importado.</p>
                 ) : (
-                  <div className="border rounded-lg overflow-auto">
-                    <Table>
-                      <TableHeader>
-                         <TableRow>
-                          <TableHead>Lote</TableHead>
-                          <TableHead>Vendedor</TableHead>
-                          <TableHead>Qtd Leads</TableHead>
-                          <TableHead>% Contatados</TableHead>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {batchHistory.map((b) => {
-                          const pct = b.total > 0 ? Math.round((b.contacted / b.total) * 100) : 0;
-                          return (
-                            <TableRow key={b.batch}>
-                              <TableCell className="font-medium">{b.batch}</TableCell>
-                              <TableCell>{getSellerName(b.seller)}</TableCell>
-                              <TableCell>{b.total}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Progress value={pct} className="h-2 w-20" />
-                                  <span className="text-xs text-muted-foreground">{pct}%</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {new Date(b.created).toLocaleDateString('pt-BR')}
-                              </TableCell>
-                              <TableCell>
-                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <>
+                    <div className="border rounded-lg overflow-auto">
+                      <Table>
+                        <TableHeader>
+                           <TableRow>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleBatchSort('batch')}>
+                              <span className="flex items-center">Lote<SortIcon field="batch" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleBatchSort('seller')}>
+                              <span className="flex items-center">Vendedor<SortIcon field="seller" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleBatchSort('total')}>
+                              <span className="flex items-center">Qtd Leads<SortIcon field="total" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleBatchSort('pct')}>
+                              <span className="flex items-center">% Contatados<SortIcon field="pct" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleBatchSort('created')}>
+                              <span className="flex items-center">Data<SortIcon field="created" /></span>
+                            </TableHead>
+                            <TableHead>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedBatch.map((b) => {
+                            const pct = b.total > 0 ? Math.round((b.contacted / b.total) * 100) : 0;
+                            return (
+                              <TableRow key={`${b.batch}::${b.seller}`}>
+                                <TableCell className="font-medium">{b.batch}</TableCell>
+                                <TableCell>{getSellerName(b.seller)}</TableCell>
+                                <TableCell>{b.total}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Progress value={pct} className="h-2 w-20" />
+                                    <span className="text-xs text-muted-foreground">{pct}%</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {new Date(b.created).toLocaleDateString('pt-BR')}
+                                </TableCell>
+                                <TableCell>
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingBatch(b.batch)}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {batchTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-sm text-muted-foreground">
+                          {sortedBatchHistory.length} lotes • Página {batchPage} de {batchTotalPages}
+                        </span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" disabled={batchPage <= 1} onClick={() => setBatchPage(p => p - 1)}>
+                            <ChevronLeft className="w-4 h-4 mr-1" /> Anterior
+                          </Button>
+                          <Button variant="outline" size="sm" disabled={batchPage >= batchTotalPages} onClick={() => setBatchPage(p => p + 1)}>
+                            Próximo <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
