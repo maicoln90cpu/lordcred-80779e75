@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
     // Call NewCorban API
     const apiUrl = `${corbanUrl.replace(/\/$/, '')}/api/propostas/`
     console.log(`[corban-api] Calling ${action} for user ${userEmail} (${userRole})`)
+    console.log(`[corban-api] Request body:`, JSON.stringify(corbanBody).substring(0, 500))
 
     const corbanResponse = await fetch(apiUrl, {
       method: 'POST',
