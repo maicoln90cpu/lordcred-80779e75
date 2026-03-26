@@ -208,9 +208,9 @@ export default function ProductInfo() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => { setCellEdits({}); setActiveTab(v); }}>
-          <TabsList className="flex-wrap h-auto gap-1 bg-muted/50 p-1">
+          <TabsList className="flex-wrap h-auto gap-1.5 bg-muted/50 p-1.5 rounded-xl">
             {tabs.map(tab => (
-              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
                 {editingTabId === tab.id ? (
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <Input
