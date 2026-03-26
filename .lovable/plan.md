@@ -1,102 +1,86 @@
 
 
-## Plano de Implementação — 2 Correções
+# Diagnóstico e Correção: getPropostas retornando vazio
 
-### Item 1: Mapeamento de aliases de colunas configurável pelo admin
+## Problema Identificado
 
-**Problema**: Os aliases de colunas para importação estão hardcoded no `LeadImporter.tsx`. Quando o admin exporta planilhas com headers como "Valor Lib." e tenta reimportar, nem sempre bate com os aliases existentes.
+A busca por CPF funciona (testConnection OK, sem erros nos logs), mas retorna "Nenhuma proposta encontrada". Dois problemas potenciais:
 
-**Solução**: Adicionar um novo card em "Configurações da Planilha" (`Leads.tsx`) onde o admin configura os aliases de cada coluna. Persistir em `system_settings` (novo campo `lead_column_aliases`). O `LeadImporter.tsx` lê essa config e usa os aliases configurados.
+### 1. `getClaims()` pode nao existir no supabase-js@2
+A edge function usa `supabaseUser.auth.getClaims(token)` que nao e um metodo padrao do supabase-js v2. O metodo correto e `getUser()`. No entanto, como testConnection funciona com badge verde, a autenticacao esta passando -- possivelmente `getClaims` existe na versao importada via esm.sh.
 
-**Arquivos**:
-- `supabase/migrations/` — nova migration: `ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS lead_column_aliases jsonb DEFAULT NULL`
-- `src/integrations/supabase/types.ts` — atualizar tipo
-- `src/pages/admin/Leads.tsx` — novo card "Mapeamento de Colunas para Importação"
-- `src/components/admin/LeadImporter.tsx` — buscar aliases do `system_settings` e usar no parse
-- `src/components/admin/LeadsTable.tsx` — ajustar headers da exportação para usar o label do sistema
+### 2. Parsing do response (causa mais provavel)
+A resposta da NewCorban pode ter estrutura diferente da esperada. O fluxo atual:
+- Edge Function retorna: `{ success: true, data: result }` (onde `result` e o JSON cru da NewCorban)
+- `invokeCorban` extrai: `data?.data` (pega `result`)
+- Frontend tenta: `Array.isArray(data) ? data : (data?.propostas || data?.data || [])`
 
-**Estrutura do JSON `lead_column_aliases`**:
-```json
-[
-  { "key": "nome", "system_label": "Nome", "aliases": ["nome", "name"] },
-  { "key": "telefone", "system_label": "Telefone", "aliases": ["telefone", "phone", "tel"] },
-  { "key": "valor_lib", "system_label": "Valor Lib.", "aliases": ["valor lib", "valor lib.", "valor_lib"] },
-  ...
-]
-```
+Se a NewCorban retorna algo como `{ success: true, propostas: [...] }` ou outra estrutura aninhada, o parsing pode falhar silenciosamente.
 
-**UI do card**:
-```text
-Mapeamento de Colunas para Importação
-┌──────────────────────────────────────────────────────────┐
-│ Coluna Sistema │ Nome Exportação │ Variações (aliases)    │
-│ nome           │ Nome            │ nome, name             │
-│ telefone       │ Telefone        │ telefone, phone, tel   │
-│ valor_lib      │ Valor Lib.      │ valor lib, valor lib.  │
-│ ...            │                 │                        │
-└──────────────────────────────────────────────────────────┘
-```
+**Nao ha logging do response body** -- impossivel diagnosticar sem ver o que a API realmente retorna.
 
-- Admin pode editar os aliases de cada coluna (campo texto, separado por vírgula)
-- O `system_label` é o nome exibido ao exportar
-- O `key` (nome interno) não é editável para não quebrar o sistema
-- A exportação usa `system_label` como header
-- A importação normaliza tudo para lowercase e tenta todos os aliases configurados
-- Se não houver config salva, usa os aliases hardcoded atuais como default
+## Plano de Correcao
 
----
+### Passo 1: Adicionar logging detalhado na Edge Function
+**Arquivo:** `supabase/functions/corban-api/index.ts`
 
-### Item 2: Nome errado no chat interno (direct chat mostra nome próprio)
-
-**Problema**: Quando o admin cria um chat direto com Gabriel, o canal é salvo com `name = "Gabriel"` (nome do alvo). Quando Gabriel abre o chat, `getChannelDisplayName` retorna `ch.name` = "Gabriel" em vez do nome do admin.
-
-**Causa**: `getChannelDisplayName` (linha 666) simplesmente retorna `ch.name` sem considerar que em chats diretos, cada participante deveria ver o nome do OUTRO.
-
-**Solução**: Alterar `getChannelDisplayName` para, em chats diretos (`!ch.is_group`), buscar o outro membro e exibir o nome dele via `profilesMap`.
-
-**Arquivo**: `src/pages/admin/InternalChat.tsx`
-
-**Lógica**:
+Adicionar logs do body enviado e do response recebido:
 ```typescript
-const getChannelDisplayName = (ch: Channel) => {
-  if (!ch.is_group) {
-    const otherUserId = getDirectChatUserId(ch);
-    if (otherUserId && profilesMap[otherUserId]) {
-      return profilesMap[otherUserId].name || profilesMap[otherUserId].email?.split('@')[0] || ch.name;
-    }
-  }
-  return ch.name;
-};
+console.log(`[corban-api] Request body:`, JSON.stringify(corbanBody))
+// ... apos parse do response:
+console.log(`[corban-api] Response status: ${corbanResponse.status}, body preview:`, 
+  responseText.substring(0, 500))
 ```
 
-Também preciso garantir que `getDirectChatUserId` funcione corretamente — ele depende de `channelMembers` que só é carregado para o canal selecionado. Para funcionar na lista lateral, precisamos ter os membros de TODOS os canais. Alternativa: extrair o outro user_id do nome do canal comparando com `user.id` nos members, ou carregar members de todos os canais de uma vez.
-
-**Abordagem**: Carregar todos os membros de todos os canais do usuário de uma vez (uma query) e armazenar em um map `allChannelMembers: Record<string, string[]>`. Usar isso no `getDirectChatUserId` e no `getChannelDisplayName`.
-
-```text
-ANTES: Gabriel vê "Gabriel" como nome do chat direto com admin
-DEPOIS: Gabriel vê "ADM Silas Carlos Dias" como nome do chat direto com admin
+### Passo 2: Substituir `getClaims` por `getUser` (seguranca)
+Trocar:
+```typescript
+const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token)
+```
+Por:
+```typescript
+const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+const userId = user.id
+const userEmail = user.email || 'unknown'
 ```
 
----
+### Passo 3: Melhorar parsing do response no frontend
+**Arquivo:** `src/pages/admin/CorbanPropostas.tsx` e `src/pages/corban/SellerPropostas.tsx`
 
-### Divisão
+Tornar o parsing mais robusto, tentando mais caminhos possiveis:
+```typescript
+const list = Array.isArray(data) 
+  ? data 
+  : (data?.propostas || data?.data || data?.result || data?.results || []);
 
-**Etapa 1** (frontend + migration): Item 2 — fix do nome no chat (rápido, sem risco)
-**Etapa 2** (frontend + migration): Item 1 — card de aliases de colunas
+// Se ainda vazio mas data tem conteudo, logar para debug
+if (list.length === 0 && data) {
+  console.warn('[CorbanPropostas] Response structure:', JSON.stringify(data).substring(0, 300));
+}
+```
 
-### Vantagens
-- Importação flexível sem depender de headers exatos
-- Admin controla completamente os mapeamentos
-- Nomes no chat direto sempre corretos independentemente de quem criou o canal
+### Passo 4: Incluir response completo no audit_log
+Adicionar o body de resposta (truncado) no campo `details` do audit_logs para permitir debug futuro sem precisar de logs ao vivo.
 
-### Desvantagens / Trade-offs
-- Mais um campo em `system_settings` para gerenciar
-- Carregar membros de todos os canais adiciona uma query extra no mount do chat
+## Resumo de Alteracoes
 
-### Checklist Manual
-- [ ] Admin exporta planilha e reimporta sem erros
-- [ ] Admin configura alias novo e importação reconhece
-- [ ] Chat direto: Gabriel vê nome do admin, admin vê "Gabriel"
-- [ ] Chat direto: preview de última mensagem mostra nome correto do remetente
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/corban-api/index.ts` | Logging detalhado + fix getClaims → getUser + response no audit |
+| `src/pages/admin/CorbanPropostas.tsx` | Parsing robusto + console.warn para debug |
+| `src/pages/corban/SellerPropostas.tsx` | Mesmo parsing robusto |
+
+## Vantagens
+- Debug imediato: apos deploy, os logs mostrarao exatamente o que a NewCorban retorna
+- Auth mais estavel com `getUser()` (metodo oficial)
+- Parsing robusto cobre multiplas estruturas de resposta
+
+## Desvantagens
+- Logging do body pode conter dados sensiveis (truncar em 500 chars mitiga)
+- Precisaremos de um segundo ciclo de ajuste apos ver o response real
+
+## Checklist Manual
+- [ ] Apos deploy, buscar CPF 154.471.528-52 novamente
+- [ ] Verificar Edge Function Logs para ver o response body real
+- [ ] Ajustar parsing se a estrutura for diferente do esperado
 
