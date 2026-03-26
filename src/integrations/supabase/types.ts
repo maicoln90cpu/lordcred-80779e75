@@ -153,6 +153,8 @@ export type Database = {
           batch_name: string | null
           conta: string | null
           contacted_at: string | null
+          corban_proposta_id: string | null
+          corban_status: string | null
           cpf: string | null
           created_at: string
           created_by: string
@@ -181,6 +183,8 @@ export type Database = {
           batch_name?: string | null
           conta?: string | null
           contacted_at?: string | null
+          corban_proposta_id?: string | null
+          corban_status?: string | null
           cpf?: string | null
           created_at?: string
           created_by: string
@@ -209,6 +213,8 @@ export type Database = {
           batch_name?: string | null
           conta?: string | null
           contacted_at?: string | null
+          corban_proposta_id?: string | null
+          corban_status?: string | null
           cpf?: string | null
           created_at?: string
           created_by?: string
