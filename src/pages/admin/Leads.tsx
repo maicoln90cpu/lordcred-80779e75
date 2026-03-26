@@ -291,8 +291,45 @@ export default function Leads() {
       if (l.status !== 'pendente') entry.contacted++;
       if (l.created_at < entry.created) entry.created = l.created_at;
     });
-    return Array.from(map.values()).sort((a, b) => b.created.localeCompare(a.created));
+    return Array.from(map.values());
   }, [allLeads]);
+
+  const sortedBatchHistory = useMemo(() => {
+    const sorted = [...batchHistory].sort((a, b) => {
+      let cmp = 0;
+      switch (batchSortField) {
+        case 'batch': cmp = a.batch.localeCompare(b.batch); break;
+        case 'seller': cmp = getSellerName(a.seller).localeCompare(getSellerName(b.seller)); break;
+        case 'total': cmp = a.total - b.total; break;
+        case 'pct': {
+          const pA = a.total > 0 ? a.contacted / a.total : 0;
+          const pB = b.total > 0 ? b.contacted / b.total : 0;
+          cmp = pA - pB; break;
+        }
+        case 'created': cmp = a.created.localeCompare(b.created); break;
+      }
+      return batchSortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [batchHistory, batchSortField, batchSortDir, sellers]);
+
+  const batchTotalPages = Math.max(1, Math.ceil(sortedBatchHistory.length / BATCH_PAGE_SIZE));
+  const paginatedBatch = sortedBatchHistory.slice((batchPage - 1) * BATCH_PAGE_SIZE, batchPage * BATCH_PAGE_SIZE);
+
+  const toggleBatchSort = (field: typeof batchSortField) => {
+    if (batchSortField === field) {
+      setBatchSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setBatchSortField(field);
+      setBatchSortDir(field === 'created' ? 'desc' : 'asc');
+    }
+    setBatchPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: typeof batchSortField }) => {
+    if (batchSortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return batchSortDir === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
 
 
   const handleDeleteBatch = async () => {
