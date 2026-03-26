@@ -499,6 +499,24 @@ export default function Users() {
                 <p className="text-xs text-muted-foreground">Número máximo de chips que este usuário pode criar</p>
               </div>
               
+              {/* Role editing */}
+              {canManageUsers && userToEdit && userToEdit.role !== 'master' && (
+                <div className="space-y-2">
+                  <Label>Tipo de Usuário</Label>
+                  <Select value={editRole} onValueChange={setEditRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="seller">Vendedor</SelectItem>
+                      <SelectItem value="support">Suporte</SelectItem>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Alterar o tipo de acesso deste usuário</p>
+                </div>
+              )}
+
               {/* Reset password section */}
               <div className="space-y-2 border-t pt-4">
                 <Button
