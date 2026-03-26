@@ -76,7 +76,7 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-7xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border/50 bg-muted/30">
           <div className="p-2 rounded-lg bg-primary/10">
