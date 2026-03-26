@@ -616,7 +616,7 @@ export default function Users() {
                   } catch (error: any) {
                     toast({ title: 'Erro', description: error.message, variant: 'destructive' });
                   } finally {
-                    setIsEditing(true);
+                    setIsEditing(false);
                   }
                 }}
               >
