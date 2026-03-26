@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy, Pencil, Check, X } from 'lucide-react';
+import { Search, Loader2, MessageCircle, ChevronRight, Phone, ChevronLeft, ArrowUpDown, Copy, Pencil, Check, X, FileText } from 'lucide-react';
+import CreatePropostaDialog from './CreatePropostaDialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /** Convert Excel serial number or ISO date to DD/MM/AAAA */
@@ -106,6 +107,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
   const [editingPhone, setEditingPhone] = useState(false);
   const [editPhoneValue, setEditPhoneValue] = useState('');
   const [page, setPage] = useState(0);
+  const [createPropostaOpen, setCreatePropostaOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const { user } = useAuth();
@@ -479,7 +481,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <label className="text-sm font-medium">Observações</label>
                 <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Anotações sobre este lead..." rows={3} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button onClick={handleSaveLead} disabled={isSaving}>
                   {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Salvar
@@ -488,7 +490,21 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Iniciar Conversa WhatsApp
                 </Button>
+                <Button variant="outline" onClick={() => setCreatePropostaOpen(true)}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Criar Proposta
+                </Button>
               </div>
+
+              <CreatePropostaDialog
+                open={createPropostaOpen}
+                onOpenChange={setCreatePropostaOpen}
+                lead={selectedLead}
+                onSuccess={(propostaId) => {
+                  toast({ title: `Proposta criada: ${propostaId}` });
+                  queryClient.invalidateQueries({ queryKey: ['my-leads-all'] });
+                }}
+              />
             </div>
           </ScrollArea>
         ) : (
