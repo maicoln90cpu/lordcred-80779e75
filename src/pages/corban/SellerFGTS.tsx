@@ -65,7 +65,7 @@ export default function SellerFGTS() {
     }
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
-      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, loginId: selectedLogin }
+      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, login_banco: selectedLogin }
     });
     setInserting(false);
     if (error) {
