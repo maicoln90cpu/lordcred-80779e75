@@ -241,10 +241,12 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
         setResponse({ success: true, data: result.data });
         toast({ title: 'Proposta criada com sucesso!' });
 
-        // If we got a proposta ID back, save it to the lead
+        // Save corban_proposta_id to the lead for status tracking
         const propostaId = result.data?.id || result.data?.proposta_id;
-        if (propostaId && lead?.id) {
-          onSuccess?.(String(propostaId));
+        if (lead?.id) {
+          const updateData: any = { corban_proposta_id: propostaId ? String(propostaId) : null, updated_at: new Date().toISOString() };
+          await supabase.from('client_leads' as any).update(updateData).eq('id', lead.id);
+          if (propostaId) onSuccess?.(String(propostaId));
         }
       }
     } catch (err: any) {
