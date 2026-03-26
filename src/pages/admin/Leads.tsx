@@ -81,6 +81,12 @@ export default function Leads() {
   const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
+  // Batch history pagination & sorting
+  const [batchPage, setBatchPage] = useState(1);
+  const [batchSortField, setBatchSortField] = useState<'batch' | 'seller' | 'total' | 'pct' | 'created'>('created');
+  const [batchSortDir, setBatchSortDir] = useState<'asc' | 'desc'>('desc');
+  const BATCH_PAGE_SIZE = 15;
+
   // Filters lifted from LeadsTable
   const [filterSeller, setFilterSeller] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
