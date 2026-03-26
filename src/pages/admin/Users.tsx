@@ -52,6 +52,7 @@ export default function Users() {
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [editRole, setEditRole] = useState<string>('seller');
 
   const { isMaster } = useAuth();
   const isRegularAdmin = userRole === 'admin'; // Administrador (not master)
@@ -360,7 +361,7 @@ export default function Users() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {isMaster && user.role !== 'master' ? (
+                        {(isMaster || isRegularAdmin) && user.role !== 'master' ? (
                           <Select
                             value={user.role}
                             onValueChange={async (value) => {
@@ -431,7 +432,7 @@ export default function Users() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditMaxChips(user.max_chips); setResetPasswordValue(''); setShowResetPassword(false); setEditDialogOpen(true); }}
+                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditMaxChips(user.max_chips); setEditRole(user.role); setResetPasswordValue(''); setShowResetPassword(false); setEditDialogOpen(true); }}
                             >
                               <Pencil className="w-4 h-4 mr-1" />Editar
                             </Button>
@@ -498,6 +499,24 @@ export default function Users() {
                 <p className="text-xs text-muted-foreground">Número máximo de chips que este usuário pode criar</p>
               </div>
               
+              {/* Role editing */}
+              {canManageUsers && userToEdit && userToEdit.role !== 'master' && (
+                <div className="space-y-2">
+                  <Label>Tipo de Usuário</Label>
+                  <Select value={editRole} onValueChange={setEditRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="seller">Vendedor</SelectItem>
+                      <SelectItem value="support">Suporte</SelectItem>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Alterar o tipo de acesso deste usuário</p>
+                </div>
+              )}
+
               {/* Reset password section */}
               <div className="space-y-2 border-t pt-4">
                 <Button
@@ -567,11 +586,30 @@ export default function Users() {
                   if (!userToEdit) return;
                   setIsEditing(true);
                   try {
+                    // Update profile
                     const { error } = await supabase
                       .from('profiles')
                       .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
                       .eq('user_id', userToEdit.user_id);
                     if (error) throw error;
+
+                    // Update role if changed
+                    if (editRole !== userToEdit.role && canManageUsers) {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const token = sessionData?.session?.access_token;
+                      if (!token) throw new Error('Sessão expirada');
+                      const response = await fetch(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user-role`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ targetUserId: userToEdit.user_id, newRole: editRole }),
+                        }
+                      );
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Erro ao atualizar role');
+                    }
+
                     toast({ title: 'Usuário atualizado' });
                     setEditDialogOpen(false);
                     fetchUsers();
