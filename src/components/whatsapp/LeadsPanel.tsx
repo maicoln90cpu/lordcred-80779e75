@@ -481,7 +481,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <label className="text-sm font-medium">Observações</label>
                 <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Anotações sobre este lead..." rows={3} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button onClick={handleSaveLead} disabled={isSaving}>
                   {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Salvar
@@ -490,8 +490,21 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Iniciar Conversa WhatsApp
                 </Button>
+                <Button variant="outline" onClick={() => setCreatePropostaOpen(true)}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Criar Proposta
+                </Button>
               </div>
-            </div>
+
+              <CreatePropostaDialog
+                open={createPropostaOpen}
+                onOpenChange={setCreatePropostaOpen}
+                lead={selectedLead}
+                onSuccess={(propostaId) => {
+                  toast({ title: `Proposta criada: ${propostaId}` });
+                  queryClient.invalidateQueries({ queryKey: ['my-leads-all'] });
+                }}
+              />
           </ScrollArea>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
