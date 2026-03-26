@@ -129,8 +129,18 @@ Deno.serve(async (req) => {
         break
       }
       case 'listQueueFGTS': {
+        const fgtsFilters = params?.filters || {}
+        if (!fgtsFilters.data) {
+          const now = new Date()
+          const from = new Date(now)
+          from.setDate(from.getDate() - 90)
+          fgtsFilters.data = {
+            startDate: from.toISOString().split('T')[0],
+            endDate: now.toISOString().split('T')[0],
+          }
+        }
         corbanBody.requestType = 'listQueueFGTS'
-        corbanBody.filters = params?.filters || {}
+        corbanBody.filters = fgtsFilters
         break
       }
       case 'createProposta': {
