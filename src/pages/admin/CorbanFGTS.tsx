@@ -31,8 +31,10 @@ export default function CorbanFGTS() {
   const [logins, setLogins] = useState<Login[]>([]);
   const [selectedLogin, setSelectedLogin] = useState('');
   const [loadingLogins, setLoadingLogins] = useState(false);
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 90); return d;
+  });
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
 
   // Fetch logins when instituicao changes
   useEffect(() => {
