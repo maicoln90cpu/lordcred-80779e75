@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Save, Loader2, Pencil, Check, X, PackageSearch, Columns3, Rows3 } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, Pencil, Check, X, PackageSearch, Columns3, Rows3, GripVertical, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface Tab { id: string; tab_name: string; sort_order: number; }
 interface Column { id: string; tab_id: string; column_name: string; sort_order: number; }
@@ -28,6 +29,15 @@ export default function ProductInfo() {
   const [editingColId, setEditingColId] = useState<string | null>(null);
   const [editColName, setEditColName] = useState('');
   const [cellEdits, setCellEdits] = useState<Record<string, string>>({});
+
+  // Drag state
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
+  const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  // Sort state
+  const [sortColId, setSortColId] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const { data: tabs = [], isLoading: loadingTabs } = useQuery({
     queryKey: ['product-info-tabs'],
@@ -85,6 +95,74 @@ export default function ProductInfo() {
 
   const setCellValue = (rowId: string, colId: string, value: string) => {
     setCellEdits(prev => ({ ...prev, [`${rowId}::${colId}`]: value }));
+  };
+
+  // Sorted rows (client-side only, does not affect DB)
+  const sortedRows = useMemo(() => {
+    if (!sortColId) return rows;
+    const sorted = [...rows].sort((a, b) => {
+      const aVal = getCellContent(a.id, sortColId);
+      const bVal = getCellContent(b.id, sortColId);
+      const aNum = parseFloat(aVal);
+      const bNum = parseFloat(bVal);
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return sortDir === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+      const cmp = aVal.localeCompare(bVal, 'pt-BR', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [rows, cells, cellEdits, sortColId, sortDir]);
+
+  const handleColumnSort = (colId: string) => {
+    if (sortColId === colId) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortColId(null); setSortDir('asc'); }
+    } else {
+      setSortColId(colId);
+      setSortDir('asc');
+    }
+  };
+
+  // Drag-and-drop row reorder
+  const handleRowDragStart = (idx: number, rowId: string) => {
+    setDragRowId(rowId);
+    dragIdxRef.current = idx;
+  };
+
+  const handleRowDragOver = (e: React.DragEvent, rowId: string) => {
+    e.preventDefault();
+    setDropTargetRowId(rowId);
+  };
+
+  const handleRowDrop = async (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    const fromIdx = dragIdxRef.current;
+    if (fromIdx === null || fromIdx === dropIdx) {
+      setDragRowId(null);
+      setDropTargetRowId(null);
+      return;
+    }
+    const reordered = [...rows];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(dropIdx, 0, moved);
+    setDragRowId(null);
+    setDropTargetRowId(null);
+
+    // Batch update sort_order
+    const updates = reordered.map((r, i) => ({ id: r.id, tab_id: r.tab_id, sort_order: i }));
+    for (const u of updates) {
+      await supabase.from('product_info_rows').update({ sort_order: u.sort_order }).eq('id', u.id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['product-info-rows', activeTab] });
+    // Clear client sort when manually reordering
+    setSortColId(null);
+    setSortDir('asc');
+  };
+
+  const handleRowDragEnd = () => {
+    setDragRowId(null);
+    setDropTargetRowId(null);
   };
 
   const handleAddRow = async () => {
@@ -166,7 +244,6 @@ export default function ProductInfo() {
   };
 
   const hasPendingEdits = Object.keys(cellEdits).length > 0;
-  const currentTab = tabs.find(t => t.id === activeTab);
 
   if (loadingTabs) {
     return (
@@ -207,7 +284,7 @@ export default function ProductInfo() {
           </Button>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setCellEdits({}); setActiveTab(v); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setCellEdits({}); setActiveTab(v); setSortColId(null); setSortDir('asc'); }}>
           <TabsList className="flex-wrap h-auto gap-1.5 bg-muted/50 p-1.5 rounded-xl">
             {tabs.map(tab => (
               <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
@@ -269,7 +346,7 @@ export default function ProductInfo() {
                       <Table>
                          <TableHeader className="sticky top-0 z-10">
                           <TableRow className="bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/5 border-b border-border/50">
-                            <TableHead className="w-10 text-center text-xs font-medium text-muted-foreground">#</TableHead>
+                            <TableHead className="w-14 text-center text-xs font-medium text-muted-foreground">#</TableHead>
                             {columns.map(col => (
                               <TableHead key={col.id} className="min-w-[160px] text-xs font-semibold uppercase tracking-wide text-foreground/80 text-center">
                                 {editingColId === col.id ? (
@@ -286,7 +363,18 @@ export default function ProductInfo() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-center gap-1.5 group/col">
-                                    <span>{col.column_name}</span>
+                                    <button
+                                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                                      onClick={() => handleColumnSort(col.id)}
+                                      title="Ordenar por esta coluna"
+                                    >
+                                      <span>{col.column_name}</span>
+                                      {sortColId === col.id ? (
+                                        sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                                      ) : (
+                                        <ArrowUpDown className="w-3 h-3 opacity-0 group-hover/col:opacity-50 transition-opacity" />
+                                      )}
+                                    </button>
                                     <div className="flex items-center gap-0.5 opacity-0 group-hover/col:opacity-100 transition-opacity">
                                       <Pencil
                                         className="w-3 h-3 cursor-pointer text-muted-foreground hover:text-foreground"
@@ -305,7 +393,7 @@ export default function ProductInfo() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {rows.length === 0 ? (
+                          {sortedRows.length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={columns.length + 2} className="text-center text-muted-foreground py-12">
                                 <Rows3 className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -314,15 +402,34 @@ export default function ProductInfo() {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            rows.map((row, idx) => (
-                              <TableRow key={row.id} className="group/row hover:bg-muted/20 even:bg-muted/10 border-b border-border/30">
-                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-10 align-middle">{idx + 1}</TableCell>
+                            sortedRows.map((row, idx) => (
+                              <TableRow
+                                key={row.id}
+                                draggable={!sortColId}
+                                onDragStart={() => handleRowDragStart(idx, row.id)}
+                                onDragOver={(e) => handleRowDragOver(e, row.id)}
+                                onDrop={(e) => handleRowDrop(e, idx)}
+                                onDragEnd={handleRowDragEnd}
+                                className={cn(
+                                  "group/row hover:bg-muted/20 even:bg-muted/10 border-b border-border/30 transition-all",
+                                  dragRowId === row.id && "opacity-40",
+                                  dropTargetRowId === row.id && dragRowId !== row.id && "border-t-2 border-t-primary"
+                                )}
+                              >
+                                <TableCell className="text-center text-xs text-muted-foreground font-mono w-14 align-middle">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {!sortColId && (
+                                      <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing shrink-0" />
+                                    )}
+                                    {idx + 1}
+                                  </div>
+                                </TableCell>
                                 {columns.map(col => (
                                   <TableCell key={col.id} className="p-1.5 text-center align-middle">
                                     <Textarea
                                       value={getCellContent(row.id, col.id)}
                                       onChange={e => setCellValue(row.id, col.id, e.target.value)}
-                                      className="min-h-[48px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-3 py-2 text-center whitespace-pre-wrap"
+                                      className="min-h-[72px] text-sm resize-y border-transparent bg-transparent hover:bg-background hover:border-border/50 focus:bg-background focus:border-primary/50 transition-colors rounded-md px-3 py-2 text-center whitespace-pre-wrap"
                                     />
                                   </TableCell>
                                 ))}

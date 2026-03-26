@@ -105,7 +105,7 @@ export default function ProductInfoPanel({ open, onOpenChange }: ProductInfoPane
 
               {tabs.map(tab => (
                 <TabsContent key={tab.id} value={tab.id} className="flex-1 min-h-0 mt-3">
-                  <ScrollArea className="h-[58vh]">
+                  <ScrollArea className="h-[65vh]">
                     {columns.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                         <PackageSearch className="w-10 h-10 mb-3 opacity-20" />
