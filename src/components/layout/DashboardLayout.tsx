@@ -125,6 +125,8 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
       { label: 'Assets/Tabelas', icon: Database, href: '/admin/corban/assets', sellerHidden: true },
       { label: 'Config Corban', icon: Cog, href: '/admin/corban/config', sellerHidden: true },
+      { label: 'Minhas Propostas', icon: ClipboardList, href: '/corban/propostas', supportHidden: true },
+      { label: 'Consulta FGTS', icon: Landmark, href: '/corban/fgts', supportHidden: true },
     ],
   },
   {
