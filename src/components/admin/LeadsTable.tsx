@@ -347,6 +347,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return columnConfig.filter(c => c.visible);
   }, [columnConfig]);
 
+  const formatDateTime = (value: string | null | undefined): string => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   const renderCellValue = (lead: any, key: string) => {
     switch (key) {
       case 'valor_lib':
@@ -356,6 +363,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       case 'data_nasc':
       case 'data_ref':
         return formatDate(lead[key]);
+      case 'assigned_at':
+        return formatDateTime(lead.assigned_at);
       case 'status':
         return renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
       case 'perfil':
