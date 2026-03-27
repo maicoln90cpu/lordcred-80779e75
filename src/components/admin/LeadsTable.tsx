@@ -145,12 +145,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   });
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, actualProfile, searchTerm],
+    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, actualProfile, actualBancoSimulado, searchTerm],
     queryFn: async () => {
       let query = supabase.from('client_leads' as any).select('*').order('created_at', { ascending: false });
       if (actualSeller !== 'all') query = query.eq('assigned_to', actualSeller);
       if (actualStatus !== 'all') query = query.eq('status', actualStatus);
       if (actualBatch !== 'all') query = query.eq('batch_name', actualBatch);
+      if (actualBancoSimulado !== 'all') query = query.eq('banco_simulado', actualBancoSimulado);
       if (actualProfile === '__none__') {
         query = query.is('perfil', null);
       } else if (actualProfile !== 'all') {
@@ -166,6 +167,12 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const batchNames = useMemo(() => {
     const names = new Set<string>();
     leads.forEach((l: any) => l.batch_name && names.add(l.batch_name));
+    return Array.from(names).sort();
+  }, [leads]);
+
+  const bancoSimuladoNames = useMemo(() => {
+    const names = new Set<string>();
+    leads.forEach((l: any) => l.banco_simulado && names.add(l.banco_simulado));
     return Array.from(names).sort();
   }, [leads]);
 
