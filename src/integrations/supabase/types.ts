@@ -146,6 +146,7 @@ export type Database = {
         Row: {
           agencia: string | null
           aprovado: string | null
+          assigned_at: string | null
           assigned_to: string
           banco_codigo: string | null
           banco_nome: string | null
@@ -176,6 +177,7 @@ export type Database = {
         Insert: {
           agencia?: string | null
           aprovado?: string | null
+          assigned_at?: string | null
           assigned_to: string
           banco_codigo?: string | null
           banco_nome?: string | null
@@ -206,6 +208,7 @@ export type Database = {
         Update: {
           agencia?: string | null
           aprovado?: string | null
+          assigned_at?: string | null
           assigned_to?: string
           banco_codigo?: string | null
           banco_nome?: string | null
