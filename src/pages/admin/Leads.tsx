@@ -768,6 +768,7 @@ export default function Leads() {
               filterStatus={filterStatus}
               filterBatch={filterBatch}
               filterProfile={filterProfile}
+              filterBancoSimulado={filterBancoSimulado}
               onFiltersChange={handleFiltersChange}
               statusOptions={statusOptions}
               columnConfig={columnConfig}
