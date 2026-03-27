@@ -58,7 +58,8 @@ interface LeadsTableProps {
   filterStatus?: string;
   filterBatch?: string;
   filterProfile?: string;
-  onFiltersChange?: (filters: { seller: string; status: string; batch: string; profile: string }) => void;
+  filterBancoSimulado?: string;
+  onFiltersChange?: (filters: { seller: string; status: string; batch: string; profile: string; bancoSimulado: string }) => void;
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
   columnConfig?: ColumnConfig[];
   profileOptions?: ProfileOption[];
