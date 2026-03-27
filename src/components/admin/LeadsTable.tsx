@@ -89,17 +89,19 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const actualProfile = extProfile ?? filterProfile;
   const actualBancoSimulado = extBancoSimulado ?? filterBancoSimulado;
 
-  const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile', value: string) => {
+  const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile' | 'bancoSimulado', value: string) => {
     if (key === 'seller') setFilterSeller(value);
     if (key === 'status') setFilterStatus(value);
     if (key === 'batch') setFilterBatch(value);
     if (key === 'profile') setFilterProfile(value);
+    if (key === 'bancoSimulado') setFilterBancoSimulado(value);
     setPage(0);
     onFiltersChange?.({
       seller: key === 'seller' ? value : actualSeller,
       status: key === 'status' ? value : actualStatus,
       batch: key === 'batch' ? value : actualBatch,
       profile: key === 'profile' ? value : actualProfile,
+      bancoSimulado: key === 'bancoSimulado' ? value : actualBancoSimulado,
     });
   };
 
