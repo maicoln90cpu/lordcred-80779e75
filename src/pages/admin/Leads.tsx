@@ -72,6 +72,7 @@ const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'status', label: 'Status', visible: true },
   { key: 'assigned_to', label: 'Vendedor', visible: true },
   { key: 'batch_name', label: 'Lote', visible: true },
+  { key: 'assigned_at', label: 'Data Alteração', visible: true },
   { key: 'notes', label: 'Observações', visible: true },
 ];
 
