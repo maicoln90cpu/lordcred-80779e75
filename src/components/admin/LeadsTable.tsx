@@ -71,6 +71,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
   const [filterProfile, setFilterProfile] = useState<string>(extProfile || 'all');
+  const [filterBancoSimulado, setFilterBancoSimulado] = useState<string>(extBancoSimulado || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(0);
