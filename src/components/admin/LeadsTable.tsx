@@ -87,6 +87,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const actualStatus = extStatus ?? filterStatus;
   const actualBatch = extBatch ?? filterBatch;
   const actualProfile = extProfile ?? filterProfile;
+  const actualBancoSimulado = extBancoSimulado ?? filterBancoSimulado;
 
   const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile', value: string) => {
     if (key === 'seller') setFilterSeller(value);
