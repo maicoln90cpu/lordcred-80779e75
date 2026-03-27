@@ -362,11 +362,12 @@ export default function Leads() {
     }
   };
 
-  const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string }) => {
+  const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string; bancoSimulado: string }) => {
     setFilterSeller(filters.seller);
     setFilterStatus(filters.status);
     setFilterBatch(filters.batch);
     setFilterProfile(filters.profile);
+    setFilterBancoSimulado(filters.bancoSimulado);
   };
 
   // Export leads
