@@ -58,18 +58,20 @@ interface LeadsTableProps {
   filterStatus?: string;
   filterBatch?: string;
   filterProfile?: string;
-  onFiltersChange?: (filters: { seller: string; status: string; batch: string; profile: string }) => void;
+  filterBancoSimulado?: string;
+  onFiltersChange?: (filters: { seller: string; status: string; batch: string; profile: string; bancoSimulado: string }) => void;
   statusOptions?: Array<{ value: string; label: string; color_class: string }>;
   columnConfig?: ColumnConfig[];
   profileOptions?: ProfileOption[];
   columnAliases?: ColumnAlias[];
 }
 
-export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, filterProfile: extProfile, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig, profileOptions = [], columnAliases = DEFAULT_ALIASES }: LeadsTableProps) {
+export default function LeadsTable({ filterSeller: extSeller, filterStatus: extStatus, filterBatch: extBatch, filterProfile: extProfile, filterBancoSimulado: extBancoSimulado, onFiltersChange, statusOptions = DEFAULT_STATUS_OPTIONS, columnConfig, profileOptions = [], columnAliases = DEFAULT_ALIASES }: LeadsTableProps) {
   const [filterSeller, setFilterSeller] = useState<string>(extSeller || 'all');
   const [filterStatus, setFilterStatus] = useState<string>(extStatus || 'all');
   const [filterBatch, setFilterBatch] = useState<string>(extBatch || 'all');
   const [filterProfile, setFilterProfile] = useState<string>(extProfile || 'all');
+  const [filterBancoSimulado, setFilterBancoSimulado] = useState<string>(extBancoSimulado || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(0);
@@ -85,18 +87,21 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const actualStatus = extStatus ?? filterStatus;
   const actualBatch = extBatch ?? filterBatch;
   const actualProfile = extProfile ?? filterProfile;
+  const actualBancoSimulado = extBancoSimulado ?? filterBancoSimulado;
 
-  const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile', value: string) => {
+  const updateFilter = (key: 'seller' | 'status' | 'batch' | 'profile' | 'bancoSimulado', value: string) => {
     if (key === 'seller') setFilterSeller(value);
     if (key === 'status') setFilterStatus(value);
     if (key === 'batch') setFilterBatch(value);
     if (key === 'profile') setFilterProfile(value);
+    if (key === 'bancoSimulado') setFilterBancoSimulado(value);
     setPage(0);
     onFiltersChange?.({
       seller: key === 'seller' ? value : actualSeller,
       status: key === 'status' ? value : actualStatus,
       batch: key === 'batch' ? value : actualBatch,
       profile: key === 'profile' ? value : actualProfile,
+      bancoSimulado: key === 'bancoSimulado' ? value : actualBancoSimulado,
     });
   };
 
@@ -140,12 +145,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   });
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, actualProfile, searchTerm],
+    queryKey: ['admin-leads', actualSeller, actualStatus, actualBatch, actualProfile, actualBancoSimulado, searchTerm],
     queryFn: async () => {
       let query = supabase.from('client_leads' as any).select('*').order('created_at', { ascending: false });
       if (actualSeller !== 'all') query = query.eq('assigned_to', actualSeller);
       if (actualStatus !== 'all') query = query.eq('status', actualStatus);
       if (actualBatch !== 'all') query = query.eq('batch_name', actualBatch);
+      if (actualBancoSimulado !== 'all') query = query.eq('banco_simulado', actualBancoSimulado);
       if (actualProfile === '__none__') {
         query = query.is('perfil', null);
       } else if (actualProfile !== 'all') {
@@ -161,6 +167,12 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const batchNames = useMemo(() => {
     const names = new Set<string>();
     leads.forEach((l: any) => l.batch_name && names.add(l.batch_name));
+    return Array.from(names).sort();
+  }, [leads]);
+
+  const bancoSimuladoNames = useMemo(() => {
+    const names = new Set<string>();
+    leads.forEach((l: any) => l.banco_simulado && names.add(l.banco_simulado));
     return Array.from(names).sort();
   }, [leads]);
 
@@ -240,7 +252,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       for (let i = 0; i < ids.length; i += 50) {
         const batch = ids.slice(i, i + 50);
         const { error } = await supabase.from('client_leads' as any).update({
-          assigned_to: bulkSeller, updated_at: new Date().toISOString()
+          assigned_to: bulkSeller, assigned_at: new Date().toISOString(), updated_at: new Date().toISOString()
         }).in('id', batch);
         if (error) throw error;
       }
@@ -335,6 +347,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return columnConfig.filter(c => c.visible);
   }, [columnConfig]);
 
+  const formatDateTime = (value: string | null | undefined): string => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   const renderCellValue = (lead: any, key: string) => {
     switch (key) {
       case 'valor_lib':
@@ -344,6 +363,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       case 'data_nasc':
       case 'data_ref':
         return formatDate(lead[key]);
+      case 'assigned_at':
+        return formatDateTime(lead.assigned_at);
       case 'status':
         return renderColorBadge(lead.status, statusColorMap[lead.status] || 'bg-muted text-muted-foreground');
       case 'perfil':
@@ -376,7 +397,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Buscar nome, telefone, CPF..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="pl-9" />
@@ -408,6 +429,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectContent>
                   <SelectItem value="all">Todos os lotes</SelectItem>
                   {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={actualBancoSimulado} onValueChange={(v) => updateFilter('bancoSimulado', v)}>
+                <SelectTrigger><SelectValue placeholder="Banco Simulado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os bancos</SelectItem>
+                  {bancoSimuladoNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

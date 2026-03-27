@@ -216,9 +216,11 @@ export default function LeadImporter() {
 
     setIsImporting(true);
     try {
+      const now = new Date().toISOString();
       const batch = parsedData.map(lead => ({
         created_by: user!.id,
         assigned_to: selectedSeller,
+        assigned_at: now,
         batch_name: batchName || fileName,
         perfil: selectedProfile || null,
         data_ref: lead.data_ref,

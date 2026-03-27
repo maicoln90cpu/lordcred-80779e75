@@ -72,6 +72,7 @@ const ALL_COLUMNS: ColumnConfig[] = [
   { key: 'status', label: 'Status', visible: true },
   { key: 'assigned_to', label: 'Vendedor', visible: true },
   { key: 'batch_name', label: 'Lote', visible: true },
+  { key: 'assigned_at', label: 'Data Alteração', visible: true },
   { key: 'notes', label: 'Observações', visible: true },
 ];
 
@@ -92,6 +93,7 @@ export default function Leads() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterBatch, setFilterBatch] = useState('all');
   const [filterProfile, setFilterProfile] = useState('all');
+  const [filterBancoSimulado, setFilterBancoSimulado] = useState('all');
 
   // Status editor state
   const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
@@ -188,6 +190,7 @@ export default function Leads() {
     { key: 'data_ref', label: 'Data Ref.', visible: false },
     { key: 'status', label: 'Status', visible: true },
     { key: 'batch_name', label: 'Lote', visible: true },
+    { key: 'assigned_at', label: 'Data Alteração', visible: false },
     { key: 'notes', label: 'Observações', visible: false },
   ];
 
@@ -234,7 +237,7 @@ export default function Leads() {
       let from = 0;
       const batchSize = 1000;
       while (true) {
-        const { data, error } = await supabase.from('client_leads').select('status, batch_name, assigned_to, created_at, contacted_at, perfil').range(from, from + batchSize - 1);
+        const { data, error } = await supabase.from('client_leads').select('status, batch_name, assigned_to, created_at, contacted_at, perfil, banco_simulado').range(from, from + batchSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
         allData.push(...data);
@@ -266,8 +269,9 @@ export default function Leads() {
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
     if (filterProfile === '__none__') result = result.filter((l: any) => !l.perfil);
     else if (filterProfile !== 'all') result = result.filter((l: any) => l.perfil === filterProfile);
+    if (filterBancoSimulado !== 'all') result = result.filter((l: any) => l.banco_simulado === filterBancoSimulado);
     return result;
-  }, [allLeads, filterSeller, filterStatus, filterBatch, filterProfile]);
+  }, [allLeads, filterSeller, filterStatus, filterBatch, filterProfile, filterBancoSimulado]);
 
   const metrics = useMemo(() => {
     const total = filteredLeadsForMetrics.length;
@@ -359,11 +363,12 @@ export default function Leads() {
     }
   };
 
-  const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string }) => {
+  const handleFiltersChange = (filters: { seller: string; status: string; batch: string; profile: string; bancoSimulado: string }) => {
     setFilterSeller(filters.seller);
     setFilterStatus(filters.status);
     setFilterBatch(filters.batch);
     setFilterProfile(filters.profile);
+    setFilterBancoSimulado(filters.bancoSimulado);
   };
 
   // Export leads
@@ -764,6 +769,7 @@ export default function Leads() {
               filterStatus={filterStatus}
               filterBatch={filterBatch}
               filterProfile={filterProfile}
+              filterBancoSimulado={filterBancoSimulado}
               onFiltersChange={handleFiltersChange}
               statusOptions={statusOptions}
               columnConfig={columnConfig}
