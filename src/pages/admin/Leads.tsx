@@ -93,6 +93,7 @@ export default function Leads() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterBatch, setFilterBatch] = useState('all');
   const [filterProfile, setFilterProfile] = useState('all');
+  const [filterBancoSimulado, setFilterBancoSimulado] = useState('all');
 
   // Status editor state
   const [editingStatuses, setEditingStatuses] = useState<StatusOption[] | null>(null);
