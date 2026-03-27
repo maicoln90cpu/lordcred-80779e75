@@ -269,8 +269,9 @@ export default function Leads() {
     if (filterBatch !== 'all') result = result.filter((l: any) => l.batch_name === filterBatch);
     if (filterProfile === '__none__') result = result.filter((l: any) => !l.perfil);
     else if (filterProfile !== 'all') result = result.filter((l: any) => l.perfil === filterProfile);
+    if (filterBancoSimulado !== 'all') result = result.filter((l: any) => l.banco_simulado === filterBancoSimulado);
     return result;
-  }, [allLeads, filterSeller, filterStatus, filterBatch, filterProfile]);
+  }, [allLeads, filterSeller, filterStatus, filterBatch, filterProfile, filterBancoSimulado]);
 
   const metrics = useMemo(() => {
     const total = filteredLeadsForMetrics.length;
