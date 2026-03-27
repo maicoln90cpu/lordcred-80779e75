@@ -237,7 +237,7 @@ export default function Leads() {
       let from = 0;
       const batchSize = 1000;
       while (true) {
-        const { data, error } = await supabase.from('client_leads').select('status, batch_name, assigned_to, created_at, contacted_at, perfil').range(from, from + batchSize - 1);
+        const { data, error } = await supabase.from('client_leads').select('status, batch_name, assigned_to, created_at, contacted_at, perfil, banco_simulado').range(from, from + batchSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
         allData.push(...data);
