@@ -189,6 +189,7 @@ export default function Leads() {
     { key: 'data_ref', label: 'Data Ref.', visible: false },
     { key: 'status', label: 'Status', visible: true },
     { key: 'batch_name', label: 'Lote', visible: true },
+    { key: 'assigned_at', label: 'Data Alteração', visible: false },
     { key: 'notes', label: 'Observações', visible: false },
   ];
 
