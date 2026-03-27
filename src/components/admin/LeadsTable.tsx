@@ -431,6 +431,13 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                   {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={actualBancoSimulado} onValueChange={(v) => updateFilter('bancoSimulado', v)}>
+                <SelectTrigger><SelectValue placeholder="Banco Simulado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os bancos</SelectItem>
+                  {bancoSimuladoNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
             {selectedIds.size > 0 && (
