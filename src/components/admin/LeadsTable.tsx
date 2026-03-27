@@ -252,7 +252,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       for (let i = 0; i < ids.length; i += 50) {
         const batch = ids.slice(i, i + 50);
         const { error } = await supabase.from('client_leads' as any).update({
-          assigned_to: bulkSeller, updated_at: new Date().toISOString()
+          assigned_to: bulkSeller, assigned_at: new Date().toISOString(), updated_at: new Date().toISOString()
         }).in('id', batch);
         if (error) throw error;
       }

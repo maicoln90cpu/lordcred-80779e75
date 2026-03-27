@@ -199,7 +199,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
         const batch = ids.slice(i, i + 100);
         const { error } = await supabase
           .from('client_leads')
-          .update({ assigned_to: row.targetSeller, updated_at: new Date().toISOString() } as any)
+          .update({ assigned_to: row.targetSeller, assigned_at: new Date().toISOString(), updated_at: new Date().toISOString() } as any)
           .in('id', batch);
         if (error) throw error;
         updated += batch.length;
