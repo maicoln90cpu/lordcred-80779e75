@@ -27,6 +27,7 @@ import AuditLogs from "./pages/admin/AuditLogs";
 import QueueManagement from "./pages/admin/QueueManagement";
 import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
+import QuickReplies from "./pages/admin/QuickReplies";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WarmingReports from "./pages/admin/WarmingReports";
 import ProductInfo from "./pages/admin/ProductInfo";
