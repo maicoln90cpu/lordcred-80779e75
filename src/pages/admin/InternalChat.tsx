@@ -845,6 +845,8 @@ export default function InternalChat() {
                   <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 overflow-hidden">
                     {(ch as any).avatar_url ? (
                       <img src={(ch as any).avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : !ch.is_group && otherUserId && profilesMap[otherUserId]?.avatar_url ? (
+                      <img src={profilesMap[otherUserId].avatar_url!} alt="" className="w-full h-full object-cover" />
                     ) : ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
                     {/* Online indicator for direct chats */}
                     {!ch.is_group && isOnline && (
