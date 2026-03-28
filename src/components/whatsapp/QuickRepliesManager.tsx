@@ -89,7 +89,7 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
         shortCut: shortCut.trim(),
         text: text.trim(),
       };
-      if (editReply?.id) body.replyId = editReply.id;
+      if (editReply?.id) body.id = editReply.id;
 
       await supabase.functions.invoke('uazapi-api', { body });
       toast({ title: editReply ? 'Resposta atualizada' : 'Resposta criada' });
