@@ -1039,6 +1039,21 @@ export default function InternalChat() {
                         onChange={e => { setNewMessage(e.target.value); broadcastTyping(); }}
                         placeholder="Digite sua mensagem..."
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                        onPaste={e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (let i = 0; i < items.length; i++) {
+                            if (items[i].type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = items[i].getAsFile();
+                              if (file) {
+                                const url = URL.createObjectURL(file);
+                                setMediaPreview({ file, type: 'image', url });
+                              }
+                              return;
+                            }
+                          }
+                        }}
                         className="flex-1"
                       />
                       {newMessage.trim() || mediaPreview ? (
