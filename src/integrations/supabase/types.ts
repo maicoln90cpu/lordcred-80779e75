@@ -811,6 +811,7 @@ export type Database = {
           trigger_word: string
           updated_at: string
           user_id: string
+          visible_to_list: string[] | null
         }
         Insert: {
           chip_id?: string | null
@@ -824,6 +825,7 @@ export type Database = {
           trigger_word: string
           updated_at?: string
           user_id: string
+          visible_to_list?: string[] | null
         }
         Update: {
           chip_id?: string | null
@@ -837,6 +839,7 @@ export type Database = {
           trigger_word?: string
           updated_at?: string
           user_id?: string
+          visible_to_list?: string[] | null
         }
         Relationships: [
           {
