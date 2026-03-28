@@ -10,9 +10,9 @@ import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
 
 interface QuickReply {
-  id?: string;
-  shortCut: string;
-  text: string;
+  id: string;
+  trigger_word: string;
+  response_text: string;
 }
 
 interface ShortcutMatch {
@@ -23,8 +23,8 @@ interface ShortcutMatch {
   media_filename?: string | null;
 }
 
-// Cache quick replies per chip to avoid re-fetching
-const quickReplyCache: Record<string, QuickReply[]> = {};
+// Cache quick replies per user
+let quickReplyCache: { userId: string; data: QuickReply[] } | null = null;
 // Cache shortcuts per chip
 const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean; media_url?: string | null; media_type?: string | null; media_filename?: string | null }[]> = {};
 
