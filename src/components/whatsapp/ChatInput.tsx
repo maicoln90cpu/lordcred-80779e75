@@ -60,12 +60,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const lastMatchedTextRef = useRef<string>('');
 
   // Fetch quick replies when chipId changes
-  useEffect(() => {
+  const loadQuickReplies = useCallback(() => {
     if (!chipId) return;
-    if (quickReplyCache[chipId]) {
-      setQuickReplies(quickReplyCache[chipId]);
-      return;
-    }
     supabase.functions.invoke('uazapi-api', {
       body: { action: 'list-quick-replies', chipId },
     }).then(res => {
@@ -74,6 +70,27 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       setQuickReplies(replies);
     }).catch(() => {});
   }, [chipId]);
+
+  useEffect(() => {
+    if (!chipId) return;
+    if (quickReplyCache[chipId]) {
+      setQuickReplies(quickReplyCache[chipId]);
+      return;
+    }
+    loadQuickReplies();
+  }, [chipId, loadQuickReplies]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.chipId === chipId) {
+        delete quickReplyCache[chipId!];
+        loadQuickReplies();
+      }
+    };
+    window.addEventListener('quick-replies-updated', handler);
+    return () => window.removeEventListener('quick-replies-updated', handler);
+  }, [chipId, loadQuickReplies]);
 
   // Fetch templates with trigger_word as shortcuts
   useEffect(() => {
