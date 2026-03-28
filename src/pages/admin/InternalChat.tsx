@@ -750,6 +750,19 @@ export default function InternalChat() {
     ? `${Object.values(typingUsers).join(', ')} está digitando...`
     : null;
 
+  // Render message content with clickable links
+  const renderContentWithLinks = (content: string) => {
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+    const parts = content.split(urlRegex);
+    if (parts.length === 1) return content;
+    return parts.map((part, i) => {
+      if (/(https?:\/\/[^\s<>"']+)/.test(part)) {
+        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all hover:opacity-80">{part}</a>;
+      }
+      return part;
+    });
+  };
+
   // Render media in message bubble
   const renderMedia = (msg: Message) => {
     if (!msg.media_url || !msg.media_type) return null;
