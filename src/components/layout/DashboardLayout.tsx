@@ -100,6 +100,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
       { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
       { label: 'Templates', icon: FileText, href: '/admin/templates' },
+      { label: 'Notas Rápidas', icon: Zap, href: '/admin/quick-replies' },
     ],
   },
   {

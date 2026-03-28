@@ -185,14 +185,14 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   };
 
   const selectQuickReply = (reply: QuickReply) => {
-    setMessage(reply.text);
+    setMessage(reply.response_text);
     setShowQuickReplies(false);
     inputRef.current?.focus();
   };
 
   const filteredQuickReplies = quickReplies.filter(qr =>
-    qr.shortCut.toLowerCase().includes(quickReplyFilter) ||
-    qr.text.toLowerCase().includes(quickReplyFilter)
+    qr.trigger_word.toLowerCase().includes(quickReplyFilter) ||
+    qr.response_text.toLowerCase().includes(quickReplyFilter)
   );
 
   const handleSend = () => {
