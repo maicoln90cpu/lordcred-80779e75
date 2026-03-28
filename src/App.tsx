@@ -27,6 +27,7 @@ import AuditLogs from "./pages/admin/AuditLogs";
 import QueueManagement from "./pages/admin/QueueManagement";
 import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
 import Templates from "./pages/admin/Templates";
+import QuickReplies from "./pages/admin/QuickReplies";
 import RemoteAssistance from "./pages/admin/RemoteAssistance";
 import WarmingReports from "./pages/admin/WarmingReports";
 import ProductInfo from "./pages/admin/ProductInfo";
@@ -79,6 +80,7 @@ const App = () => (
               <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
               <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
               <Route path="/admin/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+              <Route path="/admin/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
               <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
               <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
               <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />

@@ -31,7 +31,8 @@ import {
   ClipboardList,
   Landmark,
   Database,
-  Cog
+  Cog,
+  Zap
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -100,6 +101,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
       { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
       { label: 'Templates', icon: FileText, href: '/admin/templates' },
+      { label: 'Notas Rápidas', icon: Zap, href: '/admin/quick-replies' },
     ],
   },
   {

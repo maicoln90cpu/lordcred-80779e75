@@ -10,9 +10,9 @@ import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
 
 interface QuickReply {
-  id?: string;
-  shortCut: string;
-  text: string;
+  id: string;
+  trigger_word: string;
+  response_text: string;
 }
 
 interface ShortcutMatch {
@@ -23,8 +23,8 @@ interface ShortcutMatch {
   media_filename?: string | null;
 }
 
-// Cache quick replies per chip to avoid re-fetching
-const quickReplyCache: Record<string, QuickReply[]> = {};
+// Cache quick replies per user
+let quickReplyCache: { userId: string; data: QuickReply[] } | null = null;
 // Cache shortcuts per chip
 const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean; media_url?: string | null; media_type?: string | null; media_filename?: string | null }[]> = {};
 
@@ -59,38 +59,49 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const inputRef = useRef<HTMLInputElement>(null);
   const lastMatchedTextRef = useRef<string>('');
 
-  // Fetch quick replies when chipId changes
-  const loadQuickReplies = useCallback(() => {
-    if (!chipId) return;
-    supabase.functions.invoke('uazapi-api', {
-      body: { action: 'list-quick-replies', chipId },
-    }).then(res => {
-      const replies = res.data?.quickReplies || [];
-      quickReplyCache[chipId] = replies;
-      setQuickReplies(replies);
-    }).catch(() => {});
-  }, [chipId]);
+  // Fetch quick replies from local DB (user-based, not chip-based)
+  const loadQuickReplies = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('message_shortcuts')
+        .select('id, trigger_word, response_text, user_id, visible_to_list')
+        .eq('is_active', true);
+
+      if (error) return;
+
+      // Filter: own shortcuts + admin shortcuts visible to this user
+      const filtered = (data as any[] || []).filter((s: any) => {
+        if (s.user_id === user.id) return true;
+        const list = s.visible_to_list;
+        if (list && list.length > 0) return list.includes(user.id);
+        // No restriction on visible_to_list means visible to all (admin global)
+        return true;
+      }).map((s: any) => ({ id: s.id, trigger_word: s.trigger_word, response_text: s.response_text }));
+
+      quickReplyCache = { userId: user.id, data: filtered };
+      setQuickReplies(filtered);
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    if (!chipId) return;
-    if (quickReplyCache[chipId]) {
-      setQuickReplies(quickReplyCache[chipId]);
-      return;
+    if (quickReplyCache) {
+      setQuickReplies(quickReplyCache.data);
+    } else {
+      loadQuickReplies();
     }
-    loadQuickReplies();
-  }, [chipId, loadQuickReplies]);
+  }, [loadQuickReplies]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.chipId === chipId) {
-        delete quickReplyCache[chipId!];
-        loadQuickReplies();
-      }
+    const handler = () => {
+      quickReplyCache = null;
+      loadQuickReplies();
     };
     window.addEventListener('quick-replies-updated', handler);
     return () => window.removeEventListener('quick-replies-updated', handler);
-  }, [chipId, loadQuickReplies]);
+  }, [loadQuickReplies]);
 
   // Fetch templates with trigger_word as shortcuts
   useEffect(() => {
@@ -174,14 +185,14 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   };
 
   const selectQuickReply = (reply: QuickReply) => {
-    setMessage(reply.text);
+    setMessage(reply.response_text);
     setShowQuickReplies(false);
     inputRef.current?.focus();
   };
 
   const filteredQuickReplies = quickReplies.filter(qr =>
-    qr.shortCut.toLowerCase().includes(quickReplyFilter) ||
-    qr.text.toLowerCase().includes(quickReplyFilter)
+    qr.trigger_word.toLowerCase().includes(quickReplyFilter) ||
+    qr.response_text.toLowerCase().includes(quickReplyFilter)
   );
 
   const handleSend = () => {
@@ -582,8 +593,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                     onClick={() => selectQuickReply(qr)}
                     className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors border-b border-border/30 last:border-0"
                   >
-                    <span className="text-xs font-mono text-primary">/{qr.shortCut}</span>
-                    <p className="text-sm text-foreground truncate">{qr.text}</p>
+                    <span className="text-xs font-mono text-primary">/{qr.trigger_word}</span>
+                    <p className="text-sm text-foreground truncate">{qr.response_text}</p>
                   </button>
                 ))}
               </div>
