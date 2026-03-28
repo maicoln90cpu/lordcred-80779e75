@@ -1006,6 +1006,11 @@ Deno.serve(async (req) => {
         const data = await safeJson(response)
         console.log(`list-quick-replies: status=${response.status}, count=${Array.isArray(data) ? data.length : 'n/a'}`)
 
+        if (!response.ok) {
+          console.error(`list-quick-replies FAILED: status=${response.status}`, data)
+          return jsonResponse({ success: false, error: data?.error || `UazAPI returned ${response.status}`, quickReplies: [] })
+        }
+
         return jsonResponse({ success: true, quickReplies: Array.isArray(data) ? data : (data.quickReplies || data.data || []) })
       }
 
@@ -1019,6 +1024,7 @@ Deno.serve(async (req) => {
         if (deleteFlag) payload.delete = true
         if (type) payload.type = type
 
+        console.log(`edit-quick-reply: chipId=${chipId}, shortCut=${shortCut}, delete=${!!deleteFlag}, hasId=${!!id}`)
         const response = await fetchWithTimeout(`${baseUrl}/quickreply/edit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'token': chipToken },
@@ -1026,6 +1032,11 @@ Deno.serve(async (req) => {
           timeout: TIMEOUT.NORMAL,
         })
         const data = await safeJson(response)
+        console.log(`edit-quick-reply result: status=${response.status}`, data)
+
+        if (!response.ok) {
+          return jsonResponse({ success: false, error: data?.error || `UazAPI returned ${response.status}` })
+        }
 
         return jsonResponse({ success: true, data })
       }

@@ -79,6 +79,12 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
     setEditOpen(true);
   };
 
+  const dispatchCacheUpdate = () => {
+    if (chipId) {
+      window.dispatchEvent(new CustomEvent('quick-replies-updated', { detail: { chipId } }));
+    }
+  };
+
   const handleSave = async () => {
     if (!chipId || !shortCut.trim() || !text.trim()) return;
     setSaving(true);
@@ -91,11 +97,15 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
       };
       if (editReply?.id) body.id = editReply.id;
 
-      await supabase.functions.invoke('uazapi-api', { body });
+      const res = await supabase.functions.invoke('uazapi-api', { body });
+      if (res.error || res.data?.success === false) {
+        toast({ title: res.data?.error || res.error?.message || 'Erro ao salvar', variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
       toast({ title: editReply ? 'Resposta atualizada' : 'Resposta criada' });
       setEditOpen(false);
-      // Clear cache so ChatInput re-fetches
-      delete (window as any).__quickReplyCache?.[chipId];
+      dispatchCacheUpdate();
       fetchReplies();
     } catch {
       toast({ title: 'Erro ao salvar', variant: 'destructive' });
@@ -106,7 +116,7 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
   const handleDelete = async () => {
     if (!chipId || !deleteTarget) return;
     try {
-      await supabase.functions.invoke('uazapi-api', {
+      const res = await supabase.functions.invoke('uazapi-api', {
         body: {
           action: 'edit-quick-reply',
           chipId,
@@ -116,8 +126,13 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
           delete: true,
         },
       });
+      if (res.error || res.data?.success === false) {
+        toast({ title: res.data?.error || res.error?.message || 'Erro ao excluir', variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Resposta excluída' });
       setDeleteTarget(null);
+      dispatchCacheUpdate();
       fetchReplies();
     } catch {
       toast({ title: 'Erro ao excluir', variant: 'destructive' });
