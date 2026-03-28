@@ -1,31 +1,57 @@
 
+Plano de correção — Respostas Rápidas ainda não funcionando
 
-## Plan: Improve ProductInfo table cells height + add row drag reorder + column sort
+1) Diagnóstico confirmado
+- Do I know what the issue is? **Sim**.
+- O problema principal é de **falso sucesso**:
+  - `QuickRepliesManager` e `ChatInput` usam `supabase.functions.invoke(...)` sem validar `res.error` / `res.data.success`.
+  - então o toast “criada” pode aparecer mesmo quando a operação falhou.
+- Há também falha de sincronização de cache:
+  - o manager tenta limpar `window.__quickReplyCache`, mas o cache real está em `ChatInput.tsx` como variável de módulo (`quickReplyCache`), então não limpa nada.
+- Na edge `uazapi-api`, o case `edit-quick-reply` retorna `success: true` sem checar `response.ok`, mascarando erro da UazAPI.
 
-### What changes
+2) O que será alterado agora
+- `supabase/functions/uazapi-api/index.ts`
+  - Em `edit-quick-reply` e `list-quick-replies`, validar `response.ok`.
+  - Se a UazAPI falhar, retornar erro real (status/mensagem), não `success: true`.
+  - Melhorar log para rastrear criação/edição/exclusão de quick reply.
+- `src/components/whatsapp/QuickRepliesManager.tsx`
+  - Validar retorno de `invoke` corretamente (`error`, `data.error`, `data.success`).
+  - Só mostrar toast de sucesso quando a API confirmar sucesso.
+  - Em falha, mostrar toast com motivo real.
+  - Após sucesso, disparar evento global de atualização (`quick-replies-updated`) por `chipId`.
+- `src/components/whatsapp/ChatInput.tsx`
+  - Escutar evento `quick-replies-updated`.
+  - Limpar `quickReplyCache[chipId]` corretamente e recarregar quick replies.
+  - Ajustar fetch de quick replies para tratar erro real (não silencioso).
 
-**1. Increase textarea min-height (eliminate scrollbars)**
-- Change `min-h-[48px]` to `min-h-[72px]` on the Textarea cells so content displays without internal scrollbars.
+3) Melhorias diretas entregues por essa correção
+- Criação/edição/exclusão de resposta rápida deixa de ter “sucesso falso”.
+- Lista do modal e autocomplete com `/` passam a refletir dados reais sem precisar recarregar a página.
+- Erros de API ficam visíveis para o vendedor/admin (mensagem útil no toast).
 
-**2. Add drag-and-drop row reordering**
-- Add HTML5 native drag events (`draggable`, `onDragStart`, `onDragOver`, `onDrop`, `onDragEnd`) to each `TableRow` in the body.
-- Track `dragRowId` and `dropTargetRowId` in state.
-- On drop, recompute `sort_order` for all rows and batch-update via Supabase, then invalidate the rows query.
-- Add a drag handle icon (GripVertical from lucide) in the `#` column so it's clear rows are draggable.
-- Visual feedback: highlight the drop target row with a top-border accent.
+4) Vantagens / desvantagens
+- Vantagens:
+  - elimina inconsistência entre toast e estado real;
+  - reduz retrabalho operacional (“criei e sumiu”);
+  - melhora suporte/debug com logs corretos.
+- Desvantagens:
+  - haverá mais toasts de erro reais (antes eram mascarados como sucesso);
+  - pequeno aumento de chamadas de refresh após criar/editar/deletar.
 
-**3. Add column-header click sorting (client-side)**
-- Add `sortColId` and `sortDir` (`'asc' | 'desc'`) state.
-- Clicking a column header toggles sort direction (or sets it as the active sort column).
-- Sort `rows` array client-side by comparing `getCellContent(row.id, sortColId)` — smart sort that tries numeric comparison first, falls back to locale string compare.
-- Show a small `ArrowUpDown` / `ArrowUp` / `ArrowDown` icon next to the column name to indicate sort state.
-- This is purely visual/client-side ordering for viewing — does NOT change `sort_order` in DB. Drag-and-drop changes the persisted order.
+5) Checklist manual (validação fim a fim)
+- [ ] Logar como vendedor.
+- [ ] Abrir WhatsApp > Respostas Rápidas.
+- [ ] Criar `/aaa` com texto teste.
+- [ ] Confirmar que aparece imediatamente na lista.
+- [ ] No input do chat, digitar `/a` e validar sugestão `/aaa`.
+- [ ] Selecionar `/aaa` e validar preenchimento da mensagem.
+- [ ] Editar `/aaa` e validar atualização imediata na lista e no autocomplete.
+- [ ] Excluir `/aaa` e validar remoção imediata da lista e do autocomplete.
+- [ ] Repetir com outro chip para confirmar isolamento por instância.
+- [ ] Testar erro proposital (atalho inválido/duplicado) e validar toast de erro real.
 
-### Files modified
-- `src/pages/admin/ProductInfo.tsx` — all changes in this single file
-
-### Technical details
-- Drag reorder uses the same pattern as KanbanAdmin/LinksAdmin (HTML5 native drag events, batch `sort_order` update).
-- Column sort is stateless (reset when switching tabs via `setActiveTab`).
-- New imports: `GripVertical`, `ArrowUpDown`, `ArrowUp`, `ArrowDown` from lucide-react.
-
+6) Pendências
+- Para agora: nenhuma pendência crítica além desta correção.
+- Futuro (opcional):
+  - unificar quick replies com template shortcuts (`trigger_word`) em uma única fonte de dados para reduzir duplicidade de comportamento.
