@@ -59,38 +59,49 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const inputRef = useRef<HTMLInputElement>(null);
   const lastMatchedTextRef = useRef<string>('');
 
-  // Fetch quick replies when chipId changes
-  const loadQuickReplies = useCallback(() => {
-    if (!chipId) return;
-    supabase.functions.invoke('uazapi-api', {
-      body: { action: 'list-quick-replies', chipId },
-    }).then(res => {
-      const replies = res.data?.quickReplies || [];
-      quickReplyCache[chipId] = replies;
-      setQuickReplies(replies);
-    }).catch(() => {});
-  }, [chipId]);
+  // Fetch quick replies from local DB (user-based, not chip-based)
+  const loadQuickReplies = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('message_shortcuts')
+        .select('id, trigger_word, response_text, user_id, visible_to_list')
+        .eq('is_active', true);
+
+      if (error) return;
+
+      // Filter: own shortcuts + admin shortcuts visible to this user
+      const filtered = (data as any[] || []).filter((s: any) => {
+        if (s.user_id === user.id) return true;
+        const list = s.visible_to_list;
+        if (list && list.length > 0) return list.includes(user.id);
+        // No restriction on visible_to_list means visible to all (admin global)
+        return true;
+      }).map((s: any) => ({ id: s.id, trigger_word: s.trigger_word, response_text: s.response_text }));
+
+      quickReplyCache = { userId: user.id, data: filtered };
+      setQuickReplies(filtered);
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    if (!chipId) return;
-    if (quickReplyCache[chipId]) {
-      setQuickReplies(quickReplyCache[chipId]);
-      return;
+    if (quickReplyCache) {
+      setQuickReplies(quickReplyCache.data);
+    } else {
+      loadQuickReplies();
     }
-    loadQuickReplies();
-  }, [chipId, loadQuickReplies]);
+  }, [loadQuickReplies]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.chipId === chipId) {
-        delete quickReplyCache[chipId!];
-        loadQuickReplies();
-      }
+    const handler = () => {
+      quickReplyCache = null;
+      loadQuickReplies();
     };
     window.addEventListener('quick-replies-updated', handler);
     return () => window.removeEventListener('quick-replies-updated', handler);
-  }, [chipId, loadQuickReplies]);
+  }, [loadQuickReplies]);
 
   // Fetch templates with trigger_word as shortcuts
   useEffect(() => {
