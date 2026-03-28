@@ -125,25 +125,32 @@ export default function InternalChat() {
       .select('*')
       .order('updated_at', { ascending: false });
     if (data) {
-      setChannels(data);
       // Load all members for all channels to resolve direct chat names
       const channelIds = data.map(c => c.id);
+      let membersMap: Record<string, string[]> = {};
       if (channelIds.length > 0) {
         const { data: members } = await supabase
           .from('internal_channel_members')
           .select('channel_id, user_id')
           .in('channel_id', channelIds);
         if (members) {
-          const map: Record<string, string[]> = {};
           members.forEach(m => {
-            if (!map[m.channel_id]) map[m.channel_id] = [];
-            map[m.channel_id].push(m.user_id);
+            if (!membersMap[m.channel_id]) membersMap[m.channel_id] = [];
+            membersMap[m.channel_id].push(m.user_id);
           });
-          setAllChannelMembers(map);
         }
       }
+      setAllChannelMembers(membersMap);
+
+      // Filter: for non-group channels, only show ones where current user is a member
+      const filtered = data.filter(ch => {
+        if (ch.is_group) return true;
+        const members = membersMap[ch.id];
+        return members && members.includes(user?.id || '');
+      });
+      setChannels(filtered);
     }
-  }, []);
+  }, [user?.id]);
 
   // Load all users (use get_all_chat_profiles for starting new chats)
   const loadUsers = useCallback(async () => {
@@ -743,6 +750,19 @@ export default function InternalChat() {
     ? `${Object.values(typingUsers).join(', ')} está digitando...`
     : null;
 
+  // Render message content with clickable links
+  const renderContentWithLinks = (content: string) => {
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+    const parts = content.split(urlRegex);
+    if (parts.length === 1) return content;
+    return parts.map((part, i) => {
+      if (/(https?:\/\/[^\s<>"']+)/.test(part)) {
+        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all hover:opacity-80">{part}</a>;
+      }
+      return part;
+    });
+  };
+
   // Render media in message bubble
   const renderMedia = (msg: Message) => {
     if (!msg.media_url || !msg.media_type) return null;
@@ -838,6 +858,8 @@ export default function InternalChat() {
                   <div className="relative w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 overflow-hidden">
                     {(ch as any).avatar_url ? (
                       <img src={(ch as any).avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : !ch.is_group && otherUserId && profilesMap[otherUserId]?.avatar_url ? (
+                      <img src={profilesMap[otherUserId].avatar_url!} alt="" className="w-full h-full object-cover" />
                     ) : ch.is_group ? <Users className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
                     {/* Online indicator for direct chats */}
                     {!ch.is_group && isOnline && (
@@ -937,7 +959,7 @@ export default function InternalChat() {
                           )}>
                             {!isMe && <p className="text-xs font-medium opacity-70 mb-0.5">{senderName}</p>}
                             {renderMedia(msg)}
-                            {msg.content && <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>}
+                            {msg.content && <p className="text-sm whitespace-pre-wrap break-words">{renderContentWithLinks(msg.content)}</p>}
                             <p className={cn("text-[10px] mt-0.5", isMe ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatTime(msg.created_at)}</p>
                           </div>
                         </div>
@@ -1030,6 +1052,21 @@ export default function InternalChat() {
                         onChange={e => { setNewMessage(e.target.value); broadcastTyping(); }}
                         placeholder="Digite sua mensagem..."
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                        onPaste={e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (let i = 0; i < items.length; i++) {
+                            if (items[i].type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = items[i].getAsFile();
+                              if (file) {
+                                const url = URL.createObjectURL(file);
+                                setMediaPreview({ file, type: 'image', url });
+                              }
+                              return;
+                            }
+                          }
+                        }}
                         className="flex-1"
                       />
                       {newMessage.trim() || mediaPreview ? (
