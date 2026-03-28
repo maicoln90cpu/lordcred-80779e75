@@ -112,8 +112,8 @@ export default function QuickRepliesManager({ open, onOpenChange, chipId }: Quic
           chipId,
           shortCut: deleteTarget.shortCut,
           text: deleteTarget.text,
-          replyId: deleteTarget.id,
-          deleteReply: true,
+          id: deleteTarget.id,
+          delete: true,
         },
       });
       toast({ title: 'Resposta excluída' });

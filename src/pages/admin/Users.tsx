@@ -92,11 +92,18 @@ export default function Users() {
         return acc;
       }, {} as Record<string, string>);
 
+      // Use SECURITY DEFINER RPC to get master user IDs (RLS may hide master roles from non-masters)
+      let masterUserIds = new Set<string>();
+      if (!isMaster) {
+        const { data: masterIds } = await supabase.rpc('get_master_user_ids');
+        masterUserIds = new Set<string>((masterIds as string[]) || []);
+      }
+
       let enrichedUsers = (profilesData || []).map(profile => ({
         ...profile,
         chip_count: chipCounts[profile.user_id] || 0,
         max_chips: (profile as any).max_chips ?? 5,
-        role: rolesMap[profile.user_id] || 'seller',
+        role: masterUserIds.has(profile.user_id) ? 'master' : (rolesMap[profile.user_id] || 'seller'),
       }));
 
       // Filter based on caller's role
@@ -104,12 +111,12 @@ export default function Users() {
         // Master sees all non-master users, excluding self
         enrichedUsers = enrichedUsers.filter(u => u.role !== 'master');
       } else if (isSupport) {
-        // Support sees all sellers and other supports, excluding admins and self
+        // Support sees all sellers and other supports, excluding admins/masters and self
         enrichedUsers = enrichedUsers.filter(u => 
           (u.role === 'seller' || u.role === 'support') && u.user_id !== currentUser?.id
         );
       } else {
-        // Administrador vê todos exceto master, excluindo a si mesmo
+        // Administrador: exclude masters (via RPC) and self
         enrichedUsers = enrichedUsers.filter(u => u.role !== 'master' && u.user_id !== currentUser?.id);
       }
 
