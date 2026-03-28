@@ -946,7 +946,7 @@ export default function InternalChat() {
                           )}>
                             {!isMe && <p className="text-xs font-medium opacity-70 mb-0.5">{senderName}</p>}
                             {renderMedia(msg)}
-                            {msg.content && <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>}
+                            {msg.content && <p className="text-sm whitespace-pre-wrap break-words">{renderContentWithLinks(msg.content)}</p>}
                             <p className={cn("text-[10px] mt-0.5", isMe ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatTime(msg.created_at)}</p>
                           </div>
                         </div>
