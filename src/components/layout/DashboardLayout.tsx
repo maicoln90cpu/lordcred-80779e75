@@ -31,7 +31,8 @@ import {
   ClipboardList,
   Landmark,
   Database,
-  Cog
+  Cog,
+  Zap
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
