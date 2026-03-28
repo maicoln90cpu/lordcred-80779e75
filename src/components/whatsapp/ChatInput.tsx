@@ -593,8 +593,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                     onClick={() => selectQuickReply(qr)}
                     className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors border-b border-border/30 last:border-0"
                   >
-                    <span className="text-xs font-mono text-primary">/{qr.shortCut}</span>
-                    <p className="text-sm text-foreground truncate">{qr.text}</p>
+                    <span className="text-xs font-mono text-primary">/{qr.trigger_word}</span>
+                    <p className="text-sm text-foreground truncate">{qr.response_text}</p>
                   </button>
                 ))}
               </div>
