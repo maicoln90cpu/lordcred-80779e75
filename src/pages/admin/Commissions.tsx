@@ -856,15 +856,15 @@ function RatesFGTSTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vigência</TableHead>
-                <TableHead>Banco</TableHead>
-                <TableHead className="text-right">Sem Seguro</TableHead>
-                <TableHead className="text-right">Com Seguro</TableHead>
+                <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Sem Seguro" sortKey="rate_no_insurance" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Com Seguro" sortKey="rate_with_insurance" sort={sort} toggle={toggle} className="text-right" />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rates.map(r => (
+              {sortData(rates, sort, (r, k) => (r as any)[k]).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
