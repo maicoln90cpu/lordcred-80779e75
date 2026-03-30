@@ -36,6 +36,7 @@ import CorbanPropostas from "./pages/admin/CorbanPropostas";
 import CorbanFGTS from "./pages/admin/CorbanFGTS";
 import CorbanAssets from "./pages/admin/CorbanAssets";
 import CorbanConfig from "./pages/admin/CorbanConfig";
+import Commissions from "./pages/admin/Commissions";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
 import WhatsApp from "./pages/WhatsApp";
