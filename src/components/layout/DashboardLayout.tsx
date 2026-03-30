@@ -92,6 +92,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
       { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
       { label: 'Info Produtos', icon: PackageSearch, href: '/admin/product-info', sellerHidden: true },
+      { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
     ],
   },
   {
