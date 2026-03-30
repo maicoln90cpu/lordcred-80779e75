@@ -590,6 +590,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_permissions: {
+        Row: {
+          allowed_user_ids: string[]
+          created_at: string
+          feature_group: string
+          feature_key: string
+          feature_label: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_user_ids?: string[]
+          created_at?: string
+          feature_group: string
+          feature_key: string
+          feature_label: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_user_ids?: string[]
+          created_at?: string
+          feature_group?: string
+          feature_key?: string
+          feature_label?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       internal_channel_members: {
         Row: {
           channel_id: string
