@@ -81,15 +81,17 @@ function exportToExcel(data: Record<string, string | number>[], filename: string
 
 function parseExcelDate(v: any): string | null {
   if (!v) return null;
+  // Handle Date objects (from cellDates: true)
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.toISOString().slice(0, 16);
+  }
   if (typeof v === 'number') {
     const d = XLSX.SSF.parse_date_code(v);
     if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}`;
   }
   if (typeof v === 'string') {
-    // Try DD/MM/YYYY or DD/MM/YYYY HH:MM
-    const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
+    const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
     if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}`;
-    // Try ISO
     const iso = new Date(v);
     if (!isNaN(iso.getTime())) return iso.toISOString().slice(0, 16);
   }
