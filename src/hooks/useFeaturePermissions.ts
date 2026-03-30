@@ -15,6 +15,7 @@ const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   kanban: ['/admin/kanban'],
   product_info: ['/admin/product-info'],
   commissions: ['/admin/commissions'],
+  commission_reports: ['/admin/commission-reports'],
   chip_monitor: ['/admin/chip-monitor'],
   queue: ['/admin/queue'],
   webhooks: ['/admin/webhooks'],

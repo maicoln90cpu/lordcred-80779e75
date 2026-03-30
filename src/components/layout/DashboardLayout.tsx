@@ -96,6 +96,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
       { label: 'Info Produtos', icon: PackageSearch, href: '/admin/product-info', sellerHidden: true },
       { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
+      { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
     ],
   },
   {
