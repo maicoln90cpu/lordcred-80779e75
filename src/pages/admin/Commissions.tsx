@@ -717,14 +717,17 @@ function PixTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profil
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Chave PIX</TableHead>
+                <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                <SortHead label="Tipo" sortKey="pix_type" sort={sort} toggle={toggle} />
+                <SortHead label="Chave PIX" sortKey="pix_key" sort={sort} toggle={toggle} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visiblePix.map(p => (
+              {sortData(visiblePix, sort, (p, k) => {
+                if (k === 'seller_id') return getSellerName(p.seller_id);
+                return (p as any)[k];
+              }).map(p => (
                 <TableRow key={p.id}>
                   <TableCell>{getSellerName(p.seller_id)}</TableCell>
                   <TableCell><Badge variant="outline">{p.pix_type.toUpperCase()}</Badge></TableCell>
