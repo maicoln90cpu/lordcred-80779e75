@@ -42,6 +42,8 @@ export default function Users() {
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
