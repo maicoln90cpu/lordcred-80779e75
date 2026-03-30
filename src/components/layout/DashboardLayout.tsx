@@ -119,6 +119,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
       { label: 'Assistência Remota', icon: Eye, href: '/admin/remote', sellerHidden: true },
       { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
+      { label: 'Permissões', icon: Shield, href: '/admin/permissions', sellerHidden: true, supportHidden: true },
     ],
   },
   {
