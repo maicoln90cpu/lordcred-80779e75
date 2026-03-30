@@ -173,8 +173,8 @@ export default function Permissions() {
         </div>
 
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-          <strong>ℹ️ Fase 1 — Cadastro de permissões:</strong> Configure quais usuários podem acessar cada funcionalidade.
-          O enforcement (bloqueio efetivo no menu e rotas) será ativado na Fase 2 após todas as permissões serem configuradas.
+          <strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente com base nestas permissões.
+          Admins e Masters sempre têm acesso total. Se a lista de usuários estiver vazia, a funcionalidade fica aberta a todos.
         </div>
 
         <div className="relative max-w-sm">
