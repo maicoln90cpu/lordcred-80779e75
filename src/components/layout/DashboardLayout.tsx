@@ -33,7 +33,8 @@ import {
   Database,
   Cog,
   Zap,
-  DollarSign
+  DollarSign,
+  FileBarChart
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
