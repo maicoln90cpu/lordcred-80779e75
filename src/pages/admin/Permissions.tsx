@@ -172,7 +172,10 @@ export default function Permissions() {
     }
   };
 
-  const groups = features.reduce<Record<string, FeaturePermission[]>>((acc, f) => {
+  // Filter out master_admin from all views
+  const editableFeatures = features.filter(f => f.feature_key !== 'master_admin');
+
+  const groups = editableFeatures.reduce<Record<string, FeaturePermission[]>>((acc, f) => {
     (acc[f.feature_group] = acc[f.feature_group] || []).push(f);
     return acc;
   }, {});
