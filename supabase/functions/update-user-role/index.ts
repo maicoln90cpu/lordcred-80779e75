@@ -44,15 +44,16 @@ Deno.serve(async (req) => {
 
     const isMaster = requesterRole?.role === 'master'
     const isAdmin = requesterRole?.role === 'admin'
+    const isManagerRole = requesterRole?.role === 'manager'
 
-    if (!isMaster && !isAdmin) {
+    if (!isMaster && !isAdmin && !isManagerRole) {
       return new Response(JSON.stringify({ error: 'Permissão negada' }), { status: 403, headers: corsHeaders })
     }
 
     const { targetUserId, newRole } = await req.json()
 
     // Validate allowed roles
-    const allowedRoles = isMaster ? ['admin', 'seller', 'support'] : ['admin', 'seller', 'support']
+    const allowedRoles = isMaster ? ['admin', 'manager', 'seller', 'support'] : ['manager', 'seller', 'support']
     if (!targetUserId || !newRole || !allowedRoles.includes(newRole)) {
       return new Response(JSON.stringify({ error: 'Dados inválidos' }), { status: 400, headers: corsHeaders })
     }
