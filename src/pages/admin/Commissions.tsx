@@ -13,8 +13,49 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+// ==================== SORT UTILITIES ====================
+type SortDir = 'asc' | 'desc' | null;
+interface SortConfig { key: string; dir: SortDir }
+
+function useSortConfig() {
+  const [sort, setSort] = useState<SortConfig>({ key: '', dir: null });
+  const toggle = (key: string) => {
+    setSort(prev => {
+      if (prev.key !== key) return { key, dir: 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return { key: '', dir: null };
+    });
+  };
+  return { sort, toggle };
+}
+
+function sortData<T>(data: T[], sort: SortConfig, getValue: (item: T, key: string) => any): T[] {
+  if (!sort.key || !sort.dir) return data;
+  return [...data].sort((a, b) => {
+    let va = getValue(a, sort.key);
+    let vb = getValue(b, sort.key);
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return sort.dir === 'asc' ? va - vb : vb - va;
+    const sa = String(va).toLowerCase(), sb = String(vb).toLowerCase();
+    return sort.dir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+  });
+}
+
+function SortHead({ label, sortKey, sort, toggle, className }: { label: string; sortKey: string; sort: SortConfig; toggle: (k: string) => void; className?: string }) {
+  const Icon = sort.key === sortKey ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={`cursor-pointer select-none hover:bg-muted/50 ${className || ''}`} onClick={() => toggle(sortKey)}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <Icon className={`w-3 h-3 ${sort.key === sortKey ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+      </span>
+    </TableHead>
+  );
+}
 
 // ==================== TYPES ====================
 interface CommissionSale {
