@@ -657,6 +657,7 @@ function PixTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profil
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SellerPix | null>(null);
   const [form, setForm] = useState({ seller_id: userId, pix_key: '', pix_type: 'cpf' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadPix(); }, []);
 
