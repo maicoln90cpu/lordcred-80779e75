@@ -516,22 +516,26 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Semana</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Banco</TableHead>
-                  <TableHead>Prazo</TableHead>
-                  <TableHead className="text-right">Valor Lib.</TableHead>
-                  <TableHead>Seguro</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Taxa</TableHead>
-                  <TableHead className="text-right">Comissão</TableHead>
+                  <SortHead label="Semana" sortKey="week_label" sort={sort} toggle={toggle} />
+                  <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
+                  <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
+                  <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                  <SortHead label="Prazo" sortKey="term" sort={sort} toggle={toggle} />
+                  <SortHead label="Valor Lib." sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
+                  <SortHead label="Cliente" sortKey="client_name" sort={sort} toggle={toggle} />
+                  <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                  <SortHead label="Taxa" sortKey="commission_rate" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Comissão" sortKey="commission_value" sort={sort} toggle={toggle} className="text-right" />
                   {isAdmin && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSales.map(sale => (
+                {sortData(filteredSales, sort, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
+                  return (s as any)[k];
+                }).map(sale => (
                   <TableRow key={sale.id}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{sale.week_label || '-'}</TableCell>
                     <TableCell className="whitespace-nowrap">{new Date(sale.sale_date).toLocaleDateString('pt-BR')}</TableCell>
