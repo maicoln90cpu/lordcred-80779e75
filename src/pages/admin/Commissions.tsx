@@ -1172,6 +1172,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekFilter, setWeekFilter] = useState('all');
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => {
     Promise.all([
