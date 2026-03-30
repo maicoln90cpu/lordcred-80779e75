@@ -13,8 +13,49 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+// ==================== SORT UTILITIES ====================
+type SortDir = 'asc' | 'desc' | null;
+interface SortConfig { key: string; dir: SortDir }
+
+function useSortConfig() {
+  const [sort, setSort] = useState<SortConfig>({ key: '', dir: null });
+  const toggle = (key: string) => {
+    setSort(prev => {
+      if (prev.key !== key) return { key, dir: 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return { key: '', dir: null };
+    });
+  };
+  return { sort, toggle };
+}
+
+function sortData<T>(data: T[], sort: SortConfig, getValue: (item: T, key: string) => any): T[] {
+  if (!sort.key || !sort.dir) return data;
+  return [...data].sort((a, b) => {
+    let va = getValue(a, sort.key);
+    let vb = getValue(b, sort.key);
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return sort.dir === 'asc' ? va - vb : vb - va;
+    const sa = String(va).toLowerCase(), sb = String(vb).toLowerCase();
+    return sort.dir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+  });
+}
+
+function SortHead({ label, sortKey, sort, toggle, className }: { label: string; sortKey: string; sort: SortConfig; toggle: (k: string) => void; className?: string }) {
+  const Icon = sort.key === sortKey ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={`cursor-pointer select-none hover:bg-muted/50 ${className || ''}`} onClick={() => toggle(sortKey)}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <Icon className={`w-3 h-3 ${sort.key === sortKey ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+      </span>
+    </TableHead>
+  );
+}
 
 // ==================== TYPES ====================
 interface CommissionSale {
@@ -178,6 +219,7 @@ export default function Commissions() {
 function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profile[]; getSellerName: (id: string) => string; isAdmin: boolean; userId: string }) {
   const { toast } = useToast();
   const [sales, setSales] = useState<CommissionSale[]>([]);
+  const { sort, toggle } = useSortConfig();
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
@@ -474,22 +516,26 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Semana</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Banco</TableHead>
-                  <TableHead>Prazo</TableHead>
-                  <TableHead className="text-right">Valor Lib.</TableHead>
-                  <TableHead>Seguro</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Taxa</TableHead>
-                  <TableHead className="text-right">Comissão</TableHead>
+                  <SortHead label="Semana" sortKey="week_label" sort={sort} toggle={toggle} />
+                  <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
+                  <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
+                  <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                  <SortHead label="Prazo" sortKey="term" sort={sort} toggle={toggle} />
+                  <SortHead label="Valor Lib." sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
+                  <SortHead label="Cliente" sortKey="client_name" sort={sort} toggle={toggle} />
+                  <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                  <SortHead label="Taxa" sortKey="commission_rate" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Comissão" sortKey="commission_value" sort={sort} toggle={toggle} className="text-right" />
                   {isAdmin && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSales.map(sale => (
+                {sortData(filteredSales, sort, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
+                  return (s as any)[k];
+                }).map(sale => (
                   <TableRow key={sale.id}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{sale.week_label || '-'}</TableCell>
                     <TableCell className="whitespace-nowrap">{new Date(sale.sale_date).toLocaleDateString('pt-BR')}</TableCell>
@@ -611,6 +657,7 @@ function PixTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profil
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SellerPix | null>(null);
   const [form, setForm] = useState({ seller_id: userId, pix_key: '', pix_type: 'cpf' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadPix(); }, []);
 
@@ -670,14 +717,17 @@ function PixTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profil
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Chave PIX</TableHead>
+                <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                <SortHead label="Tipo" sortKey="pix_type" sort={sort} toggle={toggle} />
+                <SortHead label="Chave PIX" sortKey="pix_key" sort={sort} toggle={toggle} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visiblePix.map(p => (
+              {sortData(visiblePix, sort, (p, k) => {
+                if (k === 'seller_id') return getSellerName(p.seller_id);
+                return (p as any)[k];
+              }).map(p => (
                 <TableRow key={p.id}>
                   <TableCell>{getSellerName(p.seller_id)}</TableCell>
                   <TableCell><Badge variant="outline">{p.pix_type.toUpperCase()}</Badge></TableCell>
@@ -745,6 +795,7 @@ function RatesFGTSTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
 
@@ -805,15 +856,15 @@ function RatesFGTSTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vigência</TableHead>
-                <TableHead>Banco</TableHead>
-                <TableHead className="text-right">Sem Seguro</TableHead>
-                <TableHead className="text-right">Com Seguro</TableHead>
+                <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Sem Seguro" sortKey="rate_no_insurance" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Com Seguro" sortKey="rate_with_insurance" sort={sort} toggle={toggle} className="text-right" />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rates.map(r => (
+              {sortData(rates, sort, (r, k) => (r as any)[k]).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
@@ -859,6 +910,7 @@ function RatesCLTTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateCLT | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
 
@@ -923,18 +975,21 @@ function RatesCLTTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vigência</TableHead>
-                <TableHead>Banco</TableHead>
-                <TableHead>Prazo Min</TableHead>
-                <TableHead>Prazo Max</TableHead>
-                <TableHead>Seguro</TableHead>
-                <TableHead className="text-right">Taxa</TableHead>
-                <TableHead>Obs</TableHead>
+                <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
+                <SortHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
+                <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
+                <SortHead label="Taxa" sortKey="rate" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Obs" sortKey="obs" sort={sort} toggle={toggle} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rates.map(r => (
+              {sortData(rates, sort, (r, k) => {
+                if (k === 'has_insurance') return r.has_insurance ? 'Sim' : 'Não';
+                return (r as any)[k];
+              }).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
@@ -985,6 +1040,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
   const [weekFilter, setWeekFilter] = useState('all');
   const [productFilter, setProductFilter] = useState('all');
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadSales(); }, []);
 
@@ -1080,16 +1136,19 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Banco</TableHead>
-                {isAdmin && <TableHead>Vendedor</TableHead>}
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
+                <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
+                <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                {isAdmin && <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />}
+                <SortHead label="Valor" sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Comissão" sortKey="commission_value" sort={sort} toggle={toggle} className="text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(s => (
+              {sortData(filtered, sort, (s, k) => {
+                if (k === 'seller_id') return getSellerName(s.seller_id);
+                return (s as any)[k];
+              }).map(s => (
                 <TableRow key={s.id}>
                   <TableCell>{new Date(s.sale_date).toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
@@ -1113,6 +1172,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekFilter, setWeekFilter] = useState('all');
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => {
     Promise.all([
@@ -1185,15 +1245,18 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">CLT</TableHead>
-                  <TableHead className="text-right">FGTS</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Chave PIX</TableHead>
+                  <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                  <SortHead label="CLT" sortKey="clt" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="FGTS" sortKey="fgts" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Total" sortKey="total" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Chave PIX" sortKey="pix_key" sort={sort} toggle={toggle} />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sellerData.map(s => (
+                {sortData(sellerData, sort, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  return (s as any)[k];
+                }).map(s => (
                   <TableRow key={s.seller_id}>
                     <TableCell className="font-medium">{getSellerName(s.seller_id)}</TableCell>
                     <TableCell className="text-right">{fmt(s.clt)}</TableCell>
