@@ -795,6 +795,7 @@ function RatesFGTSTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
 
