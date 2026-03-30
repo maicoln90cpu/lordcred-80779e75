@@ -401,6 +401,7 @@ export default function Users() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="manager">Gerente</SelectItem>
                               <SelectItem value="seller">Vendedor</SelectItem>
                               <SelectItem value="support">Suporte</SelectItem>
                             </SelectContent>
