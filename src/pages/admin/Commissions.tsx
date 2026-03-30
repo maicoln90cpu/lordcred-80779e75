@@ -210,6 +210,11 @@ export default function Commissions() {
               <ConsolidadoTab profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
+          {isAdmin && (
+            <TabsContent value="config">
+              <ConfigTab />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
