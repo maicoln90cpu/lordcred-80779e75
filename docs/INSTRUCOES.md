@@ -174,36 +174,72 @@ Use o simulador para planejar a capacidade antes de adicionar novos chips.
 
 ## Matriz de Permissões por Papel
 
-O sistema possui 4 papéis: **Master** (role `admin`), **Administrador** (role `user`), **Suporte** (role `support`) e **Vendedor** (role `seller`).
+O sistema possui 5 papéis: **Master** (role `master`), **Administrador** (role `admin`), **Gerente** (role `manager`), **Suporte** (role `support`) e **Vendedor** (role `seller`).
 
-| Funcionalidade | Master | Administrador | Suporte | Vendedor |
-|---|:---:|:---:|:---:|:---:|
-| **Dashboard** | ✅ | ✅ | ✅ | ❌ |
-| **Meus Chips** (gerenciar chips) | ✅ | ✅ | ✅ | ❌ |
-| **Fila de Mensagens** (ver/gerenciar fila) | ✅ | ✅ | ✅ | ❌ |
-| **Histórico de Mensagens** | ✅ | ✅ | ✅ | ❌ |
-| **WhatsApp Chat** (conversar) | ✅ | ✅ | ✅ | ❌ |
-| **Kanban** (ver board) | ✅ | ✅ | ✅ | ❌ |
-| **Kanban** (gerenciar colunas/cards) | ✅ | ✅ | ✅ | ❌ |
-| **Leads** (ver/gerenciar) | ✅ | ✅ | ✅ | ❌ |
-| **Leads** (ver só atribuídos) | — | — | — | ✅ |
-| **Gerenciar Usuários** (criar/editar/bloquear) | ✅ | ✅ | ❌¹ | ❌ |
-| **Criar Usuários** (vendedor/suporte) | ✅ | ✅ | ✅ | ❌ |
-| **Monitor de Chips** | ✅ | ✅ | ✅ | ❌ |
-| **Health Check de Chips** | ✅ | ✅ | ✅ | ❌ |
-| **Diagnóstico de Webhooks** | ✅ | ✅ | ✅ | ❌ |
-| **Templates de Mensagens** | ✅ | ✅ | ✅ | ❌ |
-| **Performance** (métricas) | ✅ | ✅ | ❌ | ❌ |
-| **Configurações do Sistema** | ✅ | ✅ | ❌ | ❌ |
-| **Links Úteis** (gerenciar) | ✅ | ✅ | ✅ | ❌ |
-| **Tickets de Suporte** (gerenciar todos) | ✅ | ✅ | ✅ | ❌ |
-| **Tickets de Suporte** (criar/ver próprios) | — | — | — | ✅ |
-| **Chat Interno** | ✅ | ✅ | ✅ | ✅ |
-| **Assistência Remota** | ✅ | ✅ | ✅ | ❌ |
-| **Logs de Auditoria** | ✅ | ✅ | ✅ | ❌ |
-| **SQL/Migração** | ✅ | ❌ | ❌ | ❌ |
-| **Exportar Dados** | ✅ | ❌ | ❌ | ❌ |
+Master, Administrador e Gerente são considerados "privilegiados" — no banco de dados, a função `is_privileged()` (SECURITY DEFINER) retorna `true` para essas três roles. Isso consolida as políticas RLS em uma única verificação.
+
+### Hierarquia de Acesso
+
+| Papel | Nível | Pode criar | Pode alterar roles de |
+|---|---|---|---|
+| **Master** | Máximo | Admin, Gerente, Suporte, Vendedor | Todos exceto Master |
+| **Administrador** | Alto | Gerente, Suporte, Vendedor | Gerente, Suporte, Vendedor |
+| **Gerente** | Médio-Alto | Gerente, Suporte, Vendedor | Suporte, Vendedor |
+| **Suporte** | Operacional | Vendedor | Ninguém |
+| **Vendedor** | Básico | Ninguém | Ninguém |
+
+### Funcionalidades por Papel
+
+| Funcionalidade | Master | Admin | Gerente | Suporte | Vendedor |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Dashboard** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Meus Chips** (gerenciar chips) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Fila de Mensagens** (ver/gerenciar fila) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Histórico de Mensagens** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **WhatsApp Chat** (conversar) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Kanban** (ver board) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Kanban** (gerenciar colunas/cards) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Leads** (ver/gerenciar todos) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Leads** (ver só atribuídos) | — | — | — | — | ✅ |
+| **Gerenciar Usuários** (criar/editar/bloquear) | ✅ | ✅ | ✅ | ❌¹ | ❌ |
+| **Criar Usuários** (vendedor/suporte) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Monitor de Chips** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Health Check de Chips** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Diagnóstico de Webhooks** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Templates de Mensagens** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Comissões Parceiros** | ✅ | ✅ | ✅ | ✅ | ✅² |
+| **Performance** (métricas) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Configurações do Sistema** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Info Produtos** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Links Úteis** (gerenciar) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Tickets de Suporte** (gerenciar todos) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Tickets de Suporte** (criar/ver próprios) | — | — | — | — | ✅ |
+| **Chat Interno** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Assistência Remota** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Logs de Auditoria** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Permissões do Sistema** | ✅ | ✅ | ❌³ | ❌ | ❌ |
+| **SQL/Migração** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Exportar Dados** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Master Admin** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Corban (todas as funções)** | ✅ | ✅ | ✅ | ✅⁴ | ✅⁴ |
 
 ¹ Suporte pode criar usuários (vendedores e suporte) mas só visualiza os que criou. Não pode editar, bloquear ou excluir contas de outros.
 
-> **Nota:** "Master" é o papel `admin` no banco de dados. "Administrador" é o papel `user`. A nomenclatura no frontend é diferente da role técnica.
+² Vendedores podem visualizar apenas suas próprias vendas/comissões.
+
+³ Gerente tem todos os privilégios de admin **exceto** a página de Permissões, que é restrita a Master e Administrador.
+
+⁴ Suporte e Vendedor acessam apenas as funcionalidades Corban configuradas como visíveis para seu papel.
+
+### Sistema de Permissões Granulares
+
+Além da matriz de permissões por papel, o sistema possui controle granular via tabela `feature_permissions`:
+
+- **Aba "Por Cargo"**: Define quais cargos (Vendedor, Suporte, Gerente) têm acesso a cada funcionalidade. Master e Admin sempre têm acesso total.
+- **Aba "Por Usuário"**: Permite conceder acesso individual a usuários específicos, independente do cargo.
+- **Regra**: Se nenhum cargo e nenhum usuário estiver marcado para uma funcionalidade, ela fica aberta a todos (backward compatibility).
+- **Realtime**: Alterações nas permissões são refletidas automaticamente no menu lateral sem necessidade de refresh.
+
+### RLS Consolidado
+
+As políticas de Row-Level Security utilizam a função `is_privileged()` (SECURITY DEFINER) que retorna `true` para Master, Admin e Gerente. Isso consolidou ~60 políticas individuais em ~30 políticas unificadas, simplificando manutenção e garantindo consistência.

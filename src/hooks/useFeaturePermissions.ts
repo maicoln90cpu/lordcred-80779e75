@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -55,32 +55,50 @@ export function useFeaturePermissions() {
   const [permissions, setPermissions] = useState<FeaturePermission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadPermissions = useCallback(async () => {
     if (!user) {
       setPermissions([]);
       setLoading(false);
       return;
     }
-
-    const load = async () => {
-      const { data } = await supabase
-        .from('feature_permissions')
-        .select('feature_key, allowed_user_ids, allowed_roles');
-      setPermissions((data || []).map(d => ({
-        feature_key: d.feature_key,
-        allowed_user_ids: (d as any).allowed_user_ids || [],
-        allowed_roles: (d as any).allowed_roles || [],
-      })));
-      setLoading(false);
-    };
-
-    load();
+    const { data } = await supabase
+      .from('feature_permissions')
+      .select('feature_key, allowed_user_ids, allowed_roles');
+    setPermissions((data || []).map(d => ({
+      feature_key: d.feature_key,
+      allowed_user_ids: (d as any).allowed_user_ids || [],
+      allowed_roles: (d as any).allowed_roles || [],
+    })));
+    setLoading(false);
   }, [user?.id]);
+
+  useEffect(() => {
+    loadPermissions();
+  }, [loadPermissions]);
+
+  // Realtime subscription — updates menu without page refresh
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('feature-permissions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'feature_permissions' },
+        () => {
+          loadPermissions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadPermissions]);
 
   /**
    * Check if user has permission for a feature.
-   * Master always has access.
-   * Admin (role=admin) always has access.
+   * Master always has access. Admin (role=admin) always has access.
    * Manager always has access EXCEPT for 'permissions' feature.
    * For others: check allowed_roles first, then allowed_user_ids.
    * If both are empty → feature is open to all.
@@ -89,21 +107,16 @@ export function useFeaturePermissions() {
     if (!user) return false;
     if (isMaster) return true;
     if (userRole === 'admin') return true;
-    
-    // Manager has access to everything except permissions page
-    if (userRole === 'manager') {
-      return featureKey !== 'permissions';
-    }
+    if (userRole === 'manager') return featureKey !== 'permissions';
 
     const perm = permissions.find(p => p.feature_key === featureKey);
-    if (!perm) return true; // no record = allow
+    if (!perm) return true;
 
     const hasRoleAccess = perm.allowed_roles.length > 0 && perm.allowed_roles.includes(userRole);
     const hasUserAccess = perm.allowed_user_ids.length > 0 && perm.allowed_user_ids.includes(user.id);
-    
-    // If both lists are empty → open to all (backward compat)
+
     if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
-    
+
     return hasRoleAccess || hasUserAccess;
   };
 
