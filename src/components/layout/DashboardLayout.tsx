@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
+import { useFeaturePermissions, ROUTE_FEATURE_MAP } from '@/hooks/useFeaturePermissions';
 
 interface DashboardLayoutProps {
   children: ReactNode;
