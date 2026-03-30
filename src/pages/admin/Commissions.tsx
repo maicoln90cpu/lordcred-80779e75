@@ -183,6 +183,7 @@ export default function Commissions() {
             {isAdmin && <TabsTrigger value="rates-clt">Taxas CLT</TabsTrigger>}
             <TabsTrigger value="extrato">Extrato</TabsTrigger>
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
