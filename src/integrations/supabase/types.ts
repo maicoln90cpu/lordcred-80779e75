@@ -364,6 +364,30 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_settings: {
+        Row: {
+          created_at: string
+          id: string
+          payment_day: number
+          updated_at: string
+          week_start_day: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payment_day?: number
+          updated_at?: string
+          week_start_day?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payment_day?: number
+          updated_at?: string
+          week_start_day?: number
+        }
+        Relationships: []
+      }
       conversation_notes: {
         Row: {
           chip_id: string

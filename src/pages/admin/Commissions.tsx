@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // ==================== SORT UTILITIES ====================
@@ -183,6 +183,7 @@ export default function Commissions() {
             {isAdmin && <TabsTrigger value="rates-clt">Taxas CLT</TabsTrigger>}
             <TabsTrigger value="extrato">Extrato</TabsTrigger>
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
@@ -207,6 +208,11 @@ export default function Commissions() {
           {isAdmin && (
             <TabsContent value="consolidado">
               <ConsolidadoTab profiles={profiles} getSellerName={getSellerName} />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="config">
+              <ConfigTab />
             </TabsContent>
           )}
         </Tabs>
@@ -1276,6 +1282,108 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
             </Table>
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== CONFIG TAB ====================
+const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+function ConfigTab() {
+  const { toast } = useToast();
+  const [weekStartDay, setWeekStartDay] = useState<number>(5);
+  const [paymentDay, setPaymentDay] = useState<number>(4);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    const { data } = await supabase.from('commission_settings').select('*').limit(1).single();
+    if (data) {
+      setWeekStartDay((data as any).week_start_day ?? 5);
+      setPaymentDay((data as any).payment_day ?? 4);
+    }
+    setLoading(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data: existing } = await supabase.from('commission_settings').select('id').limit(1).single();
+      if (existing) {
+        const { error } = await supabase
+          .from('commission_settings')
+          .update({ week_start_day: weekStartDay, payment_day: paymentDay, updated_at: new Date().toISOString() } as any)
+          .eq('id', existing.id);
+        if (error) throw error;
+      }
+      toast({ title: 'Configurações salvas', description: `Semana inicia na ${DAY_NAMES[weekStartDay]}, pagamento na ${DAY_NAMES[paymentDay]}` });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <p className="text-center text-muted-foreground py-8">Carregando...</p>;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="w-5 h-5" />
+          Configurações de Comissões
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6 max-w-md">
+        <div className="space-y-2">
+          <Label>Dia de início da semana (para agrupamento)</Label>
+          <Select value={String(weekStartDay)} onValueChange={v => setWeekStartDay(Number(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DAY_NAMES.map((name, i) => (
+                <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Define o dia que inicia a "semana de vendas" para o cálculo do week_label. Atualmente: <strong>{DAY_NAMES[weekStartDay]}</strong>
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Dia de pagamento (referência)</Label>
+          <Select value={String(paymentDay)} onValueChange={v => setPaymentDay(Number(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DAY_NAMES.map((name, i) => (
+                <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Dia da semana em que os pagamentos são realizados (apenas para referência visual).
+          </p>
+        </div>
+
+        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+          <p><strong>Como funciona:</strong></p>
+          <p className="mt-1">Novas vendas importadas terão o <code>week_label</code> calculado automaticamente com base no dia de início configurado.</p>
+          <p className="mt-1">Vendas já existentes mantêm o label original. Para recalcular, reimporte ou edite a venda.</p>
+        </div>
+
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Salvar Configurações
+        </Button>
       </CardContent>
     </Card>
   );

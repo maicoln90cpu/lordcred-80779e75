@@ -42,6 +42,8 @@ export default function Users() {
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
@@ -439,7 +441,7 @@ export default function Users() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditMaxChips(user.max_chips); setEditRole(user.role); setResetPasswordValue(''); setShowResetPassword(false); setEditDialogOpen(true); }}
+                              onClick={() => { setUserToEdit(user); setEditName(user.name || ''); setEditEmail(user.email); setEditMaxChips(user.max_chips); setEditRole(user.role); setResetPasswordValue(''); setShowResetPassword(false); setEditDialogOpen(true); }}
                             >
                               <Pencil className="w-4 h-4 mr-1" />Editar
                             </Button>
@@ -499,6 +501,11 @@ export default function Users() {
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Nome</Label>
                 <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do usuário" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="email@exemplo.com" />
+                <p className="text-xs text-muted-foreground">Alterar o email permite migrar contas fake para o usuário real (mantém todo o histórico vinculado ao UUID)</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-max-chips">Máx. Chips</Label>
@@ -599,6 +606,23 @@ export default function Users() {
                       .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
                       .eq('user_id', userToEdit.user_id);
                     if (error) throw error;
+
+                    // Update email if changed
+                    if (editEmail.trim() && editEmail.trim() !== userToEdit.email) {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const token = sessionData?.session?.access_token;
+                      if (!token) throw new Error('Sessão expirada');
+                      const response = await fetch(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ action: 'update-email', targetUserId: userToEdit.user_id, newEmail: editEmail.trim() }),
+                        }
+                      );
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Erro ao atualizar email');
+                    }
 
                     // Update role if changed
                     if (editRole !== userToEdit.role && canManageUsers) {
