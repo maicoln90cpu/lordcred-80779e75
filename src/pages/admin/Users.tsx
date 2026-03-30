@@ -311,6 +311,10 @@ export default function Users() {
                         <RadioGroupItem value="support" id="role-support" />
                         <Label htmlFor="role-support" className="cursor-pointer">Suporte</Label>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="manager" id="role-manager" />
+                        <Label htmlFor="role-manager" className="cursor-pointer">Gerente</Label>
+                      </div>
                       {isMaster && (
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="admin" id="role-admin" />
