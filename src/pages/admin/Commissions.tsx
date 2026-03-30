@@ -1040,6 +1040,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
   const [weekFilter, setWeekFilter] = useState('all');
   const [productFilter, setProductFilter] = useState('all');
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadSales(); }, []);
 
