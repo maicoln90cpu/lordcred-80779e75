@@ -910,6 +910,7 @@ function RatesCLTTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateCLT | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+  const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
 
