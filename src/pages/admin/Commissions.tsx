@@ -1136,16 +1136,19 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Banco</TableHead>
-                {isAdmin && <TableHead>Vendedor</TableHead>}
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
+                <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
+                <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                {isAdmin && <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />}
+                <SortHead label="Valor" sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Comissão" sortKey="commission_value" sort={sort} toggle={toggle} className="text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(s => (
+              {sortData(filtered, sort, (s, k) => {
+                if (k === 'seller_id') return getSellerName(s.seller_id);
+                return (s as any)[k];
+              }).map(s => (
                 <TableRow key={s.id}>
                   <TableCell>{new Date(s.sale_date).toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
