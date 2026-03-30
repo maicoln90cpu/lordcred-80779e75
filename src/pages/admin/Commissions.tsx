@@ -293,7 +293,129 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
     else { toast({ title: 'Venda excluída' }); loadSales(); }
   };
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const findSellerByName = (name: string): string | null => {
+    if (!name) return null;
+    const q = name.toLowerCase().trim();
+    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
+    return p?.user_id || null;
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      // Try to find "Base" sheet first, fall back to first sheet
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (rows.length === 0) {
+        toast({ title: 'Planilha vazia', variant: 'destructive' });
+        setImporting(false);
+        return;
+      }
+
+      // Column mapping (flexible headers)
+      const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+      const findCol = (row: any, aliases: string[]) => {
+        const keys = Object.keys(row);
+        for (const alias of aliases) {
+          const found = keys.find(k => normalize(k) === normalize(alias));
+          if (found) return row[found];
+        }
+        return undefined;
+      };
+
+      let imported = 0;
+      let skipped = 0;
+      const batchSize = 50;
+      const payloads: any[] = [];
+
+      for (const row of rows) {
+        const rawDate = findCol(row, ['Data Pago', 'data_pago', 'Data', 'data pago']);
+        const saleDate = parseExcelDate(rawDate);
+        if (!saleDate) { skipped++; continue; }
+
+        const product = findCol(row, ['Produto', 'produto']) || '';
+        const bank = findCol(row, ['Banco', 'banco']) || '';
+        const term = parseInt(findCol(row, ['Prazo', 'prazo'])) || null;
+        const releasedValue = cleanCurrency(findCol(row, ['Valor Liberado', 'valor_liberado', 'Valor', 'valor liberado']));
+        const insuranceRaw = findCol(row, ['Seguro', 'seguro']);
+        const hasInsurance = insuranceRaw?.toString().toLowerCase().trim() === 'sim';
+        const cpf = findCol(row, ['CPF', 'cpf'])?.toString() || null;
+        const name = findCol(row, ['Nome', 'nome', 'Cliente'])?.toString() || null;
+        const phone = findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null;
+        const sellerName = findCol(row, ['Vendedor', 'vendedor'])?.toString() || '';
+        const proposalId = findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null;
+
+        if (!bank || releasedValue <= 0) { skipped++; continue; }
+
+        const sellerId = findSellerByName(sellerName) || userId;
+
+        payloads.push({
+          sale_date: saleDate,
+          product: product || 'FGTS',
+          bank,
+          term,
+          released_value: releasedValue,
+          has_insurance: hasInsurance,
+          client_cpf: cpf,
+          client_name: name,
+          client_phone: phone,
+          seller_id: sellerId,
+          external_proposal_id: proposalId,
+          created_by: userId,
+        });
+        imported++;
+      }
+
+      // Insert in batches
+      let errors = 0;
+      for (let i = 0; i < payloads.length; i += batchSize) {
+        const batch = payloads.slice(i, i + batchSize);
+        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+
+      toast({
+        title: 'Importação concluída',
+        description: `${imported - errors} registros importados${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}`,
+      });
+      loadSales();
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExportBase = () => {
+    const data = filteredSales.map(s => ({
+      'Semana': s.week_label || '',
+      'Data Pago': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Produto': s.product,
+      'Banco': s.bank,
+      'Prazo': s.term || '',
+      'Valor Liberado': s.released_value,
+      'Seguro': s.has_insurance ? 'Sim' : 'Não',
+      'CPF': s.client_cpf || '',
+      'Nome': s.client_name || '',
+      'Telefone': s.client_phone || '',
+      'Vendedor': getSellerName(s.seller_id),
+      'ID': s.external_proposal_id || '',
+      'Taxa %': s.commission_rate,
+      'Comissão': s.commission_value,
+    }));
+    exportToExcel(data, 'comissoes_base.xlsx', 'Base');
+    toast({ title: 'Exportado com sucesso' });
+  };
 
   return (
     <Card>
@@ -304,9 +426,24 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             Vendas / Comissões
           </CardTitle>
           {isAdmin && (
-            <Button onClick={openCreate} size="sm">
-              <Plus className="w-4 h-4 mr-1" /> Nova Venda
-            </Button>
+            <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportBase} disabled={filteredSales.length === 0}>
+                <Download className="w-4 h-4 mr-1" /> Exportar
+              </Button>
+              <Button onClick={openCreate} size="sm">
+                <Plus className="w-4 h-4 mr-1" /> Nova Venda
+              </Button>
+            </div>
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
