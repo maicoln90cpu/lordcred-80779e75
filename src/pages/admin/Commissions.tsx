@@ -1006,12 +1006,37 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const totalLiberado = filtered.reduce((a, s) => a + s.released_value, 0);
   const totalComissao = filtered.reduce((a, s) => a + s.commission_value, 0);
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const handleExportExtrato = () => {
+    const data = filtered.map(s => ({
+      'Data': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Produto': s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product,
+      'Banco': s.bank,
+      'Vendedor': getSellerName(s.seller_id),
+      'Valor Liberado': s.released_value,
+      'Comissão': s.commission_value,
+    }));
+    data.push({
+      'Data': 'TOTAL',
+      'Produto': '',
+      'Banco': '',
+      'Vendedor': '',
+      'Valor Liberado': totalLiberado,
+      'Comissão': totalComissao,
+    });
+    exportToExcel(data, 'extrato_comissoes.xlsx', 'Extrato');
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5" /> Extrato</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5" /> Extrato</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleExportExtrato} disabled={filtered.length === 0}>
+            <Download className="w-4 h-4 mr-1" /> Exportar Excel
+          </Button>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
           {isAdmin && (
             <Select value={sellerFilter} onValueChange={setSellerFilter}>
