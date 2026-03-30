@@ -51,9 +51,19 @@ interface FeaturePermission {
 }
 
 export function useFeaturePermissions() {
-  const { user, isMaster, userRole } = useAuth();
+  const { user, isMaster, userRole, isLoading: authLoading } = useAuth();
   const [permissions, setPermissions] = useState<FeaturePermission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // If auth is still loading, skip fetching and return loading state
+  if (authLoading) {
+    return {
+      permissions: [],
+      loading: true,
+      hasPermission: () => false,
+      hasRoutePermission: () => true,
+    };
+  }
 
   const loadPermissions = useCallback(async () => {
     if (!user) {
