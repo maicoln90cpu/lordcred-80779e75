@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // ==================== TYPES ====================
 interface CommissionSale {
@@ -66,6 +67,40 @@ interface Profile {
   user_id: string;
   name: string | null;
   email: string;
+}
+
+// ==================== EXPORT HELPERS ====================
+const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
+function parseExcelDate(v: any): string | null {
+  if (!v) return null;
+  if (typeof v === 'number') {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}`;
+  }
+  if (typeof v === 'string') {
+    // Try DD/MM/YYYY or DD/MM/YYYY HH:MM
+    const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
+    if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}`;
+    // Try ISO
+    const iso = new Date(v);
+    if (!isNaN(iso.getTime())) return iso.toISOString().slice(0, 16);
+  }
+  return null;
+}
+
+function cleanCurrency(v: any): number {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  const s = String(v).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(s) || 0;
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -146,6 +181,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
   const [search, setSearch] = useState('');
   const [weekFilter, setWeekFilter] = useState('');
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     sale_date: '', product: 'FGTS', bank: '', term: '', released_value: '',
@@ -256,7 +293,129 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
     else { toast({ title: 'Venda excluída' }); loadSales(); }
   };
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const findSellerByName = (name: string): string | null => {
+    if (!name) return null;
+    const q = name.toLowerCase().trim();
+    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
+    return p?.user_id || null;
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      // Try to find "Base" sheet first, fall back to first sheet
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (rows.length === 0) {
+        toast({ title: 'Planilha vazia', variant: 'destructive' });
+        setImporting(false);
+        return;
+      }
+
+      // Column mapping (flexible headers)
+      const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+      const findCol = (row: any, aliases: string[]) => {
+        const keys = Object.keys(row);
+        for (const alias of aliases) {
+          const found = keys.find(k => normalize(k) === normalize(alias));
+          if (found) return row[found];
+        }
+        return undefined;
+      };
+
+      let imported = 0;
+      let skipped = 0;
+      const batchSize = 50;
+      const payloads: any[] = [];
+
+      for (const row of rows) {
+        const rawDate = findCol(row, ['Data Pago', 'data_pago', 'Data', 'data pago']);
+        const saleDate = parseExcelDate(rawDate);
+        if (!saleDate) { skipped++; continue; }
+
+        const product = findCol(row, ['Produto', 'produto']) || '';
+        const bank = findCol(row, ['Banco', 'banco']) || '';
+        const term = parseInt(findCol(row, ['Prazo', 'prazo'])) || null;
+        const releasedValue = cleanCurrency(findCol(row, ['Valor Liberado', 'valor_liberado', 'Valor', 'valor liberado']));
+        const insuranceRaw = findCol(row, ['Seguro', 'seguro']);
+        const hasInsurance = insuranceRaw?.toString().toLowerCase().trim() === 'sim';
+        const cpf = findCol(row, ['CPF', 'cpf'])?.toString() || null;
+        const name = findCol(row, ['Nome', 'nome', 'Cliente'])?.toString() || null;
+        const phone = findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null;
+        const sellerName = findCol(row, ['Vendedor', 'vendedor'])?.toString() || '';
+        const proposalId = findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null;
+
+        if (!bank || releasedValue <= 0) { skipped++; continue; }
+
+        const sellerId = findSellerByName(sellerName) || userId;
+
+        payloads.push({
+          sale_date: saleDate,
+          product: product || 'FGTS',
+          bank,
+          term,
+          released_value: releasedValue,
+          has_insurance: hasInsurance,
+          client_cpf: cpf,
+          client_name: name,
+          client_phone: phone,
+          seller_id: sellerId,
+          external_proposal_id: proposalId,
+          created_by: userId,
+        });
+        imported++;
+      }
+
+      // Insert in batches
+      let errors = 0;
+      for (let i = 0; i < payloads.length; i += batchSize) {
+        const batch = payloads.slice(i, i + batchSize);
+        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+
+      toast({
+        title: 'Importação concluída',
+        description: `${imported - errors} registros importados${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}`,
+      });
+      loadSales();
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExportBase = () => {
+    const data = filteredSales.map(s => ({
+      'Semana': s.week_label || '',
+      'Data Pago': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Produto': s.product,
+      'Banco': s.bank,
+      'Prazo': s.term || '',
+      'Valor Liberado': s.released_value,
+      'Seguro': s.has_insurance ? 'Sim' : 'Não',
+      'CPF': s.client_cpf || '',
+      'Nome': s.client_name || '',
+      'Telefone': s.client_phone || '',
+      'Vendedor': getSellerName(s.seller_id),
+      'ID': s.external_proposal_id || '',
+      'Taxa %': s.commission_rate,
+      'Comissão': s.commission_value,
+    }));
+    exportToExcel(data, 'comissoes_base.xlsx', 'Base');
+    toast({ title: 'Exportado com sucesso' });
+  };
 
   return (
     <Card>
@@ -267,9 +426,24 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             Vendas / Comissões
           </CardTitle>
           {isAdmin && (
-            <Button onClick={openCreate} size="sm">
-              <Plus className="w-4 h-4 mr-1" /> Nova Venda
-            </Button>
+            <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportBase} disabled={filteredSales.length === 0}>
+                <Download className="w-4 h-4 mr-1" /> Exportar
+              </Button>
+              <Button onClick={openCreate} size="sm">
+                <Plus className="w-4 h-4 mr-1" /> Nova Venda
+              </Button>
+            </div>
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
@@ -832,12 +1006,37 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const totalLiberado = filtered.reduce((a, s) => a + s.released_value, 0);
   const totalComissao = filtered.reduce((a, s) => a + s.commission_value, 0);
 
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const handleExportExtrato = () => {
+    const data = filtered.map(s => ({
+      'Data': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Produto': s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product,
+      'Banco': s.bank,
+      'Vendedor': getSellerName(s.seller_id),
+      'Valor Liberado': s.released_value,
+      'Comissão': s.commission_value,
+    }));
+    data.push({
+      'Data': 'TOTAL',
+      'Produto': '',
+      'Banco': '',
+      'Vendedor': '',
+      'Valor Liberado': totalLiberado,
+      'Comissão': totalComissao,
+    });
+    exportToExcel(data, 'extrato_comissoes.xlsx', 'Extrato');
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5" /> Extrato</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5" /> Extrato</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleExportExtrato} disabled={filtered.length === 0}>
+            <Download className="w-4 h-4 mr-1" /> Exportar Excel
+          </Button>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
           {isAdmin && (
             <Select value={sellerFilter} onValueChange={setSellerFilter}>
@@ -938,12 +1137,36 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   }).sort((a, b) => b.total - a.total);
 
   const grandTotal = sellerData.reduce((a, s) => a + s.total, 0);
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const handleExportConsolidado = () => {
+    const data = sellerData.map(s => ({
+      'Vendedor': getSellerName(s.seller_id),
+      'Comissão CLT': s.clt,
+      'Comissão FGTS': s.fgts,
+      'Total': s.total,
+      'Chave PIX': s.pix_key,
+    }));
+    data.push({
+      'Vendedor': 'TOTAL',
+      'Comissão CLT': sellerData.reduce((a, s) => a + s.clt, 0),
+      'Comissão FGTS': sellerData.reduce((a, s) => a + s.fgts, 0),
+      'Total': grandTotal,
+      'Chave PIX': '',
+    });
+    const suffix = weekFilter !== 'all' ? '_' + weekFilter.replace(/[\/\s]/g, '-') : '';
+    exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Consolidado Semanal</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Consolidado Semanal</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleExportConsolidado} disabled={sellerData.length === 0}>
+            <Download className="w-4 h-4 mr-1" /> Exportar Excel
+          </Button>
+        </div>
         <Select value={weekFilter} onValueChange={setWeekFilter}>
           <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
           <SelectContent>
