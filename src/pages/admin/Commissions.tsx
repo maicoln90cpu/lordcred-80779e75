@@ -181,6 +181,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
   const [search, setSearch] = useState('');
   const [weekFilter, setWeekFilter] = useState('');
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     sale_date: '', product: 'FGTS', bank: '', term: '', released_value: '',
