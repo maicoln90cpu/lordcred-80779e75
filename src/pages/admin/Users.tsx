@@ -607,6 +607,23 @@ export default function Users() {
                       .eq('user_id', userToEdit.user_id);
                     if (error) throw error;
 
+                    // Update email if changed
+                    if (editEmail.trim() && editEmail.trim() !== userToEdit.email) {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const token = sessionData?.session?.access_token;
+                      if (!token) throw new Error('Sessão expirada');
+                      const response = await fetch(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ action: 'update-email', targetUserId: userToEdit.user_id, newEmail: editEmail.trim() }),
+                        }
+                      );
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Erro ao atualizar email');
+                    }
+
                     // Update role if changed
                     if (editRole !== userToEdit.role && canManageUsers) {
                       const { data: sessionData } = await supabase.auth.getSession();
@@ -627,6 +644,11 @@ export default function Users() {
                     toast({ title: 'Usuário atualizado' });
                     setEditDialogOpen(false);
                     fetchUsers();
+                  } catch (error: any) {
+                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                  } finally {
+                    setIsEditing(false);
+                  }
                   } catch (error: any) {
                     toast({ title: 'Erro', description: error.message, variant: 'destructive' });
                   } finally {

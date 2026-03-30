@@ -112,6 +112,53 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Handle email update action
+    if (body.action === 'update-email') {
+      const { targetUserId, newEmail } = body
+
+      if (!targetUserId || !newEmail) {
+        return new Response(
+          JSON.stringify({ error: 'targetUserId and newEmail are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Only master and admin can update emails
+      if (callerRole !== 'master' && callerRole !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can update emails' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(targetUserId, {
+        email: newEmail,
+        email_confirm: true,
+      })
+
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: updateError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Update profiles table too
+      await adminClient
+        .from('profiles')
+        .update({ email: newEmail })
+        .eq('user_id', targetUserId)
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Email updated successfully' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Original create user flow
     const { email, password, name, role } = body
 
