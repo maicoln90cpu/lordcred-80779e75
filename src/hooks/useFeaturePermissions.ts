@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** Maps feature_key → route path(s) */
 const FEATURE_ROUTE_MAP: Record<string, string[]> = {
@@ -50,35 +51,30 @@ interface FeaturePermission {
   allowed_roles: string[];
 }
 
+async function fetchPermissions(): Promise<FeaturePermission[]> {
+  const { data } = await supabase
+    .from('feature_permissions')
+    .select('feature_key, allowed_user_ids, allowed_roles');
+  return (data || []).map(d => ({
+    feature_key: d.feature_key,
+    allowed_user_ids: (d as any).allowed_user_ids || [],
+    allowed_roles: (d as any).allowed_roles || [],
+  }));
+}
+
 export function useFeaturePermissions() {
   const { user, isMaster, userRole, isLoading: authLoading } = useAuth();
-  const [permissions, setPermissions] = useState<FeaturePermission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const loadPermissions = useCallback(async () => {
-    if (!user) {
-      setPermissions([]);
-      setLoading(false);
-      return;
-    }
-    const { data } = await supabase
-      .from('feature_permissions')
-      .select('feature_key, allowed_user_ids, allowed_roles');
-    setPermissions((data || []).map(d => ({
-      feature_key: d.feature_key,
-      allowed_user_ids: (d as any).allowed_user_ids || [],
-      allowed_roles: (d as any).allowed_roles || [],
-    })));
-    setLoading(false);
-  }, [user?.id]);
+  const { data: permissions = [], isLoading } = useQuery({
+    queryKey: ['feature-permissions'],
+    queryFn: fetchPermissions,
+    enabled: !!user && !authLoading,
+    staleTime: 5 * 60 * 1000, // 5 min cache
+    gcTime: 10 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (!authLoading) {
-      loadPermissions();
-    }
-  }, [loadPermissions, authLoading]);
-
-  // Realtime subscription — updates menu without page refresh
+  // Realtime subscription — invalidates React Query cache on changes
   useEffect(() => {
     if (!user || authLoading) return;
 
@@ -88,7 +84,7 @@ export function useFeaturePermissions() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'feature_permissions' },
         () => {
-          loadPermissions();
+          queryClient.invalidateQueries({ queryKey: ['feature-permissions'] });
         }
       )
       .subscribe();
@@ -96,9 +92,9 @@ export function useFeaturePermissions() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, loadPermissions, authLoading]);
+  }, [user?.id, authLoading, queryClient]);
 
-  const hasPermission = (featureKey: string): boolean => {
+  const hasPermission = useCallback((featureKey: string): boolean => {
     if (!user) return false;
     if (isMaster) return true;
     if (userRole === 'admin') return true;
@@ -113,13 +109,15 @@ export function useFeaturePermissions() {
     if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
 
     return hasRoleAccess || hasUserAccess;
-  };
+  }, [user, isMaster, userRole, permissions]);
 
-  const hasRoutePermission = (path: string): boolean => {
+  const hasRoutePermission = useCallback((path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
     if (!featureKey) return true;
     return hasPermission(featureKey);
-  };
+  }, [hasPermission]);
 
-  return { permissions, loading: loading || authLoading, hasPermission, hasRoutePermission };
+  const loading = isLoading || authLoading;
+
+  return { permissions, loading, hasPermission, hasRoutePermission };
 }
