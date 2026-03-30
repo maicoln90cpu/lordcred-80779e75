@@ -1681,6 +1681,7 @@ export type Database = {
         Args: { _channel_id: string; _user_id: string }
         Returns: boolean
       }
+      is_privileged: { Args: { _user_id?: string }; Returns: boolean }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       reset_daily_message_count: { Args: never; Returns: undefined }
       update_channel_info: {
