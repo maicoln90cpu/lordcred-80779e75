@@ -55,16 +55,6 @@ export function useFeaturePermissions() {
   const [permissions, setPermissions] = useState<FeaturePermission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // If auth is still loading, skip fetching and return loading state
-  if (authLoading) {
-    return {
-      permissions: [],
-      loading: true,
-      hasPermission: () => false,
-      hasRoutePermission: () => true,
-    };
-  }
-
   const loadPermissions = useCallback(async () => {
     if (!user) {
       setPermissions([]);
@@ -83,12 +73,14 @@ export function useFeaturePermissions() {
   }, [user?.id]);
 
   useEffect(() => {
-    loadPermissions();
-  }, [loadPermissions]);
+    if (!authLoading) {
+      loadPermissions();
+    }
+  }, [loadPermissions, authLoading]);
 
   // Realtime subscription — updates menu without page refresh
   useEffect(() => {
-    if (!user) return;
+    if (!user || authLoading) return;
 
     const channel = supabase
       .channel('feature-permissions-changes')
@@ -104,15 +96,8 @@ export function useFeaturePermissions() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, loadPermissions]);
+  }, [user?.id, loadPermissions, authLoading]);
 
-  /**
-   * Check if user has permission for a feature.
-   * Master always has access. Admin (role=admin) always has access.
-   * Manager always has access EXCEPT for 'permissions' feature.
-   * For others: check allowed_roles first, then allowed_user_ids.
-   * If both are empty → feature is open to all.
-   */
   const hasPermission = (featureKey: string): boolean => {
     if (!user) return false;
     if (isMaster) return true;
@@ -130,12 +115,11 @@ export function useFeaturePermissions() {
     return hasRoleAccess || hasUserAccess;
   };
 
-  /** Check by route path */
   const hasRoutePermission = (path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
     if (!featureKey) return true;
     return hasPermission(featureKey);
   };
 
-  return { permissions, loading, hasPermission, hasRoutePermission };
+  return { permissions, loading: loading || authLoading, hasPermission, hasRoutePermission };
 }
