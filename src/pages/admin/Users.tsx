@@ -240,6 +240,7 @@ export default function Users() {
     switch (role) {
       case 'master': return 'Master';
       case 'admin': return 'Administrador';
+      case 'manager': return 'Gerente';
       case 'seller': return 'Vendedor';
       case 'support': return 'Suporte';
       default: return role;
