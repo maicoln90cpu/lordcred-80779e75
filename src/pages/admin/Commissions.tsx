@@ -1137,12 +1137,36 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   }).sort((a, b) => b.total - a.total);
 
   const grandTotal = sellerData.reduce((a, s) => a + s.total, 0);
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (v: number) => fmtBRL(v);
+
+  const handleExportConsolidado = () => {
+    const data = sellerData.map(s => ({
+      'Vendedor': getSellerName(s.seller_id),
+      'Comissão CLT': s.clt,
+      'Comissão FGTS': s.fgts,
+      'Total': s.total,
+      'Chave PIX': s.pix_key,
+    }));
+    data.push({
+      'Vendedor': 'TOTAL',
+      'Comissão CLT': sellerData.reduce((a, s) => a + s.clt, 0),
+      'Comissão FGTS': sellerData.reduce((a, s) => a + s.fgts, 0),
+      'Total': grandTotal,
+      'Chave PIX': '',
+    });
+    const suffix = weekFilter !== 'all' ? '_' + weekFilter.replace(/[\/\s]/g, '-') : '';
+    exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Consolidado Semanal</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Consolidado Semanal</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleExportConsolidado} disabled={sellerData.length === 0}>
+            <Download className="w-4 h-4 mr-1" /> Exportar Excel
+          </Button>
+        </div>
         <Select value={weekFilter} onValueChange={setWeekFilter}>
           <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
           <SelectContent>
