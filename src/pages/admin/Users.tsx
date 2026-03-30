@@ -649,11 +649,6 @@ export default function Users() {
                   } finally {
                     setIsEditing(false);
                   }
-                  } catch (error: any) {
-                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                  } finally {
-                    setIsEditing(false);
-                  }
                 }}
               >
                 {isEditing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
