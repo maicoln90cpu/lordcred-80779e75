@@ -238,6 +238,132 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_rates_clt: {
+        Row: {
+          bank: string
+          created_at: string
+          effective_date: string
+          has_insurance: boolean
+          id: string
+          obs: string | null
+          rate: number
+          term_max: number
+          term_min: number
+        }
+        Insert: {
+          bank: string
+          created_at?: string
+          effective_date: string
+          has_insurance?: boolean
+          id?: string
+          obs?: string | null
+          rate?: number
+          term_max?: number
+          term_min?: number
+        }
+        Update: {
+          bank?: string
+          created_at?: string
+          effective_date?: string
+          has_insurance?: boolean
+          id?: string
+          obs?: string | null
+          rate?: number
+          term_max?: number
+          term_min?: number
+        }
+        Relationships: []
+      }
+      commission_rates_fgts: {
+        Row: {
+          bank: string
+          created_at: string
+          effective_date: string
+          id: string
+          rate_no_insurance: number
+          rate_with_insurance: number
+        }
+        Insert: {
+          bank: string
+          created_at?: string
+          effective_date: string
+          id?: string
+          rate_no_insurance?: number
+          rate_with_insurance?: number
+        }
+        Update: {
+          bank?: string
+          created_at?: string
+          effective_date?: string
+          id?: string
+          rate_no_insurance?: number
+          rate_with_insurance?: number
+        }
+        Relationships: []
+      }
+      commission_sales: {
+        Row: {
+          bank: string
+          client_cpf: string | null
+          client_name: string | null
+          client_phone: string | null
+          commission_rate: number | null
+          commission_value: number | null
+          created_at: string
+          created_by: string
+          external_proposal_id: string | null
+          has_insurance: boolean
+          id: string
+          product: string
+          released_value: number
+          sale_date: string
+          seller_id: string
+          term: number | null
+          updated_at: string
+          week_label: string | null
+        }
+        Insert: {
+          bank: string
+          client_cpf?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          commission_rate?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by: string
+          external_proposal_id?: string | null
+          has_insurance?: boolean
+          id?: string
+          product: string
+          released_value?: number
+          sale_date: string
+          seller_id: string
+          term?: number | null
+          updated_at?: string
+          week_label?: string | null
+        }
+        Update: {
+          bank?: string
+          client_cpf?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          commission_rate?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by?: string
+          external_proposal_id?: string | null
+          has_insurance?: boolean
+          id?: string
+          product?: string
+          released_value?: number
+          sale_date?: string
+          seller_id?: string
+          term?: number | null
+          updated_at?: string
+          week_label?: string | null
+        }
+        Relationships: []
+      }
       conversation_notes: {
         Row: {
           chip_id: string
@@ -1062,6 +1188,33 @@ export type Database = {
           name?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      seller_pix: {
+        Row: {
+          created_at: string
+          id: string
+          pix_key: string
+          pix_type: string
+          seller_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pix_key: string
+          pix_type?: string
+          seller_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pix_key?: string
+          pix_type?: string
+          seller_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
