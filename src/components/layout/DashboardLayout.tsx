@@ -32,7 +32,8 @@ import {
   Landmark,
   Database,
   Cog,
-  Zap
+  Zap,
+  DollarSign
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
