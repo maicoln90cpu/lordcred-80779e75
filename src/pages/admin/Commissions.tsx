@@ -975,18 +975,21 @@ function RatesCLTTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vigência</TableHead>
-                <TableHead>Banco</TableHead>
-                <TableHead>Prazo Min</TableHead>
-                <TableHead>Prazo Max</TableHead>
-                <TableHead>Seguro</TableHead>
-                <TableHead className="text-right">Taxa</TableHead>
-                <TableHead>Obs</TableHead>
+                <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
+                <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
+                <SortHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
+                <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
+                <SortHead label="Taxa" sortKey="rate" sort={sort} toggle={toggle} className="text-right" />
+                <SortHead label="Obs" sortKey="obs" sort={sort} toggle={toggle} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rates.map(r => (
+              {sortData(rates, sort, (r, k) => {
+                if (k === 'has_insurance') return r.has_insurance ? 'Sim' : 'Não';
+                return (r as any)[k];
+              }).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
