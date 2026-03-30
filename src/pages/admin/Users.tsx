@@ -503,6 +503,11 @@ export default function Users() {
                 <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do usuário" />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="email@exemplo.com" />
+                <p className="text-xs text-muted-foreground">Alterar o email permite migrar contas fake para o usuário real (mantém todo o histórico vinculado ao UUID)</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="edit-max-chips">Máx. Chips</Label>
                 <Input id="edit-max-chips" type="number" min={1} max={50} value={editMaxChips} onChange={(e) => setEditMaxChips(Number(e.target.value))} />
                 <p className="text-xs text-muted-foreground">Número máximo de chips que este usuário pode criar</p>
