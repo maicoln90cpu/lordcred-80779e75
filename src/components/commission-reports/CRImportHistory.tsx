@@ -1,0 +1,210 @@
+import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Loader2, Trash2, ClipboardList, AlertTriangle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+interface ImportBatch {
+  id: string;
+  module: string;
+  sheet_name: string;
+  file_name: string;
+  row_count: number;
+  imported_by: string;
+  created_at: string;
+  status: string;
+}
+
+interface Profile {
+  user_id: string;
+  name: string | null;
+  email: string;
+}
+
+interface CRImportHistoryProps {
+  moduleFilter: 'relatorios' | 'parceiros';
+}
+
+export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [deleteTarget, setDeleteTarget] = useState<ImportBatch | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageSize = 15;
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles-for-batches'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('user_id, name, email');
+      return (data || []) as Profile[];
+    }
+  });
+
+  const { data: batches = [], isLoading, refetch } = useQuery({
+    queryKey: ['cr-import-batches', moduleFilter],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('import_batches' as any)
+        .select('*')
+        .eq('module', moduleFilter)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as unknown as ImportBatch[];
+    }
+  });
+
+  const getName = (userId: string) => {
+    const p = profiles.find(pr => pr.user_id === userId);
+    return p?.name || p?.email || userId.slice(0, 8);
+  };
+
+  const sheetLabel = (s: string) => {
+    const map: Record<string, string> = { geral: 'Geral', repasse: 'Repasse', seguros: 'Seguros', base: 'Base' };
+    return map[s] || s;
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Determine which table to delete from based on sheet_name
+      const tableMap: Record<string, string> = {
+        geral: 'cr_geral',
+        repasse: 'cr_repasse',
+        seguros: 'cr_seguros',
+        base: 'commission_sales',
+      };
+      const targetTable = tableMap[deleteTarget.sheet_name];
+
+      if (targetTable) {
+        // Delete associated records first
+        const { error: dataErr } = await supabase
+          .from(targetTable as any)
+          .delete()
+          .eq('batch_id', deleteTarget.id);
+        if (dataErr) throw dataErr;
+      }
+
+      // Delete the batch record
+      const { error } = await supabase
+        .from('import_batches' as any)
+        .delete()
+        .eq('id', deleteTarget.id);
+      if (error) throw error;
+
+      toast({ title: `Lote "${deleteTarget.file_name}" excluído com sucesso` });
+      setDeleteTarget(null);
+      refetch();
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: [`cr-${deleteTarget.sheet_name}`] });
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const paginated = batches.slice(page * pageSize, (page + 1) * pageSize);
+  const totalPages = Math.ceil(batches.length / pageSize);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ClipboardList className="w-5 h-5" />
+          Histórico de Importações
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : batches.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8 text-sm">Nenhuma importação realizada.</p>
+        ) : (
+          <>
+            <div className="border rounded-lg overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Arquivo</TableHead>
+                    <TableHead>Aba</TableHead>
+                    <TableHead className="text-center">Registros</TableHead>
+                    <TableHead>Importado por</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map(batch => (
+                    <TableRow key={batch.id}>
+                      <TableCell className="font-medium text-sm">{batch.file_name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{sheetLabel(batch.sheet_name)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">{batch.row_count}</TableCell>
+                      <TableCell className="text-sm">{getName(batch.imported_by)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(batch.created_at).toLocaleDateString('pt-BR')} {new Date(batch.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                          {batch.status === 'active' ? 'Ativo' : 'Excluído'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {batch.status === 'active' && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(batch)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Excluir Lote de Importação
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Esta ação excluirá permanentemente o lote <strong>"{deleteTarget?.file_name}"</strong> e todos os <strong>{deleteTarget?.row_count}</strong> registros associados.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Excluindo...</> : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
