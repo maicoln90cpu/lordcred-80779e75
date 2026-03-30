@@ -48,7 +48,7 @@ export default function Users() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'seller' | 'support'>('seller');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'manager' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
   const [editMaxChips, setEditMaxChips] = useState(5);
   const [resetPasswordValue, setResetPasswordValue] = useState('');
@@ -240,6 +240,7 @@ export default function Users() {
     switch (role) {
       case 'master': return 'Master';
       case 'admin': return 'Administrador';
+      case 'manager': return 'Gerente';
       case 'seller': return 'Vendedor';
       case 'support': return 'Suporte';
       default: return role;
@@ -309,6 +310,10 @@ export default function Users() {
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="support" id="role-support" />
                         <Label htmlFor="role-support" className="cursor-pointer">Suporte</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="manager" id="role-manager" />
+                        <Label htmlFor="role-manager" className="cursor-pointer">Gerente</Label>
                       </div>
                       {isMaster && (
                         <div className="flex items-center space-x-2">
@@ -400,6 +405,7 @@ export default function Users() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="manager">Gerente</SelectItem>
                               <SelectItem value="seller">Vendedor</SelectItem>
                               <SelectItem value="support">Suporte</SelectItem>
                             </SelectContent>

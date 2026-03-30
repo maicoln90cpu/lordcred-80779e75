@@ -13,7 +13,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false, requireMaster = false, blockSellers = false, blockSupport = false }: ProtectedRouteProps) {
-  const { user, isMaster, isAdmin, isSeller, isSupport, isLoading, isBlocked } = useAuth();
+  const { user, isMaster, isAdmin, isManager, isSeller, isSupport, isLoading, isBlocked } = useAuth();
   const { hasRoutePermission, loading: permLoading } = useFeaturePermissions();
   const location = useLocation();
 
@@ -54,6 +54,18 @@ export default function ProtectedRoute({ children, requireAdmin = false, require
 
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/whatsapp" replace />;
+  }
+
+  // Block manager from permissions page specifically
+  if (isManager && location.pathname === '/admin/permissions') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive mb-2">Acesso Restrito</h1>
+          <p className="text-muted-foreground">Apenas Master e Administrador podem gerenciar permissões.</p>
+        </div>
+      </div>
+    );
   }
 
   // Feature permission enforcement

@@ -147,7 +147,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
-  const { user, isMaster, isAdmin, isSeller, isSupport, signOut } = useAuth();
+  const { user, isMaster, isAdmin, isManager, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
@@ -171,6 +171,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (isSeller) return 'Vendedor';
     if (isSupport) return 'Suporte';
     if (isMaster) return 'Master';
+    if (isManager) return 'Gerente';
     return 'Administrador';
   };
 
