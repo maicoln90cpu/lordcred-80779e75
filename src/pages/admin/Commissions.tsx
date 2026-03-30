@@ -219,6 +219,7 @@ export default function Commissions() {
 function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profile[]; getSellerName: (id: string) => string; isAdmin: boolean; userId: string }) {
   const { toast } = useToast();
   const [sales, setSales] = useState<CommissionSale[]>([]);
+  const { sort, toggle } = useSortConfig();
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
