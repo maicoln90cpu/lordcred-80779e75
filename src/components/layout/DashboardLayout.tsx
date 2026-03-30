@@ -171,6 +171,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (isSeller) return 'Vendedor';
     if (isSupport) return 'Suporte';
     if (isMaster) return 'Master';
+    if (isManager) return 'Gerente';
     return 'Administrador';
   };
 
