@@ -69,6 +69,40 @@ interface Profile {
   email: string;
 }
 
+// ==================== EXPORT HELPERS ====================
+const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
+function parseExcelDate(v: any): string | null {
+  if (!v) return null;
+  if (typeof v === 'number') {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}`;
+  }
+  if (typeof v === 'string') {
+    // Try DD/MM/YYYY or DD/MM/YYYY HH:MM
+    const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
+    if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}`;
+    // Try ISO
+    const iso = new Date(v);
+    if (!isNaN(iso.getTime())) return iso.toISOString().slice(0, 16);
+  }
+  return null;
+}
+
+function cleanCurrency(v: any): number {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  const s = String(v).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(s) || 0;
+}
+
 // ==================== MAIN COMPONENT ====================
 export default function Commissions() {
   const { user, isAdmin, isSeller } = useAuth();
