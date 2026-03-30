@@ -1245,15 +1245,18 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">CLT</TableHead>
-                  <TableHead className="text-right">FGTS</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Chave PIX</TableHead>
+                  <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
+                  <SortHead label="CLT" sortKey="clt" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="FGTS" sortKey="fgts" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Total" sortKey="total" sort={sort} toggle={toggle} className="text-right" />
+                  <SortHead label="Chave PIX" sortKey="pix_key" sort={sort} toggle={toggle} />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sellerData.map(s => (
+                {sortData(sellerData, sort, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  return (s as any)[k];
+                }).map(s => (
                   <TableRow key={s.seller_id}>
                     <TableCell className="font-medium">{getSellerName(s.seller_id)}</TableCell>
                     <TableCell className="text-right">{fmt(s.clt)}</TableCell>
