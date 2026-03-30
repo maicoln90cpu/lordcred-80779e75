@@ -304,6 +304,7 @@ export type Database = {
       commission_sales: {
         Row: {
           bank: string
+          batch_id: string | null
           client_cpf: string | null
           client_name: string | null
           client_phone: string | null
@@ -324,6 +325,7 @@ export type Database = {
         }
         Insert: {
           bank: string
+          batch_id?: string | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -344,6 +346,7 @@ export type Database = {
         }
         Update: {
           bank?: string
+          batch_id?: string | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -362,10 +365,20 @@ export type Database = {
           updated_at?: string
           week_label?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "commission_sales_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       commission_settings: {
         Row: {
+          bonus_rate: number
+          bonus_threshold: number | null
           created_at: string
           id: string
           payment_day: number
@@ -373,6 +386,8 @@ export type Database = {
           week_start_day: number
         }
         Insert: {
+          bonus_rate?: number
+          bonus_threshold?: number | null
           created_at?: string
           id?: string
           payment_day?: number
@@ -380,6 +395,8 @@ export type Database = {
           week_start_day?: number
         }
         Update: {
+          bonus_rate?: number
+          bonus_threshold?: number | null
           created_at?: string
           id?: string
           payment_day?: number
@@ -566,6 +583,380 @@ export type Database = {
         }
         Relationships: []
       }
+      cr_geral: {
+        Row: {
+          ade: string | null
+          banco: string | null
+          batch_id: string | null
+          cms_rep: number | null
+          cod_contrato: string | null
+          convenio: string | null
+          cpf: string | null
+          created_at: string
+          data_digitacao: string | null
+          data_pgt_cliente: string | null
+          id: string
+          idade: string | null
+          nome_cliente: string | null
+          pct_cms: number | null
+          pct_cms_bruta: number | null
+          pmts: string | null
+          prazo: number | null
+          prod_bruta: number | null
+          prod_liq: number | null
+          tipo_operacao: string | null
+        }
+        Insert: {
+          ade?: string | null
+          banco?: string | null
+          batch_id?: string | null
+          cms_rep?: number | null
+          cod_contrato?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_digitacao?: string | null
+          data_pgt_cliente?: string | null
+          id?: string
+          idade?: string | null
+          nome_cliente?: string | null
+          pct_cms?: number | null
+          pct_cms_bruta?: number | null
+          pmts?: string | null
+          prazo?: number | null
+          prod_bruta?: number | null
+          prod_liq?: number | null
+          tipo_operacao?: string | null
+        }
+        Update: {
+          ade?: string | null
+          banco?: string | null
+          batch_id?: string | null
+          cms_rep?: number | null
+          cod_contrato?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_digitacao?: string | null
+          data_pgt_cliente?: string | null
+          id?: string
+          idade?: string | null
+          nome_cliente?: string | null
+          pct_cms?: number | null
+          pct_cms_bruta?: number | null
+          pmts?: string | null
+          prazo?: number | null
+          prod_bruta?: number | null
+          prod_liq?: number | null
+          tipo_operacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cr_geral_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cr_historico_detalhado: {
+        Row: {
+          banco: string | null
+          comissao_esperada: number | null
+          comissao_recebida: number | null
+          created_at: string
+          data_pago: string | null
+          diferenca: number | null
+          gestao_id: string
+          id: string
+          nome: string | null
+          num_contrato: string | null
+          produto: string | null
+          valor_assegurado: number | null
+          valor_liberado: number | null
+        }
+        Insert: {
+          banco?: string | null
+          comissao_esperada?: number | null
+          comissao_recebida?: number | null
+          created_at?: string
+          data_pago?: string | null
+          diferenca?: number | null
+          gestao_id: string
+          id?: string
+          nome?: string | null
+          num_contrato?: string | null
+          produto?: string | null
+          valor_assegurado?: number | null
+          valor_liberado?: number | null
+        }
+        Update: {
+          banco?: string | null
+          comissao_esperada?: number | null
+          comissao_recebida?: number | null
+          created_at?: string
+          data_pago?: string | null
+          diferenca?: number | null
+          gestao_id?: string
+          id?: string
+          nome?: string | null
+          num_contrato?: string | null
+          produto?: string | null
+          valor_assegurado?: number | null
+          valor_liberado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cr_historico_detalhado_gestao_id_fkey"
+            columns: ["gestao_id"]
+            isOneToOne: false
+            referencedRelation: "cr_historico_gestao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cr_historico_gestao: {
+        Row: {
+          comissao_esperada: number | null
+          comissao_recebida: number | null
+          created_at: string
+          created_by: string
+          data_fim: string | null
+          data_inicio: string | null
+          diferenca: number | null
+          id: string
+          nome: string
+          qtd_propostas: number | null
+          valor_liberado: number | null
+        }
+        Insert: {
+          comissao_esperada?: number | null
+          comissao_recebida?: number | null
+          created_at?: string
+          created_by: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          diferenca?: number | null
+          id?: string
+          nome: string
+          qtd_propostas?: number | null
+          valor_liberado?: number | null
+        }
+        Update: {
+          comissao_esperada?: number | null
+          comissao_recebida?: number | null
+          created_at?: string
+          created_by?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          diferenca?: number | null
+          id?: string
+          nome?: string
+          qtd_propostas?: number | null
+          valor_liberado?: number | null
+        }
+        Relationships: []
+      }
+      cr_repasse: {
+        Row: {
+          ade: string | null
+          banco: string | null
+          batch_id: string | null
+          cms_rep_favorecido: number | null
+          cod_contrato: string | null
+          convenio: string | null
+          cpf: string | null
+          created_at: string
+          data_digitacao: string | null
+          data_pgt_cliente: string | null
+          favorecido: string | null
+          id: string
+          idade: string | null
+          nome_cliente: string | null
+          pct_cms: number | null
+          pct_cms_bruta: number | null
+          pct_rateio: number | null
+          pct_rateio_fixo: number | null
+          pmts: string | null
+          prazo: number | null
+          prod_bruta: number | null
+          prod_liq: number | null
+          tipo_operacao: string | null
+        }
+        Insert: {
+          ade?: string | null
+          banco?: string | null
+          batch_id?: string | null
+          cms_rep_favorecido?: number | null
+          cod_contrato?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_digitacao?: string | null
+          data_pgt_cliente?: string | null
+          favorecido?: string | null
+          id?: string
+          idade?: string | null
+          nome_cliente?: string | null
+          pct_cms?: number | null
+          pct_cms_bruta?: number | null
+          pct_rateio?: number | null
+          pct_rateio_fixo?: number | null
+          pmts?: string | null
+          prazo?: number | null
+          prod_bruta?: number | null
+          prod_liq?: number | null
+          tipo_operacao?: string | null
+        }
+        Update: {
+          ade?: string | null
+          banco?: string | null
+          batch_id?: string | null
+          cms_rep_favorecido?: number | null
+          cod_contrato?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_digitacao?: string | null
+          data_pgt_cliente?: string | null
+          favorecido?: string | null
+          id?: string
+          idade?: string | null
+          nome_cliente?: string | null
+          pct_cms?: number | null
+          pct_cms_bruta?: number | null
+          pct_rateio?: number | null
+          pct_rateio_fixo?: number | null
+          pmts?: string | null
+          prazo?: number | null
+          prod_bruta?: number | null
+          prod_liq?: number | null
+          tipo_operacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cr_repasse_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cr_rules_clt: {
+        Row: {
+          banco: string
+          created_at: string
+          data_vigencia: string
+          id: string
+          prazo_max: number
+          prazo_min: number
+          seguro: string
+          tabela_chave: string
+          taxa: number
+        }
+        Insert: {
+          banco: string
+          created_at?: string
+          data_vigencia: string
+          id?: string
+          prazo_max?: number
+          prazo_min?: number
+          seguro?: string
+          tabela_chave?: string
+          taxa?: number
+        }
+        Update: {
+          banco?: string
+          created_at?: string
+          data_vigencia?: string
+          id?: string
+          prazo_max?: number
+          prazo_min?: number
+          seguro?: string
+          tabela_chave?: string
+          taxa?: number
+        }
+        Relationships: []
+      }
+      cr_rules_fgts: {
+        Row: {
+          banco: string
+          created_at: string
+          data_vigencia: string
+          id: string
+          max_valor: number
+          min_valor: number
+          seguro: string
+          tabela_chave: string
+          taxa: number
+        }
+        Insert: {
+          banco: string
+          created_at?: string
+          data_vigencia: string
+          id?: string
+          max_valor?: number
+          min_valor?: number
+          seguro?: string
+          tabela_chave?: string
+          taxa?: number
+        }
+        Update: {
+          banco?: string
+          created_at?: string
+          data_vigencia?: string
+          id?: string
+          max_valor?: number
+          min_valor?: number
+          seguro?: string
+          tabela_chave?: string
+          taxa?: number
+        }
+        Relationships: []
+      }
+      cr_seguros: {
+        Row: {
+          batch_id: string | null
+          created_at: string
+          data_registro: string | null
+          descricao: string | null
+          id: string
+          id_seguro: string | null
+          tipo_comissao: string | null
+          valor_comissao: number | null
+        }
+        Insert: {
+          batch_id?: string | null
+          created_at?: string
+          data_registro?: string | null
+          descricao?: string | null
+          id?: string
+          id_seguro?: string | null
+          tipo_comissao?: string | null
+          valor_comissao?: number | null
+        }
+        Update: {
+          batch_id?: string | null
+          created_at?: string
+          data_registro?: string | null
+          descricao?: string | null
+          id?: string
+          id_seguro?: string | null
+          tipo_comissao?: string | null
+          valor_comissao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cr_seguros_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_numbers: {
         Row: {
           created_at: string
@@ -620,6 +1011,39 @@ export type Database = {
           feature_label?: string
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      import_batches: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          imported_by: string
+          module: string
+          row_count: number
+          sheet_name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          imported_by: string
+          module: string
+          row_count?: number
+          sheet_name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          imported_by?: string
+          module?: string
+          row_count?: number
+          sheet_name?: string
+          status?: string
         }
         Relationships: []
       }
