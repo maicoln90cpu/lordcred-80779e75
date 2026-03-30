@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Você não pode alterar sua própria role' }), { status: 400, headers: corsHeaders })
     }
 
-    // Admin cannot change a master's role
+    // Non-master cannot change a master's or admin's role (manager can't change admin)
     if (!isMaster) {
       const { data: targetRole } = await adminClient
         .from('user_roles')
@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
         .single()
       if (targetRole?.role === 'master') {
         return new Response(JSON.stringify({ error: 'Não é possível alterar a role de um Master' }), { status: 403, headers: corsHeaders })
+      }
+      if (isManagerRole && targetRole?.role === 'admin') {
+        return new Response(JSON.stringify({ error: 'Gerente não pode alterar a role de um Administrador' }), { status: 403, headers: corsHeaders })
       }
     }
 

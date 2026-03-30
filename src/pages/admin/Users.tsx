@@ -48,7 +48,7 @@ export default function Users() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'seller' | 'support'>('seller');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'manager' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
   const [editMaxChips, setEditMaxChips] = useState(5);
   const [resetPasswordValue, setResetPasswordValue] = useState('');

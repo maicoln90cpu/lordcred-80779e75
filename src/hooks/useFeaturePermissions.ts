@@ -47,10 +47,11 @@ export { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP };
 interface FeaturePermission {
   feature_key: string;
   allowed_user_ids: string[];
+  allowed_roles: string[];
 }
 
 export function useFeaturePermissions() {
-  const { user, isMaster, isAdmin } = useAuth();
+  const { user, isMaster, userRole } = useAuth();
   const [permissions, setPermissions] = useState<FeaturePermission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,10 +65,11 @@ export function useFeaturePermissions() {
     const load = async () => {
       const { data } = await supabase
         .from('feature_permissions')
-        .select('feature_key, allowed_user_ids');
+        .select('feature_key, allowed_user_ids, allowed_roles');
       setPermissions((data || []).map(d => ({
         feature_key: d.feature_key,
         allowed_user_ids: (d as any).allowed_user_ids || [],
+        allowed_roles: (d as any).allowed_roles || [],
       })));
       setLoading(false);
     };
@@ -77,23 +79,38 @@ export function useFeaturePermissions() {
 
   /**
    * Check if user has permission for a feature.
-   * Master/Admin always have access.
-   * If allowed_user_ids is empty → feature is open to all (no restriction configured yet).
+   * Master always has access.
+   * Admin (role=admin) always has access.
+   * Manager always has access EXCEPT for 'permissions' feature.
+   * For others: check allowed_roles first, then allowed_user_ids.
+   * If both are empty → feature is open to all.
    */
   const hasPermission = (featureKey: string): boolean => {
     if (!user) return false;
-    if (isMaster || isAdmin) return true;
+    if (isMaster) return true;
+    if (userRole === 'admin') return true;
+    
+    // Manager has access to everything except permissions page
+    if (userRole === 'manager') {
+      return featureKey !== 'permissions';
+    }
 
     const perm = permissions.find(p => p.feature_key === featureKey);
-    // If no permission record or empty list → allow (backward compat)
-    if (!perm || perm.allowed_user_ids.length === 0) return true;
-    return perm.allowed_user_ids.includes(user.id);
+    if (!perm) return true; // no record = allow
+
+    const hasRoleAccess = perm.allowed_roles.length > 0 && perm.allowed_roles.includes(userRole);
+    const hasUserAccess = perm.allowed_user_ids.length > 0 && perm.allowed_user_ids.includes(user.id);
+    
+    // If both lists are empty → open to all (backward compat)
+    if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
+    
+    return hasRoleAccess || hasUserAccess;
   };
 
   /** Check by route path */
   const hasRoutePermission = (path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
-    if (!featureKey) return true; // unknown route = allow
+    if (!featureKey) return true;
     return hasPermission(featureKey);
   };
 

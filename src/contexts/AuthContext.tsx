@@ -2,13 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type UserRole = 'master' | 'admin' | 'seller' | 'support';
+type UserRole = 'master' | 'admin' | 'manager' | 'seller' | 'support';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isMaster: boolean;
   isAdmin: boolean;
+  isManager: boolean;
   isSeller: boolean;
   isSupport: boolean;
   userRole: UserRole;
@@ -28,7 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isBlocked, setIsBlocked] = useState(false);
 
   const isMaster = userRole === 'master';
-  const isAdmin = userRole === 'master' || userRole === 'admin';
+  const isManager = userRole === 'manager';
+  // Manager has admin-level privileges (except permissions page)
+  const isAdmin = userRole === 'master' || userRole === 'admin' || userRole === 'manager';
   const isSeller = userRole === 'seller';
   const isSupport = userRole === 'support';
 
@@ -101,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isMaster, isAdmin, isSeller, isSupport, userRole, isLoading, isBlocked, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isMaster, isAdmin, isManager, isSeller, isSupport, userRole, isLoading, isBlocked, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
