@@ -1,57 +1,57 @@
 
-Plano de correção — Respostas Rápidas ainda não funcionando
 
-1) Diagnóstico confirmado
-- Do I know what the issue is? **Sim**.
-- O problema principal é de **falso sucesso**:
-  - `QuickRepliesManager` e `ChatInput` usam `supabase.functions.invoke(...)` sem validar `res.error` / `res.data.success`.
-  - então o toast “criada” pode aparecer mesmo quando a operação falhou.
-- Há também falha de sincronização de cache:
-  - o manager tenta limpar `window.__quickReplyCache`, mas o cache real está em `ChatInput.tsx` como variável de módulo (`quickReplyCache`), então não limpa nada.
-- Na edge `uazapi-api`, o case `edit-quick-reply` retorna `success: true` sem checar `response.ok`, mascarando erro da UazAPI.
+## Plano: Corrigir importação de vendas na aba Base
 
-2) O que será alterado agora
-- `supabase/functions/uazapi-api/index.ts`
-  - Em `edit-quick-reply` e `list-quick-replies`, validar `response.ok`.
-  - Se a UazAPI falhar, retornar erro real (status/mensagem), não `success: true`.
-  - Melhorar log para rastrear criação/edição/exclusão de quick reply.
-- `src/components/whatsapp/QuickRepliesManager.tsx`
-  - Validar retorno de `invoke` corretamente (`error`, `data.error`, `data.success`).
-  - Só mostrar toast de sucesso quando a API confirmar sucesso.
-  - Em falha, mostrar toast com motivo real.
-  - Após sucesso, disparar evento global de atualização (`quick-replies-updated`) por `chipId`.
-- `src/components/whatsapp/ChatInput.tsx`
-  - Escutar evento `quick-replies-updated`.
-  - Limpar `quickReplyCache[chipId]` corretamente e recarregar quick replies.
-  - Ajustar fetch de quick replies para tratar erro real (não silencioso).
+### Problema
+A função `parseExcelDate` (linha 82) não trata objetos `Date`. Como `XLSX.read` é chamado com `cellDates: true` (linha 312), as datas chegam como objetos `Date` do JavaScript, mas a função só verifica `typeof v === 'number'` e `typeof v === 'string'`. Resultado: todas as 63 linhas retornam `saleDate = null` → `skipped++`.
 
-3) Melhorias diretas entregues por essa correção
-- Criação/edição/exclusão de resposta rápida deixa de ter “sucesso falso”.
-- Lista do modal e autocomplete com `/` passam a refletir dados reais sem precisar recarregar a página.
-- Erros de API ficam visíveis para o vendedor/admin (mensagem útil no toast).
+### Correção
 
-4) Vantagens / desvantagens
-- Vantagens:
-  - elimina inconsistência entre toast e estado real;
-  - reduz retrabalho operacional (“criei e sumiu”);
-  - melhora suporte/debug com logs corretos.
-- Desvantagens:
-  - haverá mais toasts de erro reais (antes eram mascarados como sucesso);
-  - pequeno aumento de chamadas de refresh após criar/editar/deletar.
+**Arquivo**: `src/pages/admin/Commissions.tsx`
 
-5) Checklist manual (validação fim a fim)
-- [ ] Logar como vendedor.
-- [ ] Abrir WhatsApp > Respostas Rápidas.
-- [ ] Criar `/aaa` com texto teste.
-- [ ] Confirmar que aparece imediatamente na lista.
-- [ ] No input do chat, digitar `/a` e validar sugestão `/aaa`.
-- [ ] Selecionar `/aaa` e validar preenchimento da mensagem.
-- [ ] Editar `/aaa` e validar atualização imediata na lista e no autocomplete.
-- [ ] Excluir `/aaa` e validar remoção imediata da lista e do autocomplete.
-- [ ] Repetir com outro chip para confirmar isolamento por instância.
-- [ ] Testar erro proposital (atalho inválido/duplicado) e validar toast de erro real.
+1. **Adicionar tratamento de `Date` em `parseExcelDate`** (linhas 82-97):
+   - Antes dos checks de `number`/`string`, verificar `if (v instanceof Date)` e converter para ISO string
+   - Isso cobre o caso do `cellDates: true`
 
-6) Pendências
-- Para agora: nenhuma pendência crítica além desta correção.
-- Futuro (opcional):
-  - unificar quick replies com template shortcuts (`trigger_word`) em uma única fonte de dados para reduzir duplicidade de comportamento.
+2. **Melhorar logging temporário** para diagnóstico:
+   - Adicionar `console.log` no primeiro row para ver formato real das colunas (será removido depois)
+
+### Código da correção
+
+```typescript
+function parseExcelDate(v: any): string | null {
+  if (!v) return null;
+  // Handle Date objects (from cellDates: true)
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.toISOString().slice(0, 16);
+  }
+  if (typeof v === 'number') {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}T${String(d.H||0).padStart(2,'0')}:${String(d.M||0).padStart(2,'0')}`;
+  }
+  if (typeof v === 'string') {
+    const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    if (parts) return `${parts[3]}-${parts[2].padStart(2,'0')}-${parts[1].padStart(2,'0')}T${(parts[4]||'12').padStart(2,'0')}:${(parts[5]||'00').padStart(2,'0')}`;
+    const iso = new Date(v);
+    if (!isNaN(iso.getTime())) return iso.toISOString().slice(0, 16);
+  }
+  return null;
+}
+```
+
+### Vantagens
+- Corrige 100% dos registros ignorados (causa raiz era tipo Date não tratado)
+- Regex também atualizado para aceitar segundos (`:SS`) no formato string
+- Sem impacto em outras funcionalidades
+
+### Desvantagens
+- Nenhuma
+
+### Checklist manual
+- [ ] Reimportar a planilha e verificar que os 63 registros são importados
+- [ ] Verificar que `commission_value` e `week_label` foram calculados pelo trigger
+- [ ] Confirmar que os vendedores foram mapeados corretamente (Artur, Juliana, etc.)
+
+### Pendente
+- Nada — é um fix pontual de 1 função
+
