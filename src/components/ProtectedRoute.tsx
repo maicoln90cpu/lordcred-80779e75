@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -13,8 +14,10 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, requireAdmin = false, requireMaster = false, blockSellers = false, blockSupport = false }: ProtectedRouteProps) {
   const { user, isMaster, isAdmin, isSeller, isSupport, isLoading, isBlocked } = useAuth();
+  const { hasRoutePermission, loading: permLoading } = useFeaturePermissions();
+  const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading || permLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -51,6 +54,19 @@ export default function ProtectedRoute({ children, requireAdmin = false, require
 
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/whatsapp" replace />;
+  }
+
+  // Feature permission enforcement
+  if (!hasRoutePermission(location.pathname)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive mb-2">Acesso Negado</h1>
+          <p className="text-muted-foreground">Você não tem permissão para acessar esta funcionalidade.</p>
+          <p className="text-sm text-muted-foreground mt-1">Solicite acesso ao administrador.</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

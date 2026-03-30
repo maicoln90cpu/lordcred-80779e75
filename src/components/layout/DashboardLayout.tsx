@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useInternalChatUnread } from '@/hooks/useInternalChatUnread';
+import { useFeaturePermissions, ROUTE_FEATURE_MAP } from '@/hooks/useFeaturePermissions';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -150,12 +151,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
+  const { hasRoutePermission } = useFeaturePermissions();
 
   const filterItems = (items: NavItem[]) =>
     items.filter(item => {
       if (item.adminOnly && !isMaster) return false;
       if (item.sellerHidden && isSeller) return false;
       if (item.supportHidden && isSupport) return false;
+      // Feature permission enforcement
+      if (!hasRoutePermission(item.href)) return false;
       return true;
     });
 
