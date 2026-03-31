@@ -165,7 +165,7 @@ function getTooltipMap(module: string): Record<string, string> {
 
 // ==================== GENERIC IMPORT TAB ====================
 interface CRImportTabProps {
-  module: 'geral' | 'repasse' | 'seguros';
+  module: 'geral' | 'repasse' | 'seguros' | 'relatorio';
   tableName: string;
   columns: ColumnDef[];
   title: string;
