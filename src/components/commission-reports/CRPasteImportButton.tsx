@@ -211,7 +211,7 @@ export default function CRPasteImportButton({ module, tableName, columns, noHead
   const totalPages = Math.ceil(preview.length / PREVIEW_PAGE_SIZE);
   const pagedRows = preview.slice(previewPage * PREVIEW_PAGE_SIZE, (previewPage + 1) * PREVIEW_PAGE_SIZE);
 
-  const moduleLabels: Record<string, string> = { geral: 'Geral', repasse: 'Repasse', seguros: 'Seguros' };
+  const moduleLabels: Record<string, string> = { geral: 'Geral', repasse: 'Repasse', seguros: 'Seguros', relatorio: 'Relatório' };
 
   return (
     <>
