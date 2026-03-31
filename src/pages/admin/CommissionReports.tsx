@@ -60,6 +60,9 @@ export default function CommissionReports() {
           <TabsContent value="seguros">
             <CRImportTab module="seguros" tableName="cr_seguros" columns={SEGUROS_COLUMNS} title="Seguros" description="Importação de dados de seguros prestamistas com 5 colunas." noHeader />
           </TabsContent>
+          <TabsContent value="relatorio_import">
+            <CRImportTab module="relatorio" tableName="cr_relatorio" columns={RELATORIO_COLUMNS} title="Relatório" description="Importação dos dados de vendas do New Corban (14 colunas: Data Pago, Nº Contrato, Produto, Banco, Prazo, Tabela, Valor Liberado, Seguro, CPF, Nome, Data Nasc., Telefone, Vendedor, ID)." />
+          </TabsContent>
           <TabsContent value="rules_fgts"><CRRulesFGTS /></TabsContent>
           <TabsContent value="rules_clt"><CRRulesCLT /></TabsContent>
           <TabsContent value="relatorio"><CRRelatorio /></TabsContent>
