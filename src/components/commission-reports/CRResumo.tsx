@@ -261,8 +261,18 @@ export default function CRResumo() {
 
   const topBancos = useMemo(() => {
     const arr = [...summary.byBanco.entries()].map(([banco, data]) => ({ banco, ...data, diferenca: Math.round((data.recebida - data.esperada) * 100) / 100 }));
-    return applySortToData(arr, bancoSort).slice(0, 10);
+    return applySortToData(arr, bancoSort);
   }, [summary.byBanco, bancoSort]);
+
+  // Detailed table sort + pagination
+  const { sort: detailSort, toggle: toggleDetailSort } = useSortState();
+  const [detailPage, setDetailPage] = useState(0);
+  const PAGE_SIZE = 100;
+  const sortedDetails = useMemo(() => {
+    return applySortToData(summary.details, detailSort, (item, key) => (item as any)[key]);
+  }, [summary.details, detailSort]);
+  const pagedDetails = sortedDetails.slice(detailPage * PAGE_SIZE, (detailPage + 1) * PAGE_SIZE);
+  const totalDetailPages = Math.ceil(sortedDetails.length / PAGE_SIZE);
 
   return (
     <TooltipProvider delayDuration={300}>

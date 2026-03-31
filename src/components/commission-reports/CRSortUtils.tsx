@@ -68,13 +68,14 @@ interface THeadProps {
 }
 
 export function THead({ label, tooltip, className }: THeadProps) {
-  const content = <TableHead className={className}>{label}</TableHead>;
-  if (!tooltip) return content;
+  if (!tooltip) return <TableHead className={className}>{label}</TableHead>;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
-    </Tooltip>
+    <TableHead className={className}>
+      <Tooltip>
+        <TooltipTrigger asChild><span>{label}</span></TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
+      </Tooltip>
+    </TableHead>
   );
 }
 
