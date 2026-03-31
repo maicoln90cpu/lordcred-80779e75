@@ -202,7 +202,7 @@ export default function CRProductionDashboard() {
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={crossData.data} margin={{ left: 10, right: 20, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="banco" tick={{ fontSize: 9, angle: -30, textAnchor: 'end' }} className="fill-muted-foreground" height={60} />
+              <XAxis dataKey="banco" tick={{ fontSize: 9 }} className="fill-muted-foreground" height={60} angle={-30} textAnchor="end" />
               <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} className="fill-muted-foreground" />
               <Tooltip formatter={(v: number) => fmtBRL(v)} contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
