@@ -71,12 +71,10 @@ export function THead({ label, tooltip, className }: THeadProps) {
   const content = <TableHead className={className}>{label}</TableHead>;
   if (!tooltip) return content;
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
