@@ -350,7 +350,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                   {importing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importando...</> : <><Upload className="w-4 h-4 mr-2" /> Importar</>}
                 </Button>
               </div>
-              <div className="border rounded-lg max-h-72 overflow-auto">
+              <div className="border rounded-lg max-h-72 overflow-auto scrollbar-visible">
               <TooltipProvider delayDuration={300}>
                 <Table className="min-w-[1200px]">
                   <TableHeader>
