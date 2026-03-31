@@ -19,17 +19,86 @@ import { cn } from '@/lib/utils';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-interface GeralRow { ade: string | null; banco: string | null; prod_liq: number | null; prazo: number | null; tipo_operacao: string | null; convenio: string | null; cms_rep: number | null; data_pgt_cliente: string | null; }
-interface RepasseRow { ade: string | null; cms_rep_favorecido: number | null; }
+// Convert timestamptz to São Paulo civil date string (YYYY-MM-DD)
+function toSaoPauloDate(ts: string | null): string {
+  if (!ts) return '';
+  try {
+    return new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  } catch { return ts.slice(0, 10); }
+}
+
+// ==================== TYPES ====================
+interface RelatorioRow {
+  id: string; data_pago: string | null; num_contrato: string | null; produto: string | null;
+  banco: string | null; prazo: number | null; tabela: string | null; valor_liberado: number | null;
+  seguro: string | null; nome: string | null; vendedor: string | null;
+}
+interface GeralRow { ade: string | null; cod_contrato: string | null; cms_rep: number | null; }
+interface RepasseRow { ade: string | null; cod_contrato: string | null; cms_rep_favorecido: number | null; }
 interface SeguroRow { descricao: string | null; valor_comissao: number | null; }
 interface RuleFGTS { banco: string; tabela_chave: string; seguro: string; min_valor: number; max_valor: number; taxa: number; data_vigencia: string; }
 interface RuleCLT { banco: string; tabela_chave: string; seguro: string; prazo_min: number; prazo_max: number; taxa: number; data_vigencia: string; }
 
-function identifyProduct(tipo: string | null, convenio: string | null): string { const t = (tipo || '').toUpperCase(); const c = (convenio || '').toUpperCase(); if (t.includes('FGTS') || c.includes('FGTS')) return 'FGTS'; return 'CLT'; }
-function hasInsuranceFn(convenio: string | null): boolean { const c = (convenio || '').toUpperCase(); return c.includes('SEGURO') || c.includes('COM SEG') || c.includes('C/SEG'); }
-function findFGTSRate(rules: RuleFGTS[], banco: string, valor: number, tabela: string, temSeguro: boolean, dt: string): number { const b = banco.toUpperCase(); for (const r of rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt).sort((a, c) => c.data_vigencia.localeCompare(a.data_vigencia))) { if ((r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase())) && (r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro)) && valor >= r.min_valor && valor <= r.max_valor) return r.taxa; } return 0; }
-function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabela: string, temSeguro: boolean, dt: string): number { const b = banco.toUpperCase(); for (const r of rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt).sort((a, c) => c.data_vigencia.localeCompare(a.data_vigencia))) { if ((r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase())) && (r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro)) && prazo >= r.prazo_min && prazo <= r.prazo_max) return r.taxa; } return 0; }
+// ==================== EXACT SAME FUNCTIONS FROM CRRelatorio ====================
+function extractTableKeyFGTS(banco: string, tabela: string, seguro: string): string {
+  const b = banco.toUpperCase();
+  if (b.includes('PARANA') || b.includes('PARANÁ')) return seguro === 'Sim' ? 'SEGURO' : 'PARANA';
+  if (b.includes('LOTUS')) { const lastChar = tabela.trim().slice(-1); return ` ${lastChar} `; }
+  if (b.includes('HUB')) { const t = tabela.toUpperCase(); if (t.includes('SONHO')) return 'SONHO'; if (t.includes('FOCO')) return 'FOCO'; return 'CARTA NA M'; }
+  if (b.includes('FACTA')) return tabela.toUpperCase().includes('PLUS') ? 'GOLD PLUS' : 'GOLD POWER';
+  return '*';
+}
 
+function extractTableKeyCLT(banco: string, tabela: string): string {
+  const b = banco.toUpperCase();
+  if (b.includes('HUB')) {
+    const t = tabela.toUpperCase();
+    if (t.includes('36X COM SEGURO')) return '36X COM SEGURO';
+    if (t.includes('FOCO')) return 'FOCO NO CORBAN';
+    if (t.includes('SONHO')) return 'SONHO DO CLT';
+    if (t.includes('48X')) return 'CONSIGNADO CLT 48x';
+    return 'CARTADA CLT';
+  }
+  return '*';
+}
+
+function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
+  const b = banco.toUpperCase();
+  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = lookupValue >= r.min_valor && lookupValue <= r.max_valor;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
+  }
+  return total;
+}
+
+function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
+  const b = banco.toUpperCase();
+  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = prazo >= r.prazo_min && prazo <= r.prazo_max;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
+  }
+  return total;
+}
+
+function isMercantil(banco: string): boolean { return banco.toUpperCase().includes('MERCANTIL'); }
+
+// ==================== COMPONENT ====================
 export default function CRResumo() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -41,80 +110,144 @@ export default function CRResumo() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const { sort: bancoSort, toggle: toggleBancoSort } = useSortState();
 
-  const { data: geral = [], isLoading: l1 } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => { const { data } = await supabase.from('cr_geral').select('ade, banco, prod_liq, prazo, tipo_operacao, convenio, cms_rep, data_pgt_cliente').limit(5000); return (data || []) as GeralRow[]; } });
-  const { data: repasse = [], isLoading: l2 } = useQuery({ queryKey: ['cr-repasse-report'], queryFn: async () => { const { data } = await supabase.from('cr_repasse').select('ade, cms_rep_favorecido').limit(5000); return (data || []) as RepasseRow[]; } });
+  // PRIMARY: cr_relatorio (same as CRRelatorio.tsx)
+  const { data: relatorio = [], isLoading: l0 } = useQuery({
+    queryKey: ['cr-relatorio-data'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('cr_relatorio').select('id, data_pago, num_contrato, produto, banco, prazo, tabela, valor_liberado, seguro, nome, vendedor').limit(5000);
+      return (data || []) as RelatorioRow[];
+    }
+  });
+
+  // Support data for comissão recebida
+  const { data: geral = [], isLoading: l1 } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => { const { data } = await supabase.from('cr_geral').select('ade, cod_contrato, cms_rep').limit(5000); return (data || []) as GeralRow[]; } });
+  const { data: repasse = [], isLoading: l2 } = useQuery({ queryKey: ['cr-repasse-report'], queryFn: async () => { const { data } = await supabase.from('cr_repasse').select('ade, cod_contrato, cms_rep_favorecido').limit(5000); return (data || []) as RepasseRow[]; } });
   const { data: seguros = [], isLoading: l3 } = useQuery({ queryKey: ['cr-seguros-report'], queryFn: async () => { const { data } = await supabase.from('cr_seguros').select('descricao, valor_comissao').limit(5000); return (data || []) as SeguroRow[]; } });
   const { data: rulesFGTS = [], isLoading: l4 } = useQuery({ queryKey: ['cr-rules-fgts'], queryFn: async () => { const { data } = await supabase.from('cr_rules_fgts').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleFGTS[]; } });
   const { data: rulesCLT = [], isLoading: l5 } = useQuery({ queryKey: ['cr-rules-clt'], queryFn: async () => { const { data } = await supabase.from('cr_rules_clt').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleCLT[]; } });
-  const isLoading = l1 || l2 || l3 || l4 || l5;
+  const isLoading = l0 || l1 || l2 || l3 || l4 || l5;
 
-  // Filter geral by date range
-  const filteredGeral = useMemo(() => {
-    let rows = geral;
+  // Lookup maps (same as CRRelatorio)
+  const geralByContract = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const g of geral) { const key = g.ade || g.cod_contrato || ''; if (key) map.set(key, (map.get(key) || 0) + (g.cms_rep || 0)); }
+    return map;
+  }, [geral]);
+
+  const repasseByContract = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of repasse) { const key = r.ade || r.cod_contrato || ''; if (key) map.set(key, (map.get(key) || 0) + (r.cms_rep_favorecido || 0)); }
+    return map;
+  }, [repasse]);
+
+  const seguroByAde = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of seguros) {
+      if (!s.descricao) continue;
+      const desc = s.descricao.toUpperCase();
+      const adeMatch = desc.match(/ADE\s+(\d+)/);
+      if (adeMatch) { const ade = adeMatch[1]; map.set(ade, (map.get(ade) || 0) + (s.valor_comissao || 0)); }
+    }
+    return map;
+  }, [seguros]);
+
+  // Filter by date range using São Paulo timezone
+  const filteredRelatorio = useMemo(() => {
+    let rows = relatorio;
     if (dataInicio) {
-      const ini = dataInicio.toISOString().slice(0, 10);
-      rows = rows.filter(g => g.data_pgt_cliente && g.data_pgt_cliente.slice(0, 10) >= ini);
+      const ini = format(dataInicio, 'yyyy-MM-dd');
+      rows = rows.filter(r => r.data_pago && toSaoPauloDate(r.data_pago) >= ini);
     }
     if (dataFim) {
-      const fim = dataFim.toISOString().slice(0, 10);
-      rows = rows.filter(g => g.data_pgt_cliente && g.data_pgt_cliente.slice(0, 10) <= fim);
+      const fim = format(dataFim, 'yyyy-MM-dd');
+      rows = rows.filter(r => r.data_pago && toSaoPauloDate(r.data_pago) <= fim);
     }
     return rows;
-  }, [geral, dataInicio, dataFim]);
+  }, [relatorio, dataInicio, dataFim]);
 
-  const repasseMap = useMemo(() => { const m = new Map<string, number>(); for (const r of repasse) if (r.ade) m.set(r.ade, (m.get(r.ade) || 0) + (r.cms_rep_favorecido || 0)); return m; }, [repasse]);
-  const seguroMap = useMemo(() => { const m = new Map<string, number>(); for (const s of seguros) if (s.descricao) { for (const g of filteredGeral) if (g.ade && s.descricao.toUpperCase().includes(g.ade.toUpperCase())) m.set(g.ade, (m.get(g.ade) || 0) + (s.valor_comissao || 0)); } return m; }, [seguros, filteredGeral]);
-
+  // Build summary from cr_relatorio with exact same calculation as CRRelatorio
   const summary = useMemo(() => {
     let totalLiberado = 0, totalRecebida = 0, totalEsperada = 0, countFGTS = 0, countCLT = 0, countDiv = 0;
     const byBanco = new Map<string, { recebida: number; esperada: number; count: number }>();
     const details: { ade: string; nome: string; banco: string; produto: string; valor_liberado: number; comissao_recebida: number; comissao_esperada: number; diferenca: number; data_pago: string | null; valor_assegurado: number }[] = [];
 
-    for (const g of filteredGeral) {
-      const banco = (g.banco || '').toUpperCase(); const valor = g.prod_liq || 0; const prazo = g.prazo || 0;
-      const produto = identifyProduct(g.tipo_operacao, g.convenio); const temSeguro = hasInsuranceFn(g.convenio);
-      const tabela = (g.convenio || '*').trim();
-      const isMerc = banco.includes('MERCANTIL');
-      const valorAssegurado = isMerc ? Math.round(valor / 0.7 * 100) / 100 : 0;
-      const valorCalc = isMerc ? valorAssegurado : valor;
-      const dt = g.data_pgt_cliente ? g.data_pgt_cliente.slice(0, 10) : '9999-12-31';
-      const cmsGeral = g.cms_rep || 0; const cmsRepasse = repasseMap.get(g.ade || '') || 0; const cmsSeguro = seguroMap.get(g.ade || '') || 0;
+    for (const r of filteredRelatorio) {
+      const contrato = r.num_contrato || '';
+      const banco = (r.banco || '').toUpperCase();
+      const produto = (r.produto || '').toUpperCase();
+      const tabela = r.tabela || '';
+      const valor = r.valor_liberado || 0;
+      const prazo = r.prazo || 0;
+      const seguro = r.seguro || 'Não';
+      const dataPago = r.data_pago || null;
+
+      const valorAssegurado = isMercantil(banco) ? Math.round(valor / 0.7 * 100) / 100 : 0;
+      const valorCalc = isMercantil(banco) ? valorAssegurado : valor;
+
+      // Comissão recebida from Geral + Repasse + Seguros
+      const cmsGeral = geralByContract.get(contrato) || 0;
+      const cmsRepasse = repasseByContract.get(contrato) || 0;
+      const cmsSeguro = seguroByAde.get(contrato) || 0;
       const recebida = cmsGeral + cmsRepasse + cmsSeguro;
+
+      // Comissão esperada (same logic as CRRelatorio)
       let esperada = 0;
-      if (produto === 'FGTS') { esperada = Math.round(valorCalc * findFGTSRate(rulesFGTS, banco, valorCalc, tabela, temSeguro, dt) / 100 * 100) / 100; countFGTS++; }
-      else { esperada = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tabela, temSeguro, dt) / 100 * 100) / 100; countCLT++; }
+      const isProdFGTS = produto.includes('FGTS');
+
+      if (isProdFGTS) {
+        const tabelaChave = extractTableKeyFGTS(banco, tabela, seguro);
+        const isHub = banco.includes('HUB');
+        const lookupValue = isHub ? valor : prazo;
+        const rate = findFGTSRate(rulesFGTS, banco, lookupValue, tabelaChave, seguro, dataPago);
+        esperada = Math.round(valor * rate / 100 * 100) / 100;
+        countFGTS++;
+      } else {
+        const tabelaChave = extractTableKeyCLT(banco, tabela);
+        esperada = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
+        countCLT++;
+      }
+
       const dif = Math.round((recebida - esperada) * 100) / 100;
       if (Math.abs(dif) > 0.01) countDiv++;
       totalLiberado += valor; totalRecebida += recebida; totalEsperada += esperada;
+
       const b = byBanco.get(banco) || { recebida: 0, esperada: 0, count: 0 };
       b.recebida += recebida; b.esperada += esperada; b.count++; byBanco.set(banco, b);
-      details.push({ ade: g.ade || '', nome: '', banco, produto, valor_liberado: valor, comissao_recebida: recebida, comissao_esperada: esperada, diferenca: dif, data_pago: g.data_pgt_cliente || null, valor_assegurado: valorAssegurado });
+
+      details.push({
+        ade: contrato, nome: r.nome || '', banco,
+        produto: isProdFGTS ? 'FGTS' : 'CLT',
+        valor_liberado: valor, comissao_recebida: recebida, comissao_esperada: esperada,
+        diferenca: dif, data_pago: dataPago, valor_assegurado: valorAssegurado
+      });
     }
-    return { totalLiberado, totalRecebida, totalEsperada, diferenca: Math.round((totalRecebida - totalEsperada) * 100) / 100, count: filteredGeral.length, countFGTS, countCLT, countDiv, byBanco, details };
-  }, [filteredGeral, repasseMap, seguroMap, rulesFGTS, rulesCLT]);
+    return {
+      totalLiberado, totalRecebida, totalEsperada,
+      diferenca: Math.round((totalRecebida - totalEsperada) * 100) / 100,
+      count: filteredRelatorio.length, countFGTS, countCLT, countDiv, byBanco, details
+    };
+  }, [filteredRelatorio, geralByContract, repasseByContract, seguroByAde, rulesFGTS, rulesCLT]);
 
   const handleSaveHistory = async () => {
     if (!saveName.trim()) { toast({ title: 'Informe um nome para o fechamento', variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const dates = filteredGeral.map(g => g.data_pgt_cliente).filter(Boolean).sort();
-      const dataInicioStr = dates[0]?.slice(0, 10) || null; const dataFimStr = dates[dates.length - 1]?.slice(0, 10) || null;
-      const { data: gestao, error: gErr } = await supabase.from('cr_historico_gestao').insert({ nome: saveName.trim(), qtd_propostas: summary.count, valor_liberado: summary.totalLiberado, comissao_esperada: summary.totalEsperada, comissao_recebida: summary.totalRecebida, diferenca: summary.diferenca, data_inicio: dataInicioStr, data_fim: dataFimStr, created_by: user!.id } as any).select().single();
+      const dates = filteredRelatorio.map(r => r.data_pago).filter(Boolean).map(d => toSaoPauloDate(d)).sort();
+      const dataInicioStr = dates[0] || null;
+      const dataFimStr = dates[dates.length - 1] || null;
+      const { data: gestao, error: gErr } = await supabase.from('cr_historico_gestao').insert({
+        nome: saveName.trim(), qtd_propostas: summary.count, valor_liberado: summary.totalLiberado,
+        comissao_esperada: summary.totalEsperada, comissao_recebida: summary.totalRecebida,
+        diferenca: summary.diferenca, data_inicio: dataInicioStr, data_fim: dataFimStr, created_by: user!.id
+      } as any).select().single();
       if (gErr) throw gErr;
       const gestaoId = (gestao as any).id;
       for (let i = 0; i < summary.details.length; i += 100) {
         const chunk = summary.details.slice(i, i + 100).map(d => ({
-          gestao_id: gestaoId,
-          num_contrato: d.ade,
-          nome: d.nome || null,
-          banco: d.banco,
-          produto: d.produto,
-          valor_liberado: d.valor_liberado,
-          comissao_esperada: d.comissao_esperada,
-          comissao_recebida: d.comissao_recebida,
-          diferenca: d.diferenca,
-          data_pago: d.data_pago || null,
-          valor_assegurado: d.valor_assegurado || null,
+          gestao_id: gestaoId, num_contrato: d.ade, nome: d.nome || null, banco: d.banco,
+          produto: d.produto, valor_liberado: d.valor_liberado, comissao_esperada: d.comissao_esperada,
+          comissao_recebida: d.comissao_recebida, diferenca: d.diferenca,
+          data_pago: d.data_pago || null, valor_assegurado: d.valor_assegurado || null,
         }));
         const { error } = await supabase.from('cr_historico_detalhado').insert(chunk as any);
         if (error) throw error;
@@ -237,7 +370,7 @@ export default function CRResumo() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={() => { setSaveName(`Fechamento ${new Date().toLocaleDateString('pt-BR')}`); setSaveDialogOpen(true); }} disabled={filteredGeral.length === 0}>
+        <Button onClick={() => { setSaveName(`Fechamento ${new Date().toLocaleDateString('pt-BR')}`); setSaveDialogOpen(true); }} disabled={filteredRelatorio.length === 0}>
           <Save className="w-4 h-4 mr-2" /> Salvar Fechamento
         </Button>
       </div>
