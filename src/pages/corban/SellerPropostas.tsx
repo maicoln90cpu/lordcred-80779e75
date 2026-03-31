@@ -7,27 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useState } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
+import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { toast } from 'sonner';
-
-interface NormalizedProposta {
-  proposta_id: string | null;
-  cpf: string | null;
-  nome: string | null;
-  banco: string | null;
-  produto: string | null;
-  status: string | null;
-  valor_liberado: number | null;
-  valor_parcela: number | null;
-  prazo: number | string | null;
-  data_cadastro: string | null;
-}
 
 const fmtBRL = (v: number | null) => v != null ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
 
 export default function SellerPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
-  const [propostas, setPropostas] = useState<NormalizedProposta[]>([]);
+  const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
 
   const handleSearch = async () => {
     if (!searchCpf.trim()) {
@@ -54,7 +42,7 @@ export default function SellerPropostas() {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list: NormalizedProposta[] = Array.isArray(data) ? data : [];
+    const list = normalizeCorbanPropostasInput(data);
     setPropostas(list);
     if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada');

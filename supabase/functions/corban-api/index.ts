@@ -11,6 +11,163 @@ interface CorbanAuth {
   empresa: string
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+)
+
+const normalizeLookupKey = (value: string) => (
+  value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+)
+
+const maybeParseJson = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return value
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
+  }
+}
+
+const hasContent = (value: unknown) => !(
+  value === undefined ||
+  value === null ||
+  (typeof value === 'string' && value.trim() === '')
+)
+
+function findDeepValueByKey(source: unknown, candidate: string, seen = new WeakSet<object>()): unknown {
+  const target = normalizeLookupKey(candidate)
+
+  const walk = (value: unknown): unknown => {
+    const current = maybeParseJson(value)
+
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        const found = walk(item)
+        if (hasContent(found)) return found
+      }
+      return undefined
+    }
+
+    if (!isRecord(current)) return undefined
+    if (seen.has(current)) return undefined
+    seen.add(current)
+
+    for (const [key, nested] of Object.entries(current)) {
+      if (normalizeLookupKey(key) === target) {
+        return maybeParseJson(nested)
+      }
+    }
+
+    for (const nested of Object.values(current)) {
+      const found = walk(nested)
+      if (hasContent(found)) return found
+    }
+
+    return undefined
+  }
+
+  return walk(source)
+}
+
+function findDeepValue(source: unknown, candidates: string[]): unknown {
+  for (const candidate of candidates) {
+    const found = findDeepValueByKey(source, candidate)
+    if (hasContent(found)) return found
+  }
+  return null
+}
+
+const toFlatString = (value: unknown): string | null => {
+  const parsed = maybeParseJson(value)
+  if (parsed === null || parsed === undefined) return null
+  if (typeof parsed === 'string') return parsed.trim() || null
+  if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed)
+  return null
+}
+
+const toFlatNumber = (value: unknown): number | null => {
+  const parsed = maybeParseJson(value)
+  if (typeof parsed === 'number' && Number.isFinite(parsed)) return parsed
+  if (typeof parsed !== 'string') return null
+
+  const cleaned = parsed
+    .replace(/\s+/g, '')
+    .replace(/R\$/gi, '')
+    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
+    .replace(',', '.')
+    .replace(/[^\d.-]/g, '')
+
+  if (!cleaned) return null
+
+  const numeric = Number(cleaned)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function extractPropostasList(source: unknown): Record<string, unknown>[] {
+  const parsed = maybeParseJson(source)
+
+  if (Array.isArray(parsed)) {
+    return parsed.map((item) => maybeParseJson(item)).filter(isRecord)
+  }
+
+  if (!isRecord(parsed)) return []
+
+  for (const wrapperKey of ['data', 'dados', 'propostas', 'items', 'lista']) {
+    if (wrapperKey in parsed) {
+      const nested = extractPropostasList(parsed[wrapperKey])
+      if (nested.length > 0) return nested
+    }
+  }
+
+  const numericEntries = Object.entries(parsed).filter(([key, value]) => /^\d+$/.test(key) && value != null)
+  if (numericEntries.length > 0) {
+    return numericEntries.map(([key, value]) => {
+      const parsedValue = maybeParseJson(value)
+      return isRecord(parsedValue)
+        ? { proposta_id: key, ...parsedValue }
+        : { proposta_id: key, raw: parsedValue }
+    })
+  }
+
+  if (
+    'proposta_id' in parsed ||
+    'id' in parsed ||
+    'averbacao' in parsed ||
+    'api' in parsed ||
+    'datas' in parsed ||
+    'cliente' in parsed
+  ) {
+    return [parsed]
+  }
+
+  return []
+}
+
+function normalizePropostaRecord(source: unknown): Record<string, unknown> {
+  const parsed = maybeParseJson(source)
+  const prazoValue = findDeepValue(parsed, ['prazo', 'prazos', 'parcelas', 'quantidade_parcelas'])
+
+  return {
+    proposta_id: toFlatString(findDeepValue(parsed, ['proposta_id', 'id', 'codigo_proposta'])),
+    cpf: toFlatString(findDeepValue(parsed, ['cpf', 'cpf_cliente', 'documento', 'cpfcnpj'])),
+    nome: toFlatString(findDeepValue(parsed, ['nome', 'nome_cliente', 'cliente_nome', 'nome_completo'])),
+    telefone: toFlatString(findDeepValue(parsed, ['telefone', 'celular', 'fone', 'whatsapp'])),
+    banco: toFlatString(findDeepValue(parsed, ['banco_nome', 'nome_banco', 'banco_averbacao_nome', 'banco_averbacao', 'banco'])),
+    produto: toFlatString(findDeepValue(parsed, ['produto_nome', 'produto_descricao', 'produto', 'tipo_operacao'])),
+    status: toFlatString(findDeepValue(parsed, ['status_api_descricao', 'status_nome', 'status_descricao', 'descricao_status', 'status_api', 'status'])),
+    valor_liberado: toFlatNumber(findDeepValue(parsed, ['valor_liberado', 'vlr_liberado', 'valorliberado', 'valor_liquido', 'valor'])),
+    valor_parcela: toFlatNumber(findDeepValue(parsed, ['valor_parcela', 'vlr_parcela', 'parcela'])),
+    prazo: typeof prazoValue === 'number' ? prazoValue : toFlatString(prazoValue),
+    data_cadastro: toFlatString(findDeepValue(parsed, ['data_cadastro', 'cadastro', 'inclusao'])),
+    data_pagamento: toFlatString(findDeepValue(parsed, ['data_pagamento', 'pagamento', 'data_pago'])),
+    convenio: toFlatString(findDeepValue(parsed, ['convenio_nome', 'convenio'])),
+    tipo_liberacao: toFlatString(findDeepValue(parsed, ['tipo_liberacao'])),
+    _raw: parsed,
+  }
+}
+
 // Actions that require admin/master/support role
 const WRITE_ACTIONS = ['insertQueueFGTS', 'createProposta', 'rawProxy']
 
@@ -129,30 +286,52 @@ Deno.serve(async (req) => {
       }
       case 'getPropostas': {
         corbanBody.requestType = 'getPropostas'
-        const gpFilters = params?.filters || {}
-        // Ensure status is always an array
-        if (!Array.isArray(gpFilters.status)) gpFilters.status = []
-        if (!gpFilters.data) {
-          const now = new Date()
-          const from = new Date(now)
-          from.setDate(from.getDate() - 30)
-          gpFilters.data = {
-            tipo: 'cadastro',
-            startDate: from.toISOString().split('T')[0],
-            endDate: now.toISOString().split('T')[0],
-          }
-        } else {
-          if (!gpFilters.data.tipo) gpFilters.data.tipo = 'cadastro'
-          // Enforce max 31 days range
-          const start = new Date(gpFilters.data.startDate)
-          const end = new Date(gpFilters.data.endDate)
-          if ((end.getTime() - start.getTime()) / (1000 * 3600 * 24) > 31) {
+        const rawFilters = isRecord(params?.filters) ? { ...params.filters } : {}
+        const rawData = isRecord(rawFilters.data) ? rawFilters.data : {}
+        const now = new Date()
+        const fallbackFrom = new Date(now)
+        fallbackFrom.setDate(fallbackFrom.getDate() - 30)
+
+        const startDate = typeof rawData.startDate === 'string' && rawData.startDate
+          ? rawData.startDate
+          : fallbackFrom.toISOString().split('T')[0]
+
+        let endDate = typeof rawData.endDate === 'string' && rawData.endDate
+          ? rawData.endDate
+          : now.toISOString().split('T')[0]
+
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+          const diffDays = (end.getTime() - start.getTime()) / (1000 * 3600 * 24)
+          if (diffDays > 31) {
             const adjusted = new Date(start)
             adjusted.setDate(start.getDate() + 30)
-            gpFilters.data.endDate = adjusted.toISOString().split('T')[0]
+            endDate = adjusted.toISOString().split('T')[0]
           }
         }
-        corbanBody.filters = gpFilters
+
+        const exactFilters = {
+          status: [],
+          data: {
+            tipo: 'cadastro',
+            startDate,
+            endDate,
+          },
+        }
+
+        corbanBody.filters = params?.exactPayload === true
+          ? exactFilters
+          : {
+              ...rawFilters,
+              status: Array.isArray(rawFilters.status) ? rawFilters.status : [],
+              data: {
+                ...rawData,
+                tipo: 'cadastro',
+                startDate,
+                endDate,
+              },
+            }
         break
       }
       case 'getAssets': {
@@ -262,9 +441,12 @@ Deno.serve(async (req) => {
       }), { status: corbanResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // Convert keyed-object responses to arrays (NewCorban returns { "ID": {...} })
     let finalData = result
-    if ((action === 'getPropostas' || action === 'listQueueFGTS') && typeof result === 'object' && result !== null && !Array.isArray(result)) {
+    if (action === 'getPropostas') {
+      const extracted = extractPropostasList(result)
+      finalData = extracted.map((item) => normalizePropostaRecord(item))
+      console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
+    } else if (action === 'listQueueFGTS' && typeof result === 'object' && result !== null && !Array.isArray(result)) {
       const entries = Object.entries(result as Record<string, unknown>)
       if (entries.length > 0 && entries.every(([k]) => /^\d+$/.test(k))) {
         finalData = entries.map(([id, value]) => ({
@@ -273,39 +455,6 @@ Deno.serve(async (req) => {
         }))
         console.log(`[corban-api] Converted keyed object to array: ${(finalData as any[]).length} items`)
       }
-    }
-
-    // Normalize getPropostas response to flat, frontend-friendly format
-    if (action === 'getPropostas' && Array.isArray(finalData)) {
-      finalData = (finalData as any[]).map((p: any) => {
-        const cliente = p.cliente || {}
-        const pessoais = cliente.pessoais || {}
-        const api = p.api || {}
-        const datas = p.datas || {}
-        const averbacao = p.averbacao || {}
-        const financeiro = p.financeiro || {}
-        return {
-          proposta_id: p.proposta_id || p.id || null,
-          cpf: pessoais.cpf || p.cpf || null,
-          nome: pessoais.nome || p.nome || null,
-          telefone: pessoais.telefone || p.telefone || null,
-          banco: api.banco_nome || averbacao.banco_nome || p.banco || p.banco_nome || null,
-          banco_codigo: api.banco || averbacao.banco || p.banco_codigo || null,
-          produto: api.produto_nome || p.produto || null,
-          status: api.status_nome || p.status || p.status_nome || null,
-          status_id: api.status || null,
-          valor_liberado: financeiro.valor_liberado ?? p.valor_liberado ?? null,
-          valor_parcela: financeiro.valor_parcela ?? p.valor_parcela ?? null,
-          prazo: financeiro.prazo ?? p.prazo ?? p.prazos ?? null,
-          data_cadastro: datas.data_cadastro || p.data_cadastro || null,
-          data_pagamento: datas.data_pagamento || p.data_pagamento || null,
-          tipo_liberacao: financeiro.tipo_liberacao || p.tipo_liberacao || null,
-          convenio: api.convenio_nome || p.convenio || null,
-          tabela: api.tabela_nome || p.tabela || null,
-          _raw: p,
-        }
-      })
-      console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
     }
 
     return new Response(JSON.stringify({

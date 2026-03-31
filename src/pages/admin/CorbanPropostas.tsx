@@ -10,6 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -20,28 +21,12 @@ interface CachedAsset {
   asset_label: string;
 }
 
-interface NormalizedProposta {
-  proposta_id: string | null;
-  cpf: string | null;
-  nome: string | null;
-  telefone: string | null;
-  banco: string | null;
-  produto: string | null;
-  status: string | null;
-  valor_liberado: number | null;
-  valor_parcela: number | null;
-  prazo: number | string | null;
-  data_cadastro: string | null;
-  data_pagamento: string | null;
-  convenio: string | null;
-}
-
 const fmtBRL = (v: number | null) => v != null ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
 
 export default function CorbanPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
-  const [propostas, setPropostas] = useState<NormalizedProposta[]>([]);
+  const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
@@ -64,33 +49,40 @@ export default function CorbanPropostas() {
     })();
   }, []);
 
+  const resolveCachedLabel = (items: CachedAsset[], value: string | null) => {
+    if (!value) return '—';
+    return items.find((item) => item.asset_id === value)?.asset_label || value;
+  };
+
   const handleSearch = async () => {
-    if (!searchCpf.trim() && !statusFilter && !bancoFilter && !dateFrom) {
-      toast.error('Informe ao menos um filtro para buscar');
+    if (!dateFrom || !dateTo) {
+      toast.error('Informe data inicial e final para buscar');
       return;
     }
-    setLoading(true);
-    const filters: Record<string, any> = {
-      status: statusFilter ? [statusFilter] : [],
-    };
-    if (searchCpf.trim()) filters.searchString = searchCpf.replace(/\D/g, '');
-    if (bancoFilter) filters.bancos = [bancoFilter];
-    if (dateFrom || dateTo) {
-      filters.data = {
-        tipo: 'cadastro',
-        startDate: dateFrom ? format(dateFrom, 'yyyy-MM-dd') : undefined,
-        endDate: dateTo ? format(dateTo, 'yyyy-MM-dd') : undefined,
-      };
+
+    if (dateFrom > dateTo) {
+      toast.error('A data inicial não pode ser maior que a data final');
+      return;
     }
 
-    const { data, error } = await invokeCorban('getPropostas', { filters });
+    setLoading(true);
+    const filters = {
+      status: [],
+      data: {
+        tipo: 'cadastro',
+        startDate: format(dateFrom, 'yyyy-MM-dd'),
+        endDate: format(dateTo, 'yyyy-MM-dd'),
+      },
+    };
+
+    const { data, error } = await invokeCorban('getPropostas', { exactPayload: true, filters });
     setLoading(false);
     setPage(0);
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list: NormalizedProposta[] = Array.isArray(data) ? data : [];
+    const list = normalizeCorbanPropostasInput(data);
     setPropostas(list);
     if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada para os filtros informados');
@@ -230,13 +222,13 @@ export default function CorbanPropostas() {
                         <TableCell>{p.banco || '—'}</TableCell>
                         <TableCell>{p.produto || '—'}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-xs">{p.status || '—'}</Badge>
+                          <Badge variant="outline" className="text-xs">{resolveCachedLabel(cachedStatus, p.status)}</Badge>
                         </TableCell>
                         <TableCell>{fmtBRL(p.valor_liberado)}</TableCell>
                         <TableCell>{fmtBRL(p.valor_parcela)}</TableCell>
                         <TableCell>{p.prazo || '—'}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{p.data_cadastro || '—'}</TableCell>
-                        <TableCell className="text-xs">{p.convenio || '—'}</TableCell>
+                        <TableCell className="text-xs">{p.convenio || resolveCachedLabel(cachedBancos, p.banco)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
