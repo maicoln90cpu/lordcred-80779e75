@@ -209,7 +209,7 @@ export default function CRResumo() {
             <p className="text-center text-muted-foreground text-sm py-4">Sem dados{(dataInicio || dataFim) ? ' para o período selecionado' : ''}.</p>
           ) : (
             <div className="border rounded-lg overflow-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[900px]">
                 <thead>
                   <tr>
                     <TSHead label="Banco" sortKey="banco" sort={bancoSort} toggle={toggleBancoSort} tooltip={TOOLTIPS_RESUMO.banco} className="text-xs" />

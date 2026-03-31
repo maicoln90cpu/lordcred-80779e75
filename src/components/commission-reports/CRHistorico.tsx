@@ -100,7 +100,7 @@ export default function CRHistorico() {
                           <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                         ) : (
                           <div className="border rounded-lg max-h-[400px] overflow-auto">
-                            <Table>
+                            <Table className="min-w-[800px]">
                               <TableHeader>
                                 <tr>
                                   <TSHead label="Contrato" sortKey="num_contrato" sort={detailSort} toggle={toggleDetailSort} tooltip={TOOLTIPS_HISTORICO.num_contrato} className="text-xs" />

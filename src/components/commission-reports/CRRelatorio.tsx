@@ -71,34 +71,39 @@ function extractTableKeyCLT(banco: string, tabela: string): string {
   return '*';
 }
 
-function findFGTSRate(rules: RuleFGTS[], banco: string, valor: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
+// SUMIFS-style: find max vigencia, then sum all matching rates (exact seguro + "Ambos")
+function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
   const dt = dataPgt ? dataPgt.slice(0, 10) : '9999-12-31';
-  const temSeguro = seguro === 'Sim';
-  const candidates = rules
-    .filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt)
-    .sort((a, b2) => b2.data_vigencia.localeCompare(a.data_vigencia));
-  for (const r of candidates) {
-    const keyMatch = r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
-    const seguroMatch = r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro);
-    if (keyMatch && seguroMatch && valor >= r.min_valor && valor <= r.max_valor) return r.taxa;
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = lookupValue >= r.min_valor && lookupValue <= r.max_valor;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
   }
-  return 0;
+  return total;
 }
 
 function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
   const dt = dataPgt ? dataPgt.slice(0, 10) : '9999-12-31';
-  const temSeguro = seguro === 'Sim';
-  const candidates = rules
-    .filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt)
-    .sort((a, b2) => b2.data_vigencia.localeCompare(a.data_vigencia));
-  for (const r of candidates) {
-    const keyMatch = r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
-    const seguroMatch = r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro);
-    if (keyMatch && seguroMatch && prazo >= r.prazo_min && prazo <= r.prazo_max) return r.taxa;
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = prazo >= r.prazo_min && prazo <= r.prazo_max;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
   }
-  return 0;
+  return total;
 }
 
 function isMercantil(banco: string): boolean {
@@ -195,7 +200,12 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
 
     if (isProdFGTS) {
       const tabelaChave = extractTableKeyFGTS(banco, tabela, seguro);
-      esperadaFgts = Math.round(valorCalc * findFGTSRate(rulesFGTS, banco, valorCalc, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
+      // FGTS: Hub uses valor_liberado as range; others use prazo
+      const isHub = banco.includes('HUB');
+      const lookupValue = isHub ? valor : prazo;
+      const rate = findFGTSRate(rulesFGTS, banco, lookupValue, tabelaChave, seguro, dataPago);
+      // FGTS always multiplies by valor_liberado (never valor_assegurado)
+      esperadaFgts = Math.round(valor * rate / 100 * 100) / 100;
     } else {
       const tabelaChave = extractTableKeyCLT(banco, tabela);
       esperadaClt = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
@@ -321,7 +331,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
         ) : (
           <div className="border rounded-lg max-h-[600px] overflow-auto">
           <TooltipProvider delayDuration={300}>
-            <Table>
+            <Table className="min-w-[1400px]">
               <TableHeader>
                 <tr>
                   <TSHead label="Contrato" sortKey="num_contrato" sort={sort} toggle={toggleSort} tooltip="Nº do contrato / ADE" className="text-xs whitespace-nowrap" />

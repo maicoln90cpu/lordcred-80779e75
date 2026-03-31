@@ -352,7 +352,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
               </div>
               <div className="border rounded-lg max-h-72 overflow-auto">
               <TooltipProvider delayDuration={300}>
-                <Table>
+                <Table className="min-w-[1200px]">
                   <TableHeader>
                     <tr>
                       {columns.map(col => (
@@ -404,7 +404,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
           ) : (
             <div className="border rounded-lg max-h-[500px] overflow-auto">
             <TooltipProvider delayDuration={300}>
-               <Table>
+               <Table className="min-w-[1200px]">
                 <TableHeader>
                   <tr>
                     {columns.map(col => (
