@@ -64,7 +64,7 @@ interface CRPasteImportButtonProps {
   onImported: () => void;
 }
 
-export default function CRPasteImportButton({ module, tableName, columns, onImported }: CRPasteImportButtonProps) {
+export default function CRPasteImportButton({ module, tableName, columns, noHeader, onImported }: CRPasteImportButtonProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
