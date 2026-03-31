@@ -308,7 +308,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="max-w-sm cursor-pointer" />
-            <CRPasteImportButton module={module} tableName={tableName} columns={columns} onImported={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] }); }} />
+            <CRPasteImportButton module={module} tableName={tableName} columns={columns} noHeader={noHeader} onImported={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] }); }} />
             {fileName && <span className="text-sm text-muted-foreground">📄 {fileName}</span>}
           </div>
 
