@@ -261,8 +261,18 @@ export default function CRResumo() {
 
   const topBancos = useMemo(() => {
     const arr = [...summary.byBanco.entries()].map(([banco, data]) => ({ banco, ...data, diferenca: Math.round((data.recebida - data.esperada) * 100) / 100 }));
-    return applySortToData(arr, bancoSort).slice(0, 10);
+    return applySortToData(arr, bancoSort);
   }, [summary.byBanco, bancoSort]);
+
+  // Detailed table sort + pagination
+  const { sort: detailSort, toggle: toggleDetailSort } = useSortState();
+  const [detailPage, setDetailPage] = useState(0);
+  const PAGE_SIZE = 100;
+  const sortedDetails = useMemo(() => {
+    return applySortToData(summary.details, detailSort, (item, key) => (item as any)[key]);
+  }, [summary.details, detailSort]);
+  const pagedDetails = sortedDetails.slice(detailPage * PAGE_SIZE, (detailPage + 1) * PAGE_SIZE);
+  const totalDetailPages = Math.ceil(sortedDetails.length / PAGE_SIZE);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -366,6 +376,70 @@ export default function CRResumo() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Detailed contracts table */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5" /> Detalhado ({summary.details.length} contratos)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {summary.details.length === 0 ? (
+            <p className="text-center text-muted-foreground text-sm py-4">Sem dados{(dataInicio || dataFim) ? ' para o período selecionado' : ''}.</p>
+          ) : (
+            <>
+              <div className="border rounded-lg overflow-auto max-h-[500px]">
+                <table className="w-full min-w-[1100px]">
+                  <thead className="sticky top-0 bg-background z-10">
+                    <tr>
+                      <TSHead label="Contrato" sortKey="ade" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
+                      <TSHead label="Nome" sortKey="nome" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
+                      <TSHead label="Banco" sortKey="banco" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
+                      <TSHead label="Produto" sortKey="produto" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
+                      <TSHead label="Valor Lib." sortKey="valor_liberado" sort={detailSort} toggle={toggleDetailSort} className="text-xs text-right" />
+                      <TSHead label="Recebida" sortKey="comissao_recebida" sort={detailSort} toggle={toggleDetailSort} className="text-xs text-right" />
+                      <TSHead label="Esperada" sortKey="comissao_esperada" sort={detailSort} toggle={toggleDetailSort} className="text-xs text-right" />
+                      <TSHead label="Diferença" sortKey="diferenca" sort={detailSort} toggle={toggleDetailSort} className="text-xs text-right" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedDetails.map((d, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-4 py-1.5 text-xs font-mono">{d.ade}</td>
+                        <td className="px-4 py-1.5 text-xs max-w-[200px] truncate">{d.nome}</td>
+                        <td className="px-4 py-1.5 text-xs">{d.banco}</td>
+                        <td className="px-4 py-1.5 text-xs"><Badge variant={d.produto === 'FGTS' ? 'default' : 'secondary'} className="text-[10px]">{d.produto}</Badge></td>
+                        <td className="px-4 py-1.5 text-xs text-right font-mono">{fmtBRL(d.valor_liberado)}</td>
+                        <td className="px-4 py-1.5 text-xs text-right font-mono">{fmtBRL(d.comissao_recebida)}</td>
+                        <td className="px-4 py-1.5 text-xs text-right font-mono">{fmtBRL(d.comissao_esperada)}</td>
+                        <td className={`px-4 py-1.5 text-xs text-right font-mono font-bold ${d.diferenca > 0.01 ? 'text-green-600' : d.diferenca < -0.01 ? 'text-destructive' : ''}`}>{fmtBRL(d.diferenca)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalDetailPages > 1 && (
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-xs text-muted-foreground">Página {detailPage + 1} de {totalDetailPages}</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={detailPage === 0} onClick={() => setDetailPage(p => p - 1)}>Anterior</Button>
+                    <Button variant="outline" size="sm" disabled={detailPage >= totalDetailPages - 1} onClick={() => setDetailPage(p => p + 1)}>Próximo</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Info card about related tabs */}
+      <Card className="border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/10">
+        <CardContent className="py-3 flex items-center gap-3">
+          <BarChart3 className="w-5 h-5 text-blue-600" />
+          <span className="text-sm text-muted-foreground">
+            <strong>Histórico Gestão</strong> = aba "Histórico" (fechamentos salvos) • <strong>Histórico Detalhado</strong> = expandir fechamento • <strong>Divergências</strong> = aba "Divergências" (contratos com |Δ| &gt; R$0,01)
+          </span>
         </CardContent>
       </Card>
 
