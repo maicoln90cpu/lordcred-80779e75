@@ -299,6 +299,16 @@ export default function Permissions() {
                       <div key={feature.id} className="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-4 py-2.5 border-t items-center">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{feature.feature_label}</span>
+                          {FEATURE_DESCRIPTIONS[feature.feature_key] && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs text-xs">
+                                {FEATURE_DESCRIPTIONS[feature.feature_key]}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                           {dirty.has(feature.id) && <Badge variant="destructive" className="text-[10px] px-1 py-0">alterado</Badge>}
                         </div>
                         {ROLE_OPTIONS.map(role => (
