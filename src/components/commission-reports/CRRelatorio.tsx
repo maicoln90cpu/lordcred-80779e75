@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_RELATORIO, TipWrap } from './CRSortUtils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 // ==================== TYPES ====================
 interface RelatorioRow {
@@ -319,6 +320,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
           <p className="text-center text-muted-foreground py-8 text-sm">{divergenciasOnly ? 'Nenhuma divergência encontrada! 🎉' : 'Nenhum resultado para os filtros aplicados.'}</p>
         ) : (
           <div className="border rounded-lg max-h-[600px] overflow-auto">
+          <TooltipProvider delayDuration={300}>
             <Table>
               <TableHeader>
                 <tr>
@@ -359,6 +361,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                 ))}
               </TableBody>
             </Table>
+          </TooltipProvider>
             {sorted.length > 500 && <p className="text-center text-xs text-muted-foreground py-2">Mostrando 500 de {sorted.length}...</p>}
           </div>
         )}

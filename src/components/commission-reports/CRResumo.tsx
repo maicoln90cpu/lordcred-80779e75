@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, BarChart3, Save, DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle, CalendarIcon } from 'lucide-react';
 import { TSHead, useSortState, applySortToData, TipWrap, TOOLTIPS_RESUMO } from './CRSortUtils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -131,6 +132,7 @@ export default function CRResumo() {
   }, [summary.byBanco, bancoSort]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-4">
       {/* Date Filters */}
       <Card>
@@ -261,5 +263,6 @@ export default function CRResumo() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }

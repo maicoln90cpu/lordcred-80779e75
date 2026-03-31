@@ -12,6 +12,7 @@ import { Upload, Loader2, FileSpreadsheet, Search, Download } from 'lucide-react
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import CRPasteImportButton from './CRPasteImportButton';
 import { TSHead, THead, useSortState, applySortToData, TOOLTIPS_GERAL, TOOLTIPS_REPASSE, TOOLTIPS_SEGUROS } from './CRSortUtils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { SortConfig } from './CRSortUtils';
 
 // ==================== HELPERS ====================
@@ -37,7 +38,19 @@ function cleanPercent(v: any): number | null {
   return isNaN(n) ? null : n;
 }
 
-const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.\-_']/g, ' ').replace(/\s+/g, ' ').trim() || '';
+
+function cleanCPF(v: any): string {
+  const s = String(v).trim();
+  if (/e\+/i.test(s)) {
+    const n = Number(s.replace(',', '.'));
+    if (!isNaN(n)) {
+      const digits = Math.round(n).toString().padStart(11, '0');
+      return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+    }
+  }
+  return s;
+}
 
 function findCol(row: Record<string, any>, aliases: string[]): any {
   const keys = Object.keys(row);
@@ -91,16 +104,16 @@ export const GERAL_COLUMNS: ColumnDef[] = [
   { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago', 'data pgt'], type: 'date' },
   { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'date' },
   { key: 'ade', label: 'ADE', aliases: ['ade'], type: 'text' },
-  { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato', 'código contrato'], type: 'text' },
+  { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato', 'código contrato', 'cod contrato', 'codigo contrato'], type: 'text' },
   { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
   { key: 'idade', label: 'Idade', aliases: ['idade'], type: 'text' },
   { key: 'nome_cliente', label: 'Nome', aliases: ['nome cliente', 'nome_cliente', 'nome'], type: 'text' },
   { key: 'convenio', label: 'Convênio', aliases: ['convenio', 'convênio'], type: 'text' },
   { key: 'pmts', label: 'PMTS', aliases: ['pmts'], type: 'text' },
   { key: 'prazo', label: 'Prazo', aliases: ['prazo'], type: 'integer' },
-  { key: 'prod_liq', label: 'Prod Líq', aliases: ['prod liq', 'prod_liq', 'prod líq', 'produção liquida'], type: 'currency' },
+  { key: 'prod_liq', label: 'Prod Líq', aliases: ['prod liq', 'prod_liq', 'prod liq', 'producao liquida', 'produção liquida'], type: 'currency' },
   { key: 'pct_cms', label: '% CMS', aliases: ['% cms', 'pct_cms', 'pct cms'], type: 'percent' },
-  { key: 'prod_bruta', label: 'Prod Bruta', aliases: ['prod bruta', 'prod_bruta', 'produção bruta'], type: 'currency' },
+  { key: 'prod_bruta', label: 'Prod Bruta', aliases: ['prod bruta', 'prod_bruta', 'producao bruta', 'produção bruta'], type: 'currency' },
   { key: 'pct_cms_bruta', label: '% CMS Bruta', aliases: ['% cms bruta', 'pct_cms_bruta', 'pct cms bruta'], type: 'percent' },
   { key: 'tipo_operacao', label: 'Tipo Op.', aliases: ['tipo operação', 'tipo operacao', 'tipo_operacao', 'tipo op'], type: 'text' },
   { key: 'banco', label: 'Banco', aliases: ['banco'], type: 'text' },
@@ -111,16 +124,16 @@ export const REPASSE_COLUMNS: ColumnDef[] = [
   { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago'], type: 'date' },
   { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'date' },
   { key: 'ade', label: 'ADE', aliases: ['ade'], type: 'text' },
-  { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato'], type: 'text' },
+  { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato', 'codigo contrato'], type: 'text' },
   { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
   { key: 'idade', label: 'Idade', aliases: ['idade'], type: 'text' },
   { key: 'nome_cliente', label: 'Nome', aliases: ['nome cliente', 'nome_cliente', 'nome'], type: 'text' },
   { key: 'convenio', label: 'Convênio', aliases: ['convenio', 'convênio'], type: 'text' },
   { key: 'pmts', label: 'PMTS', aliases: ['pmts'], type: 'text' },
   { key: 'prazo', label: 'Prazo', aliases: ['prazo'], type: 'integer' },
-  { key: 'prod_liq', label: 'Prod Líq', aliases: ['prod liq', 'prod_liq'], type: 'currency' },
+  { key: 'prod_liq', label: 'Prod Líq', aliases: ['prod liq', 'prod_liq', 'prod liq', 'producao liquida'], type: 'currency' },
   { key: 'pct_cms', label: '% CMS', aliases: ['% cms', 'pct_cms'], type: 'percent' },
-  { key: 'prod_bruta', label: 'Prod Bruta', aliases: ['prod bruta', 'prod_bruta'], type: 'currency' },
+  { key: 'prod_bruta', label: 'Prod Bruta', aliases: ['prod bruta', 'prod_bruta', 'producao bruta'], type: 'currency' },
   { key: 'pct_cms_bruta', label: '% CMS Bruta', aliases: ['% cms bruta', 'pct_cms_bruta'], type: 'percent' },
   { key: 'tipo_operacao', label: 'Tipo Op.', aliases: ['tipo operação', 'tipo operacao', 'tipo_operacao'], type: 'text' },
   { key: 'banco', label: 'Banco', aliases: ['banco'], type: 'text' },
@@ -128,7 +141,7 @@ export const REPASSE_COLUMNS: ColumnDef[] = [
   { key: 'pct_rateio', label: '% Rateio', aliases: ['% rateio', 'pct_rateio', 'pct rateio'], type: 'percent' },
   { key: 'pct_rateio_fixo', label: '% Rateio Fixo', aliases: ['% rateio fixo', 'pct_rateio_fixo', 'pct rateio fixo'], type: 'percent' },
   { key: 'cms_rep_favorecido', label: 'CMS REP Fav.', aliases: ['cms rep favorecido', 'cms_rep_favorecido', 'cms rep fav'], type: 'currency' },
-  { key: 'favorecido', label: 'Favorecido', aliases: ['favorecido'], type: 'text' },
+  { key: 'favorecido', label: 'Favorecido', aliases: ['favorecido', 'favorecido codigo nome', 'favorecido codigo-nome'], type: 'text' },
 ];
 
 export const SEGUROS_COLUMNS: ColumnDef[] = [
@@ -239,7 +252,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             case 'percent': r[col.key] = cleanPercent(raw); break;
             case 'integer': r[col.key] = raw ? parseInt(String(raw)) || null : null; break;
             case 'date': r[col.key] = cleanDate(raw); break;
-            default: r[col.key] = raw != null ? String(raw) : '';
+            default: r[col.key] = col.key === 'cpf' ? cleanCPF(raw) : (raw != null ? String(raw) : '');
           }
         }
         return r;
@@ -338,6 +351,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                 </Button>
               </div>
               <div className="border rounded-lg max-h-72 overflow-auto">
+              <TooltipProvider delayDuration={300}>
                 <Table>
                   <TableHeader>
                     <tr>
@@ -357,6 +371,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                     ))}
                   </TableBody>
                 </Table>
+              </TooltipProvider>
                 {parsedData.length > 30 && (
                   <p className="text-center text-xs text-muted-foreground py-2">Mostrando 30 de {parsedData.length}...</p>
                 )}
@@ -388,7 +403,8 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             <p className="text-center text-muted-foreground py-8 text-sm">Nenhum dado importado ainda.</p>
           ) : (
             <div className="border rounded-lg max-h-[500px] overflow-auto">
-              <Table>
+            <TooltipProvider delayDuration={300}>
+               <Table>
                 <TableHeader>
                   <tr>
                     {columns.map(col => (
@@ -406,7 +422,8 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                     </tr>
                   ))}
                 </TableBody>
-              </Table>
+               </Table>
+            </TooltipProvider>
               {sortedExisting.length > 200 && (
                 <p className="text-center text-xs text-muted-foreground py-2">Mostrando 200 de {sortedExisting.length}...</p>
               )}

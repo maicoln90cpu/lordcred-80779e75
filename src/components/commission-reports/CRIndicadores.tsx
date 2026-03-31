@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, TrendingUp, TrendingDown, Target } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: number) => `${(v * 100).toFixed(2)}%`;
@@ -151,6 +152,7 @@ export default function CRIndicadores() {
   if (geral.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Importe dados nas abas Geral e Repasse primeiro.</p>;
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-6">
       {/* Global KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -275,5 +277,6 @@ export default function CRIndicadores() {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }
