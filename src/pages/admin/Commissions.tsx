@@ -1255,7 +1255,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
           <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as semanas</SelectItem>
-            {weeks.map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
+            {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
           </SelectContent>
         </Select>
       </CardHeader>
