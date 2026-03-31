@@ -1294,6 +1294,8 @@ function ConfigTab() {
   const { toast } = useToast();
   const [weekStartDay, setWeekStartDay] = useState<number>(5);
   const [paymentDay, setPaymentDay] = useState<number>(4);
+  const [bonusThreshold, setBonusThreshold] = useState<string>('');
+  const [bonusRate, setBonusRate] = useState<string>('0');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -1306,6 +1308,8 @@ function ConfigTab() {
     if (data) {
       setWeekStartDay((data as any).week_start_day ?? 5);
       setPaymentDay((data as any).payment_day ?? 4);
+      setBonusThreshold((data as any).bonus_threshold != null ? String((data as any).bonus_threshold) : '');
+      setBonusRate(String((data as any).bonus_rate ?? 0));
     }
     setLoading(false);
   };
@@ -1317,11 +1321,17 @@ function ConfigTab() {
       if (existing) {
         const { error } = await supabase
           .from('commission_settings')
-          .update({ week_start_day: weekStartDay, payment_day: paymentDay, updated_at: new Date().toISOString() } as any)
+          .update({
+            week_start_day: weekStartDay,
+            payment_day: paymentDay,
+            bonus_threshold: bonusThreshold ? parseFloat(bonusThreshold) : null,
+            bonus_rate: parseFloat(bonusRate) || 0,
+            updated_at: new Date().toISOString(),
+          } as any)
           .eq('id', existing.id);
         if (error) throw error;
       }
-      toast({ title: 'Configurações salvas', description: `Semana inicia na ${DAY_NAMES[weekStartDay]}, pagamento na ${DAY_NAMES[paymentDay]}` });
+      toast({ title: 'Configurações salvas' });
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
@@ -1370,14 +1380,46 @@ function ConfigTab() {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Dia da semana em que os pagamentos são realizados (apenas para referência visual).
+            Dia da semana em que os pagamentos são realizados.
           </p>
         </div>
 
+        <div className="border-t pt-4 space-y-4">
+          <h3 className="font-medium text-sm">Bônus por Produção</h3>
+
+          <div className="space-y-2">
+            <Label>Meta semanal para bônus (R$)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="Ex: 50000"
+              value={bonusThreshold}
+              onChange={e => setBonusThreshold(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Valor liberado mínimo na semana para ativar a taxa de bônus. Deixe vazio para desativar.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Taxa de bônus extra (%)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="Ex: 0.5"
+              value={bonusRate}
+              onChange={e => setBonusRate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Percentual adicional aplicado quando o vendedor atinge a meta semanal.
+            </p>
+          </div>
+        </div>
+
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-          <p><strong>Como funciona:</strong></p>
-          <p className="mt-1">Novas vendas importadas terão o <code>week_label</code> calculado automaticamente com base no dia de início configurado.</p>
-          <p className="mt-1">Vendas já existentes mantêm o label original. Para recalcular, reimporte ou edite a venda.</p>
+          <p><strong>Como funciona o bônus:</strong></p>
+          <p className="mt-1">Quando o valor liberado total na semana de um vendedor ultrapassar <strong>R$ {bonusThreshold || '—'}</strong>, uma comissão extra de <strong>{bonusRate || '0'}%</strong> é adicionada sobre o excedente.</p>
+          <p className="mt-1">As vendas já existentes mantêm o label original. Para recalcular, reimporte ou edite a venda.</p>
         </div>
 
         <Button onClick={handleSave} disabled={saving}>
