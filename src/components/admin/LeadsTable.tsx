@@ -626,7 +626,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           <Select value={bulkStatus} onValueChange={setBulkStatus}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>
