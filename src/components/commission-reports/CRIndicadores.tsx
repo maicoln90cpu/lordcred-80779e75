@@ -152,6 +152,7 @@ export default function CRIndicadores() {
   if (geral.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Importe dados nas abas Geral e Repasse primeiro.</p>;
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-6">
       {/* Global KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
