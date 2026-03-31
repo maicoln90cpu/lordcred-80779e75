@@ -26,6 +26,7 @@ export default function SellerPropostas() {
     const { data, error } = await invokeCorban('getPropostas', {
       filters: {
         searchString: searchCpf.replace(/\D/g, ''),
+        status: [],
         data: {
           tipo: 'cadastro',
           startDate: from.toISOString().split('T')[0],
