@@ -2,7 +2,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList } from 'lucide-react';
+import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList, Lightbulb } from 'lucide-react';
 import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS } from '@/components/commission-reports/CRImportTab';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import CRRulesFGTS from '@/components/commission-reports/CRRulesFGTS';
@@ -10,6 +10,7 @@ import CRRulesCLT from '@/components/commission-reports/CRRulesCLT';
 import CRRelatorio from '@/components/commission-reports/CRRelatorio';
 import CRResumo from '@/components/commission-reports/CRResumo';
 import CRHistorico from '@/components/commission-reports/CRHistorico';
+import CRIndicadores from '@/components/commission-reports/CRIndicadores';
 
 export default function CommissionReports() {
   const [activeTab, setActiveTab] = useState('geral');
