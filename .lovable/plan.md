@@ -1,51 +1,105 @@
 
 
-# Plan: Fix Paste Import Errors for Repasse and Seguros
+# Fix: Import Errors, Tooltip Flicker, and CPF Format
 
 ## Root Cause Analysis
 
-### Repasse — "89 com erro"
-Two issues:
-1. **Missing column**: `cms_rep` is defined in `REPASSE_COLUMNS` and sent in the INSERT payload, but the `cr_repasse` table **does not have** a `cms_rep` column. PostgreSQL rejects every batch insert.
-2. **Date format mismatch**: `data_pgt_cliente` and `data_digitacao` are `timestamptz` in the DB, but the paste sends raw text like `"1/30/2026"`. PostgreSQL cannot parse US-format dates without explicit casting.
+### Issue 1 & 2 — Geral/Repasse not importing cod_contrato, prod_liq, prod_bruta, favorecido
 
-### Seguros — "Nenhum registro válido encontrado"  
-1. **Date format mismatch**: `data_registro` is `timestamptz` in DB but receives text like `"2/2/26 11:59"`.
-2. The toast says "Nenhum registro válido" which means the `findColValue` mapping returns empty for all columns, making `hasAnyValue = false`. This is because the pasted data **has headers** (the first row contains `#`, date info, description, etc.) but `looksLikeDateValue` incorrectly classifies the first cell (`669386`) as NOT a date, so the parser treats the first row as headers. Those headers (`669386`, `2/2/26 11:59`, etc.) don't match any aliases, causing all column lookups to fail.
+The Excel headers contain **dots and accented characters** that the `normalize()` function does NOT strip:
+- Excel header: `Cód. Contrato` → normalizes to `cod. contrato` → alias `cod contrato` does NOT match (the dot remains)
+- Excel header: `Prod. Líq.` → normalizes to `prod. liq.` → alias `prod liq` does NOT match
+- Excel header: `Prod. Bruta` → normalizes to `prod. bruta` → alias `prod bruta` does NOT match
+- Excel header: `Favorecido Codigo-Nome` → normalizes to `favorecido codigo-nome` → alias `favorecido` does NOT match
 
-### Why Geral works
-The `cr_geral` table has `cms_rep` and all columns match. The date values from the Geral spreadsheet happened to be in a format PostgreSQL accepted.
+**Database confirms all these fields are NULL** for every imported record. This cascades to break ALL commission calculations.
+
+**Fix**: Update `normalize()` to strip dots and add exact Excel header aliases.
+
+### Issue 3 — Relatório CPF broken (scientific notation)
+
+Excel stores CPFs as numbers → exports as `9,67E+10` instead of `96673346000`. The `type: 'text'` parser just stores the scientific notation string.
+
+**Fix**: Add CPF cleaning logic that detects scientific notation (`E+`) and converts back to integer string, then formats as `XXX.XXX.XXX-XX`.
+
+### Issue 4 — Column data changes on hover
+
+Each `TSHead` component wraps its own `TooltipProvider`. When hovering across columns, rapid mount/unmount of tooltip providers triggers React re-renders that cascade across the table, causing visual "data changing" effect.
+
+**Fix**: Move `TooltipProvider` to wrap the entire table once, not per-column.
+
+### Issue 5 — Calculations not matching
+
+Direct consequence of Issue 1: `prod_liq` is NULL for all records → CMS calculations are zero → all expected commissions are wrong. Fixing import will fix calculations.
 
 ---
 
-## Fix Plan
+## Implementation Plan
 
-### Step 1 — Add `cms_rep` column to `cr_repasse` table
-New migration:
-```sql
-ALTER TABLE public.cr_repasse ADD COLUMN IF NOT EXISTS cms_rep numeric DEFAULT 0;
+### Step 1 — Fix `normalize()` to strip dots/punctuation
+
+In `CRImportTab.tsx` and `CRPasteImportButton.tsx`:
+```typescript
+// Before: dots remain
+const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+// After: strip dots, hyphens, special chars
+const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.\-_']/g, ' ').replace(/\s+/g, ' ').trim() || '';
 ```
 
-### Step 2 — Date parsing helper in `CRPasteImportButton.tsx`
-Add a `cleanDate` function that converts common Brazilian/US date formats to ISO strings that PostgreSQL accepts:
-- `"2/2/2026"` → `"2026-02-02"`
-- `"2/2/26 11:59"` → `"2026-02-02T11:59:00"`  
-- `"1/30/2026"` → `"2026-01-30"`
-- Already ISO → pass through
-- Empty/null → return null
+This makes `Cód. Contrato` → `cod contrato`, `Prod. Líq.` → `prod liq`, `Prod. Bruta` → `prod bruta`, `Favorecido Codigo-Nome` → `favorecido codigo nome`.
 
-Apply `cleanDate` to any column where the DB type is `timestamptz`. Since the `ColumnDef` type field only has `text|currency|percent|integer`, we need to either:
-- **Option A**: Add a `'date'` type to `ColumnDef` and mark the date columns accordingly
-- **Option B**: Handle it at insert time by detecting date-like column keys
+### Step 2 — Add exact Excel aliases
 
-**Option A is cleaner** — add `'date'` to the ColumnDef type union and mark `data_pgt_cliente`, `data_digitacao`, `data_registro` as `type: 'date'`.
+Add these aliases:
+- `cod_contrato`: add `"cód contrato"`, `"cód. contrato"`
+- `prod_liq`: add `"prod. líq."`, `"prod. líq"`, `"produção líquida"`
+- `prod_bruta`: add `"prod. bruta"`, `"produção bruta"`
+- `favorecido`: add `"favorecido codigo-nome"`, `"favorecido codigo nome"`
+- `cms_rep_favorecido`: add `"cms rep favorecido"` (already exists, but verify)
 
-### Step 3 — Fix Seguros header detection
-The Seguros data has no column headers (raw numeric IDs in first cell like `669386`). The `looksLikeDateValue` check fails because `669386` is not a date. Two options:
-- The `noHeader` prop is already passed for Seguros in `CommissionReports.tsx`. Pass it through to `CRPasteImportButton` so it **always** treats the data as headerless, bypassing auto-detection.
+### Step 3 — Fix CPF scientific notation
 
-### Step 4 — Apply same date cleaning in `CRImportTab.tsx` Excel path
-For consistency, also apply `cleanDate` when processing Excel uploads so both paths handle dates identically.
+Add a `cleanCPF()` helper:
+```typescript
+function cleanCPF(v: any): string {
+  const s = String(v).trim();
+  if (/e\+/i.test(s)) {
+    // Scientific notation → convert to integer string
+    const n = Number(s.replace(',', '.'));
+    if (!isNaN(n)) {
+      const digits = Math.round(n).toString().padStart(11, '0');
+      return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+    }
+  }
+  return s;
+}
+```
+
+Apply `cleanCPF` to columns where `key === 'cpf'` during import mapping.
+
+### Step 4 — Fix tooltip flicker
+
+In `CRSortUtils.tsx`, remove per-column `TooltipProvider`. In each table that uses `TSHead`, wrap the entire `<Table>` with a single `<TooltipProvider>`.
+
+Modify `TSHead`:
+```typescript
+// Remove TooltipProvider wrapper - expect parent to provide it
+export function TSHead({ ... }: TSHeadProps) {
+  if (!tooltip) return content;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent ...>{tooltip}</TooltipContent>
+    </Tooltip>
+  );
+}
+```
+
+Add `<TooltipProvider delayDuration={300}>` wrapping `<Table>` in `CRImportTab`, `CRRelatorio`, `CRIndicadores`, `CRResumo`.
+
+### Step 5 — Re-import data
+
+After code fix, user must re-import the Excel to get correct data. Existing NULL records need to be cleared first. Add a "Limpar dados" button or instruct user to clear via Hist. Importações.
 
 ---
 
@@ -53,18 +107,21 @@ For consistency, also apply `cleanDate` when processing Excel uploads so both pa
 
 | File | Change |
 |------|--------|
-| New migration | `ALTER TABLE cr_repasse ADD COLUMN cms_rep numeric DEFAULT 0` |
-| `src/components/commission-reports/CRImportTab.tsx` | Add `'date'` to ColumnDef type, mark date columns, pass `noHeader` to paste button |
-| `src/components/commission-reports/CRPasteImportButton.tsx` | Add `cleanDate` helper, handle `'date'` type in mapping, accept `noHeader` prop to force headerless parsing |
-| `src/lib/clipboardParser.ts` | No change needed (parser itself is fine) |
+| `CRImportTab.tsx` | Fix `normalize()`, add aliases, add `cleanCPF`, wrap table in `TooltipProvider` |
+| `CRPasteImportButton.tsx` | Fix `normalize()`, add `cleanCPF` |
+| `CRSortUtils.tsx` | Remove per-column `TooltipProvider` from `TSHead` and `THead` |
+| `CRRelatorio.tsx` | Wrap table in `TooltipProvider` |
+| `CRIndicadores.tsx` | Wrap table in `TooltipProvider` |
+| `CRResumo.tsx` | Wrap table in `TooltipProvider` |
 
 ---
 
-## Checklist After Implementation
+## Checklist Manual
 
-- [ ] Paste Seguros data → preview shows 210 records → click Import → success toast
-- [ ] Paste Repasse data → preview shows 89 records → click Import → success toast, 0 errors
-- [ ] Paste Geral data → still works (regression check)
-- [ ] Verify imported dates appear correctly in the data table
-- [ ] Check Hist. Importações shows the new batches
+- [ ] Re-importar planilha Geral → verificar que `Cód. Contrato`, `Prod. Líq.` e `Prod. Bruta` estão preenchidos
+- [ ] Re-importar planilha Repasse → verificar que `Favorecido Codigo-Nome` aparece na coluna Favorecido
+- [ ] Re-importar Relatório → verificar que CPF aparece como `XXX.XXX.XXX-XX` e não como `9,67E+10`
+- [ ] Passar o mouse nas colunas sem que os dados mudem/pisquem
+- [ ] Verificar aba Relatório: comissão esperada deve ter valores > 0 (antes era tudo zero por causa de prod_liq NULL)
+- [ ] Comparar totais do Resumo com planilha original (~R$203.975 liberado)
 
