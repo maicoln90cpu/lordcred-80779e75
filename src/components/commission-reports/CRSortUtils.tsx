@@ -41,22 +41,22 @@ interface TSHeadProps {
 
 export function TSHead({ label, sortKey, sort, toggle, tooltip, className }: TSHeadProps) {
   const Icon = sort.key === sortKey ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-  const content = (
-    <TableHead className={`cursor-pointer select-none hover:bg-muted/50 ${className || ''}`} onClick={() => toggle(sortKey)}>
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <Icon className={`w-3 h-3 ${sort.key === sortKey ? 'text-foreground' : 'text-muted-foreground/50'}`} />
-      </span>
-    </TableHead>
+  const inner = (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <Icon className={`w-3 h-3 ${sort.key === sortKey ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+    </span>
   );
 
-  if (!tooltip) return content;
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
-    </Tooltip>
+    <TableHead className={`cursor-pointer select-none hover:bg-muted/50 ${className || ''}`} onClick={() => toggle(sortKey)}>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{inner}</TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : inner}
+    </TableHead>
   );
 }
 
