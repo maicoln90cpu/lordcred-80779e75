@@ -277,5 +277,6 @@ export default function CRIndicadores() {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }

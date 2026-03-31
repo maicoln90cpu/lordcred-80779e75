@@ -361,6 +361,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                 ))}
               </TableBody>
             </Table>
+          </TooltipProvider>
             {sorted.length > 500 && <p className="text-center text-xs text-muted-foreground py-2">Mostrando 500 de {sorted.length}...</p>}
           </div>
         )}

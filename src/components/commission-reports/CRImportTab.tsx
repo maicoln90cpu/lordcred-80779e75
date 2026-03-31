@@ -422,7 +422,8 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                     </tr>
                   ))}
                 </TableBody>
-              </Table>
+               </Table>
+            </TooltipProvider>
               {sortedExisting.length > 200 && (
                 <p className="text-center text-xs text-muted-foreground py-2">Mostrando 200 de {sortedExisting.length}...</p>
               )}

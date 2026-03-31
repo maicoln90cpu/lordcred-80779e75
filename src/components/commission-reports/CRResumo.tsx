@@ -263,5 +263,6 @@ export default function CRResumo() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
