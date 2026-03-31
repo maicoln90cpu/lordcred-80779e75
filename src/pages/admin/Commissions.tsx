@@ -1632,6 +1632,7 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
     const pasted = e.clipboardData.getData('text');
     setText(pasted);
     doParse(pasted);
