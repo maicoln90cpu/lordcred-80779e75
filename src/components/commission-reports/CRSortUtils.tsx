@@ -53,12 +53,10 @@ export function TSHead({ label, sortKey, sort, toggle, tooltip, className }: TSH
   if (!tooltip) return content;
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs">{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
