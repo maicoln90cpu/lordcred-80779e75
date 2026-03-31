@@ -428,7 +428,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os lotes</SelectItem>
-                  {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  {[...batchNames].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualBancoSimulado} onValueChange={(v) => updateFilter('bancoSimulado', v)}>
