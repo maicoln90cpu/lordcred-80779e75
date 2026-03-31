@@ -1446,3 +1446,250 @@ function ConfigTab() {
     </Card>
   );
 }
+
+// ==================== HIST IMPORT TAB ====================
+function HistImportTab({ userId, profiles, getSellerName }: { userId: string; profiles: Profile[]; getSellerName: (id: string) => string }) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const findSellerByName = (name: string): string | null => {
+    if (!name) return null;
+    const q = name.toLowerCase().trim();
+    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
+    return p?.user_id || null;
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (rows.length === 0) { toast({ title: 'Planilha vazia', variant: 'destructive' }); return; }
+
+      const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+      const findCol = (row: any, aliases: string[]) => { const keys = Object.keys(row); for (const alias of aliases) { const found = keys.find(k => normalize(k) === normalize(alias)); if (found) return row[found]; } return undefined; };
+
+      let skipped = 0;
+      const payloads: any[] = [];
+      for (const row of rows) {
+        const rawDate = findCol(row, ['Data Pago', 'data_pago', 'Data', 'data pago']);
+        const saleDate = parseExcelDate(rawDate);
+        if (!saleDate) { skipped++; continue; }
+        const bank = findCol(row, ['Banco', 'banco']) || '';
+        const releasedValue = cleanCurrency(findCol(row, ['Valor Liberado', 'valor_liberado', 'Valor', 'valor liberado']));
+        if (!bank || releasedValue <= 0) { skipped++; continue; }
+        const sellerName = findCol(row, ['Vendedor', 'vendedor'])?.toString() || '';
+        payloads.push({
+          sale_date: saleDate, product: findCol(row, ['Produto', 'produto']) || 'FGTS', bank,
+          term: parseInt(findCol(row, ['Prazo', 'prazo'])) || null, released_value: releasedValue,
+          has_insurance: findCol(row, ['Seguro', 'seguro'])?.toString().toLowerCase().trim() === 'sim',
+          client_cpf: findCol(row, ['CPF', 'cpf'])?.toString() || null,
+          client_name: findCol(row, ['Nome', 'nome', 'Cliente'])?.toString() || null,
+          client_phone: findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null,
+          seller_id: findSellerByName(sellerName) || userId,
+          external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null,
+          created_by: userId,
+        });
+      }
+      if (payloads.length === 0) { toast({ title: 'Nenhum registro válido encontrado', variant: 'destructive' }); return; }
+
+      const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
+        file_name: file.name, module: 'parceiros', sheet_name: 'base', row_count: payloads.length, imported_by: userId, status: 'active',
+      } as any).select('id').single();
+      const batchId = batchErr ? null : (batchRecord as any)?.id;
+      if (batchId) payloads.forEach(p => { p.batch_id = batchId; });
+
+      let errors = 0;
+      for (let i = 0; i < payloads.length; i += 50) {
+        const batch = payloads.slice(i, i + 50);
+        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+      if (batchId && errors > 0) await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);
+
+      toast({ title: 'Importação concluída', description: `${payloads.length - errors} registros importados${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}` });
+      setRefreshKey(k => k + 1);
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-3">
+            <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+              {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+              {importing ? 'Importando...' : 'Importar Excel'}
+            </Button>
+            <span className="text-xs text-muted-foreground">Importe um arquivo Excel para criar um novo lote na Base</span>
+          </div>
+        </CardContent>
+      </Card>
+      <CRImportHistory key={refreshKey} moduleFilter="parceiros" />
+    </div>
+  );
+}
+
+// ==================== PASTE IMPORT DIALOG ====================
+function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile[]; userId: string; onImported: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<Record<string, string>[]>([]);
+  const [importing, setImporting] = useState(false);
+
+  const findSellerByName = (name: string): string | null => {
+    if (!name) return null;
+    const q = name.toLowerCase().trim();
+    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
+    return p?.user_id || null;
+  };
+
+  const parseText = (raw: string) => {
+    const lines = raw.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) { setPreview([]); return; }
+    const sep = lines[0].includes('\t') ? '\t' : ';';
+    const headers = lines[0].split(sep).map(h => h.trim());
+    const rows = lines.slice(1).map(line => {
+      const cols = line.split(sep);
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => { obj[h] = (cols[i] || '').trim(); });
+      return obj;
+    });
+    setPreview(rows);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text');
+    setText(pasted);
+    parseText(pasted);
+  };
+
+  const handleChange = (val: string) => {
+    setText(val);
+    parseText(val);
+  };
+
+  const handleImport = async () => {
+    if (preview.length === 0) return;
+    setImporting(true);
+    try {
+      const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+      const findCol = (row: Record<string, string>, aliases: string[]) => {
+        for (const alias of aliases) {
+          const key = Object.keys(row).find(k => normalize(k) === normalize(alias));
+          if (key && row[key]) return row[key];
+        }
+        return undefined;
+      };
+
+      let skipped = 0;
+      const payloads: any[] = [];
+      for (const row of preview) {
+        const saleDate = parseExcelDate(findCol(row, ['Data Pago', 'data_pago', 'Data', 'data pago']));
+        if (!saleDate) { skipped++; continue; }
+        const bank = findCol(row, ['Banco', 'banco']) || '';
+        const releasedValue = cleanCurrency(findCol(row, ['Valor Liberado', 'valor_liberado', 'Valor', 'valor liberado']));
+        if (!bank || releasedValue <= 0) { skipped++; continue; }
+        const sellerName = findCol(row, ['Vendedor', 'vendedor']) || '';
+        payloads.push({
+          sale_date: saleDate, product: findCol(row, ['Produto', 'produto']) || 'FGTS', bank,
+          term: parseInt(findCol(row, ['Prazo', 'prazo']) || '') || null, released_value: releasedValue,
+          has_insurance: (findCol(row, ['Seguro', 'seguro']) || '').toLowerCase().trim() === 'sim',
+          client_cpf: findCol(row, ['CPF', 'cpf']) || null,
+          client_name: findCol(row, ['Nome', 'nome', 'Cliente']) || null,
+          client_phone: findCol(row, ['Telefone', 'telefone', 'Fone']) || null,
+          seller_id: findSellerByName(sellerName) || userId,
+          external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta']) || null,
+          created_by: userId,
+        });
+      }
+      if (payloads.length === 0) { toast({ title: 'Nenhum registro válido', variant: 'destructive' }); setImporting(false); return; }
+
+      const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
+        file_name: `colagem_${new Date().toISOString().slice(0, 10)}`, module: 'parceiros', sheet_name: 'base',
+        row_count: payloads.length, imported_by: userId, status: 'active',
+      } as any).select('id').single();
+      const batchId = batchErr ? null : (batchRecord as any)?.id;
+      if (batchId) payloads.forEach(p => { p.batch_id = batchId; });
+
+      let errors = 0;
+      for (let i = 0; i < payloads.length; i += 50) {
+        const batch = payloads.slice(i, i + 50);
+        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+      if (batchId && errors > 0) await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);
+
+      toast({ title: 'Importação concluída', description: `${payloads.length - errors} registros${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}` });
+      setOpen(false); setText(''); setPreview([]);
+      onImported();
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    } finally { setImporting(false); }
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => { setOpen(true); setText(''); setPreview([]); }}>
+        <ClipboardPaste className="w-4 h-4 mr-1" /> Colar
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardPaste className="w-5 h-5" /> Importar Dados Colados</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Cole dados copiados do Excel ou Google Sheets (Ctrl+V). A primeira linha deve conter os cabeçalhos.</p>
+          <textarea
+            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
+            placeholder="Cole os dados aqui (Ctrl+V)..."
+            value={text}
+            onChange={e => handleChange(e.target.value)}
+            onPaste={handlePaste}
+          />
+          {preview.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{preview.length} linha(s) detectada(s)</p>
+              <div className="border rounded-lg overflow-auto max-h-[300px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {Object.keys(preview[0]).slice(0, 8).map(h => <TableHead key={h} className="text-xs">{h}</TableHead>)}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.slice(0, 10).map((row, i) => (
+                      <TableRow key={i}>
+                        {Object.keys(preview[0]).slice(0, 8).map(h => <TableCell key={h} className="text-xs py-1">{row[h]}</TableCell>)}
+                      </TableRow>
+                    ))}
+                    {preview.length > 10 && <TableRow><TableCell colSpan={8} className="text-center text-xs text-muted-foreground">...e mais {preview.length - 10} linhas</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={handleImport} disabled={importing || preview.length === 0}>
+              {importing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importando...</> : `Importar ${preview.length} registro(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
