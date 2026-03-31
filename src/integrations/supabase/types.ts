@@ -761,6 +761,74 @@ export type Database = {
         }
         Relationships: []
       }
+      cr_relatorio: {
+        Row: {
+          banco: string | null
+          batch_id: string | null
+          cpf: string | null
+          created_at: string | null
+          data_nascimento: string | null
+          data_pago: string | null
+          id: string
+          id_contrato: string | null
+          nome: string | null
+          num_contrato: string | null
+          prazo: number | null
+          produto: string | null
+          seguro: string | null
+          tabela: string | null
+          telefone: string | null
+          valor_liberado: number | null
+          vendedor: string | null
+        }
+        Insert: {
+          banco?: string | null
+          batch_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          data_pago?: string | null
+          id?: string
+          id_contrato?: string | null
+          nome?: string | null
+          num_contrato?: string | null
+          prazo?: number | null
+          produto?: string | null
+          seguro?: string | null
+          tabela?: string | null
+          telefone?: string | null
+          valor_liberado?: number | null
+          vendedor?: string | null
+        }
+        Update: {
+          banco?: string | null
+          batch_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          data_pago?: string | null
+          id?: string
+          id_contrato?: string | null
+          nome?: string | null
+          num_contrato?: string | null
+          prazo?: number | null
+          produto?: string | null
+          seguro?: string | null
+          tabela?: string | null
+          telefone?: string | null
+          valor_liberado?: number | null
+          vendedor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cr_relatorio_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cr_repasse: {
         Row: {
           ade: string | null
