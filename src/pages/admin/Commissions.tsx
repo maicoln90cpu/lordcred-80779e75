@@ -159,6 +159,7 @@ export default function Commissions() {
             <TabsTrigger value="extrato">Extrato</TabsTrigger>
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
             {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="indicadores"><Lightbulb className="w-3.5 h-3.5 mr-1" />Indicadores</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
