@@ -140,7 +140,7 @@ export const REPASSE_COLUMNS: ColumnDef[] = [
   { key: 'pct_rateio', label: '% Rateio', aliases: ['% rateio', 'pct_rateio', 'pct rateio'], type: 'percent' },
   { key: 'pct_rateio_fixo', label: '% Rateio Fixo', aliases: ['% rateio fixo', 'pct_rateio_fixo', 'pct rateio fixo'], type: 'percent' },
   { key: 'cms_rep_favorecido', label: 'CMS REP Fav.', aliases: ['cms rep favorecido', 'cms_rep_favorecido', 'cms rep fav'], type: 'currency' },
-  { key: 'favorecido', label: 'Favorecido', aliases: ['favorecido'], type: 'text' },
+  { key: 'favorecido', label: 'Favorecido', aliases: ['favorecido', 'favorecido codigo nome', 'favorecido codigo-nome'], type: 'text' },
 ];
 
 export const SEGUROS_COLUMNS: ColumnDef[] = [
