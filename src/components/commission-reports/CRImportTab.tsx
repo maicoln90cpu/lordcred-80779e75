@@ -56,13 +56,40 @@ export interface ColumnDef {
   key: string;
   label: string;
   aliases: string[];
-  type: 'text' | 'currency' | 'percent' | 'integer';
+  type: 'text' | 'currency' | 'percent' | 'integer' | 'date';
   width?: string;
 }
 
+function cleanDate(v: any): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  // DD/MM/YYYY or MM/DD/YYYY with optional time
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/);
+  if (m) {
+    let [, a, b, y, rest] = m;
+    let year = y.length === 2 ? '20' + y : y;
+    // If a > 12, it must be DD/MM/YYYY
+    let day: string, month: string;
+    if (parseInt(a) > 12) { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    // If b > 12, it must be MM/DD/YYYY
+    else if (parseInt(b) > 12) { month = a.padStart(2, '0'); day = b.padStart(2, '0'); }
+    // Ambiguous — assume DD/MM (Brazilian default)
+    else { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    const time = rest?.trim() || '';
+    if (time) {
+      const tm = time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (tm) return `${year}-${month}-${day}T${tm[1].padStart(2,'0')}:${tm[2]}:${tm[3]||'00'}`;
+    }
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
 export const GERAL_COLUMNS: ColumnDef[] = [
-  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago', 'data pgt'], type: 'text' },
-  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'text' },
+  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago', 'data pgt'], type: 'date' },
+  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'date' },
   { key: 'ade', label: 'ADE', aliases: ['ade'], type: 'text' },
   { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato', 'código contrato'], type: 'text' },
   { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
@@ -81,8 +108,8 @@ export const GERAL_COLUMNS: ColumnDef[] = [
 ];
 
 export const REPASSE_COLUMNS: ColumnDef[] = [
-  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago'], type: 'text' },
-  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'text' },
+  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago'], type: 'date' },
+  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'date' },
   { key: 'ade', label: 'ADE', aliases: ['ade'], type: 'text' },
   { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato'], type: 'text' },
   { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
@@ -106,7 +133,7 @@ export const REPASSE_COLUMNS: ColumnDef[] = [
 
 export const SEGUROS_COLUMNS: ColumnDef[] = [
   { key: 'id_seguro', label: 'ID Seguro', aliases: ['id seguro', 'id_seguro', 'id'], type: 'text' },
-  { key: 'data_registro', label: 'Data Registro', aliases: ['data registro', 'data_registro', 'data'], type: 'text' },
+  { key: 'data_registro', label: 'Data Registro', aliases: ['data registro', 'data_registro', 'data'], type: 'date' },
   { key: 'descricao', label: 'Descrição', aliases: ['descrição', 'descricao', 'desc'], type: 'text' },
   { key: 'tipo_comissao', label: 'Tipo Comissão', aliases: ['tipo comissão', 'tipo comissao', 'tipo_comissao', 'tipo'], type: 'text' },
   { key: 'valor_comissao', label: 'Valor Comissão', aliases: ['valor comissão', 'valor comissao', 'valor_comissao', 'valor'], type: 'currency' },
@@ -194,6 +221,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             case 'currency': r[col.key] = cleanCurrency(raw); break;
             case 'percent': r[col.key] = cleanPercent(raw); break;
             case 'integer': r[col.key] = raw ? parseInt(String(raw)) || null : null; break;
+            case 'date': r[col.key] = cleanDate(raw); break;
             default: r[col.key] = raw != null ? String(raw) : '';
           }
         }
@@ -280,7 +308,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="max-w-sm cursor-pointer" />
-            <CRPasteImportButton module={module} tableName={tableName} columns={columns} onImported={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] }); }} />
+            <CRPasteImportButton module={module} tableName={tableName} columns={columns} noHeader={noHeader} onImported={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] }); }} />
             {fileName && <span className="text-sm text-muted-foreground">📄 {fileName}</span>}
           </div>
 

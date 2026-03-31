@@ -34,14 +34,37 @@ function cleanPercent(v: any): number | null {
 
 const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
 
+function cleanDate(v: any): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/);
+  if (m) {
+    let [, a, b, y, rest] = m;
+    let year = y.length === 2 ? '20' + y : y;
+    let day: string, month: string;
+    if (parseInt(a) > 12) { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    else if (parseInt(b) > 12) { month = a.padStart(2, '0'); day = b.padStart(2, '0'); }
+    else { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    const time = rest?.trim() || '';
+    if (time) {
+      const tm = time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (tm) return `${year}-${month}-${day}T${tm[1].padStart(2,'0')}:${tm[2]}:${tm[3]||'00'}`;
+    }
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
 interface CRPasteImportButtonProps {
   module: 'geral' | 'repasse' | 'seguros';
   tableName: string;
   columns: ColumnDef[];
+  noHeader?: boolean;
   onImported: () => void;
 }
 
-export default function CRPasteImportButton({ module, tableName, columns, onImported }: CRPasteImportButtonProps) {
+export default function CRPasteImportButton({ module, tableName, columns, noHeader, onImported }: CRPasteImportButtonProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -58,6 +81,39 @@ export default function CRPasteImportButton({ module, tableName, columns, onImpo
   const positionalHeaders = columns.map(c => c.label);
 
   const doParse = (raw: string) => {
+    // If noHeader is set, force positional mapping by prepending a fake non-date header row
+    let textToParse = raw;
+    if (noHeader) {
+      // Insert a synthetic header line that won't look like a date, so parser treats row 0 as headers
+      // Actually, we pass positionalHeaders so the parser will use them when first cell is not a date.
+      // But the issue is first cell IS a number (not a date), so parser thinks it HAS headers.
+      // Solution: we manually parse with positionalHeaders by manipulating the result.
+      const result = parseClipboardText(raw, positionalHeaders);
+      // If the parser detected headers (hasHeaders=true) but we know there are none,
+      // re-parse treating all rows as data by prefixing a date-like dummy to trick detection
+      // Better approach: just re-parse with a leading date row prefix
+      if (!result.format.includes('sem cabeçalho')) {
+        // Parser thought first row was headers — re-run by prefixing a fake date line
+        const sep = raw.includes('\t') ? '\t' : raw.includes(';') ? ';' : ',';
+        const fakeDateRow = '01/01/2000' + (sep + '').repeat(columns.length - 1);
+        const reResult = parseClipboardText(fakeDateRow + '\n' + raw, positionalHeaders);
+        // Remove the fake first data row
+        reResult.rows.shift();
+        reResult.rawLineCount = Math.max(0, reResult.rawLineCount - 1);
+        setHeaders(reResult.headers);
+        setPreview(reResult.rows);
+        setDetectedFormat(reResult.format);
+        setParseStats({ rawLines: reResult.rawLineCount, emptyLines: reResult.emptyLines });
+        setPreviewPage(0);
+        return;
+      }
+      setHeaders(result.headers);
+      setPreview(result.rows);
+      setDetectedFormat(result.format);
+      setParseStats({ rawLines: result.rawLineCount, emptyLines: result.emptyLines });
+      setPreviewPage(0);
+      return;
+    }
     const result = parseClipboardText(raw, positionalHeaders);
     setHeaders(result.headers);
     setPreview(result.rows);
@@ -105,6 +161,7 @@ export default function CRPasteImportButton({ module, tableName, columns, onImpo
             case 'currency': mapped[col.key] = cleanCurrency(raw); break;
             case 'percent': mapped[col.key] = cleanPercent(raw); break;
             case 'integer': mapped[col.key] = raw ? parseInt(String(raw)) || null : null; break;
+            case 'date': mapped[col.key] = cleanDate(raw); break;
             default: mapped[col.key] = raw != null ? String(raw) : '';
           }
           if (mapped[col.key] != null && mapped[col.key] !== '' && mapped[col.key] !== 0) hasAnyValue = true;
