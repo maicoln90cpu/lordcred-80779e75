@@ -191,6 +191,11 @@ export default function Commissions() {
               <ConfigTab />
             </TabsContent>
           )}
+          {isAdmin && (
+            <TabsContent value="indicadores">
+              <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
