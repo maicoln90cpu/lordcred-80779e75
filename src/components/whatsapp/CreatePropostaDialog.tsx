@@ -453,7 +453,7 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
                     <Select value={bancoId} onValueChange={setBancoId}>
                       <SelectTrigger><SelectValue placeholder="Selecionar banco" /></SelectTrigger>
                       <SelectContent>
-                        {bancosAssets.map((b: any) => (
+                        {[...bancosAssets].sort((a: any, b: any) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map((b: any) => (
                           <SelectItem key={b.asset_id} value={b.asset_id}>{b.asset_label}</SelectItem>
                         ))}
                       </SelectContent>
