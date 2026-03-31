@@ -29,6 +29,7 @@ export default function CommissionReports() {
     { value: 'divergencias', label: 'Divergências', icon: AlertTriangle },
     { value: 'import_history', label: 'Hist. Importações', icon: ClipboardList },
     { value: 'indicadores', label: 'Indicadores', icon: Lightbulb },
+    { value: 'producao', label: 'Produção', icon: PieChart },
   ];
 
   return (
