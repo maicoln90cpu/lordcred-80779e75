@@ -336,7 +336,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
         ) : sorted.length === 0 ? (
           <p className="text-center text-muted-foreground py-8 text-sm">{divergenciasOnly ? 'Nenhuma divergência encontrada! 🎉' : 'Nenhum resultado para os filtros aplicados.'}</p>
         ) : (
-          <div className="border rounded-lg max-h-[600px] overflow-auto">
+          <div className="border rounded-lg max-h-[600px] overflow-auto scrollbar-visible">
           <TooltipProvider delayDuration={300}>
             <Table className="min-w-[1400px]">
               <TableHeader>

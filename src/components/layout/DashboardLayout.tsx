@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   Crown,
   ArrowLeft,
   BarChart3,
@@ -149,18 +151,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('sidebar-collapsed-groups');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
   const { user, isMaster, isAdmin, isManager, isSeller, isSupport, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { totalUnread } = useInternalChatUnread();
   const { hasRoutePermission } = useFeaturePermissions();
 
+  const toggleGroup = (groupLabel: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupLabel)) next.delete(groupLabel); else next.add(groupLabel);
+      localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   const filterItems = (items: NavItem[]) =>
     items.filter(item => {
       if (item.adminOnly && !isMaster) return false;
       if (item.sellerHidden && isSeller) return false;
       if (item.supportHidden && isSupport) return false;
-      // Feature permission enforcement
       if (!hasRoutePermission(item.href)) return false;
       return true;
     });
@@ -229,41 +245,50 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-          {filteredGroups.map((group) => (
+          {filteredGroups.map((group) => {
+            const isCollapsed = sidebarOpen && collapsedGroups.has(group.groupLabel);
+            return (
             <div key={group.groupLabel}>
               {sidebarOpen && (
-                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.groupLabel}
-                </p>
+                <button
+                  onClick={() => toggleGroup(group.groupLabel)}
+                  className="w-full flex items-center justify-between px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>{group.groupLabel}</span>
+                  {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
               )}
               {!sidebarOpen && (
                 <div className="my-2 mx-2 border-t border-sidebar-border" />
               )}
-              <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <div key={item.href}>
-                    {renderNavItem(item, location.pathname === item.href, !sidebarOpen)}
-                    {(item as NavItemWithChildren).children?.map((child) => (
-                      <Link
-                        key={child.href}
-                        to={child.href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg transition-colors relative text-xs",
-                          sidebarOpen ? "pl-10 pr-3 py-1.5" : "px-3 py-2 justify-center",
-                          location.pathname === child.href
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                        )}
-                      >
-                        <child.icon className="w-3.5 h-3.5 shrink-0" />
-                        {sidebarOpen && <span>{child.label}</span>}
-                      </Link>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              {!isCollapsed && (
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <div key={item.href}>
+                      {renderNavItem(item, location.pathname === item.href, !sidebarOpen)}
+                      {(item as NavItemWithChildren).children?.map((child) => (
+                        <Link
+                          key={child.href}
+                          to={child.href}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg transition-colors relative text-xs",
+                            sidebarOpen ? "pl-10 pr-3 py-1.5" : "px-3 py-2 justify-center",
+                            location.pathname === child.href
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <child.icon className="w-3.5 h-3.5 shrink-0" />
+                          {sidebarOpen && <span>{child.label}</span>}
+                        </Link>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-2">
