@@ -1570,7 +1570,7 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
   };
 
   const doParse = (raw: string) => {
-    const result = parseClipboardText(raw);
+    const result = parseClipboardText(raw, POSITIONAL_HEADERS_11);
     setHeaders(result.headers);
     setPreview(result.rows);
     setDetectedFormat(result.format);
