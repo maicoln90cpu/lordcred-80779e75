@@ -406,7 +406,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os vendedores</SelectItem>
-                  {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
+                  {[...sellers].sort((a: any, b: any) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualStatus} onValueChange={(v) => updateFilter('status', v)}>
