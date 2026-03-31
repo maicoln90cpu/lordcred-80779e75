@@ -27,17 +27,38 @@ function hasInsuranceFn(convenio: string | null): boolean {
   const c = (convenio || '').toUpperCase();
   return c.includes('SEGURO') || c.includes('COM SEG') || c.includes('C/SEG');
 }
-function findFGTSRate(rules: RuleFGTS[], banco: string, valor: number, tabela: string, temSeguro: boolean, dt: string): number {
+// SUMIFS-style: find max vigencia, then sum all matching rates
+function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tabela: string, temSeguro: boolean, dt: string): number {
   const b = banco.toUpperCase();
-  for (const r of rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt).sort((a, c) => c.data_vigencia.localeCompare(a.data_vigencia))) {
-    if ((r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase())) && (r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro)) && valor >= r.min_valor && valor <= r.max_valor) return r.taxa;
-  } return 0;
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  const seguro = temSeguro ? 'Sim' : 'Não';
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabela === '*' || r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = lookupValue >= r.min_valor && lookupValue <= r.max_valor;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
+  }
+  return total;
 }
 function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabela: string, temSeguro: boolean, dt: string): number {
   const b = banco.toUpperCase();
-  for (const r of rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt).sort((a, c) => c.data_vigencia.localeCompare(a.data_vigencia))) {
-    if ((r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase())) && (r.seguro === 'Ambos' || (r.seguro === 'Sim' && temSeguro) || (r.seguro === 'Não' && !temSeguro)) && prazo >= r.prazo_min && prazo <= r.prazo_max) return r.taxa;
-  } return 0;
+  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
+  if (!valid.length) return 0;
+  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
+  const atVig = valid.filter(r => r.data_vigencia === maxVig);
+  const seguro = temSeguro ? 'Sim' : 'Não';
+  let total = 0;
+  for (const r of atVig) {
+    const keyMatch = tabela === '*' || r.tabela_chave === '*' || tabela.toUpperCase().includes(r.tabela_chave.toUpperCase());
+    const rangeMatch = prazo >= r.prazo_min && prazo <= r.prazo_max;
+    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
+    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
+  }
+  return total;
 }
 
 // ==================== COMPONENT ====================
