@@ -569,7 +569,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                                     {(() => { const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground'); return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>; })()}
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                                    {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               </TableCell>
