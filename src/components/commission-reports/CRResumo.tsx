@@ -1,15 +1,20 @@
 import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, BarChart3, Save, DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, BarChart3, Save, DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle, CalendarIcon } from 'lucide-react';
 import { TSHead, useSortState, applySortToData, TipWrap, TOOLTIPS_RESUMO } from './CRSortUtils';
+import { cn } from '@/lib/utils';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -31,6 +36,8 @@ export default function CRResumo() {
   const [saving, setSaving] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataFim, setDataFim] = useState<Date | undefined>();
   const { sort: bancoSort, toggle: toggleBancoSort } = useSortState();
 
   const { data: geral = [], isLoading: l1 } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => { const { data } = await supabase.from('cr_geral').select('ade, banco, prod_liq, prazo, tipo_operacao, convenio, cms_rep, data_pgt_cliente').limit(5000); return (data || []) as GeralRow[]; } });
@@ -40,18 +47,35 @@ export default function CRResumo() {
   const { data: rulesCLT = [], isLoading: l5 } = useQuery({ queryKey: ['cr-rules-clt'], queryFn: async () => { const { data } = await supabase.from('cr_rules_clt').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleCLT[]; } });
   const isLoading = l1 || l2 || l3 || l4 || l5;
 
+  // Filter geral by date range
+  const filteredGeral = useMemo(() => {
+    let rows = geral;
+    if (dataInicio) {
+      const ini = dataInicio.toISOString().slice(0, 10);
+      rows = rows.filter(g => g.data_pgt_cliente && g.data_pgt_cliente.slice(0, 10) >= ini);
+    }
+    if (dataFim) {
+      const fim = dataFim.toISOString().slice(0, 10);
+      rows = rows.filter(g => g.data_pgt_cliente && g.data_pgt_cliente.slice(0, 10) <= fim);
+    }
+    return rows;
+  }, [geral, dataInicio, dataFim]);
+
   const repasseMap = useMemo(() => { const m = new Map<string, number>(); for (const r of repasse) if (r.ade) m.set(r.ade, (m.get(r.ade) || 0) + (r.cms_rep_favorecido || 0)); return m; }, [repasse]);
-  const seguroMap = useMemo(() => { const m = new Map<string, number>(); for (const s of seguros) if (s.descricao) { for (const g of geral) if (g.ade && s.descricao.toUpperCase().includes(g.ade.toUpperCase())) m.set(g.ade, (m.get(g.ade) || 0) + (s.valor_comissao || 0)); } return m; }, [seguros, geral]);
+  const seguroMap = useMemo(() => { const m = new Map<string, number>(); for (const s of seguros) if (s.descricao) { for (const g of filteredGeral) if (g.ade && s.descricao.toUpperCase().includes(g.ade.toUpperCase())) m.set(g.ade, (m.get(g.ade) || 0) + (s.valor_comissao || 0)); } return m; }, [seguros, filteredGeral]);
 
   const summary = useMemo(() => {
     let totalLiberado = 0, totalRecebida = 0, totalEsperada = 0, countFGTS = 0, countCLT = 0, countDiv = 0;
     const byBanco = new Map<string, { recebida: number; esperada: number; count: number }>();
-    const details: { ade: string; nome: string; banco: string; produto: string; valor_liberado: number; comissao_recebida: number; comissao_esperada: number; diferenca: number }[] = [];
+    const details: { ade: string; nome: string; banco: string; produto: string; valor_liberado: number; comissao_recebida: number; comissao_esperada: number; diferenca: number; data_pago: string | null; valor_assegurado: number }[] = [];
 
-    for (const g of geral) {
+    for (const g of filteredGeral) {
       const banco = (g.banco || '').toUpperCase(); const valor = g.prod_liq || 0; const prazo = g.prazo || 0;
       const produto = identifyProduct(g.tipo_operacao, g.convenio); const temSeguro = hasInsuranceFn(g.convenio);
-      const tabela = (g.convenio || '*').trim(); const valorCalc = banco === 'MERCANTIL' ? valor / 0.7 : valor;
+      const tabela = (g.convenio || '*').trim();
+      const isMerc = banco.includes('MERCANTIL');
+      const valorAssegurado = isMerc ? Math.round(valor / 0.7 * 100) / 100 : 0;
+      const valorCalc = isMerc ? valorAssegurado : valor;
       const dt = g.data_pgt_cliente ? g.data_pgt_cliente.slice(0, 10) : '9999-12-31';
       const cmsGeral = g.cms_rep || 0; const cmsRepasse = repasseMap.get(g.ade || '') || 0; const cmsSeguro = seguroMap.get(g.ade || '') || 0;
       const recebida = cmsGeral + cmsRepasse + cmsSeguro;
@@ -63,22 +87,34 @@ export default function CRResumo() {
       totalLiberado += valor; totalRecebida += recebida; totalEsperada += esperada;
       const b = byBanco.get(banco) || { recebida: 0, esperada: 0, count: 0 };
       b.recebida += recebida; b.esperada += esperada; b.count++; byBanco.set(banco, b);
-      details.push({ ade: g.ade || '', nome: '', banco, produto, valor_liberado: valor, comissao_recebida: recebida, comissao_esperada: esperada, diferenca: dif });
+      details.push({ ade: g.ade || '', nome: '', banco, produto, valor_liberado: valor, comissao_recebida: recebida, comissao_esperada: esperada, diferenca: dif, data_pago: g.data_pgt_cliente || null, valor_assegurado: valorAssegurado });
     }
-    return { totalLiberado, totalRecebida, totalEsperada, diferenca: Math.round((totalRecebida - totalEsperada) * 100) / 100, count: geral.length, countFGTS, countCLT, countDiv, byBanco, details };
-  }, [geral, repasseMap, seguroMap, rulesFGTS, rulesCLT]);
+    return { totalLiberado, totalRecebida, totalEsperada, diferenca: Math.round((totalRecebida - totalEsperada) * 100) / 100, count: filteredGeral.length, countFGTS, countCLT, countDiv, byBanco, details };
+  }, [filteredGeral, repasseMap, seguroMap, rulesFGTS, rulesCLT]);
 
   const handleSaveHistory = async () => {
     if (!saveName.trim()) { toast({ title: 'Informe um nome para o fechamento', variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const dates = geral.map(g => g.data_pgt_cliente).filter(Boolean).sort();
-      const dataInicio = dates[0]?.slice(0, 10) || null; const dataFim = dates[dates.length - 1]?.slice(0, 10) || null;
-      const { data: gestao, error: gErr } = await supabase.from('cr_historico_gestao').insert({ nome: saveName.trim(), qtd_propostas: summary.count, valor_liberado: summary.totalLiberado, comissao_esperada: summary.totalEsperada, comissao_recebida: summary.totalRecebida, diferenca: summary.diferenca, data_inicio: dataInicio, data_fim: dataFim, created_by: user!.id } as any).select().single();
+      const dates = filteredGeral.map(g => g.data_pgt_cliente).filter(Boolean).sort();
+      const dataInicioStr = dates[0]?.slice(0, 10) || null; const dataFimStr = dates[dates.length - 1]?.slice(0, 10) || null;
+      const { data: gestao, error: gErr } = await supabase.from('cr_historico_gestao').insert({ nome: saveName.trim(), qtd_propostas: summary.count, valor_liberado: summary.totalLiberado, comissao_esperada: summary.totalEsperada, comissao_recebida: summary.totalRecebida, diferenca: summary.diferenca, data_inicio: dataInicioStr, data_fim: dataFimStr, created_by: user!.id } as any).select().single();
       if (gErr) throw gErr;
       const gestaoId = (gestao as any).id;
       for (let i = 0; i < summary.details.length; i += 100) {
-        const chunk = summary.details.slice(i, i + 100).map(d => ({ gestao_id: gestaoId, num_contrato: d.ade, nome: d.nome || null, banco: d.banco, produto: d.produto, valor_liberado: d.valor_liberado, comissao_esperada: d.comissao_esperada, comissao_recebida: d.comissao_recebida, diferenca: d.diferenca }));
+        const chunk = summary.details.slice(i, i + 100).map(d => ({
+          gestao_id: gestaoId,
+          num_contrato: d.ade,
+          nome: d.nome || null,
+          banco: d.banco,
+          produto: d.produto,
+          valor_liberado: d.valor_liberado,
+          comissao_esperada: d.comissao_esperada,
+          comissao_recebida: d.comissao_recebida,
+          diferenca: d.diferenca,
+          data_pago: d.data_pago || null,
+          valor_assegurado: d.valor_assegurado || null,
+        }));
         const { error } = await supabase.from('cr_historico_detalhado').insert(chunk as any);
         if (error) throw error;
       }
@@ -96,6 +132,45 @@ export default function CRResumo() {
 
   return (
     <div className="space-y-4">
+      {/* Date Filters */}
+      <Card>
+        <CardContent className="py-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground">Filtro de Período:</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal h-9", !dataInicio && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Data Início"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal h-9", !dataFim && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataFim ? format(dataFim, "dd/MM/yyyy") : "Data Fim"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dataFim} onSelect={setDataFim} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            {(dataInicio || dataFim) && (
+              <Button variant="ghost" size="sm" onClick={() => { setDataInicio(undefined); setDataFim(undefined); }}>Limpar</Button>
+            )}
+            {(dataInicio || dataFim) && (
+              <Badge variant="secondary" className="text-xs">
+                {dataInicio ? format(dataInicio, "dd/MM/yyyy") : '...'} — {dataFim ? format(dataFim, "dd/MM/yyyy") : '...'}
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="pt-6">
           <TipWrap tip={TOOLTIPS_RESUMO.contratos}><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><FileText className="w-4 h-4" /> Contratos</div></TipWrap>
@@ -129,7 +204,7 @@ export default function CRResumo() {
           {isLoading ? (
             <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : topBancos.length === 0 ? (
-            <p className="text-center text-muted-foreground text-sm py-4">Sem dados.</p>
+            <p className="text-center text-muted-foreground text-sm py-4">Sem dados{(dataInicio || dataFim) ? ' para o período selecionado' : ''}.</p>
           ) : (
             <div className="border rounded-lg overflow-auto">
               <table className="w-full">
@@ -160,7 +235,7 @@ export default function CRResumo() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={() => { setSaveName(`Fechamento ${new Date().toLocaleDateString('pt-BR')}`); setSaveDialogOpen(true); }} disabled={geral.length === 0}>
+        <Button onClick={() => { setSaveName(`Fechamento ${new Date().toLocaleDateString('pt-BR')}`); setSaveDialogOpen(true); }} disabled={filteredGeral.length === 0}>
           <Save className="w-4 h-4 mr-2" /> Salvar Fechamento
         </Button>
       </div>
@@ -176,6 +251,7 @@ export default function CRResumo() {
               <p>Comissão recebida: <strong className="text-green-600">{fmtBRL(summary.totalRecebida)}</strong></p>
               <p>Comissão esperada: <strong>{fmtBRL(summary.totalEsperada)}</strong></p>
               <p>Diferença: <strong className={summary.diferenca < -0.01 ? 'text-destructive' : ''}>{fmtBRL(summary.diferenca)}</strong></p>
+              {(dataInicio || dataFim) && <p className="text-muted-foreground text-xs">Período: {dataInicio ? format(dataInicio, 'dd/MM/yyyy') : '...'} — {dataFim ? format(dataFim, 'dd/MM/yyyy') : '...'}</p>}
             </div>
           </div>
           <DialogFooter>
