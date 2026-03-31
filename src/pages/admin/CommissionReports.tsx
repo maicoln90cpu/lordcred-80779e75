@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Upload, Settings, ClipboardList } from 'lucide-react';
 import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS } from '@/components/commission-reports/CRImportTab';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
+import CRRulesFGTS from '@/components/commission-reports/CRRulesFGTS';
+import CRRulesCLT from '@/components/commission-reports/CRRulesCLT';
+import CRRelatorio from '@/components/commission-reports/CRRelatorio';
 
 export default function CommissionReports() {
   const [activeTab, setActiveTab] = useState('geral');
@@ -76,22 +79,25 @@ export default function CommissionReports() {
           </TabsContent>
 
           <TabsContent value="rules_fgts">
-            <PlaceholderTab title="Regras FGTS" description="CRUD de regras de comissão FGTS por banco, tabela, seguro e faixa de valor." />
+            <CRRulesFGTS />
           </TabsContent>
           <TabsContent value="rules_clt">
-            <PlaceholderTab title="Regras CLT" description="CRUD de regras de comissão CLT por banco, tabela, seguro e faixa de prazo." />
+            <CRRulesCLT />
           </TabsContent>
+
           <TabsContent value="relatorio">
-            <PlaceholderTab title="Relatório" description="Tabela calculada cruzando Geral + Repasse + Seguros + Regras. Comissão esperada vs recebida." />
+            <CRRelatorio />
           </TabsContent>
+
           <TabsContent value="resumo">
             <PlaceholderTab title="Resumo" description="Dashboard com totais do período, cards de valor liberado, comissão esperada/recebida e diferença." />
           </TabsContent>
           <TabsContent value="historico">
             <PlaceholderTab title="Histórico" description="Fechamentos salvos com resumo e detalhamento por contrato." />
           </TabsContent>
+
           <TabsContent value="divergencias">
-            <PlaceholderTab title="Divergências" description="Contratos com diferença entre comissão esperada e recebida. Filtros por banco, produto e tipo." />
+            <CRRelatorio divergenciasOnly />
           </TabsContent>
 
           <TabsContent value="import_history">

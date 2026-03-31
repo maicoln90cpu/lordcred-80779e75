@@ -19,7 +19,7 @@ Dividido em 4 etapas:
 - Aba Hist. Importações (em CommissionReports): lista lotes + deletar
 - Aba Hist. Importações (em Commissions/Parceiros): lista lotes + deletar + batch_id na importação Base
 
-### 🔲 Etapa 3 — Regras + Cálculos
+### ✅ Etapa 3 — Regras + Cálculos (CONCLUÍDA)
 - Abas Regras FGTS e Regras CLT: CRUD inline
 - Aba Relatório: tabela calculada cruzando Geral + Repasse + Seguros + Regras (colunas P-X)
 - Aba Resumo: cards de totais + filtro de período + botão salvar histórico
