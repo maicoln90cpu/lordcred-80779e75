@@ -13,11 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
+import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 
 // ==================== SORT UTILITIES (kept for backward compat) ====================
 type SortDir = 'asc' | 'desc' | null;
@@ -161,6 +162,7 @@ export default function Commissions() {
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
             {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
             {isAdmin && <TabsTrigger value="indicadores"><Lightbulb className="w-3.5 h-3.5 mr-1" />Indicadores</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="hist-importacoes"><ClipboardList className="w-3.5 h-3.5 mr-1" />Hist. Importações</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
@@ -195,6 +197,11 @@ export default function Commissions() {
           {isAdmin && (
             <TabsContent value="indicadores">
               <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="hist-importacoes">
+              <CRImportHistory moduleFilter="parceiros" />
             </TabsContent>
           )}
         </Tabs>
@@ -407,12 +414,38 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
         imported++;
       }
 
+      if (payloads.length === 0) {
+        toast({ title: 'Nenhum registro válido encontrado', variant: 'destructive' });
+        setImporting(false);
+        return;
+      }
+
+      // Create import batch record for tracking
+      const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
+        file_name: file.name,
+        module: 'parceiros',
+        sheet_name: 'base',
+        row_count: payloads.length,
+        imported_by: userId,
+        status: 'active',
+      } as any).select('id').single();
+
+      const batchId = batchErr ? null : (batchRecord as any)?.id;
+      if (batchId) {
+        payloads.forEach(p => { p.batch_id = batchId; });
+      }
+
       // Insert in batches
       let errors = 0;
       for (let i = 0; i < payloads.length; i += batchSize) {
         const batch = payloads.slice(i, i + batchSize);
         const { error } = await supabase.from('commission_sales').insert(batch as any);
         if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+
+      // Update batch row_count if some had errors
+      if (batchId && errors > 0) {
+        await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);
       }
 
       toast({
