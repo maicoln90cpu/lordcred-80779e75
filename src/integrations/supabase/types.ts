@@ -766,6 +766,7 @@ export type Database = {
           ade: string | null
           banco: string | null
           batch_id: string | null
+          cms_rep: number | null
           cms_rep_favorecido: number | null
           cod_contrato: string | null
           convenio: string | null
@@ -791,6 +792,7 @@ export type Database = {
           ade?: string | null
           banco?: string | null
           batch_id?: string | null
+          cms_rep?: number | null
           cms_rep_favorecido?: number | null
           cod_contrato?: string | null
           convenio?: string | null
@@ -816,6 +818,7 @@ export type Database = {
           ade?: string | null
           banco?: string | null
           batch_id?: string | null
+          cms_rep?: number | null
           cms_rep_favorecido?: number | null
           cod_contrato?: string | null
           convenio?: string | null

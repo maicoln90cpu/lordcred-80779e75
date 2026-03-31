@@ -1,0 +1,1 @@
+ALTER TABLE public.cr_repasse ADD COLUMN IF NOT EXISTS cms_rep numeric DEFAULT 0;
