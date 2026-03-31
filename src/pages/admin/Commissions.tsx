@@ -201,7 +201,7 @@ export default function Commissions() {
           )}
           {isAdmin && (
             <TabsContent value="hist-importacoes">
-              <HistImportTab userId={userId} profiles={profiles} loadSalesCallback={() => {}} />
+              <HistImportTab userId={user?.id || ''} profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
         </Tabs>
