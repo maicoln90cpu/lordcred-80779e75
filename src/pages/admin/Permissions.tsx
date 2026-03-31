@@ -254,6 +254,7 @@ export default function Permissions() {
           Se nenhum cargo e nenhum usuário estiver marcado, a funcionalidade fica aberta a todos.
         </div>
 
+        <TooltipProvider delayDuration={300}>
         <Tabs defaultValue="by-role">
           <TabsList>
             <TabsTrigger value="by-role" className="gap-2">
