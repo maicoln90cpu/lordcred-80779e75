@@ -351,6 +351,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                 </Button>
               </div>
               <div className="border rounded-lg max-h-72 overflow-auto">
+              <TooltipProvider delayDuration={300}>
                 <Table>
                   <TableHeader>
                     <tr>
