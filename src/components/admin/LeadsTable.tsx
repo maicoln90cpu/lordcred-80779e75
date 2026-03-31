@@ -649,7 +649,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
             <SelectTrigger><SelectValue placeholder="Selecionar perfil" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Sem perfil</SelectItem>
-              {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              {[...profileOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>
