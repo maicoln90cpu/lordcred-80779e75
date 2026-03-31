@@ -34,10 +34,33 @@ function cleanPercent(v: any): number | null {
 
 const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
 
+function cleanDate(v: any): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(.*)$/);
+  if (m) {
+    let [, a, b, y, rest] = m;
+    let year = y.length === 2 ? '20' + y : y;
+    let day: string, month: string;
+    if (parseInt(a) > 12) { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    else if (parseInt(b) > 12) { month = a.padStart(2, '0'); day = b.padStart(2, '0'); }
+    else { day = a.padStart(2, '0'); month = b.padStart(2, '0'); }
+    const time = rest?.trim() || '';
+    if (time) {
+      const tm = time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (tm) return `${year}-${month}-${day}T${tm[1].padStart(2,'0')}:${tm[2]}:${tm[3]||'00'}`;
+    }
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
 interface CRPasteImportButtonProps {
   module: 'geral' | 'repasse' | 'seguros';
   tableName: string;
   columns: ColumnDef[];
+  noHeader?: boolean;
   onImported: () => void;
 }
 
