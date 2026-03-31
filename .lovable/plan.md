@@ -12,6 +12,6 @@
 - [x] Gráfico evolução mensal: comissão esperada vs recebida por mês (CREvolutionChart)
 - [x] Alertas de divergência por banco (> 5% acumulada) (CRDivergenceAlerts)
 
-## Etapa 3 — Dashboard produção banco/produto
-- [ ] Dashboard gráfico agregando dados por banco e produto
-- [ ] Visualização de volume e comissão por banco/produto
+## Etapa 3 ✅ — Dashboard produção banco/produto
+- [x] Dashboard gráfico: bar chart top 10 bancos, pie chart mix produtos, stacked bar banco×produto
+- [x] Nova aba "Produção" no Relatório de Comissões
