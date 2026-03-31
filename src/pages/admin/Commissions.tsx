@@ -1544,6 +1544,15 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
 }
 
 // ==================== ROBUST CLIPBOARD PARSER ====================
+// Positional header mapping when data is pasted without headers
+const POSITIONAL_HEADERS_11 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Vendedor', 'ID'];
+const POSITIONAL_HEADERS_10 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor', 'ID'];
+const POSITIONAL_HEADERS_9 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor'];
+
+function looksLikeDateValue(val: string): boolean {
+  return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(val.trim());
+}
+
 function parseClipboardText(raw: string): { headers: string[]; rows: Record<string, string>[]; format: string; rawLineCount: number; emptyLines: number } {
   // Normalize line endings
   let normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -1583,23 +1592,45 @@ function parseClipboardText(raw: string): { headers: string[]; rows: Record<stri
     }
   }
 
-  if (rows.length < 2) return { headers: [], rows: [], format, rawLineCount: rows.length, emptyLines: 0 };
+  if (rows.length === 0) return { headers: [], rows: [], format, rawLineCount: 0, emptyLines: 0 };
 
-  const headers = rows[0];
-  const colCount = headers.length;
+  // Auto-detect if first row is data (no headers) by checking if first cell looks like a date
+  const firstCell = rows[0][0] || '';
+  const hasHeaders = !looksLikeDateValue(firstCell);
+
+  let headers: string[];
+  let startRow: number;
+
+  if (hasHeaders) {
+    if (rows.length < 2) return { headers: [], rows: [], format, rawLineCount: rows.length, emptyLines: 0 };
+    headers = rows[0];
+    startRow = 1;
+  } else {
+    // No headers detected — use positional mapping based on column count
+    const colCount = rows[0].length;
+    if (colCount >= 11) headers = POSITIONAL_HEADERS_11;
+    else if (colCount === 10) headers = POSITIONAL_HEADERS_10;
+    else if (colCount === 9) headers = POSITIONAL_HEADERS_9;
+    else {
+      // Fallback: generate generic headers
+      headers = rows[0].map((_, i) => `Col${i + 1}`);
+    }
+    startRow = 0;
+    format += ' (sem cabeçalho)';
+  }
+
   const dataRows: Record<string, string>[] = [];
   let emptyLines = 0;
 
-  for (let r = 1; r < rows.length; r++) {
+  for (let r = startRow; r < rows.length; r++) {
     const line = rows[r];
-    // Skip fully empty rows
     if (line.every(c => c === '')) { emptyLines++; continue; }
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => { obj[h] = line[i] || ''; });
     dataRows.push(obj);
   }
 
-  return { headers, rows: dataRows, format, rawLineCount: rows.length - 1, emptyLines };
+  return { headers, rows: dataRows, format, rawLineCount: rows.length - (hasHeaders ? 1 : 0), emptyLines };
 }
 
 // ==================== PASTE IMPORT DIALOG ====================
