@@ -242,6 +242,12 @@ export default function CRIndicadores() {
   return (
     <TooltipProvider delayDuration={300}>
     <div className="space-y-6">
+      {/* Evolution Chart */}
+      <CREvolutionChart />
+
+      {/* Divergence Alerts */}
+      <CRDivergenceAlerts />
+
       {/* Global KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6">

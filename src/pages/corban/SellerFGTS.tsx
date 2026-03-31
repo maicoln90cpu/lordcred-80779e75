@@ -45,8 +45,13 @@ export default function SellerFGTS() {
 
   const handleSearch = async () => {
     setLoading(true);
+    const today = new Date().toISOString().split('T')[0];
     const { data, error } = await invokeCorban('listQueueFGTS', {
-      filters: { searchString: searchCpf.replace(/\D/g, ''), instituicao }
+      filters: {
+        searchString: searchCpf.replace(/\D/g, ''),
+        instituicao,
+        data: { startDate: today, endDate: today }
+      }
     });
     setLoading(false);
     if (error) {
