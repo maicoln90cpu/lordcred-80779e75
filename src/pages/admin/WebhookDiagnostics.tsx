@@ -114,7 +114,7 @@ export default function WebhookDiagnostics() {
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os eventos</SelectItem>
-              {uniqueEvents.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              {[...uniqueEvents].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterChip} onValueChange={setFilterChip}>

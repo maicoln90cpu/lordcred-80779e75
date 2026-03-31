@@ -194,7 +194,7 @@ export default function WarmingReports() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os usuários</SelectItem>
-                {uniqueUsers.map(u => (
+                {[...uniqueUsers].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(u => (
                   <SelectItem key={u.user_id} value={u.user_id}>{u.label}</SelectItem>
                 ))}
               </SelectContent>

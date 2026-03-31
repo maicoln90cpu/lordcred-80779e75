@@ -401,7 +401,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os lotes</SelectItem>
-                {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                {[...batchNames].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
           )}

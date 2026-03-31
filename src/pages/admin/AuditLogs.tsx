@@ -200,7 +200,7 @@ export default function AuditLogs() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as ações</SelectItem>
-                  {uniqueActions.map(a => (
+                  {[...uniqueActions].sort((a, b) => (actionLabels[a]?.label || a).localeCompare(actionLabels[b]?.label || b, 'pt-BR')).map(a => (
                     <SelectItem key={a} value={a}>
                       {actionLabels[a]?.label || a}
                     </SelectItem>
