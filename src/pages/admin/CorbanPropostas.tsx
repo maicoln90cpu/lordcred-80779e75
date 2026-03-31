@@ -129,7 +129,7 @@ export default function CorbanPropostas() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all__">Todos</SelectItem>
-                      {cachedStatus.map(s => (
+                      {[...cachedStatus].sort((a, b) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map(s => (
                         <SelectItem key={s.asset_id} value={s.asset_id}>{s.asset_label}</SelectItem>
                       ))}
                     </SelectContent>
