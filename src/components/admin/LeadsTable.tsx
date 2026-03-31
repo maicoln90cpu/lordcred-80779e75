@@ -413,7 +413,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualProfile} onValueChange={(v) => updateFilter('profile', v)}>
