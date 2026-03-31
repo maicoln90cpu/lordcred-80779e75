@@ -523,7 +523,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as semanas</SelectItem>
-              {weeks.map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
+              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
