@@ -414,12 +414,38 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
         imported++;
       }
 
+      if (payloads.length === 0) {
+        toast({ title: 'Nenhum registro válido encontrado', variant: 'destructive' });
+        setImporting(false);
+        return;
+      }
+
+      // Create import batch record for tracking
+      const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
+        file_name: file.name,
+        module: 'parceiros',
+        sheet_name: 'base',
+        row_count: payloads.length,
+        imported_by: userId,
+        status: 'active',
+      } as any).select('id').single();
+
+      const batchId = batchErr ? null : (batchRecord as any)?.id;
+      if (batchId) {
+        payloads.forEach(p => { p.batch_id = batchId; });
+      }
+
       // Insert in batches
       let errors = 0;
       for (let i = 0; i < payloads.length; i += batchSize) {
         const batch = payloads.slice(i, i + batchSize);
         const { error } = await supabase.from('commission_sales').insert(batch as any);
         if (error) { console.error('Batch error:', error); errors += batch.length; }
+      }
+
+      // Update batch row_count if some had errors
+      if (batchId && errors > 0) {
+        await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);
       }
 
       toast({
