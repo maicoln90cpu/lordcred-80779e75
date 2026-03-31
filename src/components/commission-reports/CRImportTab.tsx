@@ -402,7 +402,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
           ) : sortedExisting.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">Nenhum dado importado ainda.</p>
           ) : (
-            <div className="border rounded-lg max-h-[500px] overflow-auto">
+            <div className="border rounded-lg max-h-[500px] overflow-auto scrollbar-visible">
             <TooltipProvider delayDuration={300}>
                <Table className="min-w-[1200px]">
                 <TableHeader>
