@@ -98,7 +98,7 @@ function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tab
 
 function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
-  const dt = dataPgt ? dataPgt.slice(0, 10) : '9999-12-31';
+  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
   const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
   if (!valid.length) return 0;
   const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
