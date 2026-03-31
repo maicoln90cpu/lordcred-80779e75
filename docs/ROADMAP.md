@@ -32,26 +32,38 @@
 - [x] Assistência remota
 - [x] Links úteis
 
-## Fase 4 — Polimento 🔄 Em Andamento
+## Fase 4 — Polimento e Expansão ✅ Concluída
 
 - [x] Limpeza de código Evolution API
 - [x] Consolidação de abas em Chips.tsx
 - [x] Permissões granulares (Kanban, Suporte vê todos sellers)
 - [x] Monitor de chips com sub-abas por tipo
 - [x] Documentação centralizada em `docs/`
-- [ ] Revisão de UX mobile
-- [ ] Testes automatizados (Vitest)
-- [ ] Performance (lazy loading, code splitting)
+- [x] Manager role + hierarquia de 5 roles
+- [x] `is_privileged()` SECURITY DEFINER — consolidação RLS
+- [x] Feature permissions granulares (por cargo + por usuário)
+- [x] Relatório de Comissões: 8 abas (Geral, Repasse, Seguros, Relatório, Resumo, Indicadores, Regras CLT/FGTS, Histórico)
+- [x] Import via Ctrl+V (paste) para Geral, Repasse, Seguros, Relatório
+- [x] Motor de cálculo CLT/FGTS com SUMIFS-style aggregation
+- [x] Resumo com filtros de período + tabela detalhada
+- [x] Indicadores: Acurácia, Perda Acumulada, Taxa Média
+- [x] Timezone padronizado (São Paulo) nos cálculos de comissão
+- [x] Tooltip estável em tabelas (CRSortUtils)
+- [x] Integração NewCorban: propostas, FGTS, assets, config, dashboard
+- [x] Páginas seller Corban (propostas + FGTS)
+- [x] Sincronização automática de status Corban (pg_cron)
 
 ## Fase 5 — Escala 📋 Planejado
 
 - [ ] Disparos em massa (broadcasts) com controle de taxa
-- [ ] Relatórios avançados por vendedor/chip/período
 - [ ] API pública REST para integrações externas
 - [ ] Progressão automática de fases de aquecimento
 - [ ] Notificações push (service worker)
 - [ ] Multi-tenant (múltiplas organizações)
 - [ ] Dashboard de métricas customizável
+- [ ] Revisão de UX mobile
+- [ ] Testes automatizados (Vitest)
+- [ ] Performance (lazy loading, code splitting)
 
 ---
 
@@ -59,4 +71,5 @@
 
 - [PRD.md](./PRD.md) — Requisitos do produto
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura técnica
+- [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) — Auditoria de comissões
 - [PENDENCIAS.md](./PENDENCIAS.md) — Changelog detalhado

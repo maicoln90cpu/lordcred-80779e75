@@ -2,19 +2,21 @@
 
 ## Visão do Produto
 
-LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com funcionalidades integradas de CRM de vendas. Permite que equipes comerciais gerenciem chips, aqueçam números de forma gradual e segura, e operem vendas via WhatsApp com ferramentas de produtividade (Kanban, leads, chat interno).
+LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com funcionalidades integradas de CRM de vendas e auditoria de comissões. Permite que equipes comerciais gerenciem chips, aqueçam números de forma gradual e segura, operem vendas via WhatsApp e auditem comissões recebidas vs esperadas.
 
 ## Público-Alvo
 
 - Equipes de vendas que utilizam WhatsApp como canal principal
 - Operadores de múltiplos números WhatsApp
 - Gestores que precisam monitorar performance de equipe
+- Auditores de comissões bancárias (CLT e FGTS)
 
 ## Stack Técnica
 
 - **Frontend**: React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui
 - **Backend**: Supabase (PostgreSQL, Auth, Edge Functions, Realtime, RLS)
 - **Integração WhatsApp**: UazAPI v2 (uazapiGO)
+- **Integração Corban**: NewCorban API (propostas, FGTS, assets)
 - **Deploy**: Lovable Cloud
 
 ---
@@ -38,7 +40,7 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 - Suporte a mídia (imagem, áudio, vídeo, documento, PTT, sticker)
 - Favoritos de mensagens
 - Notas de conversa
-- Respostas rápidas
+- Respostas rápidas (atalhos com trigger word)
 - Labels/etiquetas
 - Encaminhamento de mensagens
 
@@ -47,6 +49,30 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 - Kanban de conversas (colunas customizáveis, drag & drop)
 - Gestão de leads (importação CSV, filtros, atribuição)
 - Tickets de suporte interno
+
+### Relatório de Comissões (Auditoria)
+
+- Importação de 4 planilhas: Geral, Repasse, Seguros, Relatório (via Ctrl+V paste)
+- Motor de cálculo CLT: `extractTableKeyCLT` → `findCLTRate` (SUMIFS-style)
+- Motor de cálculo FGTS: `extractTableKeyFGTS` → `findFGTSRate` (SUMIFS-style)
+- Regras configuráveis por banco/tabela/prazo/seguro (cr_rules_clt, cr_rules_fgts)
+- Cross-reference: cruzamento entre Relatório + Geral + Repasse + Seguros
+- Resumo com filtros de período e resumo por banco
+- Tabela detalhada com todos os contratos individuais
+- Indicadores: Acurácia Global, Perda Acumulada, Taxa Média por banco
+- Histórico de fechamentos (salvar/expandir/deletar)
+- Divergências: filtra contratos com |Δ| > R$0.01
+- Timezone: São Paulo (America/Sao_Paulo) em todos os cálculos de data
+
+### Integração Corban (NewCorban)
+
+- Dashboard administrativo com KPIs
+- Gestão de propostas (consulta, criação, acompanhamento)
+- Fila FGTS com filtros e status
+- Cache de assets (bancos, convênios, tabelas)
+- Configuração de visibilidade por papel (30 funcionalidades)
+- Sincronização automática de status via edge function (pg_cron)
+- Páginas do vendedor: propostas e FGTS próprios
 
 ### Operacional
 
@@ -58,6 +84,7 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 - Chat interno entre operadores
 - Logs de auditoria
 - Assistência remota
+- Permissões granulares (por cargo + por usuário, via feature_permissions)
 
 ---
 
@@ -65,10 +92,13 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 
 | Role Técnica | Nome no Frontend | Acesso |
 |---|---|---|
-| `admin` | Master | Acesso total + SQL/Migração + Exportação |
-| `user` | Administrador | Acesso total exceto SQL/Migração/Exportação |
+| `master` | Master | Acesso total + SQL/Migração + Exportação |
+| `admin` | Administrador | Acesso total exceto SQL/Migração/Exportação |
+| `manager` | Gerente | Acesso total exceto Permissões/SQL/Migração/Exportação |
 | `support` | Suporte | Operacional + criação de usuários + vê todos sellers/supports |
 | `seller` | Vendedor | Leads atribuídos + tickets próprios + chat interno |
+
+> Função `is_privileged()` (SECURITY DEFINER) retorna `true` para master, admin, manager.
 
 > Tabela completa de permissões em [INSTRUCOES.md](./INSTRUCOES.md#matriz-de-permissões-por-papel)
 
@@ -76,13 +106,16 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 
 ## Backlog Conhecido
 
-- [ ] Disparos em massa (broadcasts)
-- [ ] Relatórios avançados de performance por vendedor
-- [ ] API pública para integrações externas
+- [ ] Disparos em massa (broadcasts) com controle de taxa
+- [ ] API pública REST para integrações externas
 - [ ] Progressão automática de fases de aquecimento
-- [ ] Notificações push para mensagens recebidas
+- [ ] Notificações push para mensagens recebidas (service worker)
 - [ ] Filtros avançados no Kanban
-- [ ] Exportação de relatórios em PDF
+- [ ] Multi-tenant (múltiplas organizações)
+- [ ] Dashboard de métricas customizável
+- [ ] Revisão de UX mobile
+- [ ] Testes automatizados (Vitest)
+- [ ] Performance (lazy loading, code splitting)
 
 ---
 
@@ -91,4 +124,6 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 - [ROADMAP.md](./ROADMAP.md) — Fases e prioridades
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura técnica
 - [INSTRUCOES.md](./INSTRUCOES.md) — Manual de uso
+- [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) — Auditoria de comissões
+- [corban.md](./corban.md) — Integração NewCorban
 - [PENDENCIAS.md](./PENDENCIAS.md) — Changelog
