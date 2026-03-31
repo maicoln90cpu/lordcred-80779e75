@@ -351,7 +351,7 @@ export default function CRResumo() {
           ) : topBancos.length === 0 ? (
             <p className="text-center text-muted-foreground text-sm py-4">Sem dados{(dataInicio || dataFim) ? ' para o período selecionado' : ''}.</p>
           ) : (
-            <div className="border rounded-lg overflow-auto">
+            <div className="border rounded-lg overflow-auto scrollbar-visible">
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr>
