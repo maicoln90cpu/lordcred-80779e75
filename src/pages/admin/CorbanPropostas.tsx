@@ -140,12 +140,12 @@ export default function CorbanPropostas() {
               {cachedBancos.length > 0 && (
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Banco</label>
-                  <Select value={bancoFilter} onValueChange={setBancoFilter}>
+                  <Select value={bancoFilter} onValueChange={(v) => setBancoFilter(v === '__all__' ? '' : v)}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Todos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="__all__">Todos</SelectItem>
                       {cachedBancos.map(b => (
                         <SelectItem key={b.asset_id} value={b.asset_id}>{b.asset_label}</SelectItem>
                       ))}
