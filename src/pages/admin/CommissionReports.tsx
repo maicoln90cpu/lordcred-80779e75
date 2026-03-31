@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Upload, Settings, ClipboardList } from 'lucide-react';
+import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList } from 'lucide-react';
 import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS } from '@/components/commission-reports/CRImportTab';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import CRRulesFGTS from '@/components/commission-reports/CRRulesFGTS';
 import CRRulesCLT from '@/components/commission-reports/CRRulesCLT';
 import CRRelatorio from '@/components/commission-reports/CRRelatorio';
+import CRResumo from '@/components/commission-reports/CRResumo';
+import CRHistorico from '@/components/commission-reports/CRHistorico';
 
 export default function CommissionReports() {
   const [activeTab, setActiveTab] = useState('geral');
@@ -48,80 +49,23 @@ export default function CommissionReports() {
           </TabsList>
 
           <TabsContent value="geral">
-            <CRImportTab
-              module="geral"
-              tableName="cr_geral"
-              columns={GERAL_COLUMNS}
-              title="Geral"
-              description="Importação de dados de produção do New Corban. Upload de Excel com 17 colunas (Data Pgt, ADE, CPF, Nome, Banco, Prod Líq, etc)."
-            />
+            <CRImportTab module="geral" tableName="cr_geral" columns={GERAL_COLUMNS} title="Geral" description="Importação de dados de produção do New Corban. Upload de Excel com 17 colunas." />
           </TabsContent>
-
           <TabsContent value="repasse">
-            <CRImportTab
-              module="repasse"
-              tableName="cr_repasse"
-              columns={REPASSE_COLUMNS}
-              title="Repasse"
-              description="Importação de dados de repasse/pagamento com 21 colunas (inclui Rateio, CMS REP Favorecido, Favorecido)."
-            />
+            <CRImportTab module="repasse" tableName="cr_repasse" columns={REPASSE_COLUMNS} title="Repasse" description="Importação de dados de repasse/pagamento com 21 colunas." />
           </TabsContent>
-
           <TabsContent value="seguros">
-            <CRImportTab
-              module="seguros"
-              tableName="cr_seguros"
-              columns={SEGUROS_COLUMNS}
-              title="Seguros"
-              description="Importação de dados de seguros prestamistas com 5 colunas. Planilha pode não ter cabeçalho."
-              noHeader
-            />
+            <CRImportTab module="seguros" tableName="cr_seguros" columns={SEGUROS_COLUMNS} title="Seguros" description="Importação de dados de seguros prestamistas com 5 colunas." noHeader />
           </TabsContent>
-
-          <TabsContent value="rules_fgts">
-            <CRRulesFGTS />
-          </TabsContent>
-          <TabsContent value="rules_clt">
-            <CRRulesCLT />
-          </TabsContent>
-
-          <TabsContent value="relatorio">
-            <CRRelatorio />
-          </TabsContent>
-
-          <TabsContent value="resumo">
-            <PlaceholderTab title="Resumo" description="Dashboard com totais do período, cards de valor liberado, comissão esperada/recebida e diferença." />
-          </TabsContent>
-          <TabsContent value="historico">
-            <PlaceholderTab title="Histórico" description="Fechamentos salvos com resumo e detalhamento por contrato." />
-          </TabsContent>
-
-          <TabsContent value="divergencias">
-            <CRRelatorio divergenciasOnly />
-          </TabsContent>
-
-          <TabsContent value="import_history">
-            <CRImportHistory moduleFilter="relatorios" />
-          </TabsContent>
+          <TabsContent value="rules_fgts"><CRRulesFGTS /></TabsContent>
+          <TabsContent value="rules_clt"><CRRulesCLT /></TabsContent>
+          <TabsContent value="relatorio"><CRRelatorio /></TabsContent>
+          <TabsContent value="resumo"><CRResumo /></TabsContent>
+          <TabsContent value="historico"><CRHistorico /></TabsContent>
+          <TabsContent value="divergencias"><CRRelatorio divergenciasOnly /></TabsContent>
+          <TabsContent value="import_history"><CRImportHistory moduleFilter="relatorios" /></TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
-  );
-}
-
-function PlaceholderTab({ title, description }: { title: string; description: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-          <Upload className="w-12 h-12 mb-4 opacity-30" />
-          <p className="text-sm max-w-md">{description}</p>
-          <Badge variant="secondary" className="mt-4">Implementação na próxima etapa</Badge>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

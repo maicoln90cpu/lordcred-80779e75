@@ -25,7 +25,7 @@ Dividido em 4 etapas:
 - Aba Resumo: cards de totais + filtro de período + botão salvar histórico
 - Aba Divergências: tabela filtrada de contratos com diferença != 0
 
-### 🔲 Etapa 4 — Histórico + Personalizações Parceiros
-- Aba Histórico: lista de fechamentos salvos com expand para detalhado
-- Em Commissions.tsx: aba Configurações com dia de pagamento, meta mensal, bônus por produção
-- Testes e ajustes finais
+### ✅ Etapa 4 — Histórico + Personalizações Parceiros (CONCLUÍDA)
+- Aba Resumo: dashboard com 4 cards de totais + resumo por banco + botão salvar fechamento
+- Aba Histórico: lista de fechamentos com Collapsible expand para detalhamento por contrato + exclusão
+- Em Commissions.tsx ConfigTab: bônus por produção (bonus_threshold + bonus_rate) + dia de pagamento
