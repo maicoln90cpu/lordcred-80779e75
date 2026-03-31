@@ -81,6 +81,39 @@ export default function CRPasteImportButton({ module, tableName, columns, noHead
   const positionalHeaders = columns.map(c => c.label);
 
   const doParse = (raw: string) => {
+    // If noHeader is set, force positional mapping by prepending a fake non-date header row
+    let textToParse = raw;
+    if (noHeader) {
+      // Insert a synthetic header line that won't look like a date, so parser treats row 0 as headers
+      // Actually, we pass positionalHeaders so the parser will use them when first cell is not a date.
+      // But the issue is first cell IS a number (not a date), so parser thinks it HAS headers.
+      // Solution: we manually parse with positionalHeaders by manipulating the result.
+      const result = parseClipboardText(raw, positionalHeaders);
+      // If the parser detected headers (hasHeaders=true) but we know there are none,
+      // re-parse treating all rows as data by prefixing a date-like dummy to trick detection
+      // Better approach: just re-parse with a leading date row prefix
+      if (!result.format.includes('sem cabeçalho')) {
+        // Parser thought first row was headers — re-run by prefixing a fake date line
+        const sep = raw.includes('\t') ? '\t' : raw.includes(';') ? ';' : ',';
+        const fakeDateRow = '01/01/2000' + (sep + '').repeat(columns.length - 1);
+        const reResult = parseClipboardText(fakeDateRow + '\n' + raw, positionalHeaders);
+        // Remove the fake first data row
+        reResult.rows.shift();
+        reResult.rawLineCount = Math.max(0, reResult.rawLineCount - 1);
+        setHeaders(reResult.headers);
+        setPreview(reResult.rows);
+        setDetectedFormat(reResult.format);
+        setParseStats({ rawLines: reResult.rawLineCount, emptyLines: reResult.emptyLines });
+        setPreviewPage(0);
+        return;
+      }
+      setHeaders(result.headers);
+      setPreview(result.rows);
+      setDetectedFormat(result.format);
+      setParseStats({ rawLines: result.rawLineCount, emptyLines: result.emptyLines });
+      setPreviewPage(0);
+      return;
+    }
     const result = parseClipboardText(raw, positionalHeaders);
     setHeaders(result.headers);
     setPreview(result.rows);
