@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_RELATORIO, TipWrap } from './CRSortUtils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 // ==================== TYPES ====================
 interface RelatorioRow {
