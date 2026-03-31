@@ -199,6 +199,11 @@ export default function Commissions() {
               <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
+          {isAdmin && (
+            <TabsContent value="hist-importacoes">
+              <CRImportHistory moduleFilter="parceiros" />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
