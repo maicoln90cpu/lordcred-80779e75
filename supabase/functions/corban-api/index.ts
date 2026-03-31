@@ -396,20 +396,28 @@ Deno.serve(async (req) => {
         break
       }
       case 'listQueueFGTS': {
-        const fgtsFilters = params?.filters || {}
-        if (!fgtsFilters.data) {
+        const rawFgts = isRecord(params?.filters) ? { ...params.filters } : {}
+        // Ensure data range exists (API requires it)
+        const fgtsData = isRecord(rawFgts.data) ? { ...rawFgts.data } : {}
+        if (!fgtsData.startDate) {
           const today = new Date().toISOString().split('T')[0]
-          fgtsFilters.data = { startDate: today, endDate: today }
+          fgtsData.startDate = today
+          fgtsData.endDate = today
         } else {
           // Enforce max 1-day range required by the API
-          const start = new Date(fgtsFilters.data.startDate)
-          const end = new Date(fgtsFilters.data.endDate)
+          const start = new Date(fgtsData.startDate as string)
+          const end = new Date((fgtsData.endDate || fgtsData.startDate) as string)
           if ((end.getTime() - start.getTime()) / (1000 * 3600 * 24) > 1) {
-            fgtsFilters.data.endDate = fgtsFilters.data.startDate
+            fgtsData.endDate = fgtsData.startDate
           }
         }
+        // Build filters with instituicao and searchString at the correct level
         corbanBody.requestType = 'listQueueFGTS'
-        corbanBody.filters = fgtsFilters
+        corbanBody.filters = {
+          data: fgtsData,
+          ...(rawFgts.instituicao ? { instituicao: rawFgts.instituicao } : {}),
+          ...(rawFgts.searchString ? { searchString: rawFgts.searchString } : {}),
+        }
         break
       }
       case 'createProposta': {
