@@ -412,6 +412,7 @@ export default function Permissions() {
             </Accordion>
           </TabsContent>
         </Tabs>
+        </TooltipProvider>
       </div>
     </DashboardLayout>
   );
