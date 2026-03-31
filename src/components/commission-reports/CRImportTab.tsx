@@ -88,8 +88,8 @@ function cleanDate(v: any): string | null {
 }
 
 export const GERAL_COLUMNS: ColumnDef[] = [
-  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago', 'data pgt'], type: 'text' },
-  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'text' },
+  { key: 'data_pgt_cliente', label: 'Data Pgt', aliases: ['data pgt cliente', 'data_pgt_cliente', 'data pago', 'data pgt'], type: 'date' },
+  { key: 'data_digitacao', label: 'Data Digitação', aliases: ['data digitacao', 'data_digitacao', 'data digitação'], type: 'date' },
   { key: 'ade', label: 'ADE', aliases: ['ade'], type: 'text' },
   { key: 'cod_contrato', label: 'Cód Contrato', aliases: ['cod contrato', 'cod_contrato', 'código contrato'], type: 'text' },
   { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
