@@ -120,7 +120,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
   const { data: relatorio = [], isLoading: l0 } = useQuery({
     queryKey: ['cr-relatorio-data'],
     queryFn: async () => {
-      const { data } = await supabase.from('cr_relatorio' as any).select('*').limit(5000);
+      const { data } = await (supabase as any).from('cr_relatorio').select('*').limit(5000);
       return (data || []) as RelatorioRow[];
     }
   });
