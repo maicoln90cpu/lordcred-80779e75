@@ -178,6 +178,52 @@ const VALID_ACTIONS = [
   'testConnection', 'rawProxy'
 ]
 
+function normalizeAssetsResponse(raw: unknown, assetType: string): Record<string, unknown>[] {
+  const parsed = maybeParseJson(raw)
+  if (!isRecord(parsed)) return Array.isArray(parsed) ? parsed.filter(isRecord) : []
+
+  // The API commonly returns { lista: { "0": {...}, "1": {...} } }
+  let source: unknown = parsed
+  for (const wrapperKey of ['lista', 'data', 'dados', 'items', 'assets']) {
+    if (wrapperKey in (source as Record<string, unknown>)) {
+      source = (source as Record<string, unknown>)[wrapperKey]
+      break
+    }
+  }
+
+  let items: Record<string, unknown>[] = []
+
+  if (Array.isArray(source)) {
+    items = source.filter(isRecord)
+  } else if (isRecord(source)) {
+    // Keyed object { "0": {...}, "1": {...} }
+    const entries = Object.entries(source)
+    if (entries.length > 0 && entries.some(([k]) => /^\d+$/.test(k))) {
+      items = entries.map(([key, value]) => {
+        const v = maybeParseJson(value)
+        return isRecord(v) ? { _index: key, ...v } : { _index: key, raw: v }
+      })
+    } else {
+      items = entries.map(([key, value]) => {
+        const v = maybeParseJson(value)
+        return isRecord(v) ? { _key: key, ...v } : { _key: key, value: v }
+      })
+    }
+  }
+
+  // Normalize each item: extract a stable id and label
+  return items.map((item, idx) => {
+    const id = toFlatString(item.empresa_id) || toFlatString(item.id) || toFlatString(item.codigo) || toFlatString(item.value) || toFlatString(item._index) || String(idx)
+    // For 'status' assets, the label is usually in 'tabulacao'; for others try common fields
+    const label = toFlatString(item.tabulacao) || toFlatString(item.nome) || toFlatString(item.descricao) || toFlatString(item.label) || toFlatString(item.name) || toFlatString(item.titulo) || id
+    return {
+      asset_id: id,
+      asset_label: label,
+      ...item,
+    }
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -446,6 +492,10 @@ Deno.serve(async (req) => {
       const extracted = extractPropostasList(result)
       finalData = extracted.map((item) => normalizePropostaRecord(item))
       console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
+    } else if (action === 'getAssets') {
+      // Normalize getAssets: API returns {"lista": {"0": {...}, "1": {...}}} or similar keyed objects
+      finalData = normalizeAssetsResponse(result, params?.asset || 'status')
+      console.log(`[corban-api] Normalized ${Array.isArray(finalData) ? (finalData as any[]).length : 0} assets for ${params?.asset}`)
     } else if (action === 'listQueueFGTS' && typeof result === 'object' && result !== null && !Array.isArray(result)) {
       const entries = Object.entries(result as Record<string, unknown>)
       if (entries.length > 0 && entries.every(([k]) => /^\d+$/.test(k))) {

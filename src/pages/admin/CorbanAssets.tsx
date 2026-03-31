@@ -47,11 +47,12 @@ export default function CorbanAssets() {
       return 0;
     }
 
-    const items = Array.isArray(data) ? data : (data?.assets || data?.data || []);
+    // The edge function now normalizes and returns items with asset_id/asset_label
+    const items = Array.isArray(data) ? data : [];
     let synced = 0;
     for (const item of items) {
-      const assetId = String(item.id || item.codigo || item.value || '');
-      const assetLabel = String(item.nome || item.label || item.descricao || item.name || '');
+      const assetId = String(item.asset_id || item.id || item.codigo || item.empresa_id || item.value || '');
+      const assetLabel = String(item.asset_label || item.tabulacao || item.nome || item.descricao || item.label || item.name || '');
       if (assetId && assetLabel) {
         await supabase.from('corban_assets_cache').upsert({
           asset_type: assetType,
