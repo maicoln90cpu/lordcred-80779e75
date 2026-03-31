@@ -1,0 +1,2 @@
+ALTER TABLE cr_relatorio DROP CONSTRAINT cr_relatorio_batch_id_fkey;
+ALTER TABLE cr_relatorio ADD CONSTRAINT cr_relatorio_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES import_batches(id) ON DELETE CASCADE;
