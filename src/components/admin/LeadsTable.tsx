@@ -421,7 +421,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectContent>
                   <SelectItem value="all">Todos os perfis</SelectItem>
                   <SelectItem value="__none__">Sem perfil</SelectItem>
-                  {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                  {[...profileOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
