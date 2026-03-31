@@ -156,7 +156,7 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
             <p className="text-center text-muted-foreground py-4 text-sm">Sem dados de semana disponíveis.</p>
           ) : (
             <div className="border rounded-lg max-h-[400px] overflow-auto">
-              <Table>
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <tr>
                     <TSHead label="#" sortKey="_rank" sort={sort} toggle={toggle} tooltip="Posição no ranking" className="text-xs w-10" />
