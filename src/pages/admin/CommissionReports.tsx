@@ -66,6 +66,7 @@ export default function CommissionReports() {
           <TabsContent value="historico"><CRHistorico /></TabsContent>
           <TabsContent value="divergencias"><CRRelatorio divergenciasOnly /></TabsContent>
           <TabsContent value="import_history"><CRImportHistory moduleFilter="relatorios" /></TabsContent>
+          <TabsContent value="indicadores"><CRIndicadores /></TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
