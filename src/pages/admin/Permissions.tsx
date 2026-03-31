@@ -10,8 +10,43 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Save, Loader2, Users, Search, UserCog } from 'lucide-react';
+import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+const FEATURE_DESCRIPTIONS: Record<string, string> = {
+  dashboard: 'Painel de aquecimento com métricas de chips',
+  chips: 'Gerenciamento dos chips WhatsApp do usuário',
+  users: 'Cadastro e gestão de usuários do sistema',
+  leads: 'Gerenciamento de leads e clientes',
+  performance: 'Relatórios de performance da equipe',
+  kanban: 'Quadro Kanban de acompanhamento de conversas',
+  product_info: 'Informações sobre produtos disponíveis',
+  commissions: 'Comissões de parceiros (pagáveis)',
+  commission_reports: 'Auditoria de comissões recebidas vs esperadas',
+  chip_monitor: 'Monitoramento em tempo real de todos os chips',
+  queue: 'Fila de mensagens pendentes',
+  webhooks: 'Diagnóstico de webhooks recebidos',
+  templates: 'Templates de mensagens WhatsApp',
+  quick_replies: 'Notas rápidas e atalhos de mensagem',
+  tickets: 'Sistema de tickets de suporte',
+  internal_chat: 'Chat interno entre usuários do sistema',
+  links: 'Links úteis compartilhados na equipe',
+  remote_assistance: 'Assistência remota a usuários',
+  audit_logs: 'Logs de auditoria do sistema',
+  permissions: 'Gerenciamento de permissões (esta página)',
+  corban_dashboard: 'Dashboard geral da integração Corban',
+  corban_propostas: 'Consulta de propostas na NewCorban',
+  corban_fgts: 'Gestão da fila FGTS administrativa',
+  corban_assets: 'Assets e tabelas da NewCorban em cache',
+  corban_config: 'Configuração de visibilidade Corban por papel',
+  seller_propostas: 'Minhas propostas (visão vendedor)',
+  seller_fgts: 'Consulta FGTS (visão vendedor)',
+  whatsapp: 'Acesso ao CRM WhatsApp',
+  settings_warming: 'Configurações de aquecimento de chips',
+  warming_reports: 'Relatórios de aquecimento',
+  master_admin: 'Painel Master com SQL e exportação',
+};
 
 interface FeaturePermission {
   id: string;
