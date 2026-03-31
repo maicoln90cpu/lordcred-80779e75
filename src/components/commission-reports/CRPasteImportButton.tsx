@@ -57,7 +57,7 @@ function cleanDate(v: any): string | null {
 }
 
 interface CRPasteImportButtonProps {
-  module: 'geral' | 'repasse' | 'seguros';
+  module: 'geral' | 'repasse' | 'seguros' | 'relatorio';
   tableName: string;
   columns: ColumnDef[];
   noHeader?: boolean;
