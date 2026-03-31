@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList, ClipboardPaste } from 'lucide-react';
+import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
@@ -1543,95 +1544,10 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
   );
 }
 
-// ==================== ROBUST CLIPBOARD PARSER ====================
-// Positional header mapping when data is pasted without headers
+// Clipboard parser imported from @/lib/clipboardParser
 const POSITIONAL_HEADERS_11 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_10 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_9 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor'];
-
-function looksLikeDateValue(val: string): boolean {
-  return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(val.trim());
-}
-
-function parseClipboardText(raw: string): { headers: string[]; rows: Record<string, string>[]; format: string; rawLineCount: number; emptyLines: number } {
-  // Normalize line endings
-  let normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  // Detect format: TSV (Excel/Sheets) vs CSV (LibreOffice semicolon)
-  const firstLine = normalized.split('\n')[0] || '';
-  const tabCount = (firstLine.match(/\t/g) || []).length;
-  const semiCount = (firstLine.match(/;/g) || []).length;
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  let sep = '\t';
-  let format = 'TSV (Excel/Google Sheets)';
-  if (tabCount === 0 && semiCount > 0) { sep = ';'; format = 'CSV (LibreOffice/semicolon)'; }
-  else if (tabCount === 0 && semiCount === 0 && commaCount > 0) { sep = ','; format = 'CSV (comma)'; }
-
-  // Handle quoted fields with embedded newlines (CSV spec)
-  const rows: string[][] = [];
-  let current: string[] = [];
-  let inQuote = false;
-  let field = '';
-  const chars = normalized + '\n'; // ensure last line processes
-
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
-    if (inQuote) {
-      if (ch === '"' && chars[i + 1] === '"') { field += '"'; i++; }
-      else if (ch === '"') { inQuote = false; }
-      else { field += ch; }
-    } else {
-      if (ch === '"') { inQuote = true; }
-      else if (ch === sep) { current.push(field.trim()); field = ''; }
-      else if (ch === '\n') {
-        current.push(field.trim());
-        field = '';
-        if (current.some(c => c !== '')) rows.push(current);
-        current = [];
-      } else { field += ch; }
-    }
-  }
-
-  if (rows.length === 0) return { headers: [], rows: [], format, rawLineCount: 0, emptyLines: 0 };
-
-  // Auto-detect if first row is data (no headers) by checking if first cell looks like a date
-  const firstCell = rows[0][0] || '';
-  const hasHeaders = !looksLikeDateValue(firstCell);
-
-  let headers: string[];
-  let startRow: number;
-
-  if (hasHeaders) {
-    if (rows.length < 2) return { headers: [], rows: [], format, rawLineCount: rows.length, emptyLines: 0 };
-    headers = rows[0];
-    startRow = 1;
-  } else {
-    // No headers detected — use positional mapping based on column count
-    const colCount = rows[0].length;
-    if (colCount >= 11) headers = POSITIONAL_HEADERS_11;
-    else if (colCount === 10) headers = POSITIONAL_HEADERS_10;
-    else if (colCount === 9) headers = POSITIONAL_HEADERS_9;
-    else {
-      // Fallback: generate generic headers
-      headers = rows[0].map((_, i) => `Col${i + 1}`);
-    }
-    startRow = 0;
-    format += ' (sem cabeçalho)';
-  }
-
-  const dataRows: Record<string, string>[] = [];
-  let emptyLines = 0;
-
-  for (let r = startRow; r < rows.length; r++) {
-    const line = rows[r];
-    if (line.every(c => c === '')) { emptyLines++; continue; }
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = line[i] || ''; });
-    dataRows.push(obj);
-  }
-
-  return { headers, rows: dataRows, format, rawLineCount: rows.length - (hasHeaders ? 1 : 0), emptyLines };
-}
 
 // ==================== PASTE IMPORT DIALOG ====================
 function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile[]; userId: string; onImported: () => void }) {
@@ -1654,7 +1570,7 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
   };
 
   const doParse = (raw: string) => {
-    const result = parseClipboardText(raw);
+    const result = parseClipboardText(raw, POSITIONAL_HEADERS_11);
     setHeaders(result.headers);
     setPreview(result.rows);
     setDetectedFormat(result.format);

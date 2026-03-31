@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Badge } from '@/components/ui/badge';
 import { Upload, Loader2, FileSpreadsheet, Search, Download } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import CRPasteImportButton from './CRPasteImportButton';
 import { TSHead, THead, useSortState, applySortToData, TOOLTIPS_GERAL, TOOLTIPS_REPASSE, TOOLTIPS_SEGUROS } from './CRSortUtils';
 import type { SortConfig } from './CRSortUtils';
 
@@ -279,6 +280,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="max-w-sm cursor-pointer" />
+            <CRPasteImportButton module={module} tableName={tableName} columns={columns} onImported={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] }); }} />
             {fileName && <span className="text-sm text-muted-foreground">📄 {fileName}</span>}
           </div>
 
