@@ -68,12 +68,6 @@ function extractTableKeyCLT(banco: string, tabela: string): string {
     if (t.includes('48X')) return 'CONSIGNADO CLT 48x';
     return 'CARTADA CLT';
   }
-  if (b.includes('C6')) {
-    const t = tabela.toUpperCase();
-    if (t.includes('4 PARCELA') || t.includes('4 PARCEIRO') || t.includes('4PARCELA')) return '4 parceiros';
-    if (t.includes('2 PARCELA') || t.includes('2 PARCEIRO') || t.includes('2PARCELA')) return '2 parceiros';
-    return '*';
-  }
   return '*';
 }
 
