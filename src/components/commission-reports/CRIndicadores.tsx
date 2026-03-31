@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Loader2, TrendingUp, TrendingDown, Target } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import CREvolutionChart from './CREvolutionChart';
+import CRDivergenceAlerts from './CRDivergenceAlerts';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: number) => `${(v * 100).toFixed(2)}%`;
