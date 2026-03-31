@@ -403,7 +403,8 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             <p className="text-center text-muted-foreground py-8 text-sm">Nenhum dado importado ainda.</p>
           ) : (
             <div className="border rounded-lg max-h-[500px] overflow-auto">
-              <Table>
+            <TooltipProvider delayDuration={300}>
+               <Table>
                 <TableHeader>
                   <tr>
                     {columns.map(col => (
