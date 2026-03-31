@@ -357,6 +357,16 @@ export default function Permissions() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-sm">{feature.feature_label}</span>
+                                {FEATURE_DESCRIPTIONS[feature.feature_key] && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-xs text-xs">
+                                      {FEATURE_DESCRIPTIONS[feature.feature_key]}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                                 <Badge variant="outline" className="text-xs">
                                   {feature.allowed_user_ids.length} usuário(s)
                                 </Badge>
