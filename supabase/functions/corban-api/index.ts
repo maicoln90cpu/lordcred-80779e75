@@ -130,6 +130,8 @@ Deno.serve(async (req) => {
       case 'getPropostas': {
         corbanBody.requestType = 'getPropostas'
         const gpFilters = params?.filters || {}
+        // Ensure status is always an array
+        if (!Array.isArray(gpFilters.status)) gpFilters.status = []
         if (!gpFilters.data) {
           const now = new Date()
           const from = new Date(now)

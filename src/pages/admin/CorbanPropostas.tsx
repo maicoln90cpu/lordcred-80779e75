@@ -52,10 +52,10 @@ export default function CorbanPropostas() {
     setLoading(true);
     const filters: Record<string, any> = {};
     if (searchCpf.trim()) filters.searchString = searchCpf.replace(/\D/g, '');
-    if (statusFilter) filters.status = [statusFilter];
+    filters.status = statusFilter ? [statusFilter] : [];
     if (bancoFilter) filters.bancos = [bancoFilter];
     if (dateFrom || dateTo) {
-      filters.data = {};
+      filters.data = { tipo: 'cadastro' };
       if (dateFrom) filters.data.startDate = format(dateFrom, 'yyyy-MM-dd');
       if (dateTo) filters.data.endDate = format(dateTo, 'yyyy-MM-dd');
     }
