@@ -133,7 +133,7 @@ export const REPASSE_COLUMNS: ColumnDef[] = [
 
 export const SEGUROS_COLUMNS: ColumnDef[] = [
   { key: 'id_seguro', label: 'ID Seguro', aliases: ['id seguro', 'id_seguro', 'id'], type: 'text' },
-  { key: 'data_registro', label: 'Data Registro', aliases: ['data registro', 'data_registro', 'data'], type: 'text' },
+  { key: 'data_registro', label: 'Data Registro', aliases: ['data registro', 'data_registro', 'data'], type: 'date' },
   { key: 'descricao', label: 'Descrição', aliases: ['descrição', 'descricao', 'desc'], type: 'text' },
   { key: 'tipo_comissao', label: 'Tipo Comissão', aliases: ['tipo comissão', 'tipo comissao', 'tipo_comissao', 'tipo'], type: 'text' },
   { key: 'valor_comissao', label: 'Valor Comissão', aliases: ['valor comissão', 'valor comissao', 'valor_comissao', 'valor'], type: 'currency' },
