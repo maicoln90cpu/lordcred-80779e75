@@ -6,26 +6,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Upload, Loader2, FileSpreadsheet, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Upload, Loader2, FileSpreadsheet, Search, Download } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-// ==================== SORT ====================
-type SortDir = 'asc' | 'desc' | null;
-interface SortConfig { key: string; dir: SortDir }
-
-function SortHead({ label, sortKey, sort, toggle, className }: { label: string; sortKey: string; sort: SortConfig; toggle: (k: string) => void; className?: string }) {
-  const Icon = sort.key === sortKey ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
-  return (
-    <TableHead className={`cursor-pointer select-none hover:bg-muted/50 ${className || ''}`} onClick={() => toggle(sortKey)}>
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <Icon className={`w-3 h-3 ${sort.key === sortKey ? 'text-foreground' : 'text-muted-foreground/50'}`} />
-      </span>
-    </TableHead>
-  );
-}
+import { TSHead, THead, useSortState, applySortToData, TOOLTIPS_GERAL, TOOLTIPS_REPASSE, TOOLTIPS_SEGUROS } from './CRSortUtils';
+import type { SortConfig } from './CRSortUtils';
 
 // ==================== HELPERS ====================
 function cleanCurrency(v: any): number | null {
@@ -125,6 +111,13 @@ export const SEGUROS_COLUMNS: ColumnDef[] = [
   { key: 'valor_comissao', label: 'Valor Comissão', aliases: ['valor comissão', 'valor comissao', 'valor_comissao', 'valor'], type: 'currency' },
 ];
 
+function getTooltipMap(module: string): Record<string, string> {
+  if (module === 'geral') return TOOLTIPS_GERAL;
+  if (module === 'repasse') return TOOLTIPS_REPASSE;
+  if (module === 'seguros') return TOOLTIPS_SEGUROS;
+  return {};
+}
+
 // ==================== GENERIC IMPORT TAB ====================
 interface CRImportTabProps {
   module: 'geral' | 'repasse' | 'seguros';
@@ -145,15 +138,10 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
   const [fileName, setFileName] = useState('');
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortConfig>({ key: '', dir: null });
+  const { sort, toggle: toggleSort } = useSortState();
+  const { sort: previewSort, toggle: togglePreviewSort } = useSortState();
 
-  const toggleSort = (key: string) => {
-    setSort(prev => {
-      if (prev.key !== key) return { key, dir: 'asc' };
-      if (prev.dir === 'asc') return { key, dir: 'desc' };
-      return { key: '', dir: null };
-    });
-  };
+  const tooltipMap = getTooltipMap(module);
 
   const { data: existingData = [], isLoading, refetch } = useQuery({
     queryKey: [`cr-${module}`],
@@ -187,17 +175,11 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
         const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
         rows = rawRows.map(row => {
           const norm: Record<string, any> = {};
-          for (const key of Object.keys(row)) {
-            norm[key.toLowerCase().trim()] = row[key];
-          }
+          for (const key of Object.keys(row)) { norm[key.toLowerCase().trim()] = row[key]; }
           const mapped: Record<string, any> = {};
           for (const col of columns) {
             const raw = findCol(norm, col.aliases.map(a => normalize(a)));
-            if (raw === undefined) {
-              mapped[col.key] = findCol(norm, [col.key]) ?? '';
-            } else {
-              mapped[col.key] = raw;
-            }
+            mapped[col.key] = raw === undefined ? (findCol(norm, [col.key]) ?? '') : raw;
           }
           return mapped;
         });
@@ -228,54 +210,28 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
   const handleImport = async () => {
     if (parsedData.length === 0) return;
     setImporting(true);
-
     try {
       const { data: batch, error: batchErr } = await supabase.from('import_batches' as any).insert({
-        module: 'relatorios',
-        sheet_name: module,
-        file_name: fileName,
-        row_count: parsedData.length,
-        imported_by: user!.id,
+        module: 'relatorios', sheet_name: module, file_name: fileName,
+        row_count: parsedData.length, imported_by: user!.id,
       } as any).select().single();
       if (batchErr) throw batchErr;
-
       const batchId = (batch as any).id;
 
       for (let i = 0; i < parsedData.length; i += 100) {
-        const chunk = parsedData.slice(i, i + 100).map(row => ({
-          ...row,
-          batch_id: batchId,
-        }));
+        const chunk = parsedData.slice(i, i + 100).map(row => ({ ...row, batch_id: batchId }));
         const { error } = await supabase.from(tableName as any).insert(chunk as any);
         if (error) throw error;
       }
 
       toast({ title: `${parsedData.length} registros importados com sucesso!` });
-      setParsedData([]);
-      setFileName('');
+      setParsedData([]); setFileName('');
       if (fileRef.current) fileRef.current.value = '';
       refetch();
       queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] });
     } catch (error: any) {
       toast({ title: 'Erro ao importar', description: error.message, variant: 'destructive' });
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleExport = () => {
-    if (filteredExisting.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(filteredExisting.map(row => {
-      const r: Record<string, any> = {};
-      for (const col of columns) {
-        r[col.label] = row[col.key] ?? '';
-      }
-      return r;
-    }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, title);
-    XLSX.writeFile(wb, `cr_${module}.xlsx`);
-    toast({ title: 'Exportado com sucesso' });
+    } finally { setImporting(false); }
   };
 
   const filterFn = (row: Record<string, any>) => {
@@ -285,14 +241,21 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
   };
 
   const filteredExisting = existingData.filter(filterFn);
-  const sortedExisting = sort.key && sort.dir
-    ? [...filteredExisting].sort((a, b) => {
-        let va = a[sort.key] ?? '';
-        let vb = b[sort.key] ?? '';
-        if (typeof va === 'number' && typeof vb === 'number') return sort.dir === 'asc' ? va - vb : vb - va;
-        return sort.dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
-      })
-    : filteredExisting;
+  const sortedExisting = applySortToData(filteredExisting, sort);
+  const sortedPreview = applySortToData(parsedData, previewSort);
+
+  const handleExport = () => {
+    if (filteredExisting.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet(filteredExisting.map(row => {
+      const r: Record<string, any> = {};
+      for (const col of columns) { r[col.label] = row[col.key] ?? ''; }
+      return r;
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, title);
+    XLSX.writeFile(wb, `cr_${module}.xlsx`);
+    toast({ title: 'Exportado com sucesso' });
+  };
 
   const renderCell = (val: any, col: ColumnDef) => {
     if (val == null || val === '') return '-';
@@ -315,13 +278,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
-            <Input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileUpload}
-              className="max-w-sm cursor-pointer"
-            />
+            <Input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="max-w-sm cursor-pointer" />
             {fileName && <span className="text-sm text-muted-foreground">📄 {fileName}</span>}
           </div>
 
@@ -333,23 +290,23 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                   {importing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importando...</> : <><Upload className="w-4 h-4 mr-2" /> Importar</>}
                 </Button>
               </div>
-
               <div className="border rounded-lg max-h-72 overflow-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <tr>
                       {columns.map(col => (
-                        <TableHead key={col.key} className="text-xs whitespace-nowrap">{col.label}</TableHead>
+                        <TSHead key={col.key} label={col.label} sortKey={col.key} sort={previewSort} toggle={togglePreviewSort}
+                          tooltip={tooltipMap[col.key]} className="text-xs whitespace-nowrap" />
                       ))}
-                    </TableRow>
+                    </tr>
                   </TableHeader>
                   <TableBody>
-                    {parsedData.slice(0, 30).map((row, i) => (
-                      <TableRow key={i}>
+                    {sortedPreview.slice(0, 30).map((row, i) => (
+                      <tr key={i}>
                         {columns.map(col => (
                           <TableCell key={col.key} className="text-xs py-1.5 whitespace-nowrap">{renderCell(row[col.key], col)}</TableCell>
                         ))}
-                      </TableRow>
+                      </tr>
                     ))}
                   </TableBody>
                 </Table>
@@ -386,19 +343,20 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             <div className="border rounded-lg max-h-[500px] overflow-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <tr>
                     {columns.map(col => (
-                      <SortHead key={col.key} label={col.label} sortKey={col.key} sort={sort} toggle={toggleSort} className="text-xs whitespace-nowrap" />
+                      <TSHead key={col.key} label={col.label} sortKey={col.key} sort={sort} toggle={toggleSort}
+                        tooltip={tooltipMap[col.key]} className="text-xs whitespace-nowrap" />
                     ))}
-                  </TableRow>
+                  </tr>
                 </TableHeader>
                 <TableBody>
                   {sortedExisting.slice(0, 200).map((row, i) => (
-                    <TableRow key={row.id || i}>
+                    <tr key={row.id || i}>
                       {columns.map(col => (
                         <TableCell key={col.key} className="text-xs py-1.5 whitespace-nowrap">{renderCell(row[col.key], col)}</TableCell>
                       ))}
-                    </TableRow>
+                    </tr>
                   ))}
                 </TableBody>
               </Table>
