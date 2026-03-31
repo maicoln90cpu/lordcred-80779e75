@@ -72,9 +72,16 @@ function extractTableKeyCLT(banco: string, tabela: string): string {
 }
 
 // SUMIFS-style: find max vigencia, then sum all matching rates (exact seguro + "Ambos")
+// Convert timestamptz to São Paulo civil date string (YYYY-MM-DD)
+function toSaoPauloDate(ts: string | null): string {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }); }
+  catch { return ts.slice(0, 10); }
+}
+
 function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
-  const dt = dataPgt ? dataPgt.slice(0, 10) : '9999-12-31';
+  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
   const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
   if (!valid.length) return 0;
   const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
@@ -91,7 +98,7 @@ function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tab
 
 function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
-  const dt = dataPgt ? dataPgt.slice(0, 10) : '9999-12-31';
+  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
   const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
   if (!valid.length) return 0;
   const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
