@@ -371,6 +371,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
                     ))}
                   </TableBody>
                 </Table>
+              </TooltipProvider>
                 {parsedData.length > 30 && (
                   <p className="text-center text-xs text-muted-foreground py-2">Mostrando 30 de {parsedData.length}...</p>
                 )}
