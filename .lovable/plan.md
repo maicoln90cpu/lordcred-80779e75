@@ -1,66 +1,129 @@
 
 
-# Fix: Tooltip Flicker, Resumo Detalhado, Histórico/Indicadores
+# Plan: Full Documentation Audit and Update
 
-## 4 Issues Identified
+## Audit Results
 
-### Issue 1 — Tooltip deforma colunas ao hover
-**Causa**: `TSHead` usa `<TableHead>` como `TooltipTrigger asChild`. Quando o tooltip abre, o Radix injeta atributos que causam re-render e layout shift no `<th>`. Solução: envolver apenas o conteúdo interno (o `<span>`) no tooltip, não o `<TableHead>` inteiro.
+### Discrepancies Found
 
-### Issue 2 — Resumo não tem tabela detalhada
-**Causa**: O Resumo só mostra "Resumo por Banco" (top 10). Falta a tabela detalhada com todos os contratos individuais (como existe no Relatório). Solução: adicionar uma seção "Detalhado" colapsável abaixo do resumo por banco, mostrando cada contrato com seus valores.
+| Area | Current State | Reality |
+|------|--------------|---------|
+| **Roles** | README/PRD/SYSTEM-DESIGN say 4 roles (admin, user, support, seller) | System has **5 roles**: master, admin, manager, support, seller |
+| **Commission Reports** | Not mentioned anywhere in docs | Fully implemented: 8 tabs (Geral, Repasse, Seguros, Relatório, Resumo, Indicadores, Regras CLT/FGTS, Histórico) |
+| **Corban Integration** | `docs/corban.md` exists but not linked from any doc | 6 admin pages + 2 seller pages + 2 edge functions + feature config system |
+| **DB Tables** | SYSTEM-DESIGN lists ~20 tables | Missing ~15 tables: `cr_geral`, `cr_repasse`, `cr_seguros`, `cr_relatorio`, `cr_rules_clt`, `cr_rules_fgts`, `cr_history`, `corban_*`, `feature_permissions`, `quick_replies` |
+| **Edge Functions** | Lists 9 functions | Missing `corban-api`, `corban-status-sync` |
+| **PENDENCIAS.md** | Last entry: 2026-02 | Missing all late March 2026 work (commission reports, tooltip fix, paste import, Corban, etc.) |
+| **ROADMAP.md** | Phase 4 shows 3 pending items | Missing ~10 completed items from Phase 4 |
+| **Knowledge prompt** | Says 4 roles, no commission info | Severely outdated |
+| **.lovable/plan.md** | Contains stale tooltip fix plan | Should be cleaned |
 
-### Issue 3 — Histórico Detalhado/Gestão/Diferença Detalhada
-**Resposta**: Esses relatórios **já existem** no sistema:
-- **Histórico Gestão** = aba "Histórico" (lista de fechamentos salvos com totais)
-- **Histórico Detalhado** = ao expandir um fechamento, mostra todos os contratos
-- **Diferença Detalhada** = aba "Divergências" (filtra apenas contratos com |Δ| > R$0.01)
-
-Vou apenas melhorar a visibilidade adicionando um card informativo na aba Resumo que aponte para essas abas.
-
-### Issue 4 — Indicadores todos zerados (0.0%, R$0.00)
-**Causa**: `CRIndicadores.tsx` lê de `cr_geral` e usa `identifyProduct(tipo_operacao, convenio)` + `hasInsuranceFn(convenio)` para calcular esperada. Mas os nomes de banco em `cr_geral` (ex: "HUB CRÉDITOS", "BANCO PRATA DIGITAL") **não batem** com os nomes nas regras CLT/FGTS (ex: "Hub Credito", "Prata Digital"). Além disso, a lógica de tabela_chave usa `convenio` direto em vez do extractor correto. Resultado: todas as taxas retornam 0%.
-
-**Solução**: Reescrever `CRIndicadores` para usar `cr_relatorio` como fonte primária (igual ao Resumo e Relatório), com as mesmas funções `extractTableKey*` e `findRate*`.
+### Files to Update (8 files)
 
 ---
 
-## Plano de Implementação
+## Etapa 1 — README.md
 
-### Etapa 1 — Fix tooltip flicker em TSHead (CRSortUtils.tsx)
-- Mover o `<Tooltip>` para envolver apenas o `<span>` interno, não o `<TableHead>` inteiro
-- Isso evita que o Radix injete atributos no `<th>` e cause layout shift
+- Add `manager` role to roles table
+- Add Commission Reports and Corban to structure tree
+- Add `docs/corban.md` and `docs/COMMISSION-REPORTS.md` to docs table
+- Add `pages/corban/` to structure
+- Update commands (add `npm run lint`)
 
-### Etapa 2 — Adicionar tabela detalhada no Resumo (CRResumo.tsx)
-- Adicionar seção colapsável "Detalhado" com todos os contratos do período filtrado
-- Colunas: Contrato, Nome, Banco, Produto, Valor Lib., Recebida, Esperada, Diferença
-- Com paginação ou scroll (max 500 linhas visíveis)
-- Remover limite de `slice(0, 10)` no resumo por banco (mostrar todos)
+## Etapa 2 — PRD.md
 
-### Etapa 3 — Reescrever CRIndicadores para usar cr_relatorio
-- Trocar fonte de `cr_geral` para `cr_relatorio`
-- Usar mesmas funções de cálculo do CRRelatorio
-- Cross-reference com cr_geral/cr_repasse/cr_seguros para comissão recebida
-- Resultado: acurácia, perda acumulada e taxa média calculadas corretamente
+- Update roles table: 5 roles (master, admin, manager, support, seller) with correct frontend names
+- Add new section "Relatório de Comissões" under Features: Geral/Repasse/Seguros import, CLT/FGTS rate engine, Resumo with SUMIFS-style calculations, Indicadores, Histórico/Fechamento
+- Add "Corban Integration" section: NewCorban API, propostas, FGTS, assets, config, dashboard
+- Add "Feature Permissions" section: granular per-role + per-user control
+- Update backlog (remove items already done like "Relatórios avançados")
+- Fix cross-references
+
+## Etapa 3 — ROADMAP.md
+
+- Phase 4: mark completed items: Commission Reports system, Corban integration, Paste import (Ctrl+V), Tooltip stability fix, Timezone standardization (São Paulo), Feature permissions granulares, Manager role, `is_privileged()` RLS consolidation
+- Phase 5: update with realistic next items, remove already-done items
+
+## Etapa 4 — PENDENCIAS.md
+
+Add entries for all recent work:
+- 2026-03 — Relatório de Comissões: 8 abas, import Ctrl+V, cálculos CLT/FGTS SUMIFS, Resumo detalhado, Indicadores
+- 2026-03 — Corban Integration: propostas, FGTS, assets, config, dashboard, seller pages
+- 2026-03 — Manager Role + is_privileged(): 5 roles, RLS consolidation
+- 2026-03 — Feature Permissions: granular per-role/per-user, realtime
+- 2026-03 — Tooltip Fix: CRSortUtils stable tooltips
+- 2026-03 — Timezone: São Paulo standardization across commission calculations
+- 2026-03 — Paste Import: Ctrl+V for Geral, Repasse, Seguros with duplicate detection
+
+## Etapa 5 — SYSTEM-DESIGN.md
+
+- Update roles to 5 (master, admin, manager, support, seller)
+- Add `is_privileged()` SECURITY DEFINER explanation
+- Add Commission Reports tables: `cr_geral`, `cr_repasse`, `cr_seguros`, `cr_relatorio`, `cr_rules_clt`, `cr_rules_fgts`, `cr_history`
+- Add Corban tables: `corban_feature_config`, `corban_propostas`, etc.
+- Add `feature_permissions` table
+- Add `quick_replies` table
+- Add edge functions: `corban-api`, `corban-status-sync`
+- Add Commission Calculation flow diagram (CLT/FGTS rate lookup, SUMIFS aggregation, cross-reference)
+- Add Corban API flow diagram
+
+## Etapa 6 — Create docs/COMMISSION-REPORTS.md (new file)
+
+Dedicated doc explaining:
+- Architecture: 4 import tables + 2 rules tables + 1 history table
+- CLT calculation: `extractTableKeyCLT` → `findCLTRate` (SUMIFS aggregation)
+- FGTS calculation: `extractTableKeyFGTS` → `findFGTSRate` (SUMIFS aggregation)
+- Cross-reference logic: contract matching across Geral+Repasse+Seguros
+- Timezone handling: `toSaoPauloDate` pattern
+- Import flow: paste → parse → preview → batch insert
+- Resumo: filtered aggregation with date range
+- Indicadores: KPI formulas
+
+## Etapa 7 — Update docs/INSTRUCOES.md
+
+- Add section about Commission Reports usage (how to import, how to read Resumo)
+- Add Corban usage section
+- Update cross-references to include new docs
+
+## Etapa 8 — Clean .lovable/plan.md
+
+- Clear stale plan content
+
+## Etapa 9 — Update Knowledge Prompt
+
+Deliver via chat a complete updated knowledge prompt including:
+- 5 roles (master, admin, manager, support, seller) with `is_privileged()`
+- Commission Reports system overview
+- Corban integration overview
+- Feature permissions system
+- Timezone convention (São Paulo)
+- Updated table list
+- Updated edge function list
+- Checklist rule for all implementations
 
 ---
 
-## Arquivos a Alterar
+## Files Summary
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `CRSortUtils.tsx` | Fix tooltip — mover para `<span>` interno |
-| `CRResumo.tsx` | Adicionar tabela detalhada + mostrar todos bancos |
-| `CRIndicadores.tsx` | Reescrever com cr_relatorio como fonte |
+| File | Action |
+|------|--------|
+| `README.md` | Update roles, structure, docs links |
+| `docs/PRD.md` | Add Commission Reports, Corban, 5 roles, update backlog |
+| `docs/ROADMAP.md` | Mark Phase 4 items done, update Phase 5 |
+| `docs/PENDENCIAS.md` | Add all March 2026 entries |
+| `docs/SYSTEM-DESIGN.md` | Add tables, functions, flows, 5 roles |
+| `docs/COMMISSION-REPORTS.md` | **New** — dedicated commission system doc |
+| `docs/INSTRUCOES.md` | Add commission + corban usage sections |
+| `.lovable/plan.md` | Clean stale content |
 
 ## Checklist Manual
 
-- [ ] Hover nas colunas não deforma layout
-- [ ] Aba Resumo mostra tabela detalhada com contratos individuais
-- [ ] Resumo por Banco mostra TODOS os bancos (não apenas top 10)
-- [ ] Indicadores: Acurácia > 0%, Perda Acumulada > R$0, bancos com dados reais
-- [ ] Verificar que Relatório e Divergências continuam funcionando
-
-## Pendente (futuro)
-- Nenhum item pendente — todos os 4 pontos são resolvidos nesta implementação
+- [ ] All `Ver Também` links resolve correctly between docs
+- [ ] README docs table lists all 10 docs
+- [ ] PRD roles table shows 5 roles
+- [ ] ROADMAP Phase 4 reflects all completed work
+- [ ] PENDENCIAS has chronological entries through March 2026
+- [ ] SYSTEM-DESIGN lists all ~35 tables and 11 edge functions
+- [ ] COMMISSION-REPORTS.md explains CLT/FGTS calculation accurately
+- [ ] Knowledge prompt covers all systems
 
