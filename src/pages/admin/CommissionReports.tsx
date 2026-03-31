@@ -19,6 +19,7 @@ export default function CommissionReports() {
     { value: 'geral', label: 'Geral', icon: FileSpreadsheet },
     { value: 'repasse', label: 'Repasse', icon: ArrowRightLeft },
     { value: 'seguros', label: 'Seguros', icon: Shield },
+    { value: 'relatorio_import', label: 'Relatório (Import)', icon: FileInput },
     { value: 'rules_fgts', label: 'Regras FGTS', icon: Settings },
     { value: 'rules_clt', label: 'Regras CLT', icon: Settings },
     { value: 'relatorio', label: 'Relatório', icon: Calculator },
