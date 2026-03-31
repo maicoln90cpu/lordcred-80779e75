@@ -502,6 +502,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
               </Button>
+              <PasteImportButton profiles={profiles} userId={userId} onImported={loadSales} />
               <Button variant="outline" size="sm" onClick={handleExportBase} disabled={filteredSales.length === 0}>
                 <Download className="w-4 h-4 mr-1" /> Exportar
               </Button>
