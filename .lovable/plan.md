@@ -1,57 +1,66 @@
 
 
-# Fix: Resumo Tab — Wrong Data Source + Wrong Calculation Logic
+# Fix: Tooltip Flicker, Resumo Detalhado, Histórico/Indicadores
 
-## Root Cause
+## 4 Issues Identified
 
-The **Resumo** tab (`CRResumo.tsx`) has 3 critical bugs:
+### Issue 1 — Tooltip deforma colunas ao hover
+**Causa**: `TSHead` usa `<TableHead>` como `TooltipTrigger asChild`. Quando o tooltip abre, o Radix injeta atributos que causam re-render e layout shift no `<th>`. Solução: envolver apenas o conteúdo interno (o `<span>`) no tooltip, não o `<TableHead>` inteiro.
 
-### Bug 1 — Wrong data source
-Resumo reads from `cr_geral` (production data) instead of `cr_relatorio` (sales report). The spreadsheet formulas explicitly reference "RELATORIO NEW CORBAN" columns. This is why all "Esperada" values are R$0 — the `cr_geral` table uses different fields (`tipo_operacao`, `convenio`) that don't match the rate lookup logic properly, and `prod_liq` values may not align.
+### Issue 2 — Resumo não tem tabela detalhada
+**Causa**: O Resumo só mostra "Resumo por Banco" (top 10). Falta a tabela detalhada com todos os contratos individuais (como existe no Relatório). Solução: adicionar uma seção "Detalhado" colapsável abaixo do resumo por banco, mostrando cada contrato com seus valores.
 
-### Bug 2 — Old first-match rate functions
-Lines 30-31 still use the old `for...return` (first match) logic instead of the SUMIFS-style sum that was already fixed in `CRRelatorio.tsx`. This means even if the data source were correct, rates for C6, Prata Digital, etc. would be wrong.
+### Issue 3 — Histórico Detalhado/Gestão/Diferença Detalhada
+**Resposta**: Esses relatórios **já existem** no sistema:
+- **Histórico Gestão** = aba "Histórico" (lista de fechamentos salvos com totais)
+- **Histórico Detalhado** = ao expandir um fechamento, mostra todos os contratos
+- **Diferença Detalhada** = aba "Divergências" (filtra apenas contratos com |Δ| > R$0.01)
 
-### Bug 3 — Date filtering without São Paulo timezone
-`data_pago` is stored as `timestamptz` (UTC). The comparison `slice(0,10)` uses UTC dates, not São Paulo civil dates. A sale at 22:00 BRT (01:00 UTC next day) would be assigned to the wrong date.
+Vou apenas melhorar a visibilidade adicionando um card informativo na aba Resumo que aponte para essas abas.
 
-## Reference values (spreadsheet, period 01/02 to 10/02/2026)
+### Issue 4 — Indicadores todos zerados (0.0%, R$0.00)
+**Causa**: `CRIndicadores.tsx` lê de `cr_geral` e usa `identifyProduct(tipo_operacao, convenio)` + `hasInsuranceFn(convenio)` para calcular esperada. Mas os nomes de banco em `cr_geral` (ex: "HUB CRÉDITOS", "BANCO PRATA DIGITAL") **não batem** com os nomes nas regras CLT/FGTS (ex: "Hub Credito", "Prata Digital"). Além disso, a lógica de tabela_chave usa `convenio` direto em vez do extractor correto. Resultado: todas as taxas retornam 0%.
 
-| Metric | Spreadsheet | Current System |
-|--------|------------|----------------|
-| Qtd Propostas | 182 | 50 |
-| Valor Liberado | R$254.331,34 | R$76.296,51 |
-| Comissão Esperada | R$21.868,72 | R$0,00 |
-| Comissão Recebida | R$22.062,44 | R$5.763,75 |
-| Diferença | R$193,78 | R$5.763,75 |
+**Solução**: Reescrever `CRIndicadores` para usar `cr_relatorio` como fonte primária (igual ao Resumo e Relatório), com as mesmas funções `extractTableKey*` e `findRate*`.
 
-The discrepancy is massive because it's reading from the wrong table entirely.
+---
 
-## Implementation
+## Plano de Implementação
 
-### Rewrite `CRResumo.tsx` to mirror `CRRelatorio.tsx` logic:
+### Etapa 1 — Fix tooltip flicker em TSHead (CRSortUtils.tsx)
+- Mover o `<Tooltip>` para envolver apenas o `<span>` interno, não o `<TableHead>` inteiro
+- Isso evita que o Radix injete atributos no `<th>` e cause layout shift
 
-1. **Change data source**: Fetch from `cr_relatorio` instead of `cr_geral` as the base table
-2. **Copy SUMIFS-style rate functions**: Use the exact `findFGTSRate`, `findCLTRate`, `extractTableKeyFGTS`, `extractTableKeyCLT` functions from `CRRelatorio.tsx`
-3. **Fix date filtering**: Convert `data_pago` to São Paulo civil date before comparing with filter dates (use `toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })` pattern)
-4. **Fix comissão recebida**: Cross-reference `cr_geral` + `cr_repasse` + `cr_seguros` by contract number (same as CRRelatorio)
-5. **Fix product identification**: Use `produto` field from `cr_relatorio` (e.g., "FGTS", "Crédito do Trabalhador") instead of `tipo_operacao`/`convenio` from `cr_geral`
+### Etapa 2 — Adicionar tabela detalhada no Resumo (CRResumo.tsx)
+- Adicionar seção colapsável "Detalhado" com todos os contratos do período filtrado
+- Colunas: Contrato, Nome, Banco, Produto, Valor Lib., Recebida, Esperada, Diferença
+- Com paginação ou scroll (max 500 linhas visíveis)
+- Remover limite de `slice(0, 10)` no resumo por banco (mostrar todos)
 
-### Files to change
+### Etapa 3 — Reescrever CRIndicadores para usar cr_relatorio
+- Trocar fonte de `cr_geral` para `cr_relatorio`
+- Usar mesmas funções de cálculo do CRRelatorio
+- Cross-reference com cr_geral/cr_repasse/cr_seguros para comissão recebida
+- Resultado: acurácia, perda acumulada e taxa média calculadas corretamente
 
-| File | Change |
-|------|--------|
-| `CRResumo.tsx` | Full rewrite of data source + calculation logic |
+---
 
-### Checklist Manual
+## Arquivos a Alterar
 
-- [ ] Set period 01/02/2026 to 10/02/2026 → Verify ~182 propostas, ~R$254k liberado
-- [ ] Verify Esperada > R$0 for all banks (was all zeros before)
-- [ ] Verify Recebida matches cross-reference from Geral+Repasse+Seguros
-- [ ] Salvar Fechamento → verify historico saves correctly with new values
-- [ ] Compare bank-by-bank totals with spreadsheet values
+| Arquivo | Alteração |
+|---------|-----------|
+| `CRSortUtils.tsx` | Fix tooltip — mover para `<span>` interno |
+| `CRResumo.tsx` | Adicionar tabela detalhada + mostrar todos bancos |
+| `CRIndicadores.tsx` | Reescrever com cr_relatorio como fonte |
 
-### Pending (future)
+## Checklist Manual
 
-- Small count difference (182 vs 184) may be due to timezone edge cases on boundary dates — will need exact spreadsheet row-by-row comparison
+- [ ] Hover nas colunas não deforma layout
+- [ ] Aba Resumo mostra tabela detalhada com contratos individuais
+- [ ] Resumo por Banco mostra TODOS os bancos (não apenas top 10)
+- [ ] Indicadores: Acurácia > 0%, Perda Acumulada > R$0, bancos com dados reais
+- [ ] Verificar que Relatório e Divergências continuam funcionando
+
+## Pendente (futuro)
+- Nenhum item pendente — todos os 4 pontos são resolvidos nesta implementação
 
