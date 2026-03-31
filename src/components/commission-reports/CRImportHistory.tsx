@@ -37,7 +37,7 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const tableMap: Record<string, string> = { geral: 'cr_geral', repasse: 'cr_repasse', seguros: 'cr_seguros', base: 'commission_sales' };
+      const tableMap: Record<string, string> = { geral: 'cr_geral', repasse: 'cr_repasse', seguros: 'cr_seguros', relatorio: 'cr_relatorio', base: 'commission_sales' };
       const targetTable = tableMap[deleteTarget.sheet_name];
       if (targetTable) { const { error: dataErr } = await supabase.from(targetTable as any).delete().eq('batch_id', deleteTarget.id); if (dataErr) throw dataErr; }
       const { error } = await supabase.from('import_batches' as any).delete().eq('id', deleteTarget.id);
