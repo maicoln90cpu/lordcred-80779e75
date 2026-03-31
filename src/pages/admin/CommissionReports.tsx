@@ -2,8 +2,8 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList, Lightbulb } from 'lucide-react';
-import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS } from '@/components/commission-reports/CRImportTab';
+import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList, Lightbulb, FileInput } from 'lucide-react';
+import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS, RELATORIO_COLUMNS } from '@/components/commission-reports/CRImportTab';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import CRRulesFGTS from '@/components/commission-reports/CRRulesFGTS';
 import CRRulesCLT from '@/components/commission-reports/CRRulesCLT';
@@ -19,6 +19,7 @@ export default function CommissionReports() {
     { value: 'geral', label: 'Geral', icon: FileSpreadsheet },
     { value: 'repasse', label: 'Repasse', icon: ArrowRightLeft },
     { value: 'seguros', label: 'Seguros', icon: Shield },
+    { value: 'relatorio_import', label: 'Relatório (Import)', icon: FileInput },
     { value: 'rules_fgts', label: 'Regras FGTS', icon: Settings },
     { value: 'rules_clt', label: 'Regras CLT', icon: Settings },
     { value: 'relatorio', label: 'Relatório', icon: Calculator },
@@ -58,6 +59,9 @@ export default function CommissionReports() {
           </TabsContent>
           <TabsContent value="seguros">
             <CRImportTab module="seguros" tableName="cr_seguros" columns={SEGUROS_COLUMNS} title="Seguros" description="Importação de dados de seguros prestamistas com 5 colunas." noHeader />
+          </TabsContent>
+          <TabsContent value="relatorio_import">
+            <CRImportTab module="relatorio" tableName="cr_relatorio" columns={RELATORIO_COLUMNS} title="Relatório" description="Importação dos dados de vendas do New Corban (14 colunas: Data Pago, Nº Contrato, Produto, Banco, Prazo, Tabela, Valor Liberado, Seguro, CPF, Nome, Data Nasc., Telefone, Vendedor, ID)." />
           </TabsContent>
           <TabsContent value="rules_fgts"><CRRulesFGTS /></TabsContent>
           <TabsContent value="rules_clt"><CRRulesCLT /></TabsContent>
