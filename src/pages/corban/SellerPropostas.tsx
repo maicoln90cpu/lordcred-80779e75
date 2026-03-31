@@ -9,10 +9,25 @@ import { useState } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 
+interface NormalizedProposta {
+  proposta_id: string | null;
+  cpf: string | null;
+  nome: string | null;
+  banco: string | null;
+  produto: string | null;
+  status: string | null;
+  valor_liberado: number | null;
+  valor_parcela: number | null;
+  prazo: number | string | null;
+  data_cadastro: string | null;
+}
+
+const fmtBRL = (v: number | null) => v != null ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
+
 export default function SellerPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
-  const [propostas, setPropostas] = useState<any[]>([]);
+  const [propostas, setPropostas] = useState<NormalizedProposta[]>([]);
 
   const handleSearch = async () => {
     if (!searchCpf.trim()) {
@@ -35,19 +50,13 @@ export default function SellerPropostas() {
       }
     });
     setLoading(false);
-    console.log('[SellerPropostas] Raw API data:', JSON.stringify(data).substring(0, 1000));
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = Array.isArray(data) 
-      ? data 
-      : (data?.propostas || data?.data || data?.result || data?.results || []);
+    const list: NormalizedProposta[] = Array.isArray(data) ? data : [];
     setPropostas(list);
-    if (list.length === 0 && data) {
-      console.warn('[SellerPropostas] Response structure:', JSON.stringify(data).substring(0, 500));
-      toast.info('Nenhuma proposta encontrada');
-    } else if (list.length === 0) {
+    if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada');
     }
   };
@@ -96,21 +105,25 @@ export default function SellerPropostas() {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Banco</TableHead>
+                      <TableHead>Produto</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Parcela</TableHead>
+                      <TableHead>Prazo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {propostas.map((p: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell>{p.nome || p.cliente?.pessoais?.nome || '—'}</TableCell>
-                        <TableCell>{p.banco || p.banco_nome || '—'}</TableCell>
+                    {propostas.map((p, i) => (
+                      <TableRow key={`${p.proposta_id || i}`}>
+                        <TableCell>{p.nome || '—'}</TableCell>
+                        <TableCell>{p.banco || '—'}</TableCell>
+                        <TableCell>{p.produto || '—'}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">{p.status || '—'}</Badge>
                         </TableCell>
-                        <TableCell>{p.valor_liberado ? `R$ ${Number(p.valor_liberado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                        <TableCell>{p.valor_parcela ? `R$ ${Number(p.valor_parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                        <TableCell>{fmtBRL(p.valor_liberado)}</TableCell>
+                        <TableCell>{fmtBRL(p.valor_parcela)}</TableCell>
+                        <TableCell>{p.prazo || '—'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

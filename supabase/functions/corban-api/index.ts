@@ -275,6 +275,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Normalize getPropostas response to flat, frontend-friendly format
+    if (action === 'getPropostas' && Array.isArray(finalData)) {
+      finalData = (finalData as any[]).map((p: any) => {
+        const cliente = p.cliente || {}
+        const pessoais = cliente.pessoais || {}
+        const api = p.api || {}
+        const datas = p.datas || {}
+        const averbacao = p.averbacao || {}
+        const financeiro = p.financeiro || {}
+        return {
+          proposta_id: p.proposta_id || p.id || null,
+          cpf: pessoais.cpf || p.cpf || null,
+          nome: pessoais.nome || p.nome || null,
+          telefone: pessoais.telefone || p.telefone || null,
+          banco: api.banco_nome || averbacao.banco_nome || p.banco || p.banco_nome || null,
+          banco_codigo: api.banco || averbacao.banco || p.banco_codigo || null,
+          produto: api.produto_nome || p.produto || null,
+          status: api.status_nome || p.status || p.status_nome || null,
+          status_id: api.status || null,
+          valor_liberado: financeiro.valor_liberado ?? p.valor_liberado ?? null,
+          valor_parcela: financeiro.valor_parcela ?? p.valor_parcela ?? null,
+          prazo: financeiro.prazo ?? p.prazo ?? p.prazos ?? null,
+          data_cadastro: datas.data_cadastro || p.data_cadastro || null,
+          data_pagamento: datas.data_pagamento || p.data_pagamento || null,
+          tipo_liberacao: financeiro.tipo_liberacao || p.tipo_liberacao || null,
+          convenio: api.convenio_nome || p.convenio || null,
+          tabela: api.tabela_nome || p.tabela || null,
+          _raw: p,
+        }
+      })
+      console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
+    }
+
     return new Response(JSON.stringify({
       success: true,
       data: finalData,

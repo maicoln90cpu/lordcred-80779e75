@@ -20,10 +20,30 @@ interface CachedAsset {
   asset_label: string;
 }
 
+interface NormalizedProposta {
+  proposta_id: string | null;
+  cpf: string | null;
+  nome: string | null;
+  telefone: string | null;
+  banco: string | null;
+  produto: string | null;
+  status: string | null;
+  valor_liberado: number | null;
+  valor_parcela: number | null;
+  prazo: number | string | null;
+  data_cadastro: string | null;
+  data_pagamento: string | null;
+  convenio: string | null;
+}
+
+const fmtBRL = (v: number | null) => v != null ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
+
 export default function CorbanPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
-  const [propostas, setPropostas] = useState<any[]>([]);
+  const [propostas, setPropostas] = useState<NormalizedProposta[]>([]);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 30;
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d;
   });
@@ -50,34 +70,35 @@ export default function CorbanPropostas() {
       return;
     }
     setLoading(true);
-    const filters: Record<string, any> = {};
+    const filters: Record<string, any> = {
+      status: statusFilter ? [statusFilter] : [],
+    };
     if (searchCpf.trim()) filters.searchString = searchCpf.replace(/\D/g, '');
-    filters.status = statusFilter ? [statusFilter] : [];
     if (bancoFilter) filters.bancos = [bancoFilter];
     if (dateFrom || dateTo) {
-      filters.data = { tipo: 'cadastro' };
-      if (dateFrom) filters.data.startDate = format(dateFrom, 'yyyy-MM-dd');
-      if (dateTo) filters.data.endDate = format(dateTo, 'yyyy-MM-dd');
+      filters.data = {
+        tipo: 'cadastro',
+        startDate: dateFrom ? format(dateFrom, 'yyyy-MM-dd') : undefined,
+        endDate: dateTo ? format(dateTo, 'yyyy-MM-dd') : undefined,
+      };
     }
 
     const { data, error } = await invokeCorban('getPropostas', { filters });
     setLoading(false);
-    console.log('[CorbanPropostas] Raw API data:', JSON.stringify(data).substring(0, 1000));
+    setPage(0);
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = Array.isArray(data) 
-      ? data 
-      : (data?.propostas || data?.data || data?.result || data?.results || []);
+    const list: NormalizedProposta[] = Array.isArray(data) ? data : [];
     setPropostas(list);
-    if (list.length === 0 && data) {
-      console.warn('[CorbanPropostas] Response structure:', JSON.stringify(data).substring(0, 500));
-      toast.info('Nenhuma proposta encontrada para os filtros informados');
-    } else if (list.length === 0) {
+    if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada para os filtros informados');
     }
   };
+
+  const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
+  const pagedPropostas = propostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <DashboardLayout>
@@ -197,26 +218,37 @@ export default function CorbanPropostas() {
                       <TableHead>Valor Lib.</TableHead>
                       <TableHead>Parcela</TableHead>
                       <TableHead>Prazo</TableHead>
+                      <TableHead>Data Cadastro</TableHead>
+                      <TableHead>Convênio</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {propostas.map((p: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-mono text-xs">{p.cpf || p.cliente?.pessoais?.cpf || '—'}</TableCell>
-                        <TableCell>{p.nome || p.cliente?.pessoais?.nome || '—'}</TableCell>
-                        <TableCell>{p.banco || p.banco_nome || '—'}</TableCell>
+                    {pagedPropostas.map((p, i) => (
+                      <TableRow key={`${p.proposta_id || i}`}>
+                        <TableCell className="font-mono text-xs">{p.cpf || '—'}</TableCell>
+                        <TableCell>{p.nome || '—'}</TableCell>
+                        <TableCell>{p.banco || '—'}</TableCell>
                         <TableCell>{p.produto || '—'}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-xs">{p.status || p.status_nome || '—'}</Badge>
+                          <Badge variant="outline" className="text-xs">{p.status || '—'}</Badge>
                         </TableCell>
-                        <TableCell>{p.valor_liberado ? `R$ ${Number(p.valor_liberado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                        <TableCell>{p.valor_parcela ? `R$ ${Number(p.valor_parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                        <TableCell>{p.prazos || p.prazo || '—'}</TableCell>
+                        <TableCell>{fmtBRL(p.valor_liberado)}</TableCell>
+                        <TableCell>{fmtBRL(p.valor_parcela)}</TableCell>
+                        <TableCell>{p.prazo || '—'}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{p.data_cadastro || '—'}</TableCell>
+                        <TableCell className="text-xs">{p.convenio || '—'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 py-3 border-t">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

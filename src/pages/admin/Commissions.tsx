@@ -1543,13 +1543,77 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
   );
 }
 
+// ==================== ROBUST CLIPBOARD PARSER ====================
+function parseClipboardText(raw: string): { headers: string[]; rows: Record<string, string>[]; format: string; rawLineCount: number; emptyLines: number } {
+  // Normalize line endings
+  let normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Detect format: TSV (Excel/Sheets) vs CSV (LibreOffice semicolon)
+  const firstLine = normalized.split('\n')[0] || '';
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const semiCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  let sep = '\t';
+  let format = 'TSV (Excel/Google Sheets)';
+  if (tabCount === 0 && semiCount > 0) { sep = ';'; format = 'CSV (LibreOffice/semicolon)'; }
+  else if (tabCount === 0 && semiCount === 0 && commaCount > 0) { sep = ','; format = 'CSV (comma)'; }
+
+  // Handle quoted fields with embedded newlines (CSV spec)
+  const rows: string[][] = [];
+  let current: string[] = [];
+  let inQuote = false;
+  let field = '';
+  const chars = normalized + '\n'; // ensure last line processes
+
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (inQuote) {
+      if (ch === '"' && chars[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQuote = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === sep) { current.push(field.trim()); field = ''; }
+      else if (ch === '\n') {
+        current.push(field.trim());
+        field = '';
+        if (current.some(c => c !== '')) rows.push(current);
+        current = [];
+      } else { field += ch; }
+    }
+  }
+
+  if (rows.length < 2) return { headers: [], rows: [], format, rawLineCount: rows.length, emptyLines: 0 };
+
+  const headers = rows[0];
+  const colCount = headers.length;
+  const dataRows: Record<string, string>[] = [];
+  let emptyLines = 0;
+
+  for (let r = 1; r < rows.length; r++) {
+    const line = rows[r];
+    // Skip fully empty rows
+    if (line.every(c => c === '')) { emptyLines++; continue; }
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = line[i] || ''; });
+    dataRows.push(obj);
+  }
+
+  return { headers, rows: dataRows, format, rawLineCount: rows.length - 1, emptyLines };
+}
+
 // ==================== PASTE IMPORT DIALOG ====================
 function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile[]; userId: string; onImported: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<Record<string, string>[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [detectedFormat, setDetectedFormat] = useState('');
+  const [parseStats, setParseStats] = useState({ rawLines: 0, emptyLines: 0 });
   const [importing, setImporting] = useState(false);
+  const [previewPage, setPreviewPage] = useState(0);
+  const PREVIEW_PAGE_SIZE = 20;
 
   const findSellerByName = (name: string): string | null => {
     if (!name) return null;
@@ -1558,29 +1622,24 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
     return p?.user_id || null;
   };
 
-  const parseText = (raw: string) => {
-    const lines = raw.trim().split('\n').filter(l => l.trim());
-    if (lines.length < 2) { setPreview([]); return; }
-    const sep = lines[0].includes('\t') ? '\t' : ';';
-    const headers = lines[0].split(sep).map(h => h.trim());
-    const rows = lines.slice(1).map(line => {
-      const cols = line.split(sep);
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => { obj[h] = (cols[i] || '').trim(); });
-      return obj;
-    });
-    setPreview(rows);
+  const doParse = (raw: string) => {
+    const result = parseClipboardText(raw);
+    setHeaders(result.headers);
+    setPreview(result.rows);
+    setDetectedFormat(result.format);
+    setParseStats({ rawLines: result.rawLineCount, emptyLines: result.emptyLines });
+    setPreviewPage(0);
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text');
     setText(pasted);
-    parseText(pasted);
+    doParse(pasted);
   };
 
   const handleChange = (val: string) => {
     setText(val);
-    parseText(val);
+    doParse(val);
   };
 
   const handleImport = async () => {
@@ -1635,51 +1694,69 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
       if (batchId && errors > 0) await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);
 
       toast({ title: 'Importação concluída', description: `${payloads.length - errors} registros${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}` });
-      setOpen(false); setText(''); setPreview([]);
+      setOpen(false); setText(''); setPreview([]); setHeaders([]);
       onImported();
     } catch (err: any) {
       toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
     } finally { setImporting(false); }
   };
 
+  const totalPages = Math.ceil(preview.length / PREVIEW_PAGE_SIZE);
+  const pagedRows = preview.slice(previewPage * PREVIEW_PAGE_SIZE, (previewPage + 1) * PREVIEW_PAGE_SIZE);
+
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => { setOpen(true); setText(''); setPreview([]); }}>
+      <Button variant="outline" size="sm" onClick={() => { setOpen(true); setText(''); setPreview([]); setHeaders([]); setPreviewPage(0); }}>
         <ClipboardPaste className="w-4 h-4 mr-1" /> Colar
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ClipboardPaste className="w-5 h-5" /> Importar Dados Colados</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Cole dados copiados do Excel ou Google Sheets (Ctrl+V). A primeira linha deve conter os cabeçalhos.</p>
+          <p className="text-sm text-muted-foreground">Cole dados copiados do Excel, Google Sheets ou LibreOffice (Ctrl+V). A primeira linha deve conter os cabeçalhos.</p>
           <textarea
-            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
+            className="flex min-h-[100px] max-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
             placeholder="Cole os dados aqui (Ctrl+V)..."
             value={text}
             onChange={e => handleChange(e.target.value)}
             onPaste={handlePaste}
           />
           {preview.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">{preview.length} linha(s) detectada(s)</p>
-              <div className="border rounded-lg overflow-auto max-h-[300px]">
+            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="text-xs">{detectedFormat}</Badge>
+                  <span className="text-sm font-medium">{preview.length} registro(s) válido(s)</span>
+                  {parseStats.emptyLines > 0 && <span className="text-xs text-muted-foreground">({parseStats.emptyLines} linhas vazias ignoradas)</span>}
+                </div>
+                <span className="text-xs text-muted-foreground">{headers.length} colunas detectadas</span>
+              </div>
+              <div className="border rounded-lg overflow-auto flex-1 min-h-0" style={{ maxHeight: '350px' }}>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {Object.keys(preview[0]).slice(0, 8).map(h => <TableHead key={h} className="text-xs">{h}</TableHead>)}
+                      <TableHead className="text-xs text-muted-foreground w-10">#</TableHead>
+                      {headers.map(h => <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>)}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {preview.slice(0, 10).map((row, i) => (
-                      <TableRow key={i}>
-                        {Object.keys(preview[0]).slice(0, 8).map(h => <TableCell key={h} className="text-xs py-1">{row[h]}</TableCell>)}
+                    {pagedRows.map((row, i) => (
+                      <TableRow key={previewPage * PREVIEW_PAGE_SIZE + i}>
+                        <TableCell className="text-xs text-muted-foreground py-1">{previewPage * PREVIEW_PAGE_SIZE + i + 1}</TableCell>
+                        {headers.map(h => <TableCell key={h} className="text-xs py-1 whitespace-nowrap max-w-[200px] truncate">{row[h]}</TableCell>)}
                       </TableRow>
                     ))}
-                    {preview.length > 10 && <TableRow><TableCell colSpan={8} className="text-center text-xs text-muted-foreground">...e mais {preview.length - 10} linhas</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <Button variant="outline" size="sm" disabled={previewPage === 0} onClick={() => setPreviewPage(p => p - 1)}>Anterior</Button>
+                  <span className="text-xs text-muted-foreground">Página {previewPage + 1} de {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={previewPage >= totalPages - 1} onClick={() => setPreviewPage(p => p + 1)}>Próxima</Button>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
