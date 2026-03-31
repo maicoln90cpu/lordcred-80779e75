@@ -174,7 +174,7 @@ export default function CRPasteImportButton({ module, tableName, columns, noHead
             case 'percent': mapped[col.key] = cleanPercent(raw); break;
             case 'integer': mapped[col.key] = raw ? parseInt(String(raw)) || null : null; break;
             case 'date': mapped[col.key] = cleanDate(raw); break;
-            default: mapped[col.key] = raw != null ? String(raw) : '';
+            default: mapped[col.key] = col.key === 'cpf' ? cleanCPF(raw) : (raw != null ? String(raw) : '');
           }
           if (mapped[col.key] != null && mapped[col.key] !== '' && mapped[col.key] !== 0) hasAnyValue = true;
         }

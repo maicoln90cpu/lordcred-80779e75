@@ -251,7 +251,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
             case 'percent': r[col.key] = cleanPercent(raw); break;
             case 'integer': r[col.key] = raw ? parseInt(String(raw)) || null : null; break;
             case 'date': r[col.key] = cleanDate(raw); break;
-            default: r[col.key] = raw != null ? String(raw) : '';
+            default: r[col.key] = col.key === 'cpf' ? cleanCPF(raw) : (raw != null ? String(raw) : '');
           }
         }
         return r;

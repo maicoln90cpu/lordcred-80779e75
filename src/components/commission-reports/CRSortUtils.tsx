@@ -81,12 +81,10 @@ export function THead({ label, tooltip, className }: THeadProps) {
 // ==================== TOOLTIP WRAPPER ====================
 export function TipWrap({ tip, children }: { tip: string; children: React.ReactNode }) {
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild><span>{children}</span></TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild><span>{children}</span></TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
+    </Tooltip>
   );
 }
 
