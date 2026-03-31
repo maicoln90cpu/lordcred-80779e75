@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   Crown,
   ArrowLeft,
   BarChart3,
