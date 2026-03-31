@@ -326,7 +326,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
         ) : (
           <div className="border rounded-lg max-h-[600px] overflow-auto">
           <TooltipProvider delayDuration={300}>
-            <Table>
+            <Table className="min-w-[1400px]">
               <TableHeader>
                 <tr>
                   <TSHead label="Contrato" sortKey="num_contrato" sort={sort} toggle={toggleSort} tooltip="Nº do contrato / ADE" className="text-xs whitespace-nowrap" />
