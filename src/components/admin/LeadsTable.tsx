@@ -406,14 +406,14 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os vendedores</SelectItem>
-                  {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
+                  {[...sellers].sort((a: any, b: any) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualStatus} onValueChange={(v) => updateFilter('status', v)}>
                 <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualProfile} onValueChange={(v) => updateFilter('profile', v)}>
@@ -421,21 +421,21 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                 <SelectContent>
                   <SelectItem value="all">Todos os perfis</SelectItem>
                   <SelectItem value="__none__">Sem perfil</SelectItem>
-                  {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                  {[...profileOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualBatch} onValueChange={(v) => updateFilter('batch', v)}>
                 <SelectTrigger><SelectValue placeholder="Lote" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os lotes</SelectItem>
-                  {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  {[...batchNames].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={actualBancoSimulado} onValueChange={(v) => updateFilter('bancoSimulado', v)}>
                 <SelectTrigger><SelectValue placeholder="Banco Simulado" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os bancos</SelectItem>
-                  {bancoSimuladoNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  {[...bancoSimuladoNames].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -626,7 +626,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           <Select value={bulkStatus} onValueChange={setBulkStatus}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>
@@ -649,7 +649,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
             <SelectTrigger><SelectValue placeholder="Selecionar perfil" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Sem perfil</SelectItem>
-              {profileOptions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              {[...profileOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>
@@ -671,7 +671,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           <Select value={bulkSeller} onValueChange={setBulkSeller}>
             <SelectTrigger><SelectValue placeholder="Selecionar vendedor" /></SelectTrigger>
             <SelectContent>
-              {sellers.map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
+              {[...sellers].sort((a: any, b: any) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map((s: any) => <SelectItem key={s.user_id} value={s.user_id}>{s.name || s.email}</SelectItem>)}
             </SelectContent>
           </Select>
           <AlertDialogFooter>

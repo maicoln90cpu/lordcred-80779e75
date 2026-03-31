@@ -453,7 +453,7 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
                     <Select value={bancoId} onValueChange={setBancoId}>
                       <SelectTrigger><SelectValue placeholder="Selecionar banco" /></SelectTrigger>
                       <SelectContent>
-                        {bancosAssets.map((b: any) => (
+                        {[...bancosAssets].sort((a: any, b: any) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map((b: any) => (
                           <SelectItem key={b.asset_id} value={b.asset_id}>{b.asset_label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -468,7 +468,7 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
                     <Select value={convenioId} onValueChange={setConvenioId}>
                       <SelectTrigger><SelectValue placeholder="Selecionar convênio" /></SelectTrigger>
                       <SelectContent>
-                        {conveniosAssets.map((c: any) => (
+                        {[...conveniosAssets].sort((a: any, b: any) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map((c: any) => (
                           <SelectItem key={c.asset_id} value={c.asset_id}>{c.asset_label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -483,7 +483,7 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
                     <Select value={produtoId} onValueChange={setProdutoId}>
                       <SelectTrigger><SelectValue placeholder="Selecionar produto" /></SelectTrigger>
                       <SelectContent>
-                        {produtosAssets.map((p: any) => (
+                        {[...produtosAssets].sort((a: any, b: any) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map((p: any) => (
                           <SelectItem key={p.asset_id} value={p.asset_id}>{p.asset_label}</SelectItem>
                         ))}
                       </SelectContent>

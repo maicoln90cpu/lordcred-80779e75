@@ -523,7 +523,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as semanas</SelectItem>
-              {weeks.map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
+              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -652,7 +652,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                   <Select value={form.seller_id} onValueChange={v => setForm({ ...form, seller_id: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {profiles.map(p => (
+                      {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => (
                         <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>
                       ))}
                     </SelectContent>
@@ -776,7 +776,7 @@ function PixTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profil
                   <Select value={form.seller_id} onValueChange={v => setForm({ ...form, seller_id: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {profiles.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
+                      {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1123,7 +1123,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
               <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Vendedor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os vendedores</SelectItem>
-                {profiles.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
+                {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -1131,7 +1131,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
             <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Semana" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as semanas</SelectItem>
-              {weeks.map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
+              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={productFilter} onValueChange={setProductFilter}>
@@ -1255,7 +1255,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
           <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as semanas</SelectItem>
-            {weeks.map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
+            {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
           </SelectContent>
         </Select>
       </CardHeader>

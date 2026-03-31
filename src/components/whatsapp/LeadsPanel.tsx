@@ -401,7 +401,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os lotes</SelectItem>
-                {batchNames.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                {[...batchNames].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -479,7 +479,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <Select value={editStatus} onValueChange={setEditStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -569,7 +569,7 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                                     {(() => { const cs = getColorStyle(statusColorMap[lead.status] || 'bg-muted text-muted-foreground'); return <Badge className={cs.className} style={cs.style}>{lead.status}</Badge>; })()}
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                                    {[...statusOptions].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               </TableCell>
