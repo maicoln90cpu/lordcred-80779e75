@@ -652,7 +652,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                   <Select value={form.seller_id} onValueChange={v => setForm({ ...form, seller_id: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {profiles.map(p => (
+                      {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => (
                         <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>
                       ))}
                     </SelectContent>
