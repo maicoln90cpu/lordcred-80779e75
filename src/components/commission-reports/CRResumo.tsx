@@ -132,6 +132,7 @@ export default function CRResumo() {
   }, [summary.byBanco, bancoSort]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-4">
       {/* Date Filters */}
       <Card>
