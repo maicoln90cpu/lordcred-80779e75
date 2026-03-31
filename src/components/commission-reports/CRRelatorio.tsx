@@ -195,7 +195,12 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
 
     if (isProdFGTS) {
       const tabelaChave = extractTableKeyFGTS(banco, tabela, seguro);
-      esperadaFgts = Math.round(valorCalc * findFGTSRate(rulesFGTS, banco, valorCalc, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
+      // FGTS: Hub uses valor_liberado as range; others use prazo
+      const isHub = banco.includes('HUB');
+      const lookupValue = isHub ? valor : prazo;
+      const rate = findFGTSRate(rulesFGTS, banco, lookupValue, tabelaChave, seguro, dataPago);
+      // FGTS always multiplies by valor_liberado (never valor_assegurado)
+      esperadaFgts = Math.round(valor * rate / 100 * 100) / 100;
     } else {
       const tabelaChave = extractTableKeyCLT(banco, tabela);
       esperadaClt = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
