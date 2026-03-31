@@ -468,7 +468,7 @@ export default function CreatePropostaDialog({ open, onOpenChange, lead, onSucce
                     <Select value={convenioId} onValueChange={setConvenioId}>
                       <SelectTrigger><SelectValue placeholder="Selecionar convênio" /></SelectTrigger>
                       <SelectContent>
-                        {conveniosAssets.map((c: any) => (
+                        {[...conveniosAssets].sort((a: any, b: any) => a.asset_label.localeCompare(b.asset_label, 'pt-BR')).map((c: any) => (
                           <SelectItem key={c.asset_id} value={c.asset_id}>{c.asset_label}</SelectItem>
                         ))}
                       </SelectContent>
