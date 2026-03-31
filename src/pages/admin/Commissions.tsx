@@ -18,6 +18,7 @@ import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
+import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 
 // ==================== SORT UTILITIES (kept for backward compat) ====================
 type SortDir = 'asc' | 'desc' | null;
