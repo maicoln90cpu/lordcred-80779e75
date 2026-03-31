@@ -127,7 +127,7 @@ export default function KanbanCardDetailDialog({ card, columns, labels, open, on
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {columns.map(c => (
+                    {[...columns].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         <span className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color_hex || '#6b7280' }} />
