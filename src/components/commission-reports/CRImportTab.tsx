@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Badge } from '@/components/ui/badge';
 import { Upload, Loader2, FileSpreadsheet, Search, Download } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import CRPasteImportButton from './CRPasteImportButton';
 import { TSHead, THead, useSortState, applySortToData, TOOLTIPS_GERAL, TOOLTIPS_REPASSE, TOOLTIPS_SEGUROS } from './CRSortUtils';
 import type { SortConfig } from './CRSortUtils';
 
