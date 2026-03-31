@@ -1123,7 +1123,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
               <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Vendedor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os vendedores</SelectItem>
-                {profiles.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
+                {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
