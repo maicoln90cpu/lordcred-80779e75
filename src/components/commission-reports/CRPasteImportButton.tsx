@@ -32,7 +32,19 @@ function cleanPercent(v: any): number | null {
   return isNaN(n) ? null : n;
 }
 
-const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.\-_']/g, ' ').replace(/\s+/g, ' ').trim() || '';
+
+function cleanCPF(v: any): string {
+  const s = String(v).trim();
+  if (/e\+/i.test(s)) {
+    const n = Number(s.replace(',', '.'));
+    if (!isNaN(n)) {
+      const digits = Math.round(n).toString().padStart(11, '0');
+      return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+    }
+  }
+  return s;
+}
 
 function cleanDate(v: any): string | null {
   if (v == null || v === '') return null;
