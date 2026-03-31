@@ -193,7 +193,7 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg max-h-[400px] overflow-auto">
-            <Table>
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <tr>
                   <TSHead label="Vendedor" sortKey="nome" sort={sort} toggle={toggle} tooltip="Nome do vendedor" className="text-xs" />
