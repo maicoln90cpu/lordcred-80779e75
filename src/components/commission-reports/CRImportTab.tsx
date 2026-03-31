@@ -139,6 +139,23 @@ export const SEGUROS_COLUMNS: ColumnDef[] = [
   { key: 'valor_comissao', label: 'Valor Comissão', aliases: ['valor comissão', 'valor comissao', 'valor_comissao', 'valor'], type: 'currency' },
 ];
 
+export const RELATORIO_COLUMNS: ColumnDef[] = [
+  { key: 'data_pago', label: 'Data Pago', aliases: ['data pago', 'data_pago', 'data pgt'], type: 'date' },
+  { key: 'num_contrato', label: 'Nº Contrato', aliases: ['nº contrato', 'num_contrato', 'num contrato', 'n contrato', 'contrato'], type: 'text' },
+  { key: 'produto', label: 'Produto', aliases: ['produto'], type: 'text' },
+  { key: 'banco', label: 'Banco', aliases: ['banco'], type: 'text' },
+  { key: 'prazo', label: 'Prazo', aliases: ['prazo'], type: 'integer' },
+  { key: 'tabela', label: 'Tabela', aliases: ['tabela'], type: 'text' },
+  { key: 'valor_liberado', label: 'Valor Liberado', aliases: ['valor liberado', 'valor_liberado', 'vlr liberado'], type: 'currency' },
+  { key: 'seguro', label: 'Seguro', aliases: ['seguro'], type: 'text' },
+  { key: 'cpf', label: 'CPF', aliases: ['cpf'], type: 'text' },
+  { key: 'nome', label: 'Nome', aliases: ['nome'], type: 'text' },
+  { key: 'data_nascimento', label: 'Data Nascimento', aliases: ['data nascimento', 'data_nascimento', 'data de nascimento', 'dt nasc'], type: 'text' },
+  { key: 'telefone', label: 'Telefone', aliases: ['telefone', 'fone', 'tel'], type: 'text' },
+  { key: 'vendedor', label: 'Vendedor', aliases: ['vendedor'], type: 'text' },
+  { key: 'id_contrato', label: 'ID', aliases: ['id', 'id_contrato'], type: 'text' },
+];
+
 function getTooltipMap(module: string): Record<string, string> {
   if (module === 'geral') return TOOLTIPS_GERAL;
   if (module === 'repasse') return TOOLTIPS_REPASSE;

@@ -3,7 +3,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { FileSpreadsheet, ArrowRightLeft, Shield, Calculator, BarChart3, History, AlertTriangle, Settings, ClipboardList, Lightbulb } from 'lucide-react';
-import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS } from '@/components/commission-reports/CRImportTab';
+import CRImportTab, { GERAL_COLUMNS, REPASSE_COLUMNS, SEGUROS_COLUMNS, RELATORIO_COLUMNS } from '@/components/commission-reports/CRImportTab';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import CRRulesFGTS from '@/components/commission-reports/CRRulesFGTS';
 import CRRulesCLT from '@/components/commission-reports/CRRulesCLT';
