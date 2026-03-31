@@ -446,6 +446,10 @@ Deno.serve(async (req) => {
       const extracted = extractPropostasList(result)
       finalData = extracted.map((item) => normalizePropostaRecord(item))
       console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
+    } else if (action === 'getAssets') {
+      // Normalize getAssets: API returns {"lista": {"0": {...}, "1": {...}}} or similar keyed objects
+      finalData = normalizeAssetsResponse(result, params?.asset || 'status')
+      console.log(`[corban-api] Normalized ${Array.isArray(finalData) ? (finalData as any[]).length : 0} assets for ${params?.asset}`)
     } else if (action === 'listQueueFGTS' && typeof result === 'object' && result !== null && !Array.isArray(result)) {
       const entries = Object.entries(result as Record<string, unknown>)
       if (entries.length > 0 && entries.every(([k]) => /^\d+$/.test(k))) {
