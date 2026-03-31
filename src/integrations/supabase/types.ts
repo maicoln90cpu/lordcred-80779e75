@@ -305,6 +305,7 @@ export type Database = {
         Row: {
           bank: string
           batch_id: string | null
+          bonus_value: number | null
           client_cpf: string | null
           client_name: string | null
           client_phone: string | null
@@ -326,6 +327,7 @@ export type Database = {
         Insert: {
           bank: string
           batch_id?: string | null
+          bonus_value?: number | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -347,6 +349,7 @@ export type Database = {
         Update: {
           bank?: string
           batch_id?: string | null
+          bonus_value?: number | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null

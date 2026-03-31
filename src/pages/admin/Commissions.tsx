@@ -13,10 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
+import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 
 // ==================== SORT UTILITIES (kept for backward compat) ====================
 type SortDir = 'asc' | 'desc' | null;
@@ -159,6 +160,7 @@ export default function Commissions() {
             <TabsTrigger value="extrato">Extrato</TabsTrigger>
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
             {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="indicadores"><Lightbulb className="w-3.5 h-3.5 mr-1" />Indicadores</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
@@ -188,6 +190,11 @@ export default function Commissions() {
           {isAdmin && (
             <TabsContent value="config">
               <ConfigTab />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="indicadores">
+              <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
         </Tabs>
