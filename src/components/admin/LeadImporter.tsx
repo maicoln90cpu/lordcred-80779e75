@@ -99,8 +99,9 @@ export default function LeadImporter() {
   const [selectedProfile, setSelectedProfile] = useState<string>('');
   const [isImporting, setIsImporting] = useState(false);
   const [imported, setImported] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const { user } = useAuth();
+   const [fileName, setFileName] = useState('');
+   const [rawFile, setRawFile] = useState<File | null>(null);
+   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
