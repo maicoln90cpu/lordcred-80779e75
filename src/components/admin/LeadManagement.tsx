@@ -100,13 +100,28 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }));
   };
 
+  // Extract unique banks and batches
+  const uniqueBancos = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach((l: any) => { if (l.banco_simulado) set.add(l.banco_simulado); });
+    return Array.from(set).sort();
+  }, [allLeads]);
+
+  const uniqueBatches = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach((l: any) => { if (l.batch_name) set.add(l.batch_name); });
+    return Array.from(set).sort();
+  }, [allLeads]);
+
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
     if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
     if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
+    if (globalBancos.length > 0) result = result.filter((l: any) => globalBancos.includes(l.banco_simulado));
+    if (globalBatches.length > 0) result = result.filter((l: any) => globalBatches.includes(l.batch_name));
     return result;
-  }, [allLeads, globalProfiles, globalStatuses]);
+  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
