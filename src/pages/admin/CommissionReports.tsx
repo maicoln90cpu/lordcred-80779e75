@@ -38,7 +38,10 @@ export default function CommissionReports() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Relatórios Comissões</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">Relatórios Comissões</h1>
+              <HelpButton title="Como funciona Relatório de Comissões" sections={HELP_RELATORIOS} />
+            </div>
             <p className="text-sm text-muted-foreground">Auditoria de comissões recebidas vs esperadas</p>
           </div>
           <Badge variant="outline" className="text-xs">Módulo Auditoria</Badge>

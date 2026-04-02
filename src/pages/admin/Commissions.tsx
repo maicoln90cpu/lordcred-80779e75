@@ -152,6 +152,7 @@ export default function Commissions() {
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold">Comissões Parceiros</h1>
+          <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
