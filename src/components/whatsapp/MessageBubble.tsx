@@ -191,7 +191,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
   );
 
   return (
-    <div ref={ref} className={cn("flex", fromMe ? "justify-end" : "justify-start")}>
+    <div ref={ref} className={cn("flex", fromMe ? "justify-end" : "justify-start")} data-message-id={messageId}>
       <div
         className={cn("flex items-start gap-1 max-w-[75%]", fromMe && "flex-row-reverse")}
         onMouseEnter={() => setHovered(true)}
