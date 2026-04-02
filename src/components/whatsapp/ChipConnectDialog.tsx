@@ -261,7 +261,7 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
           onChipConnected();
         }
       } catch { /* keep polling */ }
-    }, 3000) as unknown as number;
+    }, 5000) as unknown as number;
   };
 
   const handleRefreshQr = async () => {

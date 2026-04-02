@@ -338,7 +338,7 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
       } catch (error) {
         console.error('Error checking status:', error);
       }
-    }, 3000) as unknown as number;
+    }, 5000) as unknown as number;
   };
 
   const fetchQrCode = async (instanceName: string, retries = 5): Promise<boolean> => {
