@@ -20,6 +20,7 @@ import {
   BarChart3,
   Columns3,
   Link2,
+  Wallet,
   Activity,
   Ticket,
   Shield,
@@ -97,6 +98,11 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
       { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
       { label: 'Info Produtos', icon: PackageSearch, href: '/admin/product-info', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Financeiro',
+    items: [
       { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
       { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
     ],

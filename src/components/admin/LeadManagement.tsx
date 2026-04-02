@@ -43,6 +43,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
 
   const [globalProfiles, setGlobalProfiles] = useState<string[]>([]);
   const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
+  const [globalBancos, setGlobalBancos] = useState<string[]>([]);
+  const [globalBatches, setGlobalBatches] = useState<string[]>([]);
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     sellerId: string;
@@ -62,7 +64,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       while (true) {
         const { data, error } = await supabase
           .from('client_leads')
-          .select('id, status, assigned_to, perfil, contacted_at, updated_at')
+          .select('id, status, assigned_to, perfil, contacted_at, updated_at, banco_simulado, batch_name')
           .range(from, from + batchSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
@@ -98,13 +100,28 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }));
   };
 
+  // Extract unique banks and batches
+  const uniqueBancos = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach((l: any) => { if (l.banco_simulado) set.add(l.banco_simulado); });
+    return Array.from(set).sort();
+  }, [allLeads]);
+
+  const uniqueBatches = useMemo(() => {
+    const set = new Set<string>();
+    allLeads.forEach((l: any) => { if (l.batch_name) set.add(l.batch_name); });
+    return Array.from(set).sort();
+  }, [allLeads]);
+
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
     if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
     if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
+    if (globalBancos.length > 0) result = result.filter((l: any) => globalBancos.includes(l.banco_simulado));
+    if (globalBatches.length > 0) result = result.filter((l: any) => globalBatches.includes(l.batch_name));
     return result;
-  }, [allLeads, globalProfiles, globalStatuses]);
+  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
@@ -287,6 +304,64 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   ))}
                   {globalStatuses.length > 0 && (
                     <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalStatuses([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalBancos.length === 0 ? 'Todos os bancos' : `Bancos (${globalBancos.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2 max-h-60 overflow-y-auto" align="start">
+                <div className="space-y-1">
+                  {uniqueBancos.map(b => (
+                    <label key={b} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalBancos.includes(b)}
+                        onCheckedChange={(checked) => {
+                          setGlobalBancos(prev =>
+                            checked ? [...prev, b] : prev.filter(v => v !== b)
+                          );
+                        }}
+                      />
+                      {b}
+                    </label>
+                  ))}
+                  {globalBancos.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalBancos([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalBatches.length === 0 ? 'Todos os lotes' : `Lotes (${globalBatches.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2 max-h-60 overflow-y-auto" align="start">
+                <div className="space-y-1">
+                  {uniqueBatches.map(b => (
+                    <label key={b} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalBatches.includes(b)}
+                        onCheckedChange={(checked) => {
+                          setGlobalBatches(prev =>
+                            checked ? [...prev, b] : prev.filter(v => v !== b)
+                          );
+                        }}
+                      />
+                      {b}
+                    </label>
+                  ))}
+                  {globalBatches.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalBatches([])}>
                       Limpar filtros
                     </Button>
                   )}

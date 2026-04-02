@@ -20,6 +20,7 @@ import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIP
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
+import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
 
 // ==================== SORT UTILITIES (kept for backward compat) ====================
 type SortDir = 'asc' | 'desc' | null;
@@ -151,6 +152,7 @@ export default function Commissions() {
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold">Comissões Parceiros</h1>
+          <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1313,6 +1315,8 @@ function ConfigTab() {
   const [paymentDay, setPaymentDay] = useState<number>(4);
   const [bonusThreshold, setBonusThreshold] = useState<string>('');
   const [bonusRate, setBonusRate] = useState<string>('0');
+  const [bonusMode, setBonusMode] = useState<string>('valor');
+  const [bonusFixedValue, setBonusFixedValue] = useState<string>('0');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -1327,6 +1331,8 @@ function ConfigTab() {
       setPaymentDay((data as any).payment_day ?? 4);
       setBonusThreshold((data as any).bonus_threshold != null ? String((data as any).bonus_threshold) : '');
       setBonusRate(String((data as any).bonus_rate ?? 0));
+      setBonusMode((data as any).bonus_mode ?? 'valor');
+      setBonusFixedValue(String((data as any).bonus_fixed_value ?? 0));
     }
     setLoading(false);
   };
@@ -1343,6 +1349,8 @@ function ConfigTab() {
             payment_day: paymentDay,
             bonus_threshold: bonusThreshold ? parseFloat(bonusThreshold) : null,
             bonus_rate: parseFloat(bonusRate) || 0,
+            bonus_mode: bonusMode,
+            bonus_fixed_value: parseFloat(bonusFixedValue) || 0,
             updated_at: new Date().toISOString(),
           } as any)
           .eq('id', existing.id);
@@ -1355,6 +1363,8 @@ function ConfigTab() {
       setSaving(false);
     }
   };
+
+  const isFixedBonus = parseFloat(bonusFixedValue) > 0;
 
   if (loading) return <p className="text-center text-muted-foreground py-8">Carregando...</p>;
 
@@ -1405,37 +1415,102 @@ function ConfigTab() {
           <h3 className="font-medium text-sm">Bônus por Produção</h3>
 
           <div className="space-y-2">
-            <Label>Meta semanal para bônus (R$)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="Ex: 50000"
-              value={bonusThreshold}
-              onChange={e => setBonusThreshold(e.target.value)}
-            />
+            <Label>Tipo de meta de bônus</Label>
+            <Select value={bonusMode} onValueChange={setBonusMode}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="valor">Valor Liberado (R$)</SelectItem>
+                <SelectItem value="contratos">Nº de Contratos</SelectItem>
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Valor liberado mínimo na semana para ativar a taxa de bônus. Deixe vazio para desativar.
+              {bonusMode === 'valor'
+                ? 'O bônus é ativado quando o total liberado na semana ultrapassar a meta.'
+                : 'O bônus é ativado quando o vendedor atingir o número mínimo de contratos na semana.'}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Taxa de bônus extra (%)</Label>
+            <Label>{bonusMode === 'valor' ? 'Meta semanal para bônus (R$)' : 'Nº mínimo de contratos na semana'}</Label>
             <Input
               type="number"
-              step="0.01"
-              placeholder="Ex: 0.5"
-              value={bonusRate}
-              onChange={e => setBonusRate(e.target.value)}
+              step={bonusMode === 'valor' ? '0.01' : '1'}
+              placeholder={bonusMode === 'valor' ? 'Ex: 50000' : 'Ex: 10'}
+              value={bonusThreshold}
+              onChange={e => setBonusThreshold(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Percentual adicional aplicado quando o vendedor atinge a meta semanal.
+              Deixe vazio para desativar o bônus.
             </p>
           </div>
+
+          <div className="space-y-2">
+            <Label>Tipo de premiação</Label>
+            <Select
+              value={parseFloat(bonusFixedValue) > 0 ? 'fixo' : 'taxa'}
+              onValueChange={v => {
+                if (v === 'fixo') {
+                  setBonusRate('0');
+                  setBonusFixedValue(bonusFixedValue === '0' ? '100' : bonusFixedValue);
+                } else {
+                  setBonusFixedValue('0');
+                  setBonusRate(bonusRate === '0' ? '0.5' : bonusRate);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="taxa">Taxa percentual (%)</SelectItem>
+                <SelectItem value="fixo">Valor fixo (R$)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isFixedBonus ? (
+            <div className="space-y-2">
+              <Label>Valor fixo de bônus por contrato (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Ex: 100"
+                value={bonusFixedValue}
+                onChange={e => setBonusFixedValue(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Valor fixo adicionado à comissão de cada venda quando a meta é atingida.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Taxa de bônus extra (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Ex: 0.5"
+                value={bonusRate}
+                onChange={e => setBonusRate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Percentual adicional aplicado quando o vendedor atinge a meta semanal.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
           <p><strong>Como funciona o bônus:</strong></p>
-          <p className="mt-1">Quando o valor liberado total na semana de um vendedor ultrapassar <strong>R$ {bonusThreshold || '—'}</strong>, uma comissão extra de <strong>{bonusRate || '0'}%</strong> é adicionada sobre o excedente.</p>
+          <p className="mt-1">
+            {bonusMode === 'valor'
+              ? `Quando o valor liberado total na semana ultrapassar R$ ${bonusThreshold || '—'}`
+              : `Quando o vendedor atingir ${bonusThreshold || '—'} contratos na semana`}
+            {isFixedBonus
+              ? `, um bônus fixo de R$ ${bonusFixedValue} é adicionado a cada venda.`
+              : `, uma comissão extra de ${bonusRate || '0'}% é adicionada sobre o valor liberado.`}
+          </p>
           <p className="mt-1">As vendas já existentes mantêm o label original. Para recalcular, reimporte ou edite a venda.</p>
         </div>
 
