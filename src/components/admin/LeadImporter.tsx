@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, Loader2, FileSpreadsheet, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { uploadSpreadsheet } from '@/lib/storageUpload';
 
 interface ParsedLead {
   data_ref: string;
@@ -98,8 +99,9 @@ export default function LeadImporter() {
   const [selectedProfile, setSelectedProfile] = useState<string>('');
   const [isImporting, setIsImporting] = useState(false);
   const [imported, setImported] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const { user } = useAuth();
+   const [fileName, setFileName] = useState('');
+   const [rawFile, setRawFile] = useState<File | null>(null);
+   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -154,6 +156,7 @@ export default function LeadImporter() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setRawFile(file);
     setImported(false);
 
     const reader = new FileReader();
@@ -248,10 +251,19 @@ export default function LeadImporter() {
         if (error) throw error;
       }
 
+      // Upload original file to storage
+      if (rawFile && user) {
+        const filePath = await uploadSpreadsheet(user.id, rawFile.name, rawFile);
+        if (filePath) {
+          console.log('Spreadsheet stored at:', filePath);
+        }
+      }
+
       toast({ title: `${parsedData.length} leads importados com sucesso!` });
       setImported(true);
       setParsedData([]);
       setFileName('');
+      setRawFile(null);
       queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
       queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['management-leads'] });

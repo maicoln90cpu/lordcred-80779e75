@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Trash2, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, ClipboardList, AlertTriangle, Download } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
+import { getSpreadsheetUrl } from '@/lib/storageUpload';
 
-interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; }
+interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; file_path?: string | null; }
 interface Profile { user_id: string; name: string | null; email: string; }
 
 interface CRImportHistoryProps { moduleFilter: 'relatorios' | 'parceiros'; }
@@ -32,6 +33,19 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
 
   const getName = (userId: string) => { const p = profiles.find(pr => pr.user_id === userId); return p?.name || p?.email || userId.slice(0, 8); };
   const sheetLabel = (s: string) => ({ geral: 'Geral', repasse: 'Repasse', seguros: 'Seguros', base: 'Base' }[s] || s);
+
+  const handleDownload = async (batch: ImportBatch) => {
+    if (!batch.file_path) {
+      toast({ title: 'Arquivo não disponível', description: 'Este lote foi importado antes do armazenamento de arquivos.', variant: 'destructive' });
+      return;
+    }
+    const url = await getSpreadsheetUrl(batch.file_path);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast({ title: 'Erro ao gerar link de download', variant: 'destructive' });
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -88,7 +102,10 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
                       <TableCell className="text-sm">{getName(batch.imported_by)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(batch.created_at).toLocaleDateString('pt-BR')} {new Date(batch.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                       <TableCell><Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className="text-xs">{batch.status === 'active' ? 'Ativo' : 'Excluído'}</Badge></TableCell>
-                      <TableCell>{batch.status === 'active' && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(batch)}><Trash2 className="w-4 h-4" /></Button>}</TableCell>
+                      <TableCell className="flex gap-1">
+                        {batch.file_path && <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleDownload(batch)} title="Baixar arquivo original"><Download className="w-4 h-4" /></Button>}
+                        {batch.status === 'active' && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(batch)}><Trash2 className="w-4 h-4" /></Button>}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

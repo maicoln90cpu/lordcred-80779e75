@@ -1098,6 +1098,7 @@ export type Database = {
         Row: {
           created_at: string
           file_name: string
+          file_path: string | null
           id: string
           imported_by: string
           module: string
@@ -1108,6 +1109,7 @@ export type Database = {
         Insert: {
           created_at?: string
           file_name: string
+          file_path?: string | null
           id?: string
           imported_by: string
           module: string
@@ -1118,6 +1120,7 @@ export type Database = {
         Update: {
           created_at?: string
           file_name?: string
+          file_path?: string | null
           id?: string
           imported_by?: string
           module?: string

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { uploadSpreadsheet } from '@/lib/storageUpload';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -194,6 +195,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
 
   const [parsedData, setParsedData] = useState<Record<string, any>[]>([]);
   const [fileName, setFileName] = useState('');
+  const [rawFile, setRawFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
   const { sort, toggle: toggleSort } = useSortState();
@@ -214,6 +216,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setRawFile(file);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -270,9 +273,16 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
     if (parsedData.length === 0) return;
     setImporting(true);
     try {
+      // Upload file to storage first
+      let filePath: string | null = null;
+      if (rawFile && user) {
+        filePath = await uploadSpreadsheet(user.id, rawFile.name, rawFile);
+      }
+
       const { data: batch, error: batchErr } = await supabase.from('import_batches' as any).insert({
         module: 'relatorios', sheet_name: module, file_name: fileName,
         row_count: parsedData.length, imported_by: user!.id,
+        ...(filePath ? { file_path: filePath } : {}),
       } as any).select().single();
       if (batchErr) throw batchErr;
       const batchId = (batch as any).id;
@@ -284,7 +294,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
       }
 
       toast({ title: `${parsedData.length} registros importados com sucesso!` });
-      setParsedData([]); setFileName('');
+      setParsedData([]); setFileName(''); setRawFile(null);
       if (fileRef.current) fileRef.current.value = '';
       refetch();
       queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] });
