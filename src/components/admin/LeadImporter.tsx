@@ -156,6 +156,7 @@ export default function LeadImporter() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setRawFile(file);
     setImported(false);
 
     const reader = new FileReader();
