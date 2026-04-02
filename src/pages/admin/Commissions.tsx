@@ -20,6 +20,7 @@ import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIP
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
+import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
 
 // ==================== SORT UTILITIES (kept for backward compat) ====================
 type SortDir = 'asc' | 'desc' | null;
