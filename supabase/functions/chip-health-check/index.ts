@@ -98,6 +98,16 @@ Deno.serve(async (req) => {
         }
 
         if (newStatus === 'connected') {
+          // Check if chip is "unstable" — connected per API but no webhook signal in 15+ min
+          let isUnstable = false
+          if (chip.last_webhook_at) {
+            const lastSignal = new Date(chip.last_webhook_at).getTime()
+            const minutesSince = (Date.now() - lastSignal) / 60000
+            if (minutesSince > UNSTABLE_MINUTES) {
+              isUnstable = true
+            }
+          }
+
           // Success: reset fail counter, update status
           await adminClient
             .from('chips')
@@ -118,8 +128,18 @@ Deno.serve(async (req) => {
               })
           }
 
+          if (isUnstable) {
+            await adminClient
+              .from('chip_lifecycle_logs')
+              .insert({
+                chip_id: chip.id,
+                event: 'watchdog_unstable',
+                details: `Connected per API but no webhook signal in ${UNSTABLE_MINUTES}+ minutes`
+              })
+          }
+
           connected++
-          results.push({ chipId: chip.id, instanceName: chip.instance_name, oldStatus: chip.status, newStatus: 'connected', failCount: 0 })
+          results.push({ chipId: chip.id, instanceName: chip.instance_name, oldStatus: chip.status, newStatus: 'connected', failCount: 0, unstable: isUnstable })
         } else {
           // Failure: increment counter, only mark disconnected after STRIKE_THRESHOLD
           const newFailCount = (chip.health_fail_count || 0) + 1
