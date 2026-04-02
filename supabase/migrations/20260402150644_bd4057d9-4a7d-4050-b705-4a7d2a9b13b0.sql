@@ -1,0 +1,1 @@
+ALTER TABLE public.chips ADD COLUMN IF NOT EXISTS last_webhook_at timestamptz DEFAULT NULL;
