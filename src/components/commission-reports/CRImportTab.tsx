@@ -216,6 +216,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setRawFile(file);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
