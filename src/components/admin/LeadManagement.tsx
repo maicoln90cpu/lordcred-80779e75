@@ -64,7 +64,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       while (true) {
         const { data, error } = await supabase
           .from('client_leads')
-          .select('id, status, assigned_to, perfil, contacted_at, updated_at')
+          .select('id, status, assigned_to, perfil, contacted_at, updated_at, banco_simulado, batch_name')
           .range(from, from + batchSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
