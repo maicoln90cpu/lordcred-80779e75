@@ -165,6 +165,8 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
   const isMedia = mediaType && mediaType !== 'text' && mediaType !== 'chat' && mediaType !== 'url'
   const displayText = isMedia ? getMediaLabel(mediaType) : messageContent
 
+  const quotedMessageId = safeString(msg.quoted) || null
+
   await adminClient.from('message_history').insert({
     chip_id: chip.id,
     message_content: messageContent,
@@ -175,6 +177,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     message_id: msg.messageid || msg.id || null,
     sender_name: senderName,
     media_type: mediaType || null,
+    quoted_message_id: quotedMessageId,
   })
 
   const contactName = safeString(chat?.wa_contactName) || safeString(chat?.name) || (!isFromMe ? senderName : '') || recipientPhone

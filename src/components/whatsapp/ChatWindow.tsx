@@ -44,6 +44,7 @@ interface ChatMessage {
   hasMedia?: boolean;
   messageId?: string;
   status?: string;
+  quotedMessageId?: string;
 }
 
 interface ChatWindowProps {
