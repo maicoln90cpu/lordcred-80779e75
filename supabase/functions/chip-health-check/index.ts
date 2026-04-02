@@ -62,9 +62,11 @@ Deno.serve(async (req) => {
     }
 
     // Fetch all chips
+    const UNSTABLE_MINUTES = 15
+
     const { data: chips, error: chipsError } = await adminClient
       .from('chips')
-      .select('id, instance_name, instance_token, status, warming_phase, health_fail_count')
+      .select('id, instance_name, instance_token, status, warming_phase, health_fail_count, last_webhook_at')
 
     if (chipsError || !chips) {
       throw new Error('Failed to fetch chips: ' + (chipsError?.message || 'unknown'))
