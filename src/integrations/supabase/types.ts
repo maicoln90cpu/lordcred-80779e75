@@ -2118,6 +2118,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_webhook_logs: { Args: never; Returns: undefined }
       create_direct_channel: {
         Args: { _channel_name: string; _target_user_id: string }
         Returns: string
