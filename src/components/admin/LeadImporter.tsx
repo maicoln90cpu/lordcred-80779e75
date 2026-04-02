@@ -251,10 +251,19 @@ export default function LeadImporter() {
         if (error) throw error;
       }
 
+      // Upload original file to storage
+      if (rawFile && user) {
+        const filePath = await uploadSpreadsheet(user.id, rawFile.name, rawFile);
+        if (filePath) {
+          console.log('Spreadsheet stored at:', filePath);
+        }
+      }
+
       toast({ title: `${parsedData.length} leads importados com sucesso!` });
       setImported(true);
       setParsedData([]);
       setFileName('');
+      setRawFile(null);
       queryClient.invalidateQueries({ queryKey: ['admin-leads'] });
       queryClient.invalidateQueries({ queryKey: ['admin-leads-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['management-leads'] });
