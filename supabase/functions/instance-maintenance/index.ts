@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const STRIKE_THRESHOLD = 3
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -45,29 +47,26 @@ Deno.serve(async (req) => {
       .or(`last_message_at.lt.${new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()},last_message_at.is.null`)
 
     for (const chip of inactiveChips || []) {
-      // Check if activated_at is also old (for chips without messages)
       if (!chip.last_message_at && chip.activated_at) {
         const activatedAge = Date.now() - new Date(chip.activated_at).getTime()
-        if (activatedAge < 14 * 24 * 60 * 60 * 1000) continue // Skip if recently activated
+        if (activatedAge < 14 * 24 * 60 * 60 * 1000) continue
       }
 
       try {
         const chipToken = chip.instance_token
         if (chipToken) {
-          // Logout gracefully
           await fetch(`${baseUrl}/instance/disconnect`, {
             method: 'POST',
             headers: { 'token': chipToken },
           }).catch(() => {})
 
-          // Delete instance
           await fetch(`${baseUrl}/instance`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json', 'token': chipToken },
           }).catch(() => {})
         }
 
-        await adminClient.from('chips').update({ status: 'inactive' }).eq('id', chip.id)
+        await adminClient.from('chips').update({ status: 'inactive', health_fail_count: 0 }).eq('id', chip.id)
         await logLifecycle(adminClient, chip.id, 'inactive', 'Auto-cleanup: 14+ days inactive')
         results.push(`Cleaned up: ${chip.instance_name}`)
       } catch (e) {
@@ -75,7 +74,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 2. Health monitoring: check all connected chips
+    // 2. Health monitoring with 3-strikes tolerance
     const { data: connectedChips } = await adminClient
       .from('chips')
       .select('*')
@@ -95,18 +94,41 @@ Deno.serve(async (req) => {
         let actualState = 'disconnected'
         if (data.status?.connected === true || data.status?.loggedIn === true) actualState = 'connected'
 
-        if (actualState !== 'connected') {
-          // Status divergence detected
-          await adminClient.from('chips').update({ status: 'disconnected' }).eq('id', chip.id)
-          await logLifecycle(adminClient, chip.id, 'disconnected', 'Health check: API reports disconnected')
-          results.push(`Status corrected: ${chip.instance_name} -> disconnected`)
-        } else {
-          // Webhook is configured only during instance creation/reconnection
-          // NOT re-registered here to avoid duplicate event delivery
+        if (actualState === 'connected') {
+          // Healthy — reset fail counter
+          if (chip.health_fail_count > 0) {
+            await adminClient.from('chips').update({ health_fail_count: 0 }).eq('id', chip.id)
+          }
           results.push(`Healthy: ${chip.instance_name}`)
+        } else {
+          // Failed — increment counter
+          const newFailCount = (chip.health_fail_count || 0) + 1
+
+          if (newFailCount >= STRIKE_THRESHOLD) {
+            await adminClient.from('chips').update({
+              status: 'disconnected',
+              health_fail_count: newFailCount
+            }).eq('id', chip.id)
+            await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: ${STRIKE_THRESHOLD} consecutive failures — marked disconnected`)
+            results.push(`Status corrected (3 strikes): ${chip.instance_name} -> disconnected`)
+          } else {
+            await adminClient.from('chips').update({ health_fail_count: newFailCount }).eq('id', chip.id)
+            results.push(`Warning: ${chip.instance_name} fail ${newFailCount}/${STRIKE_THRESHOLD}`)
+          }
         }
       } catch (e) {
-        results.push(`Error checking ${chip.instance_name}: ${e.message}`)
+        const newFailCount = (chip.health_fail_count || 0) + 1
+        if (newFailCount >= STRIKE_THRESHOLD) {
+          await adminClient.from('chips').update({
+            status: 'disconnected',
+            health_fail_count: newFailCount
+          }).eq('id', chip.id)
+          await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: network error + ${STRIKE_THRESHOLD} strikes`)
+          results.push(`Error + 3 strikes ${chip.instance_name}: ${e.message}`)
+        } else {
+          await adminClient.from('chips').update({ health_fail_count: newFailCount }).eq('id', chip.id)
+          results.push(`Error (${newFailCount}/${STRIKE_THRESHOLD}) ${chip.instance_name}: ${e.message}`)
+        }
       }
     }
 
