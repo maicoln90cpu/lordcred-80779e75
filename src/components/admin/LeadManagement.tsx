@@ -310,6 +310,64 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </div>
               </PopoverContent>
             </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalBancos.length === 0 ? 'Todos os bancos' : `Bancos (${globalBancos.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2 max-h-60 overflow-y-auto" align="start">
+                <div className="space-y-1">
+                  {uniqueBancos.map(b => (
+                    <label key={b} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalBancos.includes(b)}
+                        onCheckedChange={(checked) => {
+                          setGlobalBancos(prev =>
+                            checked ? [...prev, b] : prev.filter(v => v !== b)
+                          );
+                        }}
+                      />
+                      {b}
+                    </label>
+                  ))}
+                  {globalBancos.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalBancos([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-48 h-9 justify-between text-sm">
+                  {globalBatches.length === 0 ? 'Todos os lotes' : `Lotes (${globalBatches.length})`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2 max-h-60 overflow-y-auto" align="start">
+                <div className="space-y-1">
+                  {uniqueBatches.map(b => (
+                    <label key={b} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox
+                        checked={globalBatches.includes(b)}
+                        onCheckedChange={(checked) => {
+                          setGlobalBatches(prev =>
+                            checked ? [...prev, b] : prev.filter(v => v !== b)
+                          );
+                        }}
+                      />
+                      {b}
+                    </label>
+                  ))}
+                  {globalBatches.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setGlobalBatches([])}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {sellerData.length === 0 ? (
