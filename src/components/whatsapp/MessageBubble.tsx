@@ -32,6 +32,10 @@ interface MessageBubbleProps {
   onFavorite?: (msg: MessageData) => void;
   onStartChat?: (phone: string) => void;
   status?: string;
+  quotedText?: string;
+  quotedSender?: string;
+  quotedFromMe?: boolean;
+  onQuotedClick?: () => void;
 }
 
 function nameToColor(name: string): string {
@@ -133,7 +137,8 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
-    onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status }, ref
+    onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status,
+    quotedText, quotedSender, quotedFromMe, onQuotedClick }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -185,7 +190,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
   );
 
   return (
-    <div ref={ref} className={cn("flex", fromMe ? "justify-end" : "justify-start")}>
+    <div ref={ref} className={cn("flex", fromMe ? "justify-end" : "justify-start")} data-message-id={messageId}>
       <div
         className={cn("flex items-start gap-1 max-w-[75%]", fromMe && "flex-row-reverse")}
         onMouseEnter={() => setHovered(true)}
@@ -199,6 +204,23 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
               : "bg-secondary/80 text-foreground rounded-bl-sm shadow-secondary/10"
           )}
         >
+          {/* Quoted message preview */}
+          {quotedText && (
+            <button
+              onClick={onQuotedClick}
+              className={cn(
+                "w-full text-left mb-1.5 rounded-lg px-2.5 py-1.5 border-l-[3px] text-xs cursor-pointer hover:opacity-80 transition-opacity",
+                quotedFromMe
+                  ? "border-primary/60 bg-primary/10"
+                  : "border-accent/60 bg-accent/10"
+              )}
+            >
+              {quotedSender && (
+                <p className="font-semibold text-primary truncate">{quotedSender}</p>
+              )}
+              <p className="text-muted-foreground truncate">{quotedText}</p>
+            </button>
+          )}
           {isGroup && !fromMe && senderName && (
             <p className={cn("text-xs font-semibold mb-0.5", senderColor)}>{senderName}</p>
           )}

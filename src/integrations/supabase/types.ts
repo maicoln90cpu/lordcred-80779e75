@@ -1379,6 +1379,7 @@ export type Database = {
           media_url: string | null
           message_content: string
           message_id: string | null
+          quoted_message_id: string | null
           recipient_phone: string | null
           remote_jid: string | null
           sender_name: string | null
@@ -1395,6 +1396,7 @@ export type Database = {
           media_url?: string | null
           message_content: string
           message_id?: string | null
+          quoted_message_id?: string | null
           recipient_phone?: string | null
           remote_jid?: string | null
           sender_name?: string | null
@@ -1411,6 +1413,7 @@ export type Database = {
           media_url?: string | null
           message_content?: string
           message_id?: string | null
+          quoted_message_id?: string | null
           recipient_phone?: string | null
           remote_jid?: string | null
           sender_name?: string | null
