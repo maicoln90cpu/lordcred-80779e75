@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Trash2, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, ClipboardList, AlertTriangle, Download } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
+import { getSpreadsheetUrl } from '@/lib/storageUpload';
 
 interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; }
 interface Profile { user_id: string; name: string | null; email: string; }
