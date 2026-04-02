@@ -195,6 +195,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
 
   const [parsedData, setParsedData] = useState<Record<string, any>[]>([]);
   const [fileName, setFileName] = useState('');
+  const [rawFile, setRawFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
   const { sort, toggle: toggleSort } = useSortState();
