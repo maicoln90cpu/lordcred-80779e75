@@ -8,118 +8,18 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { TSHead, useSortState, applySortToData, TOOLTIPS_RELATORIO, TipWrap } from './CRSortUtils';
+import { TSHead, useSortState, applySortToData, TipWrap } from './CRSortUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
-
-// ==================== TYPES ====================
-interface RelatorioRow {
-  id: string; data_pago: string | null; num_contrato: string | null; produto: string | null;
-  banco: string | null; prazo: number | null; tabela: string | null; valor_liberado: number | null;
-  seguro: string | null; cpf: string | null; nome: string | null; data_nascimento: string | null;
-  telefone: string | null; vendedor: string | null; id_contrato: string | null;
-}
-interface GeralRow { ade: string | null; cod_contrato: string | null; cms_rep: number | null; }
-interface RepasseRow { ade: string | null; cod_contrato: string | null; cms_rep_favorecido: number | null; }
-interface SeguroRow { descricao: string | null; valor_comissao: number | null; }
-interface RuleFGTS { banco: string; tabela_chave: string; seguro: string; min_valor: number; max_valor: number; taxa: number; data_vigencia: string; }
-interface RuleCLT { banco: string; tabela_chave: string; seguro: string; prazo_min: number; prazo_max: number; taxa: number; data_vigencia: string; }
-
-interface ReportRow {
-  num_contrato: string; nome: string; banco: string; produto: string; tabela: string;
-  valor_liberado: number; valor_assegurado: number; prazo: number; seguro: string;
-  vendedor: string; data_pago: string;
-  cms_geral: number; cms_repasse: number; cms_seguro: number;
-  comissao_recebida: number; esperada_clt: number; esperada_fgts: number;
-  comissao_esperada: number; diferenca: number;
-}
-
-// ==================== BANK-SPECIFIC TABLE KEY LOGIC ====================
-// These replicate the exact spreadsheet formulas for mapping tabela → tabela_chave
-
-function extractTableKeyFGTS(banco: string, tabela: string, seguro: string): string {
-  const b = banco.toUpperCase();
-  if (b.includes('PARANA') || b.includes('PARANÁ')) {
-    return seguro === 'Sim' ? 'SEGURO' : 'PARANA';
-  }
-  if (b.includes('LOTUS')) {
-    // Last character of table name: e.g. "57325 - 1" → "1"
-    const lastChar = tabela.trim().slice(-1);
-    return ` ${lastChar} `;
-  }
-  if (b.includes('HUB')) {
-    const t = tabela.toUpperCase();
-    if (t.includes('SONHO')) return 'SONHO';
-    if (t.includes('FOCO')) return 'FOCO';
-    return 'CARTA NA M';
-  }
-  if (b.includes('FACTA')) {
-    return tabela.toUpperCase().includes('PLUS') ? 'GOLD PLUS' : 'GOLD POWER';
-  }
-  return '*';
-}
-
-function extractTableKeyCLT(banco: string, tabela: string): string {
-  const b = banco.toUpperCase();
-  if (b.includes('HUB')) {
-    const t = tabela.toUpperCase();
-    if (t.includes('36X COM SEGURO')) return '36X COM SEGURO';
-    if (t.includes('FOCO')) return 'FOCO NO CORBAN';
-    if (t.includes('SONHO')) return 'SONHO DO CLT';
-    if (t.includes('48X')) return 'CONSIGNADO CLT 48x';
-    return 'CARTADA CLT';
-  }
-  return '*';
-}
-
-// SUMIFS-style: find max vigencia, then sum all matching rates (exact seguro + "Ambos")
-// Convert timestamptz to São Paulo civil date string (YYYY-MM-DD)
-function toSaoPauloDate(ts: string | null): string {
-  if (!ts) return '';
-  try { return new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }); }
-  catch { return ts.slice(0, 10); }
-}
-
-function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
-  const b = banco.toUpperCase();
-  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
-  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
-  if (!valid.length) return 0;
-  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
-  const atVig = valid.filter(r => r.data_vigencia === maxVig);
-  let total = 0;
-  for (const r of atVig) {
-    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
-    const rangeMatch = lookupValue >= r.min_valor && lookupValue <= r.max_valor;
-    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
-    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
-  }
-  return total;
-}
-
-function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
-  const b = banco.toUpperCase();
-  const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
-  const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
-  if (!valid.length) return 0;
-  const maxVig = valid.reduce((m, r) => r.data_vigencia > m ? r.data_vigencia : m, '0000-00-00');
-  const atVig = valid.filter(r => r.data_vigencia === maxVig);
-  let total = 0;
-  for (const r of atVig) {
-    const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
-    const rangeMatch = prazo >= r.prazo_min && prazo <= r.prazo_max;
-    const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
-    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
-  }
-  return total;
-}
-
-function isMercantil(banco: string): boolean {
-  return banco.toUpperCase().includes('MERCANTIL');
-}
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-// ==================== COMPONENT ====================
+interface AuditRow {
+  num_contrato: string; nome: string; banco: string; produto: string; tabela: string;
+  valor_liberado: number; valor_assegurado: number; prazo: number; seguro: string;
+  vendedor: string; data_pago: string | null;
+  comissao_recebida: number; comissao_esperada: number; diferenca: number;
+}
+
 interface CRRelatorioProps { divergenciasOnly?: boolean; }
 
 export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioProps) {
@@ -129,122 +29,22 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
   const [filterProduto, setFilterProduto] = useState('');
   const [filterDifTipo, setFilterDifTipo] = useState<'all' | 'positive' | 'negative'>('all');
 
-  // Fetch cr_relatorio as base
-  const { data: relatorio = [], isLoading: l0 } = useQuery({
-    queryKey: ['cr-relatorio-data'],
+  // Use server-side RPC for all calculations
+  const { data: reportRows = [], isLoading } = useQuery({
+    queryKey: ['cr-audit-rpc-full'],
     queryFn: async () => {
-      const { data } = await (supabase as any).from('cr_relatorio').select('*').limit(5000);
-      return (data || []) as RelatorioRow[];
+      const { data, error } = await supabase.rpc('calculate_commission_audit', {
+        _date_from: null,
+        _date_to: null,
+      });
+      if (error) throw error;
+      return (data || []) as AuditRow[];
     }
   });
 
-  // Fetch support data for comissão recebida
-  const { data: geral = [], isLoading: l1 } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => { const { data } = await supabase.from('cr_geral').select('ade, cod_contrato, cms_rep').limit(5000); return (data || []) as GeralRow[]; } });
-  const { data: repasse = [], isLoading: l2 } = useQuery({ queryKey: ['cr-repasse-report'], queryFn: async () => { const { data } = await supabase.from('cr_repasse').select('ade, cod_contrato, cms_rep_favorecido').limit(5000); return (data || []) as RepasseRow[]; } });
-  const { data: seguros = [], isLoading: l3 } = useQuery({ queryKey: ['cr-seguros-report'], queryFn: async () => { const { data } = await supabase.from('cr_seguros').select('descricao, valor_comissao').limit(5000); return (data || []) as SeguroRow[]; } });
-  const { data: rulesFGTS = [], isLoading: l4 } = useQuery({ queryKey: ['cr-rules-fgts'], queryFn: async () => { const { data } = await supabase.from('cr_rules_fgts').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleFGTS[]; } });
-  const { data: rulesCLT = [], isLoading: l5 } = useQuery({ queryKey: ['cr-rules-clt'], queryFn: async () => { const { data } = await supabase.from('cr_rules_clt').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleCLT[]; } });
-  const isLoading = l0 || l1 || l2 || l3 || l4 || l5;
-
-  // Build lookup maps: ADE/contrato → comissão values from Geral, Repasse, Seguros
-  const geralByContract = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const g of geral) {
-      const key = g.ade || g.cod_contrato || '';
-      if (key) map.set(key, (map.get(key) || 0) + (g.cms_rep || 0));
-    }
-    return map;
-  }, [geral]);
-
-  const repasseByContract = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of repasse) {
-      const key = r.ade || r.cod_contrato || '';
-      if (key) map.set(key, (map.get(key) || 0) + (r.cms_rep_favorecido || 0));
-    }
-    return map;
-  }, [repasse]);
-
-  const seguroByAde = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of seguros) {
-      if (!s.descricao) continue;
-      const desc = s.descricao.toUpperCase();
-      // Extract ADE from description: "...ADE XXXXXXX-..."
-      const adeMatch = desc.match(/ADE\s+(\d+)/);
-      if (adeMatch) {
-        const ade = adeMatch[1];
-        map.set(ade, (map.get(ade) || 0) + (s.valor_comissao || 0));
-      }
-    }
-    return map;
-  }, [seguros]);
-
-  const reportRows: ReportRow[] = useMemo(() => relatorio.map(r => {
-    const contrato = r.num_contrato || '';
-    const banco = (r.banco || '').toUpperCase();
-    const produto = (r.produto || '').toUpperCase();
-    const tabela = r.tabela || '';
-    const valor = r.valor_liberado || 0;
-    const prazo = r.prazo || 0;
-    const seguro = r.seguro || 'Não';
-    const dataPago = r.data_pago || null;
-
-    // Mercantil: valor assegurado = valor / 0.7, else "Não é mercantil"
-    const valorAssegurado = isMercantil(banco) ? Math.round(valor / 0.7 * 100) / 100 : 0;
-    const valorCalc = isMercantil(banco) ? valorAssegurado : valor;
-
-    // Lookup comissão recebida from Geral/Repasse/Seguros by contrato number
-    const cmsGeral = geralByContract.get(contrato) || 0;
-    const cmsRepasse = repasseByContract.get(contrato) || 0;
-    const cmsSeguro = seguroByAde.get(contrato) || 0;
-    const recebida = cmsGeral + cmsRepasse + cmsSeguro;
-
-    // Calculate expected commission
-    let esperadaClt = 0;
-    let esperadaFgts = 0;
-    const isProdFGTS = produto.includes('FGTS');
-
-    if (isProdFGTS) {
-      const tabelaChave = extractTableKeyFGTS(banco, tabela, seguro);
-      // FGTS: Hub uses valor_liberado as range; others use prazo
-      const isHub = banco.includes('HUB');
-      const lookupValue = isHub ? valor : prazo;
-      const rate = findFGTSRate(rulesFGTS, banco, lookupValue, tabelaChave, seguro, dataPago);
-      // FGTS always multiplies by valor_liberado (never valor_assegurado)
-      esperadaFgts = Math.round(valor * rate / 100 * 100) / 100;
-    } else {
-      const tabelaChave = extractTableKeyCLT(banco, tabela);
-      esperadaClt = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tabelaChave, seguro, dataPago) / 100 * 100) / 100;
-    }
-    const esperada = esperadaClt + esperadaFgts;
-
-    return {
-      num_contrato: contrato,
-      nome: r.nome || '',
-      banco,
-      produto: isProdFGTS ? 'FGTS' : 'CLT',
-      tabela,
-      valor_liberado: valor,
-      valor_assegurado: valorAssegurado,
-      prazo,
-      seguro,
-      vendedor: r.vendedor || '',
-      data_pago: dataPago || '',
-      cms_geral: cmsGeral,
-      cms_repasse: cmsRepasse,
-      cms_seguro: cmsSeguro,
-      comissao_recebida: recebida,
-      esperada_clt: esperadaClt,
-      esperada_fgts: esperadaFgts,
-      comissao_esperada: esperada,
-      diferenca: Math.round((recebida - esperada) * 100) / 100,
-    };
-  }), [relatorio, geralByContract, repasseByContract, seguroByAde, rulesFGTS, rulesCLT]);
-
   const filtered = useMemo(() => {
     let rows = divergenciasOnly ? reportRows.filter(r => Math.abs(r.diferenca) > 0.01) : reportRows;
-    if (filterBanco) rows = rows.filter(r => r.banco === filterBanco);
+    if (filterBanco) rows = rows.filter(r => r.banco.toUpperCase() === filterBanco);
     if (filterProduto) rows = rows.filter(r => r.produto === filterProduto);
     if (filterDifTipo === 'positive') rows = rows.filter(r => r.diferenca > 0.01);
     if (filterDifTipo === 'negative') rows = rows.filter(r => r.diferenca < -0.01);
@@ -259,7 +59,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
   }, [reportRows, divergenciasOnly, filterBanco, filterProduto, filterDifTipo, search]);
 
   const sorted = applySortToData(filtered, sort);
-  const bancos = useMemo(() => [...new Set(reportRows.map(r => r.banco))].sort(), [reportRows]);
+  const bancos = useMemo(() => [...new Set(reportRows.map(r => r.banco.toUpperCase()))].sort(), [reportRows]);
   const totals = useMemo(() => ({
     recebida: filtered.reduce((s, r) => s + r.comissao_recebida, 0),
     esperada: filtered.reduce((s, r) => s + r.comissao_esperada, 0),
@@ -270,12 +70,11 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
 
   const handleExport = () => {
     const ws = XLSX.utils.json_to_sheet(sorted.map(r => ({
-      'Data Pago': r.data_pago, 'Nº Contrato': r.num_contrato, Produto: r.produto,
+      'Nº Contrato': r.num_contrato, Produto: r.produto,
       Banco: r.banco, Prazo: r.prazo, Tabela: r.tabela, 'Valor Lib.': r.valor_liberado,
       Seguro: r.seguro, Nome: r.nome, Vendedor: r.vendedor,
       'Vlr Assegurado': r.valor_assegurado || '',
-      Comissão: r.cms_geral, 'CMS Repasse': r.cms_repasse, 'CMS Seguro': r.cms_seguro,
-      Recebida: r.comissao_recebida, CLT: r.esperada_clt, FGTS: r.esperada_fgts,
+      Recebida: r.comissao_recebida,
       Esperada: r.comissao_esperada, Diferença: r.diferenca,
     })));
     const wb = XLSX.utils.book_new();
@@ -287,7 +86,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
   const desc = divergenciasOnly
     ? 'Contratos com diferença entre comissão recebida e esperada.'
     : 'Cruzamento: Relatório (dados de venda) + Geral + Repasse + Seguros → Comissão Esperada vs Recebida.';
-  const emptyMsg = relatorio.length === 0
+  const emptyMsg = reportRows.length === 0
     ? 'Importe dados na aba "Relatório (Import)" primeiro.'
     : 'Importe dados nas abas Geral, Repasse e Seguros primeiro.';
 
@@ -331,7 +130,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : relatorio.length === 0 ? (
+        ) : reportRows.length === 0 ? (
           <p className="text-center text-muted-foreground py-8 text-sm">{emptyMsg}</p>
         ) : sorted.length === 0 ? (
           <p className="text-center text-muted-foreground py-8 text-sm">{divergenciasOnly ? 'Nenhuma divergência encontrada! 🎉' : 'Nenhum resultado para os filtros aplicados.'}</p>
@@ -345,13 +144,10 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                   <TSHead label="Nome" sortKey="nome" sort={sort} toggle={toggleSort} tooltip="Nome do cliente" className="text-xs whitespace-nowrap" />
                   <TSHead label="Banco" sortKey="banco" sort={sort} toggle={toggleSort} tooltip="Banco do contrato" className="text-xs whitespace-nowrap" />
                   <TSHead label="Produto" sortKey="produto" sort={sort} toggle={toggleSort} tooltip="FGTS ou CLT" className="text-xs whitespace-nowrap" />
-                  <TSHead label="Tabela" sortKey="tabela" sort={sort} toggle={toggleSort} tooltip="Nome da tabela do banco (essencial para regra)" className="text-xs whitespace-nowrap" />
+                  <TSHead label="Tabela" sortKey="tabela" sort={sort} toggle={toggleSort} tooltip="Nome da tabela do banco" className="text-xs whitespace-nowrap" />
                   <TSHead label="Valor Lib." sortKey="valor_liberado" sort={sort} toggle={toggleSort} tooltip="Valor liberado ao cliente" className="text-xs whitespace-nowrap text-right" />
                   <TSHead label="Seguro" sortKey="seguro" sort={sort} toggle={toggleSort} tooltip="Sim ou Não" className="text-xs whitespace-nowrap" />
                   <TSHead label="Vendedor" sortKey="vendedor" sort={sort} toggle={toggleSort} tooltip="Vendedor responsável" className="text-xs whitespace-nowrap" />
-                  <TSHead label="Comissão" sortKey="cms_geral" sort={sort} toggle={toggleSort} tooltip="CMS da aba Geral" className="text-xs text-right whitespace-nowrap" />
-                  <TSHead label="Repasse" sortKey="cms_repasse" sort={sort} toggle={toggleSort} tooltip="CMS da aba Repasse" className="text-xs text-right whitespace-nowrap" />
-                  <TSHead label="Seguro$" sortKey="cms_seguro" sort={sort} toggle={toggleSort} tooltip="CMS da aba Seguros" className="text-xs text-right whitespace-nowrap" />
                   <TSHead label="Recebida" sortKey="comissao_recebida" sort={sort} toggle={toggleSort} tooltip="Soma: Comissão + Repasse + Seguro" className="text-xs whitespace-nowrap text-right" />
                   <TSHead label="Esperada" sortKey="comissao_esperada" sort={sort} toggle={toggleSort} tooltip="Calculada pelas regras FGTS/CLT" className="text-xs whitespace-nowrap text-right" />
                   <TSHead label="Diferença" sortKey="diferenca" sort={sort} toggle={toggleSort} tooltip="Recebida − Esperada" className="text-xs whitespace-nowrap text-right" />
@@ -368,9 +164,6 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                     <TableCell className="text-xs text-right font-mono">{fmtBRL(r.valor_liberado)}</TableCell>
                     <TableCell className="text-xs">{r.seguro}</TableCell>
                     <TableCell className="text-xs max-w-[100px] truncate">{r.vendedor || '-'}</TableCell>
-                    <TableCell className="text-xs text-right font-mono">{r.cms_geral ? fmtBRL(r.cms_geral) : '-'}</TableCell>
-                    <TableCell className="text-xs text-right font-mono">{r.cms_repasse ? fmtBRL(r.cms_repasse) : '-'}</TableCell>
-                    <TableCell className="text-xs text-right font-mono">{r.cms_seguro ? fmtBRL(r.cms_seguro) : '-'}</TableCell>
                     <TableCell className="text-xs text-right font-mono">{fmtBRL(r.comissao_recebida)}</TableCell>
                     <TableCell className="text-xs text-right font-mono">{fmtBRL(r.comissao_esperada)}</TableCell>
                     <TableCell className={`text-xs text-right font-mono font-bold ${r.diferenca > 0.01 ? 'text-green-600' : r.diferenca < -0.01 ? 'text-destructive' : ''}`}>{fmtBRL(r.diferenca)}</TableCell>
