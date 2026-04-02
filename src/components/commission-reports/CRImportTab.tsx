@@ -273,9 +273,16 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
     if (parsedData.length === 0) return;
     setImporting(true);
     try {
+      // Upload file to storage first
+      let filePath: string | null = null;
+      if (rawFile && user) {
+        filePath = await uploadSpreadsheet(user.id, rawFile.name, rawFile);
+      }
+
       const { data: batch, error: batchErr } = await supabase.from('import_batches' as any).insert({
         module: 'relatorios', sheet_name: module, file_name: fileName,
         row_count: parsedData.length, imported_by: user!.id,
+        ...(filePath ? { file_path: filePath } : {}),
       } as any).select().single();
       if (batchErr) throw batchErr;
       const batchId = (batch as any).id;
@@ -287,7 +294,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
       }
 
       toast({ title: `${parsedData.length} registros importados com sucesso!` });
-      setParsedData([]); setFileName('');
+      setParsedData([]); setFileName(''); setRawFile(null);
       if (fileRef.current) fileRef.current.value = '';
       refetch();
       queryClient.invalidateQueries({ queryKey: ['cr-import-batches'] });
