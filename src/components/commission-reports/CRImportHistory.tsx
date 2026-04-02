@@ -34,6 +34,19 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
   const getName = (userId: string) => { const p = profiles.find(pr => pr.user_id === userId); return p?.name || p?.email || userId.slice(0, 8); };
   const sheetLabel = (s: string) => ({ geral: 'Geral', repasse: 'Repasse', seguros: 'Seguros', base: 'Base' }[s] || s);
 
+  const handleDownload = async (batch: ImportBatch) => {
+    if (!batch.file_path) {
+      toast({ title: 'Arquivo não disponível', description: 'Este lote foi importado antes do armazenamento de arquivos.', variant: 'destructive' });
+      return;
+    }
+    const url = await getSpreadsheetUrl(batch.file_path);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast({ title: 'Erro ao gerar link de download', variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
