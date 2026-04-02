@@ -2127,6 +2127,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_commission_audit: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: {
+          banco: string
+          comissao_esperada: number
+          comissao_recebida: number
+          data_pago: string
+          diferenca: number
+          nome: string
+          num_contrato: string
+          prazo: number
+          produto: string
+          seguro: string
+          tabela: string
+          valor_assegurado: number
+          valor_liberado: number
+          vendedor: string
+        }[]
+      }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       create_direct_channel: {
         Args: { _channel_name: string; _target_user_id: string }
