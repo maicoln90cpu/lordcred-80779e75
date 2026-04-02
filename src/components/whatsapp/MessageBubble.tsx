@@ -32,6 +32,10 @@ interface MessageBubbleProps {
   onFavorite?: (msg: MessageData) => void;
   onStartChat?: (phone: string) => void;
   status?: string;
+  quotedText?: string;
+  quotedSender?: string;
+  quotedFromMe?: boolean;
+  onQuotedClick?: () => void;
 }
 
 function nameToColor(name: string): string {
