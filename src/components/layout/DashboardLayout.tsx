@@ -20,6 +20,7 @@ import {
   BarChart3,
   Columns3,
   Link2,
+  Wallet,
   Activity,
   Ticket,
   Shield,
