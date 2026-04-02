@@ -84,6 +84,7 @@ export type Database = {
           activated_at: string | null
           chip_type: string
           created_at: string
+          health_fail_count: number
           id: string
           instance_name: string
           instance_token: string | null
@@ -104,6 +105,7 @@ export type Database = {
           activated_at?: string | null
           chip_type?: string
           created_at?: string
+          health_fail_count?: number
           id?: string
           instance_name: string
           instance_token?: string | null
@@ -124,6 +126,7 @@ export type Database = {
           activated_at?: string | null
           chip_type?: string
           created_at?: string
+          health_fail_count?: number
           id?: string
           instance_name?: string
           instance_token?: string | null
