@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
 import { getSpreadsheetUrl } from '@/lib/storageUpload';
 
-interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; }
+interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; file_path?: string | null; }
 interface Profile { user_id: string; name: string | null; email: string; }
 
 interface CRImportHistoryProps { moduleFilter: 'relatorios' | 'parceiros'; }
