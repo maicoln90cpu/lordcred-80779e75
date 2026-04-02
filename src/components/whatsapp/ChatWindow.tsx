@@ -103,6 +103,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     hasMedia: !!(r.media_type && r.media_type !== 'text' && r.media_type !== 'chat' && r.media_type !== 'url'),
     messageId: r.message_id || undefined,
     status: r.status || 'sent',
+    quotedMessageId: r.quoted_message_id || undefined,
   }), []);
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
