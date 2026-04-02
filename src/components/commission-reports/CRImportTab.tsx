@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { uploadSpreadsheet } from '@/lib/storageUpload';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
