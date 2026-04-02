@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, Loader2, FileSpreadsheet, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { uploadSpreadsheet } from '@/lib/storageUpload';
 
 interface ParsedLead {
   data_ref: string;
