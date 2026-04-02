@@ -177,9 +177,17 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
   useRealtimeChips(handleRealtimeUpdate, user?.id);
 
   const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const hasSyncedOnMount = useRef(false);
+  const lastSyncAllRef = useRef<number>(0);
 
   const handleSyncAllChips = useCallback(async (chipsToSync: Chip[]) => {
+    // Throttle: minimum 60s between syncs
+    const now = Date.now();
+    if (now - lastSyncAllRef.current < 60000) {
+      toast({ title: 'Aguarde', description: 'Espere pelo menos 60 segundos entre sincronizações', variant: 'destructive' });
+      return;
+    }
+    lastSyncAllRef.current = now;
+
     const activeChips = chipsToSync.filter(c => c.instance_name);
     if (activeChips.length === 0) return;
 
@@ -226,7 +234,7 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
       fetchChips();
     }
     setIsSyncingAll(false);
-  }, [settings, fetchChips]);
+  }, [settings, fetchChips, toast]);
 
   useEffect(() => {
     fetchChips();
@@ -235,13 +243,8 @@ const handlePhaseChange = async (chipId: string, newPhase: string) => {
     });
   }, [fetchChips]);
 
-  // Auto-sync all chip statuses on page mount
-  useEffect(() => {
-    if (!hasSyncedOnMount.current && chips.length > 0 && settings) {
-      hasSyncedOnMount.current = true;
-      handleSyncAllChips(chips);
-    }
-  }, [chips, settings, handleSyncAllChips]);
+  // Auto-sync on mount REMOVED — status is now managed by backend health checks
+  // Users can still click "Atualizar Status" manually (throttled to 60s)
 
   // Cleanup polling on unmount or dialog close
   useEffect(() => {
