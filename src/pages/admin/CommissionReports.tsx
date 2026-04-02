@@ -12,6 +12,7 @@ import CRResumo from '@/components/commission-reports/CRResumo';
 import CRHistorico from '@/components/commission-reports/CRHistorico';
 import CRIndicadores from '@/components/commission-reports/CRIndicadores';
 import CRProductionDashboard from '@/components/commission-reports/CRProductionDashboard';
+import { HelpButton, HELP_RELATORIOS } from '@/components/commission-reports/HelpModal';
 
 export default function CommissionReports() {
   const [activeTab, setActiveTab] = useState('geral');
