@@ -55,6 +55,7 @@ interface ChipMonitorData {
   activated_at: string | null;
   last_message_at: string | null;
   last_connection_attempt: string | null;
+  last_webhook_at: string | null;
   nickname: string | null;
   user_id: string;
   slot_number: number;
