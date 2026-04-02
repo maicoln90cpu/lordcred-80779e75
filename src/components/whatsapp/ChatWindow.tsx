@@ -247,6 +247,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
             hasMedia: !!(record.media_type && record.media_type !== 'text' && record.media_type !== 'chat' && record.media_type !== 'url'),
             messageId: record.message_id || undefined,
             status: record.status || 'sent',
+            quotedMessageId: record.quoted_message_id || undefined,
           };
 
           if (!newMsg.fromMe && chipId) {
