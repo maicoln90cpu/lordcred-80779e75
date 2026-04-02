@@ -386,6 +386,8 @@ export type Database = {
       }
       commission_settings: {
         Row: {
+          bonus_fixed_value: number
+          bonus_mode: string
           bonus_rate: number
           bonus_threshold: number | null
           created_at: string
@@ -395,6 +397,8 @@ export type Database = {
           week_start_day: number
         }
         Insert: {
+          bonus_fixed_value?: number
+          bonus_mode?: string
           bonus_rate?: number
           bonus_threshold?: number | null
           created_at?: string
@@ -404,6 +408,8 @@ export type Database = {
           week_start_day?: number
         }
         Update: {
+          bonus_fixed_value?: number
+          bonus_mode?: string
           bonus_rate?: number
           bonus_threshold?: number | null
           created_at?: string
