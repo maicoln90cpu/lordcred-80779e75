@@ -683,7 +683,23 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           </div>
         ) : (
           <div className="space-y-2 max-w-5xl mx-auto">
-            {filteredMessages.map((msg) => (
+            {filteredMessages.map((msg) => {
+              // Resolve quoted message
+              let quotedText: string | undefined;
+              let quotedSender: string | undefined;
+              let quotedFromMe: boolean | undefined;
+              if (msg.quotedMessageId) {
+                const quoted = messages.find(m => m.messageId === msg.quotedMessageId);
+                if (quoted) {
+                  quotedText = quoted.text || (quoted.mediaType ? `📎 ${quoted.mediaType}` : undefined);
+                  quotedSender = quoted.fromMe ? 'Você' : (quoted.senderName || chat?.name || '');
+                  quotedFromMe = quoted.fromMe;
+                } else {
+                  quotedText = 'Mensagem citada';
+                  quotedSender = '';
+                }
+              }
+              return (
               <MessageBubble
                 key={msg.id}
                 text={msg.text}
@@ -704,8 +720,20 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
                 onPin={handlePin}
                 onFavorite={handleFavorite}
                 onStartChat={onStartNewChat}
+                quotedText={quotedText}
+                quotedSender={quotedSender}
+                quotedFromMe={quotedFromMe}
+                onQuotedClick={msg.quotedMessageId ? () => {
+                  const el = scrollRef.current?.querySelector(`[data-message-id="${msg.quotedMessageId}"]`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('ring-2', 'ring-primary/50');
+                    setTimeout(() => el.classList.remove('ring-2', 'ring-primary/50'), 2000);
+                  }
+                } : undefined}
               />
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
