@@ -520,9 +520,13 @@ export default function ChipMonitor() {
                             <MessageSquare className="w-3 h-3" />
                             <span>Última: {getTimeSince(chip.last_message_at)}</span>
                           </div>
-                          <div className="flex items-center gap-1 col-span-2">
+                          <div className="flex items-center gap-1">
                             <Signal className="w-3 h-3" />
                             <span>Slot {chip.slot_number} • Último check: {getTimeSince(chip.last_connection_attempt)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            <span>Último sinal: {getTimeSince((chip as any).last_webhook_at)}</span>
                           </div>
                         </div>
 
