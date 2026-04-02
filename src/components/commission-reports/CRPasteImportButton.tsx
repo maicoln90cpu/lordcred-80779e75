@@ -190,11 +190,20 @@ export default function CRPasteImportButton({ module, tableName, columns, noHead
         return;
       }
 
+      // Upload pasted text as TSV file to storage
+      const pasteFileName = `colagem_${module}_${new Date().toISOString().slice(0, 10)}.tsv`;
+      let filePath: string | null = null;
+      if (user) {
+        const blob = new Blob([text], { type: 'text/tab-separated-values' });
+        filePath = await uploadSpreadsheet(user.id, pasteFileName, blob);
+      }
+
       // Create import batch
       const { data: batch, error: batchErr } = await supabase.from('import_batches' as any).insert({
         module: 'relatorios', sheet_name: module,
-        file_name: `colagem_${module}_${new Date().toISOString().slice(0, 10)}`,
+        file_name: pasteFileName,
         row_count: payloads.length, imported_by: user.id, status: 'active',
+        ...(filePath ? { file_path: filePath } : {}),
       } as any).select('id').single();
       if (batchErr) throw batchErr;
       const batchId = (batch as any).id;
