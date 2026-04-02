@@ -92,6 +92,9 @@ Deno.serve(async (req) => {
 
     let processingResult = 'unhandled'
 
+    // Update last_webhook_at on every webhook received for this chip
+    await adminClient.from('chips').update({ last_webhook_at: new Date().toISOString() }).eq('id', chip.id)
+
     if (eventType === 'messages' && payload.message) {
       await handleUazapiMessage(adminClient, chip, payload)
       processingResult = 'message_processed'

@@ -55,6 +55,7 @@ interface ChipMonitorData {
   activated_at: string | null;
   last_message_at: string | null;
   last_connection_attempt: string | null;
+  last_webhook_at: string | null;
   nickname: string | null;
   user_id: string;
   slot_number: number;
@@ -519,11 +520,26 @@ export default function ChipMonitor() {
                             <MessageSquare className="w-3 h-3" />
                             <span>Última: {getTimeSince(chip.last_message_at)}</span>
                           </div>
-                          <div className="flex items-center gap-1 col-span-2">
+                          <div className="flex items-center gap-1">
                             <Signal className="w-3 h-3" />
                             <span>Slot {chip.slot_number} • Último check: {getTimeSince(chip.last_connection_attempt)}</span>
                           </div>
+                          <div className="flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            <span>Último sinal: {getTimeSince((chip as any).last_webhook_at)}</span>
+                          </div>
                         </div>
+
+                        {/* Alert for unstable (connected but no webhook signal in 15+ min) */}
+                        {chip.status === 'connected' && (chip as any).last_webhook_at && (() => {
+                          const minsSince = (Date.now() - new Date((chip as any).last_webhook_at).getTime()) / 60000;
+                          return minsSince > 15;
+                        })() && (
+                          <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-500/10 rounded-md px-3 py-2">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Instável — sem sinal de webhook há mais de 15 min</span>
+                          </div>
+                        )}
 
                         {/* Alert for disconnected */}
                         {chip.status !== 'connected' && daysActive > 0 && (
