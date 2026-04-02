@@ -204,6 +204,23 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
               : "bg-secondary/80 text-foreground rounded-bl-sm shadow-secondary/10"
           )}
         >
+          {/* Quoted message preview */}
+          {quotedText && (
+            <button
+              onClick={onQuotedClick}
+              className={cn(
+                "w-full text-left mb-1.5 rounded-lg px-2.5 py-1.5 border-l-[3px] text-xs cursor-pointer hover:opacity-80 transition-opacity",
+                quotedFromMe
+                  ? "border-primary/60 bg-primary/10"
+                  : "border-accent/60 bg-accent/10"
+              )}
+            >
+              {quotedSender && (
+                <p className="font-semibold text-primary truncate">{quotedSender}</p>
+              )}
+              <p className="text-muted-foreground truncate">{quotedText}</p>
+            </button>
+          )}
           {isGroup && !fromMe && senderName && (
             <p className={cn("text-xs font-semibold mb-0.5", senderColor)}>{senderName}</p>
           )}
