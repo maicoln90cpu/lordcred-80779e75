@@ -140,7 +140,6 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
     onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status,
     quotedText, quotedSender, quotedFromMe, onQuotedClick }, ref
 ) {
-) {
   const [hovered, setHovered] = useState(false);
 
   const fallbackMediaType = (!hasMedia && text && MEDIA_KEYWORDS.includes(text.toLowerCase().trim())) ? text.toLowerCase().trim() : null;
