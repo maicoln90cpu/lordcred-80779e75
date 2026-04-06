@@ -67,6 +67,31 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
 
 const PAGE_SIZE = 50;
 
+const NATIVE_COLUMN_KEYS = new Set([
+  'nome', 'telefone', 'cpf', 'valor_lib', 'prazo', 'vlr_parcela', 'status',
+  'aprovado', 'reprovado', 'data_nasc', 'banco_codigo', 'banco_nome',
+  'banco_simulado', 'agencia', 'conta', 'nome_mae', 'data_ref',
+  'assigned_to', 'assigned_at', 'batch_name', 'perfil', 'notes',
+]);
+
+/** Get value for a column key, checking notes JSON for custom columns */
+function getLeadValue(lead: any, key: string): any {
+  if (NATIVE_COLUMN_KEYS.has(key)) return lead[key];
+  // Custom column — extract from notes JSON
+  if (lead.notes) {
+    try {
+      const extras = JSON.parse(lead.notes);
+      if (extras[key] !== undefined) return extras[key];
+    } catch {}
+  }
+  return null;
+}
+
+/** Check if a column key represents a phone field */
+function isPhoneColumn(key: string): boolean {
+  return key === 'telefone' || key.toLowerCase().startsWith('telefone');
+}
+
 interface ColumnConfig {
   key: string;
   label: string;
@@ -318,9 +343,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   };
 
-  const handleContact = (lead: any) => {
-    if (lead.telefone && onStartConversation) {
-      let phone = lead.telefone.replace(/\D/g, '');
+  const handleContact = (lead: any, phoneOverride?: string) => {
+    const rawPhone = phoneOverride || lead.telefone;
+    if (rawPhone && onStartConversation) {
+      let phone = rawPhone.replace(/\D/g, '');
       if (!phone.startsWith('55') && phone.length <= 11) phone = '55' + phone;
       onStartConversation(phone, lead.nome);
       onOpenChange(false);
@@ -478,6 +504,30 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <div><span className="text-muted-foreground">Nome Mãe:</span> {selectedLead.nome_mae || '-'}</div>
                 <div><span className="text-muted-foreground">Data Ref.:</span> {selectedLead.data_ref || '-'}</div>
                 <div><span className="text-muted-foreground">Lote:</span> {selectedLead.batch_name || '-'}</div>
+                {/* Custom phone fields from notes JSON */}
+                {(() => {
+                  const customPhones: { key: string; label: string; value: string }[] = [];
+                  if (sellerColumnConfig && selectedLead.notes) {
+                    try {
+                      const extras = JSON.parse(selectedLead.notes);
+                      sellerColumnConfig.filter(c => c.visible && isPhoneColumn(c.key) && c.key !== 'telefone').forEach(c => {
+                        if (extras[c.key]) customPhones.push({ key: c.key, label: c.label, value: extras[c.key] });
+                      });
+                    } catch {}
+                  }
+                  return customPhones.map(p => (
+                    <div key={p.key} className="flex items-center gap-1">
+                      <span className="text-muted-foreground">{p.label}:</span>
+                      <strong>{p.value}</strong>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(p.value); toast({ title: `${p.label} copiado!` }); }}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleContact(selectedLead, p.value)} title="Iniciar conversa">
+                        <MessageCircle className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ));
+                })()}
                 {selectedLead.corban_proposta_id && (
                   <>
                     <div><span className="text-muted-foreground">Proposta NewCorban:</span> <Badge variant="secondary">{selectedLead.corban_proposta_id}</Badge></div>
@@ -551,13 +601,25 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                     {pagedLeads.map((lead: any) => (
                       <TableRow key={lead.id} className="cursor-pointer group" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
                         {visibleColumns.map(col => {
-                          const val = lead[col.key];
-                          if (col.key === 'cpf' || col.key === 'telefone') {
+                          const val = getLeadValue(lead, col.key);
+                          // Phone columns: copy + chat buttons
+                          if (isPhoneColumn(col.key) || col.key === 'cpf') {
                             return (
-                              <TableCell key={col.key} className="text-xs text-muted-foreground" onClick={(e) => { if (!val) return; e.stopPropagation(); navigator.clipboard.writeText(val); toast({ title: `${col.label} copiado!` }); }}>
-                                <span className={val ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors' : ''}>
+                              <TableCell key={col.key} className="text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                                <span className="inline-flex items-center gap-1">
                                   {val || '-'}
-                                  {val && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                                  {val && (
+                                    <>
+                                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { navigator.clipboard.writeText(val); toast({ title: `${col.label} copiado!` }); }}>
+                                        <Copy className="w-3 h-3" />
+                                      </Button>
+                                      {isPhoneColumn(col.key) && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleContact(lead, val)} title="Iniciar conversa">
+                                          <MessageCircle className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </>
+                                  )}
                                 </span>
                               </TableCell>
                             );
@@ -591,8 +653,8 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                           }
                           return <TableCell key={col.key}>{val ?? '-'}</TableCell>;
                         })}
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleContact(lead); }} title="Iniciar conversa">
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" onClick={() => handleContact(lead)} title="Iniciar conversa">
                             <MessageCircle className="w-4 h-4" />
                           </Button>
                         </TableCell>
