@@ -146,9 +146,14 @@ function exportToExcel(data: Record<string, string | number>[], filename: string
 
 function parseExcelDate(v: any): string | null {
   if (!v) return null;
-  // Handle Date objects (from cellDates: true)
+  // Handle Date objects (from cellDates: true) — extract local components to avoid UTC shift
   if (v instanceof Date && !isNaN(v.getTime())) {
-    return v.toISOString().slice(0, 16);
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    const h = String(v.getHours()).padStart(2, '0');
+    const min = String(v.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${h}:${min}`;
   }
   if (typeof v === 'number') {
     const d = XLSX.SSF.parse_date_code(v);
@@ -157,8 +162,16 @@ function parseExcelDate(v: any): string | null {
   if (typeof v === 'string') {
     const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
     if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}`;
+    // Avoid new Date(string) which parses as UTC — only use as last resort with manual extraction
     const iso = new Date(v);
-    if (!isNaN(iso.getTime())) return iso.toISOString().slice(0, 16);
+    if (!isNaN(iso.getTime())) {
+      const y = iso.getFullYear();
+      const m = String(iso.getMonth() + 1).padStart(2, '0');
+      const d = String(iso.getDate()).padStart(2, '0');
+      const h = String(iso.getHours()).padStart(2, '0');
+      const min = String(iso.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${d}T${h}:${min}`;
+    }
   }
   return null;
 }
