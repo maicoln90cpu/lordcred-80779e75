@@ -724,53 +724,7 @@ export default function Leads() {
   };
   const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
 
-  // Column aliases management
-  const startEditingAliases = () => setEditingAliases([...columnAliases]);
-
-  const updateAliasField = (idx: number, field: 'system_label' | 'aliases' | 'key', val: string) => {
-    if (!editingAliases) return;
-    const updated = [...editingAliases];
-    if (field === 'aliases') {
-      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
-    } else {
-      updated[idx] = { ...updated[idx], [field]: val };
-    }
-    setEditingAliases(updated);
-  };
-
-  const addAlias = () => {
-    if (!editingAliases) return;
-    setEditingAliases([...editingAliases, { key: '', system_label: '', aliases: [] }]);
-  };
-
-  const removeAlias = (idx: number) => {
-    if (!editingAliases) return;
-    setEditingAliases(editingAliases.filter((_, i) => i !== idx));
-  };
-
-  const saveAliases = async () => {
-    if (!editingAliases) return;
-    const invalid = editingAliases.some(a => !a.key || !a.system_label);
-    if (invalid) {
-      toast({ title: 'Erro', description: 'Todas as colunas devem ter chave interna e nome de exportação.', variant: 'destructive' });
-      return;
-    }
-    setIsSavingAliases(true);
-    try {
-      const { error } = await supabase
-        .from('system_settings')
-        .update({ lead_column_aliases: editingAliases as any, updated_at: new Date().toISOString() } as any)
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
-      toast({ title: 'Mapeamento de colunas atualizado' });
-      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
-      setEditingAliases(null);
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setIsSavingAliases(false);
-    }
-  };
+  // (aliases management is now unified in saveColumns above)
 
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
