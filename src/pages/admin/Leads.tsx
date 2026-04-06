@@ -215,15 +215,32 @@ export default function Leads() {
     queryFn: async () => {
       const { data } = await supabase
         .from('system_settings')
-        .select('seller_leads_columns')
+        .select('seller_leads_columns, lead_column_aliases')
         .maybeSingle();
+      
+      let saved: ColumnConfig[] = [];
       if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
-        const saved = (data as any).seller_leads_columns as ColumnConfig[];
-        const savedKeys = new Set(saved.map(c => c.key));
-        const newCols = SELLER_LEADS_COLUMNS.filter(c => !savedKeys.has(c.key));
-        return newCols.length > 0 ? [...saved, ...newCols] : saved;
+        saved = (data as any).seller_leads_columns as ColumnConfig[];
+      } else {
+        saved = [...SELLER_LEADS_COLUMNS];
       }
-      return SELLER_LEADS_COLUMNS;
+      
+      // Merge custom columns from aliases
+      const aliases = (data as any)?.lead_column_aliases as ColumnAlias[] | undefined;
+      if (aliases && Array.isArray(aliases)) {
+        const nativeKeys = new Set(SELLER_LEADS_COLUMNS.map(c => c.key));
+        const savedKeys = new Set(saved.map(c => c.key));
+        aliases.forEach(a => {
+          if (!nativeKeys.has(a.key) && !savedKeys.has(a.key)) {
+            saved.push({ key: a.key, label: a.system_label, visible: false, isCustom: true });
+          }
+        });
+      }
+      
+      // Add any new native columns not in saved
+      const savedKeys = new Set(saved.map(c => c.key));
+      const newCols = SELLER_LEADS_COLUMNS.filter(c => !savedKeys.has(c.key));
+      return newCols.length > 0 ? [...saved, ...newCols] : saved;
     }
   });
 
