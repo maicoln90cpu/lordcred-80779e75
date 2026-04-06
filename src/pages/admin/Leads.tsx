@@ -571,14 +571,49 @@ export default function Leads() {
     }
   };
 
-  // Column config functions
-  const startEditingColumns = () => setEditingColumns([...columnConfig]);
+  // Unified column config functions (order + visibility + aliases)
+  const startEditingColumns = () => {
+    const cols = [...columnConfig];
+    // Enrich with alias data
+    const aliasMap = new Map(columnAliases.map(a => [a.key, a]));
+    const enriched = cols.map(c => {
+      const alias = aliasMap.get(c.key);
+      const isNative = ALL_COLUMNS.some(ac => ac.key === c.key);
+      return {
+        ...c,
+        aliases: alias?.aliases || [],
+        isCustom: !isNative,
+      };
+    });
+    setEditingColumns(enriched);
+  };
 
   const toggleColumnVisibility = (idx: number) => {
     if (!editingColumns) return;
     const updated = [...editingColumns];
     updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
     setEditingColumns(updated);
+  };
+
+  const updateColumnField = (idx: number, field: 'label' | 'key' | 'aliases', val: string) => {
+    if (!editingColumns) return;
+    const updated = [...editingColumns];
+    if (field === 'aliases') {
+      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
+    } else {
+      updated[idx] = { ...updated[idx], [field]: val };
+    }
+    setEditingColumns(updated);
+  };
+
+  const addCustomColumn = () => {
+    if (!editingColumns) return;
+    setEditingColumns([...editingColumns, { key: '', label: '', visible: true, aliases: [], isCustom: true }]);
+  };
+
+  const removeCustomColumn = (idx: number) => {
+    if (!editingColumns) return;
+    setEditingColumns(editingColumns.filter((_, i) => i !== idx));
   };
 
   const moveColumn = (from: number, to: number) => {
@@ -591,15 +626,41 @@ export default function Leads() {
 
   const saveColumns = async () => {
     if (!editingColumns) return;
+    // Validate custom columns
+    const invalid = editingColumns.some(c => c.isCustom && (!c.key || !c.label));
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Colunas customizadas devem ter chave e nome preenchidos.', variant: 'destructive' });
+      return;
+    }
     setIsSavingColumns(true);
     try {
+      // Build column config (order + visibility)
+      const colConfig = editingColumns.map(c => ({ key: c.key, label: c.label, visible: c.visible }));
+      
+      // Build aliases array from editing columns + existing defaults
+      const nativeKeys = new Set(ALL_COLUMNS.map(c => c.key));
+      const aliasesArray: ColumnAlias[] = editingColumns.map(c => {
+        // For native columns, find existing alias or create default
+        const existingAlias = columnAliases.find(a => a.key === c.key);
+        return {
+          key: c.key,
+          system_label: c.label,
+          aliases: c.aliases && c.aliases.length > 0 ? c.aliases : (existingAlias?.aliases || [c.key]),
+        };
+      });
+
       const { error } = await supabase
         .from('system_settings')
-        .update({ lead_table_columns: editingColumns as any, updated_at: new Date().toISOString() } as any)
+        .update({
+          lead_table_columns: colConfig as any,
+          lead_column_aliases: aliasesArray as any,
+          updated_at: new Date().toISOString(),
+        } as any)
         .neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
-      toast({ title: 'Colunas atualizadas com sucesso' });
+      toast({ title: 'Configuração de colunas salva com sucesso' });
       queryClient.invalidateQueries({ queryKey: ['lead-table-columns'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
       setEditingColumns(null);
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
