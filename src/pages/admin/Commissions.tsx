@@ -1594,6 +1594,8 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null,
           seller_id: findSellerByName(sellerName) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null,
+          table_name: findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null,
+          client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento'])?.toString() || null,
           created_by: userId,
         });
       }
@@ -1719,6 +1721,8 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone']) || null,
           seller_id: findSellerByName(sellerName) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta']) || null,
+          table_name: findCol(row, ['Tabela', 'tabela', 'Table']) || null,
+          client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento']) || null,
           created_by: userId,
         });
       }
