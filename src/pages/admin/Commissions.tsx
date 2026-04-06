@@ -1125,7 +1125,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
-  const [weekFilter, setWeekFilter] = useState('all');
+  const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortConfig();
 
@@ -1142,7 +1142,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
 
   const filtered = sales.filter(s => {
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
-    if (weekFilter !== 'all' && s.week_label !== weekFilter) return false;
+    if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (productFilter !== 'all' && s.product !== productFilter) return false;
     return true;
   });
@@ -1192,13 +1192,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
               </SelectContent>
             </Select>
           )}
-          <Select value={weekFilter} onValueChange={setWeekFilter}>
-            <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Semana" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as semanas</SelectItem>
-              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
           <Select value={productFilter} onValueChange={setProductFilter}>
             <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Produto" /></SelectTrigger>
             <SelectContent>
@@ -1258,7 +1252,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
-  const [weekFilter, setWeekFilter] = useState('all');
+  const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const { sort, toggle } = useSortConfig();
 
   useEffect(() => {
@@ -1273,7 +1267,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   }, []);
 
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
-  const filtered = weekFilter === 'all' ? sales : sales.filter(s => s.week_label === weekFilter);
+  const filtered = weekFilters.length === 0 ? sales : sales.filter(s => weekFilters.includes(s.week_label || ''));
 
   // Group by seller
   const sellerIds = [...new Set(filtered.map(s => s.seller_id))];
@@ -1303,7 +1297,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
       'Total': grandTotal,
       'Chave PIX': '',
     });
-    const suffix = weekFilter !== 'all' ? '_' + weekFilter.replace(/[\/\s]/g, '-') : '';
+    const suffix = weekFilters.length > 0 ? '_' + weekFilters.join('+').replace(/[\/\s]/g, '-') : '';
     exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
   };
 
@@ -1316,13 +1310,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
         </div>
-        <Select value={weekFilter} onValueChange={setWeekFilter}>
-          <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as semanas</SelectItem>
-            {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64 mt-2" />
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : sellerData.length === 0 ? (
