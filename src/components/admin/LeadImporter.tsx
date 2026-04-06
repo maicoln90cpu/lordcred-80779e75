@@ -215,6 +215,67 @@ export default function LeadImporter() {
     reader.readAsArrayBuffer(file);
   }, [columnAliases]);
 
+  const handlePasteImport = useCallback(() => {
+    if (!pasteText.trim()) {
+      toast({ title: 'Cole os dados da planilha', variant: 'destructive' });
+      return;
+    }
+    const result = parseClipboardText(pasteText);
+    if (result.rows.length === 0) {
+      toast({ title: 'Nenhum dado encontrado na colagem', variant: 'destructive' });
+      return;
+    }
+
+    const normalize = (s: string) => s?.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.\-_']/g, ' ').replace(/\s+/g, ' ').trim() || '';
+
+    const getByKey = (row: Record<string, string>, key: string) => {
+      const alias = columnAliases.find(a => a.key === key);
+      const keys = alias ? alias.aliases : [key];
+      for (const k of keys) {
+        const normK = normalize(k);
+        for (const rowKey of Object.keys(row)) {
+          if (normalize(rowKey) === normK) {
+            const val = row[rowKey];
+            if (val !== undefined && val !== '') return val;
+          }
+        }
+      }
+      return '';
+    };
+
+    const parsed: ParsedLead[] = result.rows.map(row => ({
+      data_ref: String(getByKey(row, 'data_ref')),
+      banco_simulado: String(getByKey(row, 'banco_simulado')),
+      nome: String(getByKey(row, 'nome')),
+      telefone: cleanPhone(getByKey(row, 'telefone')),
+      cpf: String(getByKey(row, 'cpf')),
+      valor_lib: cleanCurrency(getByKey(row, 'valor_lib')),
+      prazo: getByKey(row, 'prazo') ? parseInt(String(getByKey(row, 'prazo'))) : null,
+      vlr_parcela: cleanCurrency(getByKey(row, 'vlr_parcela')),
+      status: String(getByKey(row, 'status') || 'pendente'),
+      aprovado: String(getByKey(row, 'aprovado')),
+      reprovado: String(getByKey(row, 'reprovado')),
+      data_nasc: String(getByKey(row, 'data_nasc')),
+      banco_codigo: String(getByKey(row, 'banco_codigo')),
+      banco_nome: String(getByKey(row, 'banco_nome')),
+      agencia: String(getByKey(row, 'agencia')),
+      conta: String(getByKey(row, 'conta')),
+      nome_mae: String(getByKey(row, 'nome_mae')),
+    })).filter(p => p.nome.trim() !== '');
+
+    setParsedData(parsed);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    setFileName(`Colagem ${dateStr} ${timeStr}`);
+    if (!batchName) setBatchName(`Colagem ${dateStr} ${timeStr}`);
+    setRawFile(null);
+    setImported(false);
+    setPasteDialogOpen(false);
+    setPasteText('');
+    toast({ title: `${parsed.length} leads carregados da colagem` });
+  }, [pasteText, columnAliases, batchName, toast]);
+
   const handleImport = async () => {
     if (!selectedSeller || parsedData.length === 0) {
       toast({ title: 'Selecione um vendedor e carregue uma planilha', variant: 'destructive' });
