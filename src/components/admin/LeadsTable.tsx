@@ -33,6 +33,13 @@ function formatDate(value: string | number | null | undefined): string {
 
 const PAGE_SIZE = 50;
 
+const NATIVE_COLUMN_KEYS = new Set([
+  'nome', 'telefone', 'cpf', 'valor_lib', 'prazo', 'vlr_parcela', 'status',
+  'aprovado', 'reprovado', 'data_nasc', 'banco_codigo', 'banco_nome',
+  'banco_simulado', 'agencia', 'conta', 'nome_mae', 'data_ref',
+  'assigned_to', 'assigned_at', 'batch_name', 'perfil', 'notes',
+]);
+
 const DEFAULT_STATUS_OPTIONS = [
   { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground' },
   { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400' },
@@ -375,8 +382,16 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         return getSellerName(lead.assigned_to);
       case 'notes':
         return <span className="max-w-[200px] truncate block">{lead[key] || '-'}</span>;
-      default:
+      default: {
+        // Check if this is a custom column stored in notes JSON
+        if (!NATIVE_COLUMN_KEYS.has(key) && lead.notes) {
+          try {
+            const extras = JSON.parse(lead.notes);
+            if (extras[key]) return extras[key];
+          } catch {}
+        }
         return lead[key] || '-';
+      }
     }
   };
 

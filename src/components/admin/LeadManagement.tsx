@@ -45,6 +45,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
   const [globalBancos, setGlobalBancos] = useState<string[]>([]);
   const [globalBatches, setGlobalBatches] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     sellerId: string;
@@ -120,8 +122,10 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
     if (globalBancos.length > 0) result = result.filter((l: any) => globalBancos.includes(l.banco_simulado));
     if (globalBatches.length > 0) result = result.filter((l: any) => globalBatches.includes(l.batch_name));
+    if (dateFrom) result = result.filter((l: any) => l.updated_at >= dateFrom);
+    if (dateTo) result = result.filter((l: any) => l.updated_at <= dateTo + 'T23:59:59');
     return result;
-  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches]);
+  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches, dateFrom, dateTo]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
@@ -368,6 +372,27 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </div>
               </PopoverContent>
             </Popover>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">De:</span>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-40 h-9 text-sm"
+              />
+              <span className="text-sm text-muted-foreground">Até:</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-40 h-9 text-sm"
+              />
+              {(dateFrom || dateTo) && (
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                  Limpar datas
+                </Button>
+              )}
+            </div>
           </div>
 
           {sellerData.length === 0 ? (

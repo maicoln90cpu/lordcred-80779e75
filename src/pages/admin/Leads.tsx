@@ -648,7 +648,7 @@ export default function Leads() {
   // Column aliases management
   const startEditingAliases = () => setEditingAliases([...columnAliases]);
 
-  const updateAliasField = (idx: number, field: 'system_label' | 'aliases', val: string) => {
+  const updateAliasField = (idx: number, field: 'system_label' | 'aliases' | 'key', val: string) => {
     if (!editingAliases) return;
     const updated = [...editingAliases];
     if (field === 'aliases') {
@@ -659,8 +659,23 @@ export default function Leads() {
     setEditingAliases(updated);
   };
 
+  const addAlias = () => {
+    if (!editingAliases) return;
+    setEditingAliases([...editingAliases, { key: '', system_label: '', aliases: [] }]);
+  };
+
+  const removeAlias = (idx: number) => {
+    if (!editingAliases) return;
+    setEditingAliases(editingAliases.filter((_, i) => i !== idx));
+  };
+
   const saveAliases = async () => {
     if (!editingAliases) return;
+    const invalid = editingAliases.some(a => !a.key || !a.system_label);
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Todas as colunas devem ter chave interna e nome de exportação.', variant: 'destructive' });
+      return;
+    }
     setIsSavingAliases(true);
     try {
       const { error } = await supabase
@@ -1296,31 +1311,58 @@ export default function Leads() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">O campo "interno" não pode ser alterado. Edite o nome de exportação e as variações (separadas por vírgula) que o importador aceitará.</p>
-                    {editingAliases.map((alias, idx) => (
-                      <div key={alias.key} className="flex items-center gap-3 p-3 border rounded-lg">
-                        <span className="font-mono text-xs text-muted-foreground w-28 flex-shrink-0">{alias.key}</span>
-                        <div className="flex-1 grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Nome Exportação</label>
-                            <Input
-                              value={alias.system_label}
-                              onChange={(e) => updateAliasField(idx, 'system_label', e.target.value)}
-                              className="h-8 text-sm"
-                            />
+                    <p className="text-sm text-muted-foreground">
+                      Edite o nome de exportação e as variações (separadas por vírgula). Para colunas customizadas (não nativas do banco), os dados extras serão salvos no campo "Observações" do lead como JSON.
+                    </p>
+                    {editingAliases.map((alias, idx) => {
+                      const isDefault = DEFAULT_ALIASES.some(d => d.key === alias.key);
+                      return (
+                        <div key={idx} className="flex items-center gap-3 p-3 border rounded-lg">
+                          <div className="w-28 flex-shrink-0">
+                            {isDefault ? (
+                              <span className="font-mono text-xs text-muted-foreground">{alias.key}</span>
+                            ) : (
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1 block">Chave interna</label>
+                                <Input
+                                  value={alias.key}
+                                  onChange={(e) => updateAliasField(idx, 'key', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="ex: telefone2"
+                                />
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Variações (separadas por vírgula)</label>
-                            <Input
-                              value={alias.aliases.join(', ')}
-                              onChange={(e) => updateAliasField(idx, 'aliases', e.target.value)}
-                              className="h-8 text-sm"
-                              placeholder="nome, name, Nome Completo"
-                            />
+                          <div className="flex-1 grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">Nome Exportação</label>
+                              <Input
+                                value={alias.system_label}
+                                onChange={(e) => updateAliasField(idx, 'system_label', e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">Variações (separadas por vírgula)</label>
+                              <Input
+                                value={alias.aliases.join(', ')}
+                                onChange={(e) => updateAliasField(idx, 'aliases', e.target.value)}
+                                className="h-8 text-sm"
+                                placeholder="nome, name, Nome Completo"
+                              />
+                            </div>
                           </div>
+                          {!isDefault && (
+                            <Button variant="ghost" size="icon" onClick={() => removeAlias(idx)} className="text-destructive hover:text-destructive h-8 w-8 flex-shrink-0">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    <Button variant="outline" onClick={addAlias} className="w-full">
+                      <Plus className="w-4 h-4 mr-2" /> Adicionar Coluna
+                    </Button>
                   </div>
                 )}
               </CardContent>
