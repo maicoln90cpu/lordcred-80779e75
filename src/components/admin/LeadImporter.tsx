@@ -10,10 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Loader2, FileSpreadsheet, Check } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Upload, Loader2, FileSpreadsheet, Check, ClipboardPaste } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { uploadSpreadsheet } from '@/lib/storageUpload';
+import { parseClipboardText } from '@/lib/clipboardParser';
 
 interface ParsedLead {
   data_ref: string;
@@ -101,6 +103,8 @@ export default function LeadImporter() {
   const [imported, setImported] = useState(false);
    const [fileName, setFileName] = useState('');
    const [rawFile, setRawFile] = useState<File | null>(null);
+   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+   const [pasteText, setPasteText] = useState('');
    const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
