@@ -55,6 +55,8 @@ interface CommissionSale {
   week_label: string | null;
   created_by: string;
   created_at: string;
+  table_name: string | null;
+  client_birth_date: string | null;
 }
 
 interface RateFGTS {
@@ -74,6 +76,7 @@ interface RateCLT {
   has_insurance: boolean;
   rate: number;
   obs: string | null;
+  table_key: string | null;
 }
 
 interface SellerPix {
