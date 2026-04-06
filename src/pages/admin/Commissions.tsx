@@ -402,6 +402,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
         const phone = findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null;
         const sellerName = findCol(row, ['Vendedor', 'vendedor'])?.toString() || '';
         const proposalId = findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null;
+        const tableName = findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null;
+        const birthDate = findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento', 'Data de Nascimento'])?.toString() || null;
 
         if (!bank || releasedValue <= 0) { skipped++; continue; }
 
@@ -419,6 +421,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
           client_phone: phone,
           seller_id: sellerId,
           external_proposal_id: proposalId,
+          table_name: tableName,
+          client_birth_date: birthDate,
           created_by: userId,
         });
         imported++;
