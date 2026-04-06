@@ -597,7 +597,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             Vendas / Comissões
           </CardTitle>
           {isAdmin && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -612,6 +612,20 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
               <Button variant="outline" size="sm" onClick={handleExportBase} disabled={filteredSales.length === 0}>
                 <Download className="w-4 h-4 mr-1" /> Exportar
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm"><Columns className="w-4 h-4 mr-1" /> Colunas</Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 max-h-80 overflow-y-auto p-2" align="end">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Colunas visíveis</p>
+                  {BASE_COLUMNS.map(col => (
+                    <label key={col.key} className="flex items-center gap-2 py-1 px-1 hover:bg-muted rounded cursor-pointer text-sm">
+                      <Checkbox checked={visibleCols.includes(col.key)} onCheckedChange={() => toggleCol(col.key)} />
+                      {col.label}
+                    </label>
+                  ))}
+                </PopoverContent>
+              </Popover>
               <Button onClick={openCreate} size="sm">
                 <Plus className="w-4 h-4 mr-1" /> Nova Venda
               </Button>
