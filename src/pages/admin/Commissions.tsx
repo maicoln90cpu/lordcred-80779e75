@@ -385,7 +385,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const openCreate = () => {
     setEditingSale(null);
     setForm({
-      sale_date: new Date().toISOString().slice(0, 16),
+      sale_date: toDatetimeLocalBR(new Date().toISOString()),
       product: 'FGTS', bank: '', term: '', released_value: '',
       has_insurance: false, client_cpf: '', client_name: '', client_phone: '',
       seller_id: userId, external_proposal_id: '', table_name: '', client_birth_date: ''
@@ -396,7 +396,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const openEdit = (sale: CommissionSale) => {
     setEditingSale(sale);
     setForm({
-      sale_date: sale.sale_date.slice(0, 16),
+      sale_date: toDatetimeLocalBR(sale.sale_date),
       product: sale.product,
       bank: sale.bank,
       term: sale.term?.toString() || '',
@@ -420,7 +420,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
     }
 
     const payload = {
-      sale_date: form.sale_date,
+      sale_date: toBrasiliaTimestamp(form.sale_date),
       product: form.product,
       bank: form.bank,
       term: form.term ? parseInt(form.term) : null,
@@ -595,7 +595,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const handleExportBase = () => {
     const data = filteredSales.map(s => ({
       'Semana': s.week_label || '',
-      'Data Pago': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Data Pago': formatDateBR(s.sale_date),
       'Produto': s.product,
       'Banco': s.bank,
       'Tabela': (s as any).table_name || '',
@@ -694,7 +694,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                     {BASE_COLUMNS.filter(c => visibleCols.includes(c.key)).map(col => {
                       const key = col.key;
                       if (key === 'week_label') return <TableCell key={key} className="text-xs text-muted-foreground whitespace-nowrap">{sale.week_label || '-'}</TableCell>;
-                      if (key === 'sale_date') return <TableCell key={key} className="whitespace-nowrap">{new Date(sale.sale_date).toLocaleDateString('pt-BR')}</TableCell>;
+                      if (key === 'sale_date') return <TableCell key={key} className="whitespace-nowrap">{formatDateBR(sale.sale_date)}</TableCell>;
                       if (key === 'product') return <TableCell key={key}><Badge variant={sale.product === 'FGTS' ? 'default' : 'secondary'}>{sale.product === 'Crédito do Trabalhador' ? 'CLT' : sale.product}</Badge></TableCell>;
                       if (key === 'bank') return <TableCell key={key}>{sale.bank}</TableCell>;
                       if (key === 'table_name') return <TableCell key={key} className="text-xs text-muted-foreground max-w-[150px] truncate" title={sale.table_name || ''}>{sale.table_name || '-'}</TableCell>;
@@ -1240,7 +1240,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
 
   const handleExportExtrato = () => {
     const data = filtered.map(s => ({
-      'Data': new Date(s.sale_date).toLocaleDateString('pt-BR'),
+      'Data': formatDateBR(s.sale_date),
       'Produto': s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product,
       'Banco': s.bank,
       'Vendedor': getSellerName(s.seller_id),
@@ -1316,7 +1316,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
                 return (s as any)[k];
               }).map(s => (
                 <TableRow key={s.id}>
-                  <TableCell>{new Date(s.sale_date).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell>{formatDateBR(s.sale_date)}</TableCell>
                   <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
                   <TableCell>{s.bank}</TableCell>
                   {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
