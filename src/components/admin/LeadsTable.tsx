@@ -375,8 +375,16 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
         return getSellerName(lead.assigned_to);
       case 'notes':
         return <span className="max-w-[200px] truncate block">{lead[key] || '-'}</span>;
-      default:
+      default: {
+        // Check if this is a custom column stored in notes JSON
+        if (!NATIVE_COLUMN_KEYS.has(key) && lead.notes) {
+          try {
+            const extras = JSON.parse(lead.notes);
+            if (extras[key]) return extras[key];
+          } catch {}
+        }
         return lead[key] || '-';
+      }
     }
   };
 
