@@ -650,18 +650,10 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortHead label="Semana" sortKey="week_label" sort={sort} toggle={toggle} />
-                  <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
-                  <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
-                  <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
-                  <SortHead label="Tabela" sortKey="table_name" sort={sort} toggle={toggle} />
-                  <SortHead label="Prazo" sortKey="term" sort={sort} toggle={toggle} />
-                  <SortHead label="Valor Lib." sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
-                  <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
-                  <SortHead label="Cliente" sortKey="client_name" sort={sort} toggle={toggle} />
-                  <SortHead label="Vendedor" sortKey="seller_id" sort={sort} toggle={toggle} />
-                  <SortHead label="Taxa" sortKey="commission_rate" sort={sort} toggle={toggle} className="text-right" />
-                  <SortHead label="Comissão" sortKey="commission_value" sort={sort} toggle={toggle} className="text-right" />
+                  {BASE_COLUMNS.filter(c => visibleCols.includes(c.key)).map(col => (
+                    <SortHead key={col.key} label={col.label} sortKey={col.key} sort={sort} toggle={toggle}
+                      className={['released_value', 'commission_rate', 'commission_value'].includes(col.key) ? 'text-right' : ''} />
+                  ))}
                   {isAdmin && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -672,22 +664,26 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                   return (s as any)[k];
                 }).map(sale => (
                   <TableRow key={sale.id}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{sale.week_label || '-'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{new Date(sale.sale_date).toLocaleDateString('pt-BR')}</TableCell>
-                    <TableCell>
-                      <Badge variant={sale.product === 'FGTS' ? 'default' : 'secondary'}>
-                        {sale.product === 'Crédito do Trabalhador' ? 'CLT' : sale.product}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{sale.bank}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate" title={(sale as any).table_name || ''}>{(sale as any).table_name || '-'}</TableCell>
-                    <TableCell>{sale.term ? `${sale.term}m` : '-'}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(sale.released_value)}</TableCell>
-                    <TableCell>{sale.has_insurance ? 'Sim' : 'Não'}</TableCell>
-                    <TableCell className="text-sm">{sale.client_name || '-'}</TableCell>
-                    <TableCell className="text-sm">{getSellerName(sale.seller_id)}</TableCell>
-                    <TableCell className="text-right">{sale.commission_rate}%</TableCell>
-                    <TableCell className="text-right font-bold text-primary">{fmt(sale.commission_value)}</TableCell>
+                    {BASE_COLUMNS.filter(c => visibleCols.includes(c.key)).map(col => {
+                      const key = col.key;
+                      if (key === 'week_label') return <TableCell key={key} className="text-xs text-muted-foreground whitespace-nowrap">{sale.week_label || '-'}</TableCell>;
+                      if (key === 'sale_date') return <TableCell key={key} className="whitespace-nowrap">{new Date(sale.sale_date).toLocaleDateString('pt-BR')}</TableCell>;
+                      if (key === 'product') return <TableCell key={key}><Badge variant={sale.product === 'FGTS' ? 'default' : 'secondary'}>{sale.product === 'Crédito do Trabalhador' ? 'CLT' : sale.product}</Badge></TableCell>;
+                      if (key === 'bank') return <TableCell key={key}>{sale.bank}</TableCell>;
+                      if (key === 'table_name') return <TableCell key={key} className="text-xs text-muted-foreground max-w-[150px] truncate" title={sale.table_name || ''}>{sale.table_name || '-'}</TableCell>;
+                      if (key === 'term') return <TableCell key={key}>{sale.term ? `${sale.term}m` : '-'}</TableCell>;
+                      if (key === 'released_value') return <TableCell key={key} className="text-right font-medium">{fmt(sale.released_value)}</TableCell>;
+                      if (key === 'has_insurance') return <TableCell key={key}>{sale.has_insurance ? 'Sim' : 'Não'}</TableCell>;
+                      if (key === 'client_name') return <TableCell key={key} className="text-sm">{sale.client_name || '-'}</TableCell>;
+                      if (key === 'client_cpf') return <TableCell key={key} className="text-xs font-mono">{sale.client_cpf || '-'}</TableCell>;
+                      if (key === 'client_phone') return <TableCell key={key} className="text-xs">{sale.client_phone || '-'}</TableCell>;
+                      if (key === 'client_birth_date') return <TableCell key={key} className="text-xs">{sale.client_birth_date || '-'}</TableCell>;
+                      if (key === 'external_proposal_id') return <TableCell key={key} className="text-xs font-mono">{sale.external_proposal_id || '-'}</TableCell>;
+                      if (key === 'seller_id') return <TableCell key={key} className="text-sm">{getSellerName(sale.seller_id)}</TableCell>;
+                      if (key === 'commission_rate') return <TableCell key={key} className="text-right">{sale.commission_rate}%</TableCell>;
+                      if (key === 'commission_value') return <TableCell key={key} className="text-right font-bold text-primary">{fmt(sale.commission_value)}</TableCell>;
+                      return <TableCell key={key}>{(sale as any)[key] || '-'}</TableCell>;
+                    })}
                     {isAdmin && (
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
