@@ -361,7 +361,29 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const isPhoneCol = (key: string) => key === 'telefone' || key.toLowerCase().startsWith('telefone');
+
   const renderCellValue = (lead: any, key: string) => {
+    // Phone columns: show value + copy + chat buttons
+    if (isPhoneCol(key)) {
+      const val = NATIVE_COLUMN_KEYS.has(key) ? lead[key] : (() => {
+        if (!lead.notes) return null;
+        try { const e = JSON.parse(lead.notes); return e[key] || null; } catch { return null; }
+      })();
+      if (!val) return <span className="text-muted-foreground text-xs">-</span>;
+      return (
+        <span className="inline-flex items-center gap-1">
+          {val}
+          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(val); toast({ title: 'Copiado!' }); }}>
+            <Copy className="w-3 h-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); let p = val.replace(/\D/g, ''); if (!p.startsWith('55') && p.length <= 11) p = '55' + p; window.open(`/whatsapp?phone=${p}&name=${encodeURIComponent(lead.nome || '')}`, '_blank'); }} title="Iniciar conversa">
+            <MessageCircle className="w-3 h-3" />
+          </Button>
+        </span>
+      );
+    }
+
     switch (key) {
       case 'valor_lib':
         return lead.valor_lib ? Number(lead.valor_lib).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
@@ -383,7 +405,6 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
       case 'notes':
         return <span className="max-w-[200px] truncate block">{lead[key] || '-'}</span>;
       default: {
-        // Check if this is a custom column stored in notes JSON
         if (!NATIVE_COLUMN_KEYS.has(key) && lead.notes) {
           try {
             const extras = JSON.parse(lead.notes);
