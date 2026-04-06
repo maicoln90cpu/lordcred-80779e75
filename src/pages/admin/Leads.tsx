@@ -49,6 +49,8 @@ interface ColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  aliases?: string[];
+  isCustom?: boolean;
 }
 
 const ALL_COLUMNS: ColumnConfig[] = [
