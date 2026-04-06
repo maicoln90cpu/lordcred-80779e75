@@ -343,9 +343,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     }
   };
 
-  const handleContact = (lead: any) => {
-    if (lead.telefone && onStartConversation) {
-      let phone = lead.telefone.replace(/\D/g, '');
+  const handleContact = (lead: any, phoneOverride?: string) => {
+    const rawPhone = phoneOverride || lead.telefone;
+    if (rawPhone && onStartConversation) {
+      let phone = rawPhone.replace(/\D/g, '');
       if (!phone.startsWith('55') && phone.length <= 11) phone = '55' + phone;
       onStartConversation(phone, lead.nome);
       onOpenChange(false);
