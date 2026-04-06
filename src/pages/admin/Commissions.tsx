@@ -55,6 +55,8 @@ interface CommissionSale {
   week_label: string | null;
   created_by: string;
   created_at: string;
+  table_name: string | null;
+  client_birth_date: string | null;
 }
 
 interface RateFGTS {
@@ -74,6 +76,7 @@ interface RateCLT {
   has_insurance: boolean;
   rate: number;
   obs: string | null;
+  table_key: string | null;
 }
 
 interface SellerPix {
@@ -229,7 +232,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [form, setForm] = useState({
     sale_date: '', product: 'FGTS', bank: '', term: '', released_value: '',
     has_insurance: false, client_cpf: '', client_name: '', client_phone: '',
-    seller_id: userId, external_proposal_id: ''
+    seller_id: userId, external_proposal_id: '', table_name: '', client_birth_date: ''
   });
 
   useEffect(() => { loadSales(); }, []);
@@ -268,7 +271,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       sale_date: new Date().toISOString().slice(0, 16),
       product: 'FGTS', bank: '', term: '', released_value: '',
       has_insurance: false, client_cpf: '', client_name: '', client_phone: '',
-      seller_id: userId, external_proposal_id: ''
+      seller_id: userId, external_proposal_id: '', table_name: '', client_birth_date: ''
     });
     setDialogOpen(true);
   };
@@ -286,7 +289,9 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       client_name: sale.client_name || '',
       client_phone: sale.client_phone || '',
       seller_id: sale.seller_id,
-      external_proposal_id: sale.external_proposal_id || ''
+      external_proposal_id: sale.external_proposal_id || '',
+      table_name: (sale as any).table_name || '',
+      client_birth_date: (sale as any).client_birth_date || ''
     });
     setDialogOpen(true);
   };
@@ -309,6 +314,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       client_phone: form.client_phone || null,
       seller_id: form.seller_id,
       external_proposal_id: form.external_proposal_id || null,
+      table_name: form.table_name || null,
+      client_birth_date: form.client_birth_date || null,
       created_by: userId,
     };
 
@@ -395,6 +402,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
         const phone = findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null;
         const sellerName = findCol(row, ['Vendedor', 'vendedor'])?.toString() || '';
         const proposalId = findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null;
+        const tableName = findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null;
+        const birthDate = findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento', 'Data de Nascimento'])?.toString() || null;
 
         if (!bank || releasedValue <= 0) { skipped++; continue; }
 
@@ -412,6 +421,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
           client_phone: phone,
           seller_id: sellerId,
           external_proposal_id: proposalId,
+          table_name: tableName,
+          client_birth_date: birthDate,
           created_by: userId,
         });
         imported++;
@@ -470,12 +481,14 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       'Data Pago': new Date(s.sale_date).toLocaleDateString('pt-BR'),
       'Produto': s.product,
       'Banco': s.bank,
+      'Tabela': (s as any).table_name || '',
       'Prazo': s.term || '',
       'Valor Liberado': s.released_value,
       'Seguro': s.has_insurance ? 'Sim' : 'Não',
       'CPF': s.client_cpf || '',
       'Nome': s.client_name || '',
       'Telefone': s.client_phone || '',
+      'Data Nascimento': (s as any).client_birth_date || '',
       'Vendedor': getSellerName(s.seller_id),
       'ID': s.external_proposal_id || '',
       'Taxa %': s.commission_rate,
@@ -545,6 +558,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                   <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
                   <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
                   <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                  <SortHead label="Tabela" sortKey="table_name" sort={sort} toggle={toggle} />
                   <SortHead label="Prazo" sortKey="term" sort={sort} toggle={toggle} />
                   <SortHead label="Valor Lib." sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
                   <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
@@ -570,6 +584,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                       </Badge>
                     </TableCell>
                     <TableCell>{sale.bank}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate" title={(sale as any).table_name || ''}>{(sale as any).table_name || '-'}</TableCell>
                     <TableCell>{sale.term ? `${sale.term}m` : '-'}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(sale.released_value)}</TableCell>
                     <TableCell>{sale.has_insurance ? 'Sim' : 'Não'}</TableCell>
@@ -648,6 +663,14 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
               <div>
                 <Label>ID Proposta</Label>
                 <Input value={form.external_proposal_id} onChange={e => setForm({ ...form, external_proposal_id: e.target.value })} />
+              </div>
+              <div>
+                <Label>Tabela</Label>
+                <Input value={form.table_name} onChange={e => setForm({ ...form, table_name: e.target.value })} placeholder="Ex: FOCO NO CORBAN" />
+              </div>
+              <div>
+                <Label>Data Nascimento</Label>
+                <Input value={form.client_birth_date} onChange={e => setForm({ ...form, client_birth_date: e.target.value })} placeholder="DD/MM/AAAA" />
               </div>
               {isAdmin && (
                 <div className="col-span-2">
@@ -934,7 +957,7 @@ function RatesCLTTab() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateCLT | null>(null);
-  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
   const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
@@ -948,7 +971,7 @@ function RatesCLTTab() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
     setDialogOpen(true);
   };
 
@@ -957,7 +980,8 @@ function RatesCLTTab() {
     setForm({
       effective_date: r.effective_date, bank: r.bank,
       term_min: r.term_min.toString(), term_max: r.term_max.toString(),
-      has_insurance: r.has_insurance, rate: r.rate.toString(), obs: r.obs || ''
+      has_insurance: r.has_insurance, rate: r.rate.toString(), obs: r.obs || '',
+      table_key: (r as any).table_key || ''
     });
     setDialogOpen(true);
   };
@@ -968,6 +992,7 @@ function RatesCLTTab() {
       effective_date: form.effective_date, bank: form.bank,
       term_min: parseInt(form.term_min) || 0, term_max: parseInt(form.term_max) || 999,
       has_insurance: form.has_insurance, rate: parseFloat(form.rate) || 0, obs: form.obs || null,
+      table_key: form.table_key || null,
     };
     let error;
     if (editing) {
@@ -1002,6 +1027,7 @@ function RatesCLTTab() {
               <TableRow>
                 <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
                 <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
                 <SortHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
                 <SortHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
                 <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
@@ -1018,6 +1044,7 @@ function RatesCLTTab() {
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
+                  <TableCell className="text-xs">{(r as any).table_key || '-'}</TableCell>
                   <TableCell>{r.term_min}</TableCell>
                   <TableCell>{r.term_max}</TableCell>
                   <TableCell>{r.has_insurance ? 'Sim' : 'Não'}</TableCell>
@@ -1045,7 +1072,8 @@ function RatesCLTTab() {
               <div><Label>Prazo Max</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
               <div className="flex items-end gap-2 pb-1"><Switch checked={form.has_insurance} onCheckedChange={v => setForm({ ...form, has_insurance: v })} /><Label>Seguro</Label></div>
               <div><Label>Taxa (%) *</Label><Input type="number" step="0.01" value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} /></div>
-              <div className="col-span-2"><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: 2 parceiros" /></div>
+              <div><Label>Chave Tabela</Label><Input value={form.table_key} onChange={e => setForm({ ...form, table_key: e.target.value })} placeholder="Ex: SONHO, FOCO, 2 Parcela" /></div>
+              <div><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: CLT - Ambos seguro" /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
@@ -1571,6 +1599,8 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null,
           seller_id: findSellerByName(sellerName) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null,
+          table_name: findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null,
+          client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento'])?.toString() || null,
           created_by: userId,
         });
       }
@@ -1620,6 +1650,7 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
 }
 
 // Clipboard parser imported from @/lib/clipboardParser
+const POSITIONAL_HEADERS_13 = ['Data Pago', 'Produto', 'Banco', 'Tabela', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Data Nascimento', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_11 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_10 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_9 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor'];
@@ -1696,6 +1727,8 @@ function PasteImportButton({ profiles, userId, onImported }: { profiles: Profile
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone']) || null,
           seller_id: findSellerByName(sellerName) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta']) || null,
+          table_name: findCol(row, ['Tabela', 'tabela', 'Table']) || null,
+          client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento']) || null,
           created_by: userId,
         });
       }
