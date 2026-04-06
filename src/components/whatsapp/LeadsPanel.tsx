@@ -504,6 +504,30 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                 <div><span className="text-muted-foreground">Nome Mãe:</span> {selectedLead.nome_mae || '-'}</div>
                 <div><span className="text-muted-foreground">Data Ref.:</span> {selectedLead.data_ref || '-'}</div>
                 <div><span className="text-muted-foreground">Lote:</span> {selectedLead.batch_name || '-'}</div>
+                {/* Custom phone fields from notes JSON */}
+                {(() => {
+                  const customPhones: { key: string; label: string; value: string }[] = [];
+                  if (sellerColumnConfig && selectedLead.notes) {
+                    try {
+                      const extras = JSON.parse(selectedLead.notes);
+                      sellerColumnConfig.filter(c => c.visible && isPhoneColumn(c.key) && c.key !== 'telefone').forEach(c => {
+                        if (extras[c.key]) customPhones.push({ key: c.key, label: c.label, value: extras[c.key] });
+                      });
+                    } catch {}
+                  }
+                  return customPhones.map(p => (
+                    <div key={p.key} className="flex items-center gap-1">
+                      <span className="text-muted-foreground">{p.label}:</span>
+                      <strong>{p.value}</strong>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { navigator.clipboard.writeText(p.value); toast({ title: `${p.label} copiado!` }); }}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleContact(selectedLead, p.value)} title="Iniciar conversa">
+                        <MessageCircle className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ));
+                })()}
                 {selectedLead.corban_proposta_id && (
                   <>
                     <div><span className="text-muted-foreground">Proposta NewCorban:</span> <Badge variant="secondary">{selectedLead.corban_proposta_id}</Badge></div>
