@@ -352,15 +352,20 @@ export default function LeadImporter() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Arquivo XLSX</Label>
-              <Input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFileUpload}
-                className="cursor-pointer"
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileUpload}
+                  className="cursor-pointer flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setPasteDialogOpen(true)} title="Colar da área de transferência">
+                  <ClipboardPaste className="w-4 h-4" />
+                </Button>
+              </div>
               {fileName && (
                 <p className="text-sm text-muted-foreground">📄 {fileName}</p>
               )}
