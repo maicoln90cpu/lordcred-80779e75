@@ -314,6 +314,8 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       client_phone: form.client_phone || null,
       seller_id: form.seller_id,
       external_proposal_id: form.external_proposal_id || null,
+      table_name: form.table_name || null,
+      client_birth_date: form.client_birth_date || null,
       created_by: userId,
     };
 
