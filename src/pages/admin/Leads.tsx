@@ -149,25 +149,41 @@ export default function Leads() {
     }
   });
 
-  // Fetch column config from system_settings, merging with ALL_COLUMNS to include new columns
+  // Fetch column config from system_settings, merging with ALL_COLUMNS and aliases
   const { data: columnConfig = ALL_COLUMNS } = useQuery({
-    queryKey: ['lead-table-columns'],
+    queryKey: ['lead-table-columns', 'lead-column-aliases'],
     queryFn: async () => {
       const { data } = await supabase
         .from('system_settings')
-        .select('lead_table_columns')
+        .select('lead_table_columns, lead_column_aliases')
         .maybeSingle();
+      
+      let saved: ColumnConfig[] = [];
       if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
-        const saved = data.lead_table_columns as unknown as ColumnConfig[];
-        const savedKeys = new Set(saved.map(c => c.key));
-        // Add any new columns from ALL_COLUMNS that aren't in the saved config
-        const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
-        if (newCols.length > 0) {
-          return [...saved, ...newCols];
-        }
-        return saved;
+        saved = data.lead_table_columns as unknown as ColumnConfig[];
+      } else {
+        saved = [...ALL_COLUMNS];
       }
-      return ALL_COLUMNS;
+      
+      // Merge custom columns from aliases into columnConfig
+      const aliases = (data as any)?.lead_column_aliases as ColumnAlias[] | undefined;
+      if (aliases && Array.isArray(aliases)) {
+        const nativeKeys = new Set(ALL_COLUMNS.map(c => c.key));
+        const savedKeys = new Set(saved.map(c => c.key));
+        aliases.forEach(a => {
+          if (!nativeKeys.has(a.key) && !savedKeys.has(a.key)) {
+            saved.push({ key: a.key, label: a.system_label, visible: true, isCustom: true, aliases: a.aliases });
+          }
+        });
+      }
+      
+      // Add any new native columns not in saved
+      const savedKeys = new Set(saved.map(c => c.key));
+      const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
+      if (newCols.length > 0) {
+        return [...saved, ...newCols];
+      }
+      return saved;
     }
   });
 
