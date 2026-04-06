@@ -13,7 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList, ClipboardPaste } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList, ClipboardPaste, CalendarDays } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
@@ -90,6 +92,46 @@ interface Profile {
   user_id: string;
   name: string | null;
   email: string;
+}
+
+// ==================== WEEK MULTI-SELECT ====================
+function WeekMultiSelect({ weeks, selected, onChange, className }: { weeks: string[]; selected: string[]; onChange: (v: string[]) => void; className?: string }) {
+  const sorted = [...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR'));
+  const label = selected.length === 0 ? 'Todas as semanas' : selected.length === 1 ? selected[0] : `${selected.length} semanas`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={`justify-start font-normal ${className || 'w-full sm:w-64'}`}>
+          <CalendarDays className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="truncate">{label}</span>
+          {selected.length > 0 && (
+            <Badge variant="secondary" className="ml-auto text-xs">{selected.length}</Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 max-h-72 overflow-y-auto p-2" align="start">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="text-xs font-medium text-muted-foreground">Semanas</span>
+          {selected.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange([])}>Limpar</Button>
+          )}
+        </div>
+        {sorted.map(w => (
+          <label key={w} className="flex items-center gap-2 px-1 py-1.5 hover:bg-accent rounded cursor-pointer text-sm">
+            <Checkbox
+              checked={selected.includes(w)}
+              onCheckedChange={(checked) => {
+                if (checked) onChange([...selected, w]);
+                else onChange(selected.filter(s => s !== w));
+              }}
+            />
+            <span className="truncate">{w}</span>
+          </label>
+        ))}
+        {sorted.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">Nenhuma semana</p>}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ==================== EXPORT HELPERS ====================
@@ -225,7 +267,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
   const [search, setSearch] = useState('');
-  const [weekFilter, setWeekFilter] = useState('');
+  const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -252,7 +294,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
   const filteredSales = sales.filter(s => {
-    if (weekFilter && s.week_label !== weekFilter) return false;
+    if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -533,15 +575,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <Select value={weekFilter} onValueChange={v => setWeekFilter(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-full sm:w-64">
-              <SelectValue placeholder="Filtrar por semana" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as semanas</SelectItem>
-              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
         </div>
       </CardHeader>
       <CardContent>
@@ -1091,7 +1125,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
-  const [weekFilter, setWeekFilter] = useState('all');
+  const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortConfig();
 
@@ -1108,7 +1142,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
 
   const filtered = sales.filter(s => {
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
-    if (weekFilter !== 'all' && s.week_label !== weekFilter) return false;
+    if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (productFilter !== 'all' && s.product !== productFilter) return false;
     return true;
   });
@@ -1158,13 +1192,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
               </SelectContent>
             </Select>
           )}
-          <Select value={weekFilter} onValueChange={setWeekFilter}>
-            <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Semana" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as semanas</SelectItem>
-              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
           <Select value={productFilter} onValueChange={setProductFilter}>
             <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Produto" /></SelectTrigger>
             <SelectContent>
@@ -1224,7 +1252,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
-  const [weekFilter, setWeekFilter] = useState('all');
+  const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const { sort, toggle } = useSortConfig();
 
   useEffect(() => {
@@ -1239,7 +1267,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
   }, []);
 
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
-  const filtered = weekFilter === 'all' ? sales : sales.filter(s => s.week_label === weekFilter);
+  const filtered = weekFilters.length === 0 ? sales : sales.filter(s => weekFilters.includes(s.week_label || ''));
 
   // Group by seller
   const sellerIds = [...new Set(filtered.map(s => s.seller_id))];
@@ -1269,7 +1297,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
       'Total': grandTotal,
       'Chave PIX': '',
     });
-    const suffix = weekFilter !== 'all' ? '_' + weekFilter.replace(/[\/\s]/g, '-') : '';
+    const suffix = weekFilters.length > 0 ? '_' + weekFilters.join('+').replace(/[\/\s]/g, '-') : '';
     exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
   };
 
@@ -1282,13 +1310,7 @@ function ConsolidadoTab({ profiles, getSellerName }: { profiles: Profile[]; getS
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
         </div>
-        <Select value={weekFilter} onValueChange={setWeekFilter}>
-          <SelectTrigger className="w-full sm:w-64 mt-2"><SelectValue placeholder="Semana" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as semanas</SelectItem>
-            {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64 mt-2" />
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : sellerData.length === 0 ? (
