@@ -272,6 +272,32 @@ export default function Commissions() {
 }
 
 // ==================== BASE TAB ====================
+// All possible columns for BaseTab
+const BASE_COLUMNS = [
+  { key: 'week_label', label: 'Semana', defaultVisible: true },
+  { key: 'sale_date', label: 'Data', defaultVisible: true },
+  { key: 'product', label: 'Produto', defaultVisible: true },
+  { key: 'bank', label: 'Banco', defaultVisible: true },
+  { key: 'table_name', label: 'Tabela', defaultVisible: true },
+  { key: 'term', label: 'Prazo', defaultVisible: true },
+  { key: 'released_value', label: 'Valor Lib.', defaultVisible: true },
+  { key: 'has_insurance', label: 'Seguro', defaultVisible: true },
+  { key: 'client_name', label: 'Cliente', defaultVisible: true },
+  { key: 'client_cpf', label: 'CPF', defaultVisible: false },
+  { key: 'client_phone', label: 'Telefone', defaultVisible: false },
+  { key: 'client_birth_date', label: 'Data Nasc.', defaultVisible: false },
+  { key: 'external_proposal_id', label: 'ID Proposta', defaultVisible: false },
+  { key: 'seller_id', label: 'Vendedor', defaultVisible: true },
+  { key: 'commission_rate', label: 'Taxa', defaultVisible: true },
+  { key: 'commission_value', label: 'Comissão', defaultVisible: true },
+];
+
+function getDefaultVisibleCols(): string[] {
+  const saved = localStorage.getItem('comm_base_visible_cols');
+  if (saved) { try { return JSON.parse(saved); } catch {} }
+  return BASE_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
+}
+
 function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profile[]; getSellerName: (id: string) => string; isAdmin: boolean; userId: string }) {
   const { toast } = useToast();
   const [sales, setSales] = useState<CommissionSale[]>([]);
@@ -283,6 +309,15 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [visibleCols, setVisibleCols] = useState<string[]>(getDefaultVisibleCols);
+
+  const toggleCol = (key: string) => {
+    setVisibleCols(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+      localStorage.setItem('comm_base_visible_cols', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const [form, setForm] = useState({
     sale_date: '', product: 'FGTS', bank: '', term: '', released_value: '',
