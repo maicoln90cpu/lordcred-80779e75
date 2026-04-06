@@ -294,7 +294,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
   const filteredSales = sales.filter(s => {
-    if (weekFilter && s.week_label !== weekFilter) return false;
+    if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -575,15 +575,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <Select value={weekFilter} onValueChange={v => setWeekFilter(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-full sm:w-64">
-              <SelectValue placeholder="Filtrar por semana" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as semanas</SelectItem>
-              {[...weeks].sort((a, b) => (a || '').localeCompare(b || '', 'pt-BR')).map(w => <SelectItem key={w} value={w!}>{w}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
         </div>
       </CardHeader>
       <CardContent>
