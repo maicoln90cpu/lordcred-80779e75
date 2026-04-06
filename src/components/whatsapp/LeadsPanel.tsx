@@ -577,13 +577,25 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                     {pagedLeads.map((lead: any) => (
                       <TableRow key={lead.id} className="cursor-pointer group" onClick={() => { setSelectedLead(lead); setEditStatus(lead.status); setEditNotes(lead.notes || ''); }}>
                         {visibleColumns.map(col => {
-                          const val = lead[col.key];
-                          if (col.key === 'cpf' || col.key === 'telefone') {
+                          const val = getLeadValue(lead, col.key);
+                          // Phone columns: copy + chat buttons
+                          if (isPhoneColumn(col.key) || col.key === 'cpf') {
                             return (
-                              <TableCell key={col.key} className="text-xs text-muted-foreground" onClick={(e) => { if (!val) return; e.stopPropagation(); navigator.clipboard.writeText(val); toast({ title: `${col.label} copiado!` }); }}>
-                                <span className={val ? 'inline-flex items-center gap-1 hover:text-foreground transition-colors' : ''}>
+                              <TableCell key={col.key} className="text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                                <span className="inline-flex items-center gap-1">
                                   {val || '-'}
-                                  {val && <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                                  {val && (
+                                    <>
+                                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { navigator.clipboard.writeText(val); toast({ title: `${col.label} copiado!` }); }}>
+                                        <Copy className="w-3 h-3" />
+                                      </Button>
+                                      {isPhoneColumn(col.key) && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleContact(lead, val)} title="Iniciar conversa">
+                                          <MessageCircle className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </>
+                                  )}
                                 </span>
                               </TableCell>
                             );
@@ -617,8 +629,8 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
                           }
                           return <TableCell key={col.key}>{val ?? '-'}</TableCell>;
                         })}
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleContact(lead); }} title="Iniciar conversa">
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" onClick={() => handleContact(lead)} title="Iniciar conversa">
                             <MessageCircle className="w-4 h-4" />
                           </Button>
                         </TableCell>
