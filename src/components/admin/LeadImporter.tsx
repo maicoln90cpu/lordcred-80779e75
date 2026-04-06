@@ -260,25 +260,35 @@ export default function LeadImporter() {
       return '';
     };
 
-    const parsed: ParsedLead[] = result.rows.map(row => ({
-      data_ref: String(getByKey(row, 'data_ref')),
-      banco_simulado: String(getByKey(row, 'banco_simulado')),
-      nome: String(getByKey(row, 'nome')),
-      telefone: cleanPhone(getByKey(row, 'telefone')),
-      cpf: String(getByKey(row, 'cpf')),
-      valor_lib: cleanCurrency(getByKey(row, 'valor_lib')),
-      prazo: getByKey(row, 'prazo') ? parseInt(String(getByKey(row, 'prazo'))) : null,
-      vlr_parcela: cleanCurrency(getByKey(row, 'vlr_parcela')),
-      status: String(getByKey(row, 'status') || 'pendente'),
-      aprovado: String(getByKey(row, 'aprovado')),
-      reprovado: String(getByKey(row, 'reprovado')),
-      data_nasc: String(getByKey(row, 'data_nasc')),
-      banco_codigo: String(getByKey(row, 'banco_codigo')),
-      banco_nome: String(getByKey(row, 'banco_nome')),
-      agencia: String(getByKey(row, 'agencia')),
-      conta: String(getByKey(row, 'conta')),
-      nome_mae: String(getByKey(row, 'nome_mae')),
-    })).filter(p => p.nome.trim() !== '');
+    const customAliases = columnAliases.filter(a => !NATIVE_KEYS.has(a.key));
+
+    const parsed: ParsedLead[] = result.rows.map(row => {
+      const extras: Record<string, string> = {};
+      customAliases.forEach(ca => {
+        const val = getByKey(row, ca.key);
+        if (val) extras[ca.key] = String(val);
+      });
+      return {
+        data_ref: String(getByKey(row, 'data_ref')),
+        banco_simulado: String(getByKey(row, 'banco_simulado')),
+        nome: String(getByKey(row, 'nome')),
+        telefone: cleanPhone(getByKey(row, 'telefone')),
+        cpf: String(getByKey(row, 'cpf')),
+        valor_lib: cleanCurrency(getByKey(row, 'valor_lib')),
+        prazo: getByKey(row, 'prazo') ? parseInt(String(getByKey(row, 'prazo'))) : null,
+        vlr_parcela: cleanCurrency(getByKey(row, 'vlr_parcela')),
+        status: String(getByKey(row, 'status') || 'pendente'),
+        aprovado: String(getByKey(row, 'aprovado')),
+        reprovado: String(getByKey(row, 'reprovado')),
+        data_nasc: String(getByKey(row, 'data_nasc')),
+        banco_codigo: String(getByKey(row, 'banco_codigo')),
+        banco_nome: String(getByKey(row, 'banco_nome')),
+        agencia: String(getByKey(row, 'agencia')),
+        conta: String(getByKey(row, 'conta')),
+        nome_mae: String(getByKey(row, 'nome_mae')),
+        extras: Object.keys(extras).length > 0 ? extras : undefined,
+      };
+    }).filter(p => p.nome.trim() !== '');
 
     setParsedData(parsed);
     const now = new Date();
