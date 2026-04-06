@@ -150,10 +150,21 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     queryFn: async () => {
       const { data } = await supabase
         .from('system_settings')
-        .select('seller_leads_columns')
+        .select('seller_leads_columns, lead_column_aliases')
         .maybeSingle();
       if (data && (data as any).seller_leads_columns && Array.isArray((data as any).seller_leads_columns)) {
-        return (data as any).seller_leads_columns as ColumnConfig[];
+        const saved = (data as any).seller_leads_columns as ColumnConfig[];
+        // Merge custom columns from aliases
+        const aliases = (data as any)?.lead_column_aliases as { key: string; system_label: string }[] | undefined;
+        if (aliases && Array.isArray(aliases)) {
+          const savedKeys = new Set(saved.map(c => c.key));
+          aliases.forEach(a => {
+            if (!savedKeys.has(a.key)) {
+              saved.push({ key: a.key, label: a.system_label, visible: false });
+            }
+          });
+        }
+        return saved;
       }
       return null;
     }
