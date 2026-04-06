@@ -244,6 +244,30 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_bonus_tiers: {
+        Row: {
+          bonus_value: number
+          created_at: string
+          id: string
+          min_contracts: number
+          updated_at: string
+        }
+        Insert: {
+          bonus_value?: number
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          updated_at?: string
+        }
+        Update: {
+          bonus_value?: number
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       commission_rates_clt: {
         Row: {
           bank: string
