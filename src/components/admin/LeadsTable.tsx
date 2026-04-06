@@ -33,6 +33,13 @@ function formatDate(value: string | number | null | undefined): string {
 
 const PAGE_SIZE = 50;
 
+const NATIVE_COLUMN_KEYS = new Set([
+  'nome', 'telefone', 'cpf', 'valor_lib', 'prazo', 'vlr_parcela', 'status',
+  'aprovado', 'reprovado', 'data_nasc', 'banco_codigo', 'banco_nome',
+  'banco_simulado', 'agencia', 'conta', 'nome_mae', 'data_ref',
+  'assigned_to', 'assigned_at', 'batch_name', 'perfil', 'notes',
+]);
+
 const DEFAULT_STATUS_OPTIONS = [
   { value: 'pendente', label: 'Pendente', color_class: 'bg-muted text-muted-foreground' },
   { value: 'CHAMEI', label: 'Chamei', color_class: 'bg-blue-500/20 text-blue-400' },
