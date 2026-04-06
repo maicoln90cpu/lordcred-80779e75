@@ -253,6 +253,7 @@ export type Database = {
           id: string
           obs: string | null
           rate: number
+          table_key: string | null
           term_max: number
           term_min: number
         }
@@ -264,6 +265,7 @@ export type Database = {
           id?: string
           obs?: string | null
           rate?: number
+          table_key?: string | null
           term_max?: number
           term_min?: number
         }
@@ -275,6 +277,7 @@ export type Database = {
           id?: string
           obs?: string | null
           rate?: number
+          table_key?: string | null
           term_max?: number
           term_min?: number
         }
@@ -312,6 +315,7 @@ export type Database = {
           bank: string
           batch_id: string | null
           bonus_value: number | null
+          client_birth_date: string | null
           client_cpf: string | null
           client_name: string | null
           client_phone: string | null
@@ -326,6 +330,7 @@ export type Database = {
           released_value: number
           sale_date: string
           seller_id: string
+          table_name: string | null
           term: number | null
           updated_at: string
           week_label: string | null
@@ -334,6 +339,7 @@ export type Database = {
           bank: string
           batch_id?: string | null
           bonus_value?: number | null
+          client_birth_date?: string | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -348,6 +354,7 @@ export type Database = {
           released_value?: number
           sale_date: string
           seller_id: string
+          table_name?: string | null
           term?: number | null
           updated_at?: string
           week_label?: string | null
@@ -356,6 +363,7 @@ export type Database = {
           bank?: string
           batch_id?: string | null
           bonus_value?: number | null
+          client_birth_date?: string | null
           client_cpf?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -370,6 +378,7 @@ export type Database = {
           released_value?: number
           sale_date?: string
           seller_id?: string
+          table_name?: string | null
           term?: number | null
           updated_at?: string
           week_label?: string | null
