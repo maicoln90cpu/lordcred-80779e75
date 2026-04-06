@@ -144,6 +144,34 @@ function exportToExcel(data: Record<string, string | number>[], filename: string
   XLSX.writeFile(wb, filename);
 }
 
+// Format a date for display using fixed São Paulo timezone
+function formatDateBR(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+  } catch { return dateStr; }
+}
+
+// Format a timestamptz to datetime-local input value in São Paulo timezone
+function toDatetimeLocalBR(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.slice(0, 16);
+    const parts = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  } catch { return dateStr.slice(0, 16); }
+}
+
+// Ensure a datetime-local string has Brasília offset before saving to timestamptz
+function toBrasiliaTimestamp(localDatetime: string): string {
+  if (!localDatetime) return localDatetime;
+  // If already has offset, return as is
+  if (/[+-]\d{2}:\d{2}$/.test(localDatetime) || localDatetime.endsWith('Z')) return localDatetime;
+  return localDatetime + '-03:00';
+}
+
 function parseExcelDate(v: any): string | null {
   if (!v) return null;
   // Handle Date objects (from cellDates: true) — extract local components to avoid UTC shift
@@ -153,16 +181,15 @@ function parseExcelDate(v: any): string | null {
     const d = String(v.getDate()).padStart(2, '0');
     const h = String(v.getHours()).padStart(2, '0');
     const min = String(v.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${d}T${h}:${min}`;
+    return `${y}-${m}-${d}T${h}:${min}-03:00`;
   }
   if (typeof v === 'number') {
     const d = XLSX.SSF.parse_date_code(v);
-    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}`;
+    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}-03:00`;
   }
   if (typeof v === 'string') {
     const parts = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-    if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}`;
-    // Avoid new Date(string) which parses as UTC — only use as last resort with manual extraction
+    if (parts) return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}T${(parts[4] || '12').padStart(2, '0')}:${(parts[5] || '00').padStart(2, '0')}-03:00`;
     const iso = new Date(v);
     if (!isNaN(iso.getTime())) {
       const y = iso.getFullYear();
@@ -170,7 +197,7 @@ function parseExcelDate(v: any): string | null {
       const d = String(iso.getDate()).padStart(2, '0');
       const h = String(iso.getHours()).padStart(2, '0');
       const min = String(iso.getMinutes()).padStart(2, '0');
-      return `${y}-${m}-${d}T${h}:${min}`;
+      return `${y}-${m}-${d}T${h}:${min}-03:00`;
     }
   }
   return null;
