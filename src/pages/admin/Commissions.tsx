@@ -552,6 +552,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                   <SortHead label="Data" sortKey="sale_date" sort={sort} toggle={toggle} />
                   <SortHead label="Produto" sortKey="product" sort={sort} toggle={toggle} />
                   <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                  <SortHead label="Tabela" sortKey="table_name" sort={sort} toggle={toggle} />
                   <SortHead label="Prazo" sortKey="term" sort={sort} toggle={toggle} />
                   <SortHead label="Valor Lib." sortKey="released_value" sort={sort} toggle={toggle} className="text-right" />
                   <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
@@ -577,6 +578,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
                       </Badge>
                     </TableCell>
                     <TableCell>{sale.bank}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate" title={(sale as any).table_name || ''}>{(sale as any).table_name || '-'}</TableCell>
                     <TableCell>{sale.term ? `${sale.term}m` : '-'}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(sale.released_value)}</TableCell>
                     <TableCell>{sale.has_insurance ? 'Sim' : 'Não'}</TableCell>
@@ -655,6 +657,14 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
               <div>
                 <Label>ID Proposta</Label>
                 <Input value={form.external_proposal_id} onChange={e => setForm({ ...form, external_proposal_id: e.target.value })} />
+              </div>
+              <div>
+                <Label>Tabela</Label>
+                <Input value={form.table_name} onChange={e => setForm({ ...form, table_name: e.target.value })} placeholder="Ex: FOCO NO CORBAN" />
+              </div>
+              <div>
+                <Label>Data Nascimento</Label>
+                <Input value={form.client_birth_date} onChange={e => setForm({ ...form, client_birth_date: e.target.value })} placeholder="DD/MM/AAAA" />
               </div>
               {isAdmin && (
                 <div className="col-span-2">
