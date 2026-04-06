@@ -49,6 +49,8 @@ interface ColumnConfig {
   key: string;
   label: string;
   visible: boolean;
+  aliases?: string[];
+  isCustom?: boolean;
 }
 
 const ALL_COLUMNS: ColumnConfig[] = [
@@ -113,9 +115,7 @@ export default function Leads() {
   const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
   const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
 
-  // Column aliases state
-  const [editingAliases, setEditingAliases] = useState<ColumnAlias[] | null>(null);
-  const [isSavingAliases, setIsSavingAliases] = useState(false);
+  // (aliases state removed — now unified with column config)
 
   // Fetch status options from system_settings
   const { data: statusOptions = DEFAULT_STATUS_OPTIONS } = useQuery({
@@ -147,25 +147,41 @@ export default function Leads() {
     }
   });
 
-  // Fetch column config from system_settings, merging with ALL_COLUMNS to include new columns
+  // Fetch column config from system_settings, merging with ALL_COLUMNS and aliases
   const { data: columnConfig = ALL_COLUMNS } = useQuery({
-    queryKey: ['lead-table-columns'],
+    queryKey: ['lead-table-columns', 'lead-column-aliases'],
     queryFn: async () => {
       const { data } = await supabase
         .from('system_settings')
-        .select('lead_table_columns')
+        .select('lead_table_columns, lead_column_aliases')
         .maybeSingle();
+      
+      let saved: ColumnConfig[] = [];
       if (data?.lead_table_columns && Array.isArray(data.lead_table_columns)) {
-        const saved = data.lead_table_columns as unknown as ColumnConfig[];
-        const savedKeys = new Set(saved.map(c => c.key));
-        // Add any new columns from ALL_COLUMNS that aren't in the saved config
-        const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
-        if (newCols.length > 0) {
-          return [...saved, ...newCols];
-        }
-        return saved;
+        saved = data.lead_table_columns as unknown as ColumnConfig[];
+      } else {
+        saved = [...ALL_COLUMNS];
       }
-      return ALL_COLUMNS;
+      
+      // Merge custom columns from aliases into columnConfig
+      const aliases = (data as any)?.lead_column_aliases as ColumnAlias[] | undefined;
+      if (aliases && Array.isArray(aliases)) {
+        const nativeKeys = new Set(ALL_COLUMNS.map(c => c.key));
+        const savedKeys = new Set(saved.map(c => c.key));
+        aliases.forEach(a => {
+          if (!nativeKeys.has(a.key) && !savedKeys.has(a.key)) {
+            saved.push({ key: a.key, label: a.system_label, visible: true, isCustom: true, aliases: a.aliases });
+          }
+        });
+      }
+      
+      // Add any new native columns not in saved
+      const savedKeys = new Set(saved.map(c => c.key));
+      const newCols = ALL_COLUMNS.filter(c => !savedKeys.has(c.key));
+      if (newCols.length > 0) {
+        return [...saved, ...newCols];
+      }
+      return saved;
     }
   });
 
@@ -553,14 +569,49 @@ export default function Leads() {
     }
   };
 
-  // Column config functions
-  const startEditingColumns = () => setEditingColumns([...columnConfig]);
+  // Unified column config functions (order + visibility + aliases)
+  const startEditingColumns = () => {
+    const cols = [...columnConfig];
+    // Enrich with alias data
+    const aliasMap = new Map(columnAliases.map(a => [a.key, a]));
+    const enriched = cols.map(c => {
+      const alias = aliasMap.get(c.key);
+      const isNative = ALL_COLUMNS.some(ac => ac.key === c.key);
+      return {
+        ...c,
+        aliases: alias?.aliases || [],
+        isCustom: !isNative,
+      };
+    });
+    setEditingColumns(enriched);
+  };
 
   const toggleColumnVisibility = (idx: number) => {
     if (!editingColumns) return;
     const updated = [...editingColumns];
     updated[idx] = { ...updated[idx], visible: !updated[idx].visible };
     setEditingColumns(updated);
+  };
+
+  const updateColumnField = (idx: number, field: 'label' | 'key' | 'aliases', val: string) => {
+    if (!editingColumns) return;
+    const updated = [...editingColumns];
+    if (field === 'aliases') {
+      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
+    } else {
+      updated[idx] = { ...updated[idx], [field]: val };
+    }
+    setEditingColumns(updated);
+  };
+
+  const addCustomColumn = () => {
+    if (!editingColumns) return;
+    setEditingColumns([...editingColumns, { key: '', label: '', visible: true, aliases: [], isCustom: true }]);
+  };
+
+  const removeCustomColumn = (idx: number) => {
+    if (!editingColumns) return;
+    setEditingColumns(editingColumns.filter((_, i) => i !== idx));
   };
 
   const moveColumn = (from: number, to: number) => {
@@ -573,15 +624,41 @@ export default function Leads() {
 
   const saveColumns = async () => {
     if (!editingColumns) return;
+    // Validate custom columns
+    const invalid = editingColumns.some(c => c.isCustom && (!c.key || !c.label));
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Colunas customizadas devem ter chave e nome preenchidos.', variant: 'destructive' });
+      return;
+    }
     setIsSavingColumns(true);
     try {
+      // Build column config (order + visibility)
+      const colConfig = editingColumns.map(c => ({ key: c.key, label: c.label, visible: c.visible }));
+      
+      // Build aliases array from editing columns + existing defaults
+      const nativeKeys = new Set(ALL_COLUMNS.map(c => c.key));
+      const aliasesArray: ColumnAlias[] = editingColumns.map(c => {
+        // For native columns, find existing alias or create default
+        const existingAlias = columnAliases.find(a => a.key === c.key);
+        return {
+          key: c.key,
+          system_label: c.label,
+          aliases: c.aliases && c.aliases.length > 0 ? c.aliases : (existingAlias?.aliases || [c.key]),
+        };
+      });
+
       const { error } = await supabase
         .from('system_settings')
-        .update({ lead_table_columns: editingColumns as any, updated_at: new Date().toISOString() } as any)
+        .update({
+          lead_table_columns: colConfig as any,
+          lead_column_aliases: aliasesArray as any,
+          updated_at: new Date().toISOString(),
+        } as any)
         .neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
-      toast({ title: 'Colunas atualizadas com sucesso' });
+      toast({ title: 'Configuração de colunas salva com sucesso' });
       queryClient.invalidateQueries({ queryKey: ['lead-table-columns'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
       setEditingColumns(null);
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -645,53 +722,7 @@ export default function Leads() {
   };
   const handleSellerColumnDragEnd = () => setDragSellerIdx(null);
 
-  // Column aliases management
-  const startEditingAliases = () => setEditingAliases([...columnAliases]);
-
-  const updateAliasField = (idx: number, field: 'system_label' | 'aliases' | 'key', val: string) => {
-    if (!editingAliases) return;
-    const updated = [...editingAliases];
-    if (field === 'aliases') {
-      updated[idx] = { ...updated[idx], aliases: val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) };
-    } else {
-      updated[idx] = { ...updated[idx], [field]: val };
-    }
-    setEditingAliases(updated);
-  };
-
-  const addAlias = () => {
-    if (!editingAliases) return;
-    setEditingAliases([...editingAliases, { key: '', system_label: '', aliases: [] }]);
-  };
-
-  const removeAlias = (idx: number) => {
-    if (!editingAliases) return;
-    setEditingAliases(editingAliases.filter((_, i) => i !== idx));
-  };
-
-  const saveAliases = async () => {
-    if (!editingAliases) return;
-    const invalid = editingAliases.some(a => !a.key || !a.system_label);
-    if (invalid) {
-      toast({ title: 'Erro', description: 'Todas as colunas devem ter chave interna e nome de exportação.', variant: 'destructive' });
-      return;
-    }
-    setIsSavingAliases(true);
-    try {
-      const { error } = await supabase
-        .from('system_settings')
-        .update({ lead_column_aliases: editingAliases as any, updated_at: new Date().toISOString() } as any)
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
-      toast({ title: 'Mapeamento de colunas atualizado' });
-      queryClient.invalidateQueries({ queryKey: ['lead-column-aliases'] });
-      setEditingAliases(null);
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setIsSavingAliases(false);
-    }
-  };
+  // (aliases management is now unified in saveColumns above)
 
   // Color hex presets for lead status/profiles
   const COLOR_HEX_PRESETS = [
@@ -1124,14 +1155,17 @@ export default function Leads() {
               </CardContent>
             </Card>
 
-            {/* Column Configuration */}
+            {/* Unified Column Configuration (Order + Visibility + Mapping) */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <GripVertical className="w-5 h-5" />
-                    Ordem e Visibilidade das Colunas
-                  </CardTitle>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <GripVertical className="w-5 h-5" />
+                      Configuração de Colunas
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Ordem, visibilidade, nomes e variações para importação — tudo em um só lugar</p>
+                  </div>
                   {!editingColumns ? (
                     <Button onClick={startEditingColumns}>Editar Colunas</Button>
                   ) : (
@@ -1148,11 +1182,12 @@ export default function Leads() {
               <CardContent>
                 {!editingColumns ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">Colunas ativas na tabela de leads:</p>
+                    <p className="text-sm text-muted-foreground">Colunas configuradas:</p>
                     <div className="flex flex-wrap gap-2">
                       {columnConfig.filter(c => c.visible).map(c => (
                         <Badge key={c.key} variant="outline" className="flex items-center gap-1">
                           <Eye className="w-3 h-3" /> {c.label}
+                          {c.isCustom && <span className="text-[10px] opacity-60">(custom)</span>}
                         </Badge>
                       ))}
                       {columnConfig.filter(c => !c.visible).map(c => (
@@ -1164,29 +1199,72 @@ export default function Leads() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Arraste para reordenar e alterne a visibilidade. A ordem aqui será refletida na tabela de leads.</p>
-                    {editingColumns.map((col, idx) => (
-                      <div
-                        key={col.key}
-                        draggable
-                        onDragStart={() => handleColumnDragStart(idx)}
-                        onDragOver={(e) => handleColumnDragOver(e, idx)}
-                        onDragEnd={handleColumnDragEnd}
-                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${dragIdx === idx ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'}`}
-                      >
-                        <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="flex-1 text-sm font-medium">{col.label}</span>
-                        <span className="text-xs text-muted-foreground font-mono">{col.key}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleColumnVisibility(idx)}
-                          className={col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}
+                    <p className="text-sm text-muted-foreground">Arraste para reordenar. Edite nomes e variações de importação. Colunas customizadas armazenam dados no campo "Observações".</p>
+                    {editingColumns.map((col, idx) => {
+                      const isNative = ALL_COLUMNS.some(ac => ac.key === col.key);
+                      return (
+                        <div
+                          key={`${col.key}-${idx}`}
+                          draggable
+                          onDragStart={() => handleColumnDragStart(idx)}
+                          onDragOver={(e) => handleColumnDragOver(e, idx)}
+                          onDragEnd={handleColumnDragEnd}
+                          className={`flex items-start gap-3 p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${dragIdx === idx ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'}`}
                         >
-                          {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        </Button>
-                      </div>
-                    ))}
+                          <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-2" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleColumnVisibility(idx)}
+                            className={`flex-shrink-0 mt-0.5 ${col.visible ? 'text-green-500 hover:text-green-600' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            {col.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </Button>
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">
+                                {isNative ? 'Chave' : 'Chave interna'}
+                              </label>
+                              {isNative ? (
+                                <span className="font-mono text-xs text-muted-foreground">{col.key}</span>
+                              ) : (
+                                <Input
+                                  value={col.key}
+                                  onChange={(e) => updateColumnField(idx, 'key', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="ex: telefone2"
+                                />
+                              )}
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">Nome (exibição)</label>
+                              <Input
+                                value={col.label}
+                                onChange={(e) => updateColumnField(idx, 'label', e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">Variações importação</label>
+                              <Input
+                                value={(col.aliases || []).join(', ')}
+                                onChange={(e) => updateColumnField(idx, 'aliases', e.target.value)}
+                                className="h-8 text-sm"
+                                placeholder="nome, name, Nome Completo"
+                              />
+                            </div>
+                          </div>
+                          {!isNative && (
+                            <Button variant="ghost" size="icon" onClick={() => removeCustomColumn(idx)} className="text-destructive hover:text-destructive h-8 w-8 flex-shrink-0 mt-0.5">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <Button variant="outline" onClick={addCustomColumn} className="w-full">
+                      <Plus className="w-4 h-4 mr-2" /> Adicionar Coluna Customizada
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1258,111 +1336,6 @@ export default function Leads() {
                         </Button>
                       </div>
                     ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Column Aliases for Import/Export */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-5 h-5" />
-                      Mapeamento de Colunas para Importação
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">Configure os nomes de exportação e variações aceitas na importação de planilhas</p>
-                  </div>
-                  {!editingAliases ? (
-                    <Button onClick={startEditingAliases}>Editar Mapeamento</Button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button variant="ghost" onClick={() => setEditingAliases(null)}>Cancelar</Button>
-                      <Button onClick={saveAliases} disabled={isSavingAliases}>
-                        {isSavingAliases && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Salvar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!editingAliases ? (
-                  <div className="border rounded-lg overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Coluna (interno)</TableHead>
-                          <TableHead>Nome na Exportação</TableHead>
-                          <TableHead>Variações aceitas na importação</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {columnAliases.map(a => (
-                          <TableRow key={a.key}>
-                            <TableCell className="font-mono text-xs">{a.key}</TableCell>
-                            <TableCell className="font-medium">{a.system_label}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{a.aliases.join(', ')}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Edite o nome de exportação e as variações (separadas por vírgula). Para colunas customizadas (não nativas do banco), os dados extras serão salvos no campo "Observações" do lead como JSON.
-                    </p>
-                    {editingAliases.map((alias, idx) => {
-                      const isDefault = DEFAULT_ALIASES.some(d => d.key === alias.key);
-                      return (
-                        <div key={idx} className="flex items-center gap-3 p-3 border rounded-lg">
-                          <div className="w-28 flex-shrink-0">
-                            {isDefault ? (
-                              <span className="font-mono text-xs text-muted-foreground">{alias.key}</span>
-                            ) : (
-                              <div>
-                                <label className="text-xs text-muted-foreground mb-1 block">Chave interna</label>
-                                <Input
-                                  value={alias.key}
-                                  onChange={(e) => updateAliasField(idx, 'key', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
-                                  className="h-8 text-sm font-mono"
-                                  placeholder="ex: telefone2"
-                                />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">Nome Exportação</label>
-                              <Input
-                                value={alias.system_label}
-                                onChange={(e) => updateAliasField(idx, 'system_label', e.target.value)}
-                                className="h-8 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">Variações (separadas por vírgula)</label>
-                              <Input
-                                value={alias.aliases.join(', ')}
-                                onChange={(e) => updateAliasField(idx, 'aliases', e.target.value)}
-                                className="h-8 text-sm"
-                                placeholder="nome, name, Nome Completo"
-                              />
-                            </div>
-                          </div>
-                          {!isDefault && (
-                            <Button variant="ghost" size="icon" onClick={() => removeAlias(idx)} className="text-destructive hover:text-destructive h-8 w-8 flex-shrink-0">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <Button variant="outline" onClick={addAlias} className="w-full">
-                      <Plus className="w-4 h-4 mr-2" /> Adicionar Coluna
-                    </Button>
                   </div>
                 )}
               </CardContent>
