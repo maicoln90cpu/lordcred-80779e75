@@ -67,6 +67,31 @@ const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
 
 const PAGE_SIZE = 50;
 
+const NATIVE_COLUMN_KEYS = new Set([
+  'nome', 'telefone', 'cpf', 'valor_lib', 'prazo', 'vlr_parcela', 'status',
+  'aprovado', 'reprovado', 'data_nasc', 'banco_codigo', 'banco_nome',
+  'banco_simulado', 'agencia', 'conta', 'nome_mae', 'data_ref',
+  'assigned_to', 'assigned_at', 'batch_name', 'perfil', 'notes',
+]);
+
+/** Get value for a column key, checking notes JSON for custom columns */
+function getLeadValue(lead: any, key: string): any {
+  if (NATIVE_COLUMN_KEYS.has(key)) return lead[key];
+  // Custom column — extract from notes JSON
+  if (lead.notes) {
+    try {
+      const extras = JSON.parse(lead.notes);
+      if (extras[key] !== undefined) return extras[key];
+    } catch {}
+  }
+  return null;
+}
+
+/** Check if a column key represents a phone field */
+function isPhoneColumn(key: string): boolean {
+  return key === 'telefone' || key.toLowerCase().startsWith('telefone');
+}
+
 interface ColumnConfig {
   key: string;
   label: string;
