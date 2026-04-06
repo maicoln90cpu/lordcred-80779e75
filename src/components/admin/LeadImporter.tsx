@@ -477,6 +477,44 @@ export default function LeadImporter() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardPaste className="w-5 h-5" />
+              Colar Dados da Planilha
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Copie os dados do Excel/Google Sheets (incluindo cabeçalhos) e cole abaixo. O sistema detectará automaticamente as colunas.
+            </p>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              onPaste={(e) => {
+                e.preventDefault();
+                const text = e.clipboardData.getData('text/plain');
+                setPasteText(text);
+              }}
+              placeholder="Cole aqui os dados copiados da planilha (Ctrl+V)..."
+              className="w-full h-48 p-3 border rounded-md bg-background text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {pasteText && (
+              <p className="text-xs text-muted-foreground">
+                {pasteText.split('\n').filter(l => l.trim()).length} linhas detectadas
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setPasteDialogOpen(false); setPasteText(''); }}>Cancelar</Button>
+            <Button onClick={handlePasteImport} disabled={!pasteText.trim()}>
+              <ClipboardPaste className="w-4 h-4 mr-2" /> Processar Colagem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

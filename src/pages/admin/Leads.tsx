@@ -648,7 +648,7 @@ export default function Leads() {
   // Column aliases management
   const startEditingAliases = () => setEditingAliases([...columnAliases]);
 
-  const updateAliasField = (idx: number, field: 'system_label' | 'aliases', val: string) => {
+  const updateAliasField = (idx: number, field: 'system_label' | 'aliases' | 'key', val: string) => {
     if (!editingAliases) return;
     const updated = [...editingAliases];
     if (field === 'aliases') {
@@ -659,8 +659,23 @@ export default function Leads() {
     setEditingAliases(updated);
   };
 
+  const addAlias = () => {
+    if (!editingAliases) return;
+    setEditingAliases([...editingAliases, { key: '', system_label: '', aliases: [] }]);
+  };
+
+  const removeAlias = (idx: number) => {
+    if (!editingAliases) return;
+    setEditingAliases(editingAliases.filter((_, i) => i !== idx));
+  };
+
   const saveAliases = async () => {
     if (!editingAliases) return;
+    const invalid = editingAliases.some(a => !a.key || !a.system_label);
+    if (invalid) {
+      toast({ title: 'Erro', description: 'Todas as colunas devem ter chave interna e nome de exportação.', variant: 'destructive' });
+      return;
+    }
     setIsSavingAliases(true);
     try {
       const { error } = await supabase
