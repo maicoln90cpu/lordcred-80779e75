@@ -1027,6 +1027,7 @@ function RatesCLTTab() {
               <TableRow>
                 <SortHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
                 <SortHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
+                <SortHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
                 <SortHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
                 <SortHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
                 <SortHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
@@ -1043,6 +1044,7 @@ function RatesCLTTab() {
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
+                  <TableCell className="text-xs">{(r as any).table_key || '-'}</TableCell>
                   <TableCell>{r.term_min}</TableCell>
                   <TableCell>{r.term_max}</TableCell>
                   <TableCell>{r.has_insurance ? 'Sim' : 'Não'}</TableCell>
@@ -1070,7 +1072,8 @@ function RatesCLTTab() {
               <div><Label>Prazo Max</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
               <div className="flex items-end gap-2 pb-1"><Switch checked={form.has_insurance} onCheckedChange={v => setForm({ ...form, has_insurance: v })} /><Label>Seguro</Label></div>
               <div><Label>Taxa (%) *</Label><Input type="number" step="0.01" value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} /></div>
-              <div className="col-span-2"><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: 2 parceiros" /></div>
+              <div><Label>Chave Tabela</Label><Input value={form.table_key} onChange={e => setForm({ ...form, table_key: e.target.value })} placeholder="Ex: SONHO, FOCO, 2 Parcela" /></div>
+              <div><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: CLT - Ambos seguro" /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
