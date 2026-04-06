@@ -232,7 +232,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
   const [form, setForm] = useState({
     sale_date: '', product: 'FGTS', bank: '', term: '', released_value: '',
     has_insurance: false, client_cpf: '', client_name: '', client_phone: '',
-    seller_id: userId, external_proposal_id: ''
+    seller_id: userId, external_proposal_id: '', table_name: '', client_birth_date: ''
   });
 
   useEffect(() => { loadSales(); }, []);
@@ -271,7 +271,7 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       sale_date: new Date().toISOString().slice(0, 16),
       product: 'FGTS', bank: '', term: '', released_value: '',
       has_insurance: false, client_cpf: '', client_name: '', client_phone: '',
-      seller_id: userId, external_proposal_id: ''
+      seller_id: userId, external_proposal_id: '', table_name: '', client_birth_date: ''
     });
     setDialogOpen(true);
   };
@@ -289,7 +289,9 @@ function BaseTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Profi
       client_name: sale.client_name || '',
       client_phone: sale.client_phone || '',
       seller_id: sale.seller_id,
-      external_proposal_id: sale.external_proposal_id || ''
+      external_proposal_id: sale.external_proposal_id || '',
+      table_name: (sale as any).table_name || '',
+      client_birth_date: (sale as any).client_birth_date || ''
     });
     setDialogOpen(true);
   };
