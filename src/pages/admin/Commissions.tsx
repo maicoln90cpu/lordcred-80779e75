@@ -957,7 +957,7 @@ function RatesCLTTab() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateCLT | null>(null);
-  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
   const { sort, toggle } = useSortConfig();
 
   useEffect(() => { loadRates(); }, []);
@@ -971,7 +971,7 @@ function RatesCLTTab() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '' });
+    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
     setDialogOpen(true);
   };
 
@@ -980,7 +980,8 @@ function RatesCLTTab() {
     setForm({
       effective_date: r.effective_date, bank: r.bank,
       term_min: r.term_min.toString(), term_max: r.term_max.toString(),
-      has_insurance: r.has_insurance, rate: r.rate.toString(), obs: r.obs || ''
+      has_insurance: r.has_insurance, rate: r.rate.toString(), obs: r.obs || '',
+      table_key: (r as any).table_key || ''
     });
     setDialogOpen(true);
   };
@@ -991,6 +992,7 @@ function RatesCLTTab() {
       effective_date: form.effective_date, bank: form.bank,
       term_min: parseInt(form.term_min) || 0, term_max: parseInt(form.term_max) || 999,
       has_insurance: form.has_insurance, rate: parseFloat(form.rate) || 0, obs: form.obs || null,
+      table_key: form.table_key || null,
     };
     let error;
     if (editing) {
