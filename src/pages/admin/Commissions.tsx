@@ -1548,181 +1548,177 @@ function ConfigTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
-            Configurações de Comissões
+            Configurações e Bônus
           </CardTitle>
+          <p className="text-sm text-muted-foreground">Regras semanais, premiação e faixas escalonadas de bônus mensal.</p>
         </CardHeader>
-        <CardContent className="space-y-6 max-w-md">
-          <div className="space-y-2">
-            <Label>Dia de início da semana (para agrupamento)</Label>
-            <Select value={String(weekStartDay)} onValueChange={v => setWeekStartDay(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DAY_NAMES.map((name, i) => (
-                  <SelectItem key={i} value={String(i)}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Define o dia que inicia a "semana de vendas" para o cálculo do week_label. Atualmente: <strong>{DAY_NAMES[weekStartDay]}</strong>
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Dia de pagamento (referência)</Label>
-            <Select value={String(paymentDay)} onValueChange={v => setPaymentDay(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DAY_NAMES.map((name, i) => (
-                  <SelectItem key={i} value={String(i)}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">Dia da semana em que os pagamentos são realizados.</p>
-          </div>
-
-          <div className="border-t pt-4 space-y-4">
-            <h3 className="font-medium text-sm">Bônus Simples (por semana)</h3>
-
-            <div className="space-y-2">
-              <Label>Tipo de meta de bônus</Label>
-              <Select value={bonusMode} onValueChange={setBonusMode}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="valor">Valor Liberado (R$)</SelectItem>
-                  <SelectItem value="contratos">Nº de Contratos</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {bonusMode === 'valor'
-                  ? 'O bônus é ativado quando o total liberado na semana ultrapassar a meta.'
-                  : 'O bônus é ativado quando o vendedor atingir o número mínimo de contratos na semana.'}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{bonusMode === 'valor' ? 'Meta semanal para bônus (R$)' : 'Nº mínimo de contratos na semana'}</Label>
-              <Input type="number" step={bonusMode === 'valor' ? '0.01' : '1'}
-                placeholder={bonusMode === 'valor' ? 'Ex: 50000' : 'Ex: 10'}
-                value={bonusThreshold} onChange={e => setBonusThreshold(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Deixe vazio para desativar o bônus simples.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tipo de premiação</Label>
-              <Select value={isFixedBonus ? 'fixo' : 'taxa'} onValueChange={v => {
-                if (v === 'fixo') { setBonusRate('0'); setBonusFixedValue(bonusFixedValue === '0' ? '100' : bonusFixedValue); }
-                else { setBonusFixedValue('0'); setBonusRate(bonusRate === '0' ? '0.5' : bonusRate); }
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="taxa">Taxa percentual (%)</SelectItem>
-                  <SelectItem value="fixo">Valor fixo (R$)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {isFixedBonus ? (
+        <CardContent className="space-y-6">
+          {/* Section 1: Weekly settings */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4 max-w-sm">
+              <h3 className="font-medium text-sm border-b pb-2">Regras Semanais</h3>
               <div className="space-y-2">
-                <Label>Valor fixo de bônus por contrato (R$)</Label>
-                <Input type="number" step="0.01" placeholder="Ex: 100" value={bonusFixedValue} onChange={e => setBonusFixedValue(e.target.value)} />
+                <Label>Dia de início da semana</Label>
+                <Select value={String(weekStartDay)} onValueChange={v => setWeekStartDay(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DAY_NAMES.map((name, i) => (
+                      <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Define o dia que inicia a "semana de vendas". Atualmente: <strong>{DAY_NAMES[weekStartDay]}</strong></p>
               </div>
-            ) : (
+
               <div className="space-y-2">
-                <Label>Taxa de bônus extra (%)</Label>
-                <Input type="number" step="0.01" placeholder="Ex: 0.5" value={bonusRate} onChange={e => setBonusRate(e.target.value)} />
+                <Label>Dia de pagamento (referência)</Label>
+                <Select value={String(paymentDay)} onValueChange={v => setPaymentDay(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DAY_NAMES.map((name, i) => (
+                      <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+            </div>
+
+            <div className="space-y-4 max-w-sm">
+              <h3 className="font-medium text-sm border-b pb-2">Bônus Simples (por semana)</h3>
+              <div className="space-y-2">
+                <Label>Tipo de meta</Label>
+                <Select value={bonusMode} onValueChange={setBonusMode}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="valor">Valor Liberado (R$)</SelectItem>
+                    <SelectItem value="contratos">Nº de Contratos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{bonusMode === 'valor' ? 'Meta semanal (R$)' : 'Nº mínimo de contratos'}</Label>
+                <Input type="number" step={bonusMode === 'valor' ? '0.01' : '1'}
+                  placeholder={bonusMode === 'valor' ? 'Ex: 50000' : 'Ex: 10'}
+                  value={bonusThreshold} onChange={e => setBonusThreshold(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Deixe vazio para desativar.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de premiação</Label>
+                <Select value={isFixedBonus ? 'fixo' : 'taxa'} onValueChange={v => {
+                  if (v === 'fixo') { setBonusRate('0'); setBonusFixedValue(bonusFixedValue === '0' ? '100' : bonusFixedValue); }
+                  else { setBonusFixedValue('0'); setBonusRate(bonusRate === '0' ? '0.5' : bonusRate); }
+                }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="taxa">Taxa percentual (%)</SelectItem>
+                    <SelectItem value="fixo">Valor fixo (R$)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isFixedBonus ? (
+                <div className="space-y-2">
+                  <Label>Valor fixo por contrato (R$)</Label>
+                  <Input type="number" step="0.01" placeholder="Ex: 100" value={bonusFixedValue} onChange={e => setBonusFixedValue(e.target.value)} />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Taxa de bônus extra (%)</Label>
+                  <Input type="number" step="0.01" placeholder="Ex: 0.5" value={bonusRate} onChange={e => setBonusRate(e.target.value)} />
+                </div>
+              )}
+
+              <div className="p-3 bg-muted rounded-md text-xs text-muted-foreground">
+                <p><strong>Resumo:</strong>{' '}
+                  {bonusMode === 'valor'
+                    ? `Meta R$ ${bonusThreshold || '—'}`
+                    : `Meta ${bonusThreshold || '—'} contratos`}
+                  {isFixedBonus
+                    ? ` → bônus fixo R$ ${bonusFixedValue}/venda`
+                    : ` → bônus ${bonusRate || '0'}%/venda`}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-            <p><strong>Como funciona o bônus simples:</strong></p>
-            <p className="mt-1">
-              {bonusMode === 'valor'
-                ? `Quando o valor liberado total na semana ultrapassar R$ ${bonusThreshold || '—'}`
-                : `Quando o vendedor atingir ${bonusThreshold || '—'} contratos na semana`}
-              {isFixedBonus
-                ? `, um bônus fixo de R$ ${bonusFixedValue} é adicionado a cada venda.`
-                : `, uma comissão extra de ${bonusRate || '0'}% é adicionada sobre o valor liberado.`}
-            </p>
-          </div>
-
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar Configurações
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Bonus Tiers Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              Faixas de Bônus por Produção (Mensal)
-            </CardTitle>
-            <Button size="sm" onClick={() => { setEditingTier(null); setTierForm({ min_contracts: '', bonus_value: '' }); setTierDialogOpen(true); }}>
-              <Plus className="w-4 h-4 mr-1" /> Adicionar Faixa
+          <div className="flex justify-start">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Salvar Configurações
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Faixas escalonadas de bônus mensal por número de contratos. O vendedor recebe o bônus da faixa mais alta atingida.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {tiers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">Nenhuma faixa cadastrada</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nº Mínimo de Contratos</TableHead>
-                  <TableHead className="text-right">Valor do Bônus (R$)</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tiers.map(t => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.min_contracts} contratos</TableCell>
-                    <TableCell className="text-right font-bold text-primary">{fmtBRL(t.bonus_value)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                          setEditingTier(t);
-                          setTierForm({ min_contracts: String(t.min_contracts), bonus_value: String(t.bonus_value) });
-                          setTierDialogOpen(true);
-                        }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteTier(t.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
 
-          <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader><DialogTitle>{editingTier ? 'Editar Faixa' : 'Nova Faixa de Bônus'}</DialogTitle></DialogHeader>
-              <div className="space-y-3">
-                <div>
-                  <Label>Nº mínimo de contratos</Label>
-                  <Input type="number" value={tierForm.min_contracts} onChange={e => setTierForm({ ...tierForm, min_contracts: e.target.value })} placeholder="Ex: 10" />
-                </div>
-                <div>
-                  <Label>Valor do bônus (R$)</Label>
-                  <Input type="number" step="0.01" value={tierForm.bonus_value} onChange={e => setTierForm({ ...tierForm, bonus_value: e.target.value })} placeholder="Ex: 200" />
-                </div>
+          {/* Section 2: Monthly bonus tiers */}
+          <div className="border-t pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-medium text-sm flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Faixas de Bônus por Produção (Mensal)
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">Faixas escalonadas — vendedor recebe o bônus da faixa mais alta atingida.</p>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setTierDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSaveTier}>Salvar</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              <Button size="sm" onClick={() => { setEditingTier(null); setTierForm({ min_contracts: '', bonus_value: '' }); setTierDialogOpen(true); }}>
+                <Plus className="w-4 h-4 mr-1" /> Faixa
+              </Button>
+            </div>
+
+            {tiers.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">Nenhuma faixa cadastrada</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nº Mínimo de Contratos</TableHead>
+                    <TableHead className="text-right">Valor do Bônus (R$)</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tiers.map(t => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-medium">{t.min_contracts} contratos</TableCell>
+                      <TableCell className="text-right font-bold text-primary">{fmtBRL(t.bonus_value)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                            setEditingTier(t);
+                            setTierForm({ min_contracts: String(t.min_contracts), bonus_value: String(t.bonus_value) });
+                            setTierDialogOpen(true);
+                          }}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteTier(t.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+
+            <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>{editingTier ? 'Editar Faixa' : 'Nova Faixa de Bônus'}</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Nº mínimo de contratos</Label>
+                    <Input type="number" value={tierForm.min_contracts} onChange={e => setTierForm({ ...tierForm, min_contracts: e.target.value })} placeholder="Ex: 10" />
+                  </div>
+                  <div>
+                    <Label>Valor do bônus (R$)</Label>
+                    <Input type="number" step="0.01" value={tierForm.bonus_value} onChange={e => setTierForm({ ...tierForm, bonus_value: e.target.value })} placeholder="Ex: 200" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setTierDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleSaveTier}>Salvar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardContent>
       </Card>
     </div>
