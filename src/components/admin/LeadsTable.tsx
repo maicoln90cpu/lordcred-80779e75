@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Copy, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { DEFAULT_ALIASES, type ColumnAlias } from './LeadImporter';
