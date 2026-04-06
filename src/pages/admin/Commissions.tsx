@@ -1645,6 +1645,7 @@ function HistImportTab({ userId, profiles, getSellerName }: { userId: string; pr
 }
 
 // Clipboard parser imported from @/lib/clipboardParser
+const POSITIONAL_HEADERS_13 = ['Data Pago', 'Produto', 'Banco', 'Tabela', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Data Nascimento', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_11 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_10 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor', 'ID'];
 const POSITIONAL_HEADERS_9 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Nome', 'CPF', 'Vendedor'];
