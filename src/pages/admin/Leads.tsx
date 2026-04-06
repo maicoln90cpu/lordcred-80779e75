@@ -115,7 +115,7 @@ export default function Leads() {
   const [isSavingSellerColumns, setIsSavingSellerColumns] = useState(false);
   const [dragSellerIdx, setDragSellerIdx] = useState<number | null>(null);
 
-  // Column aliases state
+  // Column aliases state (now unified with column config)
   const [editingAliases, setEditingAliases] = useState<ColumnAlias[] | null>(null);
   const [isSavingAliases, setIsSavingAliases] = useState(false);
 
