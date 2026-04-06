@@ -312,30 +312,38 @@ export default function LeadImporter() {
     setIsImporting(true);
     try {
       const now = new Date().toISOString();
-      const batch = parsedData.map(lead => ({
-        created_by: user!.id,
-        assigned_to: selectedSeller,
-        assigned_at: now,
-        batch_name: batchName || fileName,
-        perfil: selectedProfile || null,
-        data_ref: lead.data_ref,
-        banco_simulado: lead.banco_simulado,
-        nome: lead.nome,
-        telefone: lead.telefone,
-        cpf: lead.cpf,
-        valor_lib: lead.valor_lib,
-        prazo: lead.prazo,
-        vlr_parcela: lead.vlr_parcela,
-        status: lead.status || 'pendente',
-        aprovado: lead.aprovado,
-        reprovado: lead.reprovado,
-        data_nasc: lead.data_nasc,
-        banco_codigo: lead.banco_codigo,
-        banco_nome: lead.banco_nome,
-        agencia: lead.agencia,
-        conta: lead.conta,
-        nome_mae: lead.nome_mae,
-      }));
+      const batch = parsedData.map(lead => {
+        // Merge extras into notes as JSON
+        let notes: string | null = null;
+        if (lead.extras && Object.keys(lead.extras).length > 0) {
+          notes = JSON.stringify(lead.extras);
+        }
+        return {
+          created_by: user!.id,
+          assigned_to: selectedSeller,
+          assigned_at: now,
+          batch_name: batchName || fileName,
+          perfil: selectedProfile || null,
+          data_ref: lead.data_ref,
+          banco_simulado: lead.banco_simulado,
+          nome: lead.nome,
+          telefone: lead.telefone,
+          cpf: lead.cpf,
+          valor_lib: lead.valor_lib,
+          prazo: lead.prazo,
+          vlr_parcela: lead.vlr_parcela,
+          status: lead.status || 'pendente',
+          aprovado: lead.aprovado,
+          reprovado: lead.reprovado,
+          data_nasc: lead.data_nasc,
+          banco_codigo: lead.banco_codigo,
+          banco_nome: lead.banco_nome,
+          agencia: lead.agencia,
+          conta: lead.conta,
+          nome_mae: lead.nome_mae,
+          notes,
+        };
+      });
 
       for (let i = 0; i < batch.length; i += 100) {
         const chunk = batch.slice(i, i + 100);
