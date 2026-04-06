@@ -17,6 +17,12 @@ import { Badge } from '@/components/ui/badge';
 import { uploadSpreadsheet } from '@/lib/storageUpload';
 import { parseClipboardText } from '@/lib/clipboardParser';
 
+const NATIVE_KEYS = new Set([
+  'nome', 'telefone', 'cpf', 'valor_lib', 'prazo', 'vlr_parcela', 'status',
+  'aprovado', 'reprovado', 'data_nasc', 'banco_codigo', 'banco_nome',
+  'banco_simulado', 'agencia', 'conta', 'nome_mae', 'data_ref',
+]);
+
 interface ParsedLead {
   data_ref: string;
   banco_simulado: string;
@@ -35,6 +41,7 @@ interface ParsedLead {
   agencia: string;
   conta: string;
   nome_mae: string;
+  extras?: Record<string, string>;
 }
 
 function cleanCurrency(value: string | number | null | undefined): number | null {
