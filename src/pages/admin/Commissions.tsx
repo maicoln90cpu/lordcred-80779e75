@@ -1436,8 +1436,9 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortConfig();
+  const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
 
-  useEffect(() => { loadSales(); }, []);
+  useEffect(() => { loadSales(); loadMonthlyGoal(); }, []);
 
   const loadSales = async () => {
     setLoading(true);
@@ -1445,6 +1446,34 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
     if (data) setSales(data as unknown as CommissionSale[]);
     setLoading(false);
   };
+
+  const loadMonthlyGoal = async () => {
+    const { data } = await supabase.from('commission_settings').select('monthly_goal_value, monthly_goal_type').limit(1).single();
+    if (data) setMonthlyGoal({ value: (data as any).monthly_goal_value ?? 0, type: (data as any).monthly_goal_type ?? 'contratos' });
+  };
+
+  // Current month sales for progress (per selected seller or own)
+  const currentMonthSales = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const targetSeller = sellerFilter !== 'all' ? sellerFilter : (!isAdmin ? userId : null);
+    return sales.filter(s => {
+      const d = new Date(s.sale_date);
+      if (d.getFullYear() !== y || d.getMonth() !== m) return false;
+      if (targetSeller && s.seller_id !== targetSeller) return false;
+      return true;
+    });
+  }, [sales, sellerFilter, isAdmin, userId]);
+
+  const monthlyProgress = useMemo(() => {
+    if (monthlyGoal.value <= 0) return null;
+    const current = monthlyGoal.type === 'contratos'
+      ? currentMonthSales.length
+      : currentMonthSales.reduce((a, s) => a + s.released_value, 0);
+    const pct = Math.min((current / monthlyGoal.value) * 100, 100);
+    return { current, goal: monthlyGoal.value, pct, type: monthlyGoal.type };
+  }, [monthlyGoal, currentMonthSales]);
 
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
