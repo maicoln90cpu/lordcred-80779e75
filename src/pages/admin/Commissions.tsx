@@ -2035,6 +2035,10 @@ function ConfigTab({ profiles, getSellerName }: { profiles: Profile[]; getSeller
           <div className="border-t pt-6">
             <AnnualRewardsSection />
           </div>
+          {/* Section 4: Annual progress per seller */}
+          <div className="border-t pt-6">
+            <AnnualProgressSection profiles={profiles} getSellerName={getSellerName} />
+          </div>
         </CardContent>
       </Card>
     </div>
