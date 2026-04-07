@@ -1438,7 +1438,14 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const { sort, toggle } = useSortConfig();
   const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
 
-  useEffect(() => { loadSales(); loadMonthlyGoal(); }, []);
+  const [annualRewards, setAnnualRewards] = useState<AnnualReward[]>([]);
+
+  useEffect(() => { loadSales(); loadMonthlyGoal(); loadAnnualRewards(); }, []);
+
+  const loadAnnualRewards = async () => {
+    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    if (data) setAnnualRewards(data as any as AnnualReward[]);
+  };
 
   const loadSales = async () => {
     setLoading(true);
