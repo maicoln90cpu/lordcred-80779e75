@@ -1482,7 +1482,26 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
     return { current, goal: monthlyGoal.value, pct, type: monthlyGoal.type };
   }, [monthlyGoal, currentMonthSales]);
 
-  const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
+  // Annual progress for selected seller
+  const annualProgress = useMemo(() => {
+    if (annualRewards.length === 0) return null;
+    const targetSeller = sellerFilter !== 'all' ? sellerFilter : (!isAdmin ? userId : null);
+    if (!targetSeller) return null; // admin with "all" selected — no individual annual progress
+    const year = new Date().getFullYear();
+    const yearSales = sales.filter(s => {
+      const d = new Date(s.sale_date);
+      return d.getFullYear() === year && s.seller_id === targetSeller;
+    });
+    const count = yearSales.length;
+    const sorted = [...annualRewards].sort((a, b) => a.min_contracts - b.min_contracts);
+    const nextReward = sorted.find(r => r.min_contracts > count);
+    const currentReward = [...sorted].reverse().find(r => r.min_contracts <= count);
+    const nextTarget = nextReward?.min_contracts || sorted[sorted.length - 1]?.min_contracts || 0;
+    const remaining = nextReward ? nextReward.min_contracts - count : 0;
+    const pct = nextTarget > 0 ? Math.min((count / nextTarget) * 100, 100) : 100;
+    return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', nextTarget, currentReward: currentReward?.reward_description || null, remaining, pct };
+  }, [sales, annualRewards, sellerFilter, isAdmin, userId]);
+
 
   const filtered = sales.filter(s => {
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
