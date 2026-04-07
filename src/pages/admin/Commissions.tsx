@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
+import CommMetas from '@/components/commission-reports/CommMetas';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
 
