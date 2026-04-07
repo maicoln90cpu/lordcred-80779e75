@@ -1681,6 +1681,8 @@ function ConfigTab() {
   const [bonusRate, setBonusRate] = useState<string>('0');
   const [bonusMode, setBonusMode] = useState<string>('valor');
   const [bonusFixedValue, setBonusFixedValue] = useState<string>('0');
+  const [monthlyGoalValue, setMonthlyGoalValue] = useState<string>('0');
+  const [monthlyGoalType, setMonthlyGoalType] = useState<string>('contratos');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
