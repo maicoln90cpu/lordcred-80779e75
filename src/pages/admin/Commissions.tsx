@@ -251,6 +251,7 @@ export default function Commissions() {
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
             {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
             {isAdmin && <TabsTrigger value="indicadores"><Lightbulb className="w-3.5 h-3.5 mr-1" />Indicadores</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="metas"><Target className="w-3.5 h-3.5 mr-1" />Metas</TabsTrigger>}
             {isAdmin && <TabsTrigger value="hist-importacoes"><ClipboardList className="w-3.5 h-3.5 mr-1" />Hist. Importações</TabsTrigger>}
           </TabsList>
 
