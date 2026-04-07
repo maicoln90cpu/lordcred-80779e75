@@ -963,6 +963,10 @@ function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
   const { sort, toggle } = useSortConfig();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadRates(); }, []);
 
@@ -1008,12 +1012,65 @@ function RatesFGTSTab() {
     toast({ title: 'Taxa excluída' }); loadRates();
   };
 
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Banco', 'Taxa Sem Seguro (%)', 'Taxa Com Seguro (%)'],
+      ['PARANA BANCO', '3.5', '4.0'],
+    ]);
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo FGTS');
+    XLSX.writeFile(wb, 'modelo_taxas_fgts.xlsx');
+  };
+
+  const parseImportData = (rows: Record<string, string>[]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rows.map(r => {
+      const bank = r['Banco'] || r['banco'] || '';
+      const rateNo = parseFloat((r['Taxa Sem Seguro (%)'] || r['taxa_sem_seguro'] || r['rate_no_insurance'] || '0').replace(',', '.')) || 0;
+      const rateWith = parseFloat((r['Taxa Com Seguro (%)'] || r['taxa_com_seguro'] || r['rate_with_insurance'] || '0').replace(',', '.')) || 0;
+      return { effective_date: today, bank, rate_no_insurance: rateNo, rate_with_insurance: rateWith };
+    }).filter(r => r.bank);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    setImportPreview(parseImportData(rows));
+    setImportDialogOpen(true);
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    const parsed = parseClipboardText(text, ['Banco', 'Taxa Sem Seguro (%)', 'Taxa Com Seguro (%)']);
+    setImportPreview(parseImportData(parsed.rows));
+  };
+
+  const confirmImport = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const { error } = await supabase.from('commission_rates_fgts').insert(importPreview as any);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
+    setImporting(false);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle>Taxas Comissão FGTS</CardTitle>
-          <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
+            <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1064,6 +1121,56 @@ function RatesFGTSTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import Dialog */}
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Importar Taxas FGTS</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Upload Excel (.xlsx)</Label>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="block w-full text-sm mt-1 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground" />
+              </div>
+              <div className="relative">
+                <Label>Ou cole os dados (Ctrl+V)</Label>
+                <textarea onPaste={handlePaste} placeholder="Cole aqui os dados copiados da planilha..." className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] mt-1 placeholder:text-muted-foreground" />
+              </div>
+              {importPreview.length > 0 && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <p className="text-sm font-medium mb-2">Preview: {importPreview.length} taxas (vigência: hoje)</p>
+                  <div className="max-h-40 overflow-auto text-xs">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead className="text-xs p-1">Banco</TableHead>
+                        <TableHead className="text-xs p-1 text-right">Sem Seguro</TableHead>
+                        <TableHead className="text-xs p-1 text-right">Com Seguro</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {importPreview.slice(0, 10).map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="p-1">{r.bank}</TableCell>
+                            <TableCell className="p-1 text-right">{r.rate_no_insurance}%</TableCell>
+                            <TableCell className="p-1 text-right">{r.rate_with_insurance}%</TableCell>
+                          </TableRow>
+                        ))}
+                        {importPreview.length > 10 && <TableRow><TableCell colSpan={3} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={confirmImport} disabled={importPreview.length === 0 || importing}>
+                {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                Importar {importPreview.length} taxas
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
       </CardContent>
     </Card>
   );
