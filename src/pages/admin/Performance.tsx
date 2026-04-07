@@ -167,7 +167,7 @@ export default function Performance() {
       }
       setLoading(false);
     })();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, refreshKey]);
 
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -285,6 +285,10 @@ export default function Performance() {
             <p className="text-muted-foreground">Métricas de desempenho dos vendedores</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setRefreshKey(k => k + 1)} disabled={loading}>
+              <RefreshCw className={cn("w-4 h-4 mr-1", loading && "animate-spin")} />
+              Atualizar
+            </Button>
             <CalendarIcon className="w-4 h-4 text-muted-foreground" />
             {PERIOD_OPTIONS.map(opt => (
               <Button
