@@ -1896,6 +1896,7 @@ function ConfigTab() {
             </div>
           </div>
 
+          <div className="flex justify-start">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Salvar Configurações
