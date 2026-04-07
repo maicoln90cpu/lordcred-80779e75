@@ -1706,6 +1706,8 @@ function ConfigTab() {
       setBonusRate(String((data as any).bonus_rate ?? 0));
       setBonusMode((data as any).bonus_mode ?? 'valor');
       setBonusFixedValue(String((data as any).bonus_fixed_value ?? 0));
+      setMonthlyGoalValue(String((data as any).monthly_goal_value ?? 0));
+      setMonthlyGoalType((data as any).monthly_goal_type ?? 'contratos');
     }
     setLoading(false);
   };
