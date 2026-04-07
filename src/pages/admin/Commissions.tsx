@@ -279,7 +279,7 @@ export default function Commissions() {
           )}
           {isAdmin && (
             <TabsContent value="config">
-              <ConfigTab />
+              <ConfigTab profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
           {isAdmin && (
@@ -1732,7 +1732,7 @@ interface BonusTier {
   bonus_value: number;
 }
 
-function ConfigTab() {
+function ConfigTab({ profiles, getSellerName }: { profiles: Profile[]; getSellerName: (id: string) => string }) {
   const { toast } = useToast();
   const [weekStartDay, setWeekStartDay] = useState<number>(5);
   const [paymentDay, setPaymentDay] = useState<number>(4);
