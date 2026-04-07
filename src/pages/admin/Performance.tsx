@@ -15,7 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area
 } from 'recharts';
-import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar as CalendarIcon } from 'lucide-react';
+import { Users, TrendingUp, Clock, MessageSquare, CheckCircle, XCircle, Phone, Download, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SellerProfile {
@@ -110,6 +110,7 @@ export default function Performance() {
   const [statusDistribution, setStatusDistribution] = useState<StatusDistItem[]>([]);
   const [avgResponseTimes, setAvgResponseTimes] = useState<AvgResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
@@ -166,7 +167,7 @@ export default function Performance() {
       }
       setLoading(false);
     })();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, refreshKey]);
 
   const chipsByUser = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -284,6 +285,10 @@ export default function Performance() {
             <p className="text-muted-foreground">Métricas de desempenho dos vendedores</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setRefreshKey(k => k + 1)} disabled={loading}>
+              <RefreshCw className={cn("w-4 h-4 mr-1", loading && "animate-spin")} />
+              Atualizar
+            </Button>
             <CalendarIcon className="w-4 h-4 text-muted-foreground" />
             {PERIOD_OPTIONS.map(opt => (
               <Button

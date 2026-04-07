@@ -963,6 +963,10 @@ function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
   const { sort, toggle } = useSortConfig();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadRates(); }, []);
 
@@ -1008,12 +1012,65 @@ function RatesFGTSTab() {
     toast({ title: 'Taxa excluída' }); loadRates();
   };
 
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Banco', 'Taxa Sem Seguro (%)', 'Taxa Com Seguro (%)'],
+      ['PARANA BANCO', '3.5', '4.0'],
+    ]);
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo FGTS');
+    XLSX.writeFile(wb, 'modelo_taxas_fgts.xlsx');
+  };
+
+  const parseImportData = (rows: Record<string, string>[]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rows.map(r => {
+      const bank = r['Banco'] || r['banco'] || '';
+      const rateNo = parseFloat((r['Taxa Sem Seguro (%)'] || r['taxa_sem_seguro'] || r['rate_no_insurance'] || '0').replace(',', '.')) || 0;
+      const rateWith = parseFloat((r['Taxa Com Seguro (%)'] || r['taxa_com_seguro'] || r['rate_with_insurance'] || '0').replace(',', '.')) || 0;
+      return { effective_date: today, bank, rate_no_insurance: rateNo, rate_with_insurance: rateWith };
+    }).filter(r => r.bank);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    setImportPreview(parseImportData(rows));
+    setImportDialogOpen(true);
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    const parsed = parseClipboardText(text, ['Banco', 'Taxa Sem Seguro (%)', 'Taxa Com Seguro (%)']);
+    setImportPreview(parseImportData(parsed.rows));
+  };
+
+  const confirmImport = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const { error } = await supabase.from('commission_rates_fgts').insert(importPreview as any);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
+    setImporting(false);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle>Taxas Comissão FGTS</CardTitle>
-          <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
+            <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1064,6 +1121,56 @@ function RatesFGTSTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import Dialog */}
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Importar Taxas FGTS</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Upload Excel (.xlsx)</Label>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="block w-full text-sm mt-1 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground" />
+              </div>
+              <div className="relative">
+                <Label>Ou cole os dados (Ctrl+V)</Label>
+                <textarea onPaste={handlePaste} placeholder="Cole aqui os dados copiados da planilha..." className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] mt-1 placeholder:text-muted-foreground" />
+              </div>
+              {importPreview.length > 0 && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <p className="text-sm font-medium mb-2">Preview: {importPreview.length} taxas (vigência: hoje)</p>
+                  <div className="max-h-40 overflow-auto text-xs">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead className="text-xs p-1">Banco</TableHead>
+                        <TableHead className="text-xs p-1 text-right">Sem Seguro</TableHead>
+                        <TableHead className="text-xs p-1 text-right">Com Seguro</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {importPreview.slice(0, 10).map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="p-1">{r.bank}</TableCell>
+                            <TableCell className="p-1 text-right">{r.rate_no_insurance}%</TableCell>
+                            <TableCell className="p-1 text-right">{r.rate_with_insurance}%</TableCell>
+                          </TableRow>
+                        ))}
+                        {importPreview.length > 10 && <TableRow><TableCell colSpan={3} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={confirmImport} disabled={importPreview.length === 0 || importing}>
+                {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                Importar {importPreview.length} taxas
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
       </CardContent>
     </Card>
   );
@@ -1078,6 +1185,10 @@ function RatesCLTTab() {
   const [editing, setEditing] = useState<RateCLT | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
   const { sort, toggle } = useSortConfig();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadRates(); }, []);
 
@@ -1129,12 +1240,70 @@ function RatesCLTTab() {
     toast({ title: 'Excluída' }); loadRates();
   };
 
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
+      ['BANCO C6', 'SONHO', '0', '999', 'Não', '5.5', 'CLT padrão'],
+    ]);
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 25 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo CLT');
+    XLSX.writeFile(wb, 'modelo_taxas_clt.xlsx');
+  };
+
+  const parseImportData = (rows: Record<string, string>[]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rows.map(r => {
+      const bank = r['Banco'] || r['banco'] || r['bank'] || '';
+      const tableKey = r['Tabela'] || r['tabela'] || r['table_key'] || '';
+      const termMin = parseInt(r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0') || 0;
+      const termMax = parseInt(r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999') || 999;
+      const seguroRaw = (r['Seguro (Sim/Não)'] || r['seguro'] || r['has_insurance'] || 'Não').toLowerCase();
+      const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
+      const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').replace(',', '.')) || 0;
+      const obs = r['Obs'] || r['obs'] || '';
+      return { effective_date: today, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, has_insurance: hasInsurance, rate, obs: obs || null };
+    }).filter(r => r.bank);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    setImportPreview(parseImportData(rows));
+    setImportDialogOpen(true);
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs']);
+    setImportPreview(parseImportData(parsed.rows));
+  };
+
+  const confirmImport = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const { error } = await supabase.from('commission_rates_clt').insert(importPreview as any);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
+    setImporting(false);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle>Taxas Comissão CLT</CardTitle>
-          <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
+            <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1200,6 +1369,60 @@ function RatesCLTTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import Dialog */}
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Importar Taxas CLT</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Upload Excel (.xlsx)</Label>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="block w-full text-sm mt-1 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground" />
+              </div>
+              <div className="relative">
+                <Label>Ou cole os dados (Ctrl+V)</Label>
+                <textarea onPaste={handlePaste} placeholder="Cole aqui os dados copiados da planilha..." className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] mt-1 placeholder:text-muted-foreground" />
+              </div>
+              {importPreview.length > 0 && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <p className="text-sm font-medium mb-2">Preview: {importPreview.length} taxas (vigência: hoje)</p>
+                  <div className="max-h-40 overflow-auto text-xs">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead className="text-xs p-1">Banco</TableHead>
+                        <TableHead className="text-xs p-1">Tabela</TableHead>
+                        <TableHead className="text-xs p-1">Prazo</TableHead>
+                        <TableHead className="text-xs p-1">Seguro</TableHead>
+                        <TableHead className="text-xs p-1 text-right">Taxa</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {importPreview.slice(0, 10).map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="p-1">{r.bank}</TableCell>
+                            <TableCell className="p-1">{r.table_key || '-'}</TableCell>
+                            <TableCell className="p-1">{r.term_min}-{r.term_max}</TableCell>
+                            <TableCell className="p-1">{r.has_insurance ? 'Sim' : 'Não'}</TableCell>
+                            <TableCell className="p-1 text-right">{r.rate}%</TableCell>
+                          </TableRow>
+                        ))}
+                        {importPreview.length > 10 && <TableRow><TableCell colSpan={5} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={confirmImport} disabled={importPreview.length === 0 || importing}>
+                {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                Importar {importPreview.length} taxas
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
       </CardContent>
     </Card>
   );
@@ -1719,9 +1942,127 @@ function ConfigTab() {
               </DialogContent>
             </Dialog>
           </div>
+          {/* Section 3: Annual rewards */}
+          <div className="border-t pt-6">
+            <AnnualRewardsSection />
+          </div>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ==================== ANNUAL REWARDS ====================
+interface AnnualReward {
+  id: string;
+  min_contracts: number;
+  reward_description: string;
+  sort_order: number;
+}
+
+function AnnualRewardsSection() {
+  const { toast } = useToast();
+  const [rewards, setRewards] = useState<AnnualReward[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<AnnualReward | null>(null);
+  const [form, setForm] = useState({ min_contracts: '', reward_description: '' });
+
+  useEffect(() => { loadRewards(); }, []);
+
+  const loadRewards = async () => {
+    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    if (data) setRewards(data as any as AnnualReward[]);
+  };
+
+  const handleSave = async () => {
+    const minC = parseInt(form.min_contracts);
+    if (!minC || !form.reward_description.trim()) { toast({ title: 'Preencha todos os campos', variant: 'destructive' }); return; }
+    let error;
+    if (editing) {
+      ({ error } = await supabase.from('commission_annual_rewards' as any).update({ min_contracts: minC, reward_description: form.reward_description.trim() } as any).eq('id', editing.id));
+    } else {
+      const nextOrder = rewards.length > 0 ? Math.max(...rewards.map(r => r.sort_order)) + 1 : 1;
+      ({ error } = await supabase.from('commission_annual_rewards' as any).insert({ min_contracts: minC, reward_description: form.reward_description.trim(), sort_order: nextOrder } as any));
+    }
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Premiação salva' }); setDialogOpen(false); loadRewards(); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Excluir esta premiação?')) return;
+    await supabase.from('commission_annual_rewards' as any).delete().eq('id', id);
+    toast({ title: 'Premiação excluída' });
+    loadRewards();
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-medium text-sm flex items-center gap-2">
+            🏆 Premiações Anuais por Acúmulo
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">Metas acumuladas no ano — prêmios especiais para alta produção.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ min_contracts: '', reward_description: '' }); setDialogOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1" /> Premiação
+        </Button>
+      </div>
+
+      {rewards.length === 0 ? (
+        <p className="text-center text-muted-foreground py-4">Nenhuma premiação cadastrada</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contratos no Ano</TableHead>
+              <TableHead>Premiação</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rewards.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{r.min_contracts} contratos</TableCell>
+                <TableCell>{r.reward_description}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex gap-1 justify-end">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                      setEditing(r);
+                      setForm({ min_contracts: String(r.min_contracts), reward_description: r.reward_description });
+                      setDialogOpen(true);
+                    }}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(r.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{editing ? 'Editar Premiação' : 'Nova Premiação Anual'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nº mínimo de contratos no ano</Label>
+              <Input type="number" value={form.min_contracts} onChange={e => setForm({ ...form, min_contracts: e.target.value })} placeholder="Ex: 250" />
+            </div>
+            <div>
+              <Label>Descrição da premiação</Label>
+              <Input value={form.reward_description} onChange={e => setForm({ ...form, reward_description: e.target.value })} placeholder="Ex: Final de semana em hotel" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
