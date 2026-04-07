@@ -1631,6 +1631,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           </div>
         )}
 
+        {loading ? <p className="text-center text-muted-foreground py-4">Carregando...</p> : filtered.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum resultado</p>
         ) : (
           <Table>
