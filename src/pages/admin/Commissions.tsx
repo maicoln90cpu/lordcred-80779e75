@@ -1731,6 +1731,8 @@ function ConfigTab() {
             bonus_rate: parseFloat(bonusRate) || 0,
             bonus_mode: bonusMode,
             bonus_fixed_value: parseFloat(bonusFixedValue) || 0,
+            monthly_goal_value: parseFloat(monthlyGoalValue) || 0,
+            monthly_goal_type: monthlyGoalType,
             updated_at: new Date().toISOString(),
           } as any)
           .eq('id', existing.id);
