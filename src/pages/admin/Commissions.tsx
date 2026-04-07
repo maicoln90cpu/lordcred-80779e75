@@ -1719,6 +1719,10 @@ function ConfigTab() {
               </DialogContent>
             </Dialog>
           </div>
+          {/* Section 3: Annual rewards */}
+          <div className="border-t pt-6">
+            <AnnualRewardsSection />
+          </div>
         </CardContent>
       </Card>
     </div>
