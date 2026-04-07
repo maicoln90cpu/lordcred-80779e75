@@ -279,7 +279,7 @@ export default function Commissions() {
           )}
           {isAdmin && (
             <TabsContent value="config">
-              <ConfigTab />
+              <ConfigTab profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
           {isAdmin && (
@@ -1438,7 +1438,14 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const { sort, toggle } = useSortConfig();
   const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
 
-  useEffect(() => { loadSales(); loadMonthlyGoal(); }, []);
+  const [annualRewards, setAnnualRewards] = useState<AnnualReward[]>([]);
+
+  useEffect(() => { loadSales(); loadMonthlyGoal(); loadAnnualRewards(); }, []);
+
+  const loadAnnualRewards = async () => {
+    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    if (data) setAnnualRewards(data as any as AnnualReward[]);
+  };
 
   const loadSales = async () => {
     setLoading(true);
@@ -1474,6 +1481,26 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
     const pct = Math.min((current / monthlyGoal.value) * 100, 100);
     return { current, goal: monthlyGoal.value, pct, type: monthlyGoal.type };
   }, [monthlyGoal, currentMonthSales]);
+
+  // Annual progress for selected seller
+  const annualProgress = useMemo(() => {
+    if (annualRewards.length === 0) return null;
+    const targetSeller = sellerFilter !== 'all' ? sellerFilter : (!isAdmin ? userId : null);
+    if (!targetSeller) return null; // admin with "all" selected — no individual annual progress
+    const year = new Date().getFullYear();
+    const yearSales = sales.filter(s => {
+      const d = new Date(s.sale_date);
+      return d.getFullYear() === year && s.seller_id === targetSeller;
+    });
+    const count = yearSales.length;
+    const sorted = [...annualRewards].sort((a, b) => a.min_contracts - b.min_contracts);
+    const nextReward = sorted.find(r => r.min_contracts > count);
+    const currentReward = [...sorted].reverse().find(r => r.min_contracts <= count);
+    const nextTarget = nextReward?.min_contracts || sorted[sorted.length - 1]?.min_contracts || 0;
+    const remaining = nextReward ? nextReward.min_contracts - count : 0;
+    const pct = nextTarget > 0 ? Math.min((count / nextTarget) * 100, 100) : 100;
+    return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', nextTarget, currentReward: currentReward?.reward_description || null, remaining, pct };
+  }, [sales, annualRewards, sellerFilter, isAdmin, userId]);
 
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
@@ -1575,6 +1602,32 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
                     ? `${Math.max(0, monthlyProgress.goal - monthlyProgress.current)} contratos`
                     : fmt(Math.max(0, monthlyProgress.goal - monthlyProgress.current))}`}
             </p>
+          </div>
+        )}
+
+        {/* Annual progress */}
+        {annualProgress && (
+          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">🏆 Progresso Anual ({new Date().getFullYear()})</p>
+              <Badge variant="outline" className="text-xs">{annualProgress.count} contratos no ano</Badge>
+            </div>
+            <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all ${annualProgress.pct >= 100 ? 'bg-green-500' : annualProgress.pct >= 70 ? 'bg-primary' : annualProgress.pct >= 40 ? 'bg-yellow-500' : 'bg-orange-400'}`}
+                style={{ width: `${annualProgress.pct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-muted-foreground">
+                {annualProgress.remaining > 0
+                  ? `Faltam ${annualProgress.remaining} para: ${annualProgress.nextReward}`
+                  : annualProgress.nextReward}
+              </p>
+              {annualProgress.currentReward && (
+                <Badge variant="secondary" className="text-[10px]">✅ {annualProgress.currentReward}</Badge>
+              )}
+            </div>
           </div>
         )}
 
@@ -1732,7 +1785,7 @@ interface BonusTier {
   bonus_value: number;
 }
 
-function ConfigTab() {
+function ConfigTab({ profiles, getSellerName }: { profiles: Profile[]; getSellerName: (id: string) => string }) {
   const { toast } = useToast();
   const [weekStartDay, setWeekStartDay] = useState<number>(5);
   const [paymentDay, setPaymentDay] = useState<number>(4);
@@ -2035,6 +2088,10 @@ function ConfigTab() {
           <div className="border-t pt-6">
             <AnnualRewardsSection />
           </div>
+          {/* Section 4: Annual progress per seller */}
+          <div className="border-t pt-6">
+            <AnnualProgressSection profiles={profiles} getSellerName={getSellerName} />
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -2155,7 +2212,103 @@ function AnnualRewardsSection() {
   );
 }
 
-// ==================== HIST IMPORT TAB ====================
+// ==================== ANNUAL PROGRESS PER SELLER ====================
+function AnnualProgressSection({ profiles, getSellerName }: { profiles: Profile[]; getSellerName: (id: string) => string }) {
+  const [rewards, setRewards] = useState<AnnualReward[]>([]);
+  const [sellerCounts, setSellerCounts] = useState<Map<string, number>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const year = new Date().getFullYear();
+    const startOfYear = `${year}-01-01T00:00:00`;
+    const endOfYear = `${year}-12-31T23:59:59`;
+
+    const [rewardsRes, salesRes] = await Promise.all([
+      supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true }),
+      supabase.from('commission_sales').select('seller_id, id').gte('sale_date', startOfYear).lte('sale_date', endOfYear),
+    ]);
+
+    if (rewardsRes.data) setRewards(rewardsRes.data as any as AnnualReward[]);
+
+    if (salesRes.data) {
+      const counts = new Map<string, number>();
+      for (const s of salesRes.data) {
+        counts.set(s.seller_id, (counts.get(s.seller_id) || 0) + 1);
+      }
+      setSellerCounts(counts);
+    }
+    setLoading(false);
+  };
+
+  const sellerProgress = useMemo(() => {
+    if (rewards.length === 0) return [];
+    const sortedRewards = [...rewards].sort((a, b) => a.min_contracts - b.min_contracts);
+
+    return profiles.map(p => {
+      const count = sellerCounts.get(p.user_id) || 0;
+      // Find next reward
+      const nextReward = sortedRewards.find(r => r.min_contracts > count);
+      const currentReward = [...sortedRewards].reverse().find(r => r.min_contracts <= count);
+      const nextTarget = nextReward?.min_contracts || (sortedRewards[sortedRewards.length - 1]?.min_contracts || 0);
+      const remaining = nextReward ? nextReward.min_contracts - count : 0;
+      const pct = nextTarget > 0 ? Math.min((count / nextTarget) * 100, 100) : 100;
+      return {
+        userId: p.user_id,
+        name: p.name || p.email,
+        count,
+        nextReward: nextReward?.reward_description || '🎉 Todas atingidas!',
+        nextTarget: nextReward?.min_contracts || 0,
+        currentReward: currentReward?.reward_description || null,
+        remaining,
+        pct,
+      };
+    }).filter(p => p.count > 0 || sellerCounts.size === 0).sort((a, b) => b.count - a.count);
+  }, [profiles, sellerCounts, rewards]);
+
+  if (loading) return <p className="text-center text-muted-foreground py-4 text-sm">Carregando progresso...</p>;
+  if (rewards.length === 0) return <p className="text-center text-muted-foreground py-4 text-sm">Cadastre premiações anuais acima para ver o progresso.</p>;
+
+  return (
+    <>
+      <div className="mb-3">
+        <h3 className="font-medium text-sm flex items-center gap-2">📈 Progresso Anual dos Vendedores ({new Date().getFullYear()})</h3>
+        <p className="text-xs text-muted-foreground mt-1">Contratos acumulados no ano vs próxima premiação.</p>
+      </div>
+      {sellerProgress.length === 0 ? (
+        <p className="text-center text-muted-foreground py-4 text-sm">Nenhuma venda registrada no ano.</p>
+      ) : (
+        <div className="space-y-3">
+          {sellerProgress.map(sp => (
+            <div key={sp.userId} className="p-3 border rounded-lg">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-sm font-medium">{sp.name}</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">{sp.count} contratos</Badge>
+                  {sp.currentReward && <Badge variant="secondary" className="text-[10px]">✅ {sp.currentReward}</Badge>}
+                </div>
+              </div>
+              <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={`h-full rounded-full transition-all ${sp.pct >= 100 ? 'bg-green-500' : sp.pct >= 70 ? 'bg-primary' : sp.pct >= 40 ? 'bg-yellow-500' : 'bg-orange-400'}`}
+                  style={{ width: `${sp.pct}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {sp.remaining > 0
+                  ? `Faltam ${sp.remaining} para: ${sp.nextReward}`
+                  : sp.nextReward}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function HistImportTab({ userId, profiles, getSellerName }: { userId: string; profiles: Profile[]; getSellerName: (id: string) => string }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
