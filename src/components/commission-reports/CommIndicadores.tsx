@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Medal, PieChart, Ticket } from 'lucide-react';
+import { Loader2, Medal, PieChart, Ticket, AlertTriangle, DollarSign, TrendingUp, Users, History } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -16,8 +16,11 @@ interface Sale {
   bank: string;
   released_value: number;
   commission_value: number;
+  commission_rate: number;
   week_label: string | null;
   bonus_value?: number;
+  sale_date: string;
+  client_name?: string | null;
 }
 
 interface Profile {
@@ -32,12 +35,97 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['comm-sales-indicadores'],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_sales').select('id, seller_id, product, bank, released_value, commission_value, week_label').limit(5000);
+      const { data } = await supabase.from('commission_sales').select('id, seller_id, product, bank, released_value, commission_value, commission_rate, week_label, sale_date, client_name').limit(5000);
       return (data || []) as Sale[];
     },
   });
 
-  // 1. Ticket Médio por Vendedor
+  // Fetch CLT rate history
+  const { data: cltRates = [] } = useQuery({
+    queryKey: ['comm-clt-rates-history'],
+    queryFn: async () => {
+      const { data } = await supabase.from('commission_rates_clt').select('id, bank, effective_date, rate, has_insurance, term_min, term_max, table_key, created_at').order('created_at', { ascending: false }).limit(50);
+      return data || [];
+    },
+  });
+
+  // Fetch FGTS rate history
+  const { data: fgtsRates = [] } = useQuery({
+    queryKey: ['comm-fgts-rates-history'],
+    queryFn: async () => {
+      const { data } = await supabase.from('commission_rates_fgts').select('id, bank, effective_date, rate_no_insurance, rate_with_insurance, created_at').order('created_at', { ascending: false }).limit(50);
+      return data || [];
+    },
+  });
+
+  // ==================== KPIs Executivos ====================
+  const kpis = useMemo(() => {
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthSales = sales.filter(s => {
+      const d = new Date(s.sale_date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const totalVendasMes = monthSales.length;
+    const totalComissaoMes = monthSales.reduce((a, s) => a + (s.commission_value || 0), 0);
+    const totalLiberadoMes = monthSales.reduce((a, s) => a + (s.released_value || 0), 0);
+    const ticketMedio = totalVendasMes > 0 ? totalLiberadoMes / totalVendasMes : 0;
+    const vendedoresAtivos = new Set(monthSales.map(s => s.seller_id)).size;
+    const topSeller = (() => {
+      const map = new Map<string, number>();
+      for (const s of monthSales) map.set(s.seller_id, (map.get(s.seller_id) || 0) + (s.commission_value || 0));
+      let best = { id: '', val: 0 };
+      for (const [id, val] of map) if (val > best.val) best = { id, val };
+      return best.id ? getSellerName(best.id) : '—';
+    })();
+    const bancoTop = (() => {
+      const map = new Map<string, number>();
+      for (const s of monthSales) map.set(s.bank, (map.get(s.bank) || 0) + s.released_value);
+      let best = { name: '', val: 0 };
+      for (const [name, val] of map) if (val > best.val) best = { name, val };
+      return best.name || '—';
+    })();
+
+    return { totalVendasMes, totalComissaoMes, totalLiberadoMes, ticketMedio, vendedoresAtivos, topSeller, bancoTop };
+  }, [sales, getSellerName]);
+
+  // ==================== Alertas de Taxa 0% ====================
+  const zeroRateAlerts = useMemo(() => {
+    return sales.filter(s => (s.commission_rate === 0 || s.commission_rate === null) && s.released_value > 0)
+      .slice(0, 20)
+      .map(s => ({
+        id: s.id,
+        bank: s.bank,
+        product: s.product,
+        client: s.client_name || '—',
+        value: s.released_value,
+        date: s.sale_date,
+        seller: getSellerName(s.seller_id),
+      }));
+  }, [sales, getSellerName]);
+
+  // ==================== Histórico de Taxas ====================
+  const rateHistory = useMemo(() => {
+    const cltItems = cltRates.map(r => ({
+      tipo: 'CLT',
+      banco: (r as any).bank,
+      vigencia: (r as any).effective_date,
+      taxa: `${(r as any).rate}%`,
+      detalhe: `Prazo ${(r as any).term_min}-${(r as any).term_max} | Seguro: ${(r as any).has_insurance ? 'Sim' : 'Não'}${(r as any).table_key ? ` | Chave: ${(r as any).table_key}` : ''}`,
+      criado: (r as any).created_at,
+    }));
+    const fgtsItems = fgtsRates.map(r => ({
+      tipo: 'FGTS',
+      banco: (r as any).bank,
+      vigencia: (r as any).effective_date,
+      taxa: `S/ Seg: ${(r as any).rate_no_insurance}% | C/ Seg: ${(r as any).rate_with_insurance}%`,
+      detalhe: '',
+      criado: (r as any).created_at,
+    }));
+    return [...cltItems, ...fgtsItems].sort((a, b) => new Date(b.criado).getTime() - new Date(a.criado).getTime()).slice(0, 30);
+  }, [cltRates, fgtsRates]);
+
+  // ==================== Existing tables ====================
   const ticketMedio = useMemo(() => {
     const map = new Map<string, { total: number; count: number; comissao: number }>();
     for (const s of sales) {
@@ -57,30 +145,24 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
     }));
   }, [sales, getSellerName]);
 
-  // 2. Ranking Semanal (latest week)
   const rankingSemanal = useMemo(() => {
     const weeks = [...new Set(sales.filter(s => s.week_label).map(s => s.week_label!))].sort().reverse();
     const latestWeek = weeks[0] || null;
     const prevWeek = weeks[1] || null;
-
     if (!latestWeek) return { week: '', rows: [] };
-
     const current = new Map<string, number>();
     const prev = new Map<string, number>();
     for (const s of sales) {
       if (s.week_label === latestWeek) current.set(s.seller_id, (current.get(s.seller_id) || 0) + (s.commission_value || 0));
       if (prevWeek && s.week_label === prevWeek) prev.set(s.seller_id, (prev.get(s.seller_id) || 0) + (s.commission_value || 0));
     }
-
     const rows = Array.from(current.entries()).map(([seller_id, cms]) => {
       const prevCms = prev.get(seller_id) || 0;
       return { seller_id, nome: getSellerName(seller_id), comissao: cms, anterior: prevCms, variacao: prevCms > 0 ? ((cms - prevCms) / prevCms) : 0 };
     }).sort((a, b) => b.comissao - a.comissao);
-
     return { week: latestWeek, rows };
   }, [sales, getSellerName]);
 
-  // 3. Mix de Produtos
   const mixProdutos = useMemo(() => {
     const map = new Map<string, { fgts: number; clt: number; outros: number; total: number }>();
     for (const s of sales) {
@@ -109,8 +191,72 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (sales.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Nenhuma venda registrada ainda.</p>;
 
+  const mesAtual = new Date().toLocaleString('pt-BR', { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+
   return (
     <div className="space-y-6">
+      {/* ==================== KPIs Executivos ==================== */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card><CardContent className="pt-5 pb-4">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><DollarSign className="w-3.5 h-3.5" /> Vendas {mesAtual}</div>
+          <p className="text-xl font-bold">{kpis.totalVendasMes}</p>
+          <p className="text-[10px] text-muted-foreground">{fmtBRL(kpis.totalLiberadoMes)} liberados</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-5 pb-4">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><TrendingUp className="w-3.5 h-3.5" /> Comissão {mesAtual}</div>
+          <p className="text-xl font-bold">{fmtBRL(kpis.totalComissaoMes)}</p>
+          <p className="text-[10px] text-muted-foreground">Ticket médio: {fmtBRL(kpis.ticketMedio)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-5 pb-4">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Users className="w-3.5 h-3.5" /> Top Vendedor</div>
+          <p className="text-lg font-bold truncate">{kpis.topSeller}</p>
+          <p className="text-[10px] text-muted-foreground">{kpis.vendedoresAtivos} vendedor(es) ativo(s)</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-5 pb-4">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Medal className="w-3.5 h-3.5" /> Banco Destaque</div>
+          <p className="text-lg font-bold truncate">{kpis.bancoTop}</p>
+          <p className="text-[10px] text-muted-foreground">Maior volume no mês</p>
+        </CardContent></Card>
+      </div>
+
+      {/* ==================== Alerta Taxas 0% ==================== */}
+      {zeroRateAlerts.length > 0 && (
+        <Card className="border-destructive/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertTriangle className="w-5 h-5" /> Vendas com Taxa 0% <Badge variant="destructive" className="text-[10px]">{zeroRateAlerts.length}</Badge></CardTitle>
+            <CardDescription>Vendas onde a taxa de comissão é 0% — provavelmente faltam taxas cadastradas para este banco/produto.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border border-destructive/30 rounded-lg max-h-[300px] overflow-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <tr>
+                    <TSHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Produto" sortKey="product" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Cliente" sortKey="client" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Valor" sortKey="value" sort={sort} toggle={toggle} className="text-xs text-right" />
+                    <TSHead label="Vendedor" sortKey="seller" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Data" sortKey="date" sort={sort} toggle={toggle} className="text-xs" />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {zeroRateAlerts.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs font-medium">{r.bank}</TableCell>
+                      <TableCell className="text-xs">{r.product}</TableCell>
+                      <TableCell className="text-xs">{r.client}</TableCell>
+                      <TableCell className="text-xs text-right font-mono">{fmtBRL(r.value)}</TableCell>
+                      <TableCell className="text-xs">{r.seller}</TableCell>
+                      <TableCell className="text-xs">{new Date(r.date).toLocaleDateString('pt-BR')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 1. Ticket Médio */}
       <Card>
         <CardHeader className="pb-3">
@@ -216,6 +362,46 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Histórico de Taxas */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg"><History className="w-5 h-5" /> Últimas Taxas Cadastradas</CardTitle>
+          <CardDescription>Últimas 30 alterações nas tabelas de taxas CLT e FGTS (ordenado por data de criação).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rateHistory.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4 text-sm">Nenhuma taxa cadastrada ainda.</p>
+          ) : (
+            <div className="border rounded-lg max-h-[400px] overflow-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <tr>
+                    <TSHead label="Tipo" sortKey="tipo" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Banco" sortKey="banco" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Vigência" sortKey="vigencia" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Taxa" sortKey="taxa" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Detalhes" sortKey="detalhe" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Criado em" sortKey="criado" sort={sort} toggle={toggle} className="text-xs" />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {rateHistory.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs"><Badge variant={r.tipo === 'CLT' ? 'secondary' : 'default'} className="text-[10px]">{r.tipo}</Badge></TableCell>
+                      <TableCell className="text-xs font-medium">{r.banco}</TableCell>
+                      <TableCell className="text-xs font-mono">{r.vigencia}</TableCell>
+                      <TableCell className="text-xs font-mono">{r.taxa}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground truncate max-w-[200px]">{r.detalhe || '—'}</TableCell>
+                      <TableCell className="text-xs font-mono">{new Date(r.criado).toLocaleDateString('pt-BR')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
