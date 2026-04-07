@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList, ClipboardPaste, CalendarDays, Eye, Columns } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Key, BarChart3, FileSpreadsheet, Search, Upload, Download, ArrowUpDown, ArrowUp, ArrowDown, Settings, Loader2, Save, Lightbulb, ClipboardList, ClipboardPaste, CalendarDays, Eye, Columns, Target } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parseClipboardText } from '@/lib/clipboardParser';
@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE, TOOLTIPS_PARCEIROS_PIX, TOOLTIPS_PARCEIROS_RATES_FGTS, TOOLTIPS_PARCEIROS_RATES_CLT } from '@/components/commission-reports/CRSortUtils';
 import type { SortConfig } from '@/components/commission-reports/CRSortUtils';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
+import CommMetas from '@/components/commission-reports/CommMetas';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
 
@@ -250,6 +251,7 @@ export default function Commissions() {
             {isAdmin && <TabsTrigger value="consolidado">Consolidado</TabsTrigger>}
             {isAdmin && <TabsTrigger value="config">Configurações</TabsTrigger>}
             {isAdmin && <TabsTrigger value="indicadores"><Lightbulb className="w-3.5 h-3.5 mr-1" />Indicadores</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="metas"><Target className="w-3.5 h-3.5 mr-1" />Metas</TabsTrigger>}
             {isAdmin && <TabsTrigger value="hist-importacoes"><ClipboardList className="w-3.5 h-3.5 mr-1" />Hist. Importações</TabsTrigger>}
           </TabsList>
 
@@ -285,6 +287,11 @@ export default function Commissions() {
           {isAdmin && (
             <TabsContent value="indicadores">
               <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="metas">
+              <CommMetas profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
           )}
           {isAdmin && (
