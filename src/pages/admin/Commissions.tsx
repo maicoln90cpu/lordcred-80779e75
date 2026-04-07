@@ -1729,6 +1729,120 @@ function ConfigTab() {
   );
 }
 
+// ==================== ANNUAL REWARDS ====================
+interface AnnualReward {
+  id: string;
+  min_contracts: number;
+  reward_description: string;
+  sort_order: number;
+}
+
+function AnnualRewardsSection() {
+  const { toast } = useToast();
+  const [rewards, setRewards] = useState<AnnualReward[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<AnnualReward | null>(null);
+  const [form, setForm] = useState({ min_contracts: '', reward_description: '' });
+
+  useEffect(() => { loadRewards(); }, []);
+
+  const loadRewards = async () => {
+    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    if (data) setRewards(data as any as AnnualReward[]);
+  };
+
+  const handleSave = async () => {
+    const minC = parseInt(form.min_contracts);
+    if (!minC || !form.reward_description.trim()) { toast({ title: 'Preencha todos os campos', variant: 'destructive' }); return; }
+    let error;
+    if (editing) {
+      ({ error } = await supabase.from('commission_annual_rewards' as any).update({ min_contracts: minC, reward_description: form.reward_description.trim() } as any).eq('id', editing.id));
+    } else {
+      const nextOrder = rewards.length > 0 ? Math.max(...rewards.map(r => r.sort_order)) + 1 : 1;
+      ({ error } = await supabase.from('commission_annual_rewards' as any).insert({ min_contracts: minC, reward_description: form.reward_description.trim(), sort_order: nextOrder } as any));
+    }
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Premiação salva' }); setDialogOpen(false); loadRewards(); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Excluir esta premiação?')) return;
+    await supabase.from('commission_annual_rewards' as any).delete().eq('id', id);
+    toast({ title: 'Premiação excluída' });
+    loadRewards();
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-medium text-sm flex items-center gap-2">
+            🏆 Premiações Anuais por Acúmulo
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">Metas acumuladas no ano — prêmios especiais para alta produção.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ min_contracts: '', reward_description: '' }); setDialogOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1" /> Premiação
+        </Button>
+      </div>
+
+      {rewards.length === 0 ? (
+        <p className="text-center text-muted-foreground py-4">Nenhuma premiação cadastrada</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contratos no Ano</TableHead>
+              <TableHead>Premiação</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rewards.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{r.min_contracts} contratos</TableCell>
+                <TableCell>{r.reward_description}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex gap-1 justify-end">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                      setEditing(r);
+                      setForm({ min_contracts: String(r.min_contracts), reward_description: r.reward_description });
+                      setDialogOpen(true);
+                    }}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(r.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{editing ? 'Editar Premiação' : 'Nova Premiação Anual'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nº mínimo de contratos no ano</Label>
+              <Input type="number" value={form.min_contracts} onChange={e => setForm({ ...form, min_contracts: e.target.value })} placeholder="Ex: 250" />
+            </div>
+            <div>
+              <Label>Descrição da premiação</Label>
+              <Input value={form.reward_description} onChange={e => setForm({ ...form, reward_description: e.target.value })} placeholder="Ex: Final de semana em hotel" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ==================== HIST IMPORT TAB ====================
 function HistImportTab({ userId, profiles, getSellerName }: { userId: string; profiles: Profile[]; getSellerName: (id: string) => string }) {
   const { toast } = useToast();

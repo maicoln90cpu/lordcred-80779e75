@@ -110,6 +110,7 @@ export default function Performance() {
   const [statusDistribution, setStatusDistribution] = useState<StatusDistItem[]>([]);
   const [avgResponseTimes, setAvgResponseTimes] = useState<AvgResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
