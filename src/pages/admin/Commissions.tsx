@@ -290,6 +290,11 @@ export default function Commissions() {
             </TabsContent>
           )}
           {isAdmin && (
+            <TabsContent value="metas">
+              <CommMetas profiles={profiles} getSellerName={getSellerName} />
+            </TabsContent>
+          )}
+          {isAdmin && (
             <TabsContent value="hist-importacoes">
               <HistImportTab userId={user?.id || ''} profiles={profiles} getSellerName={getSellerName} />
             </TabsContent>
