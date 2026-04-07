@@ -1502,6 +1502,7 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
     return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', nextTarget, currentReward: currentReward?.reward_description || null, remaining, pct };
   }, [sales, annualRewards, sellerFilter, isAdmin, userId]);
 
+  const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
   const filtered = sales.filter(s => {
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
