@@ -1548,6 +1548,36 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           <Card><CardContent className="p-4 text-center"><p className="text-sm text-muted-foreground">Comissão Total</p><p className="text-2xl font-bold text-primary">{fmt(totalComissao)}</p></CardContent></Card>
         </div>
 
+        {/* Monthly goal progress */}
+        {monthlyProgress && (
+          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                📊 Meta Mensal {monthlyProgress.type === 'contratos' ? '(Contratos)' : '(Valor Liberado)'}
+                {sellerFilter !== 'all' && <Badge variant="secondary" className="text-[10px]">{getSellerName(sellerFilter)}</Badge>}
+              </p>
+              <p className="text-sm font-bold">
+                {monthlyProgress.type === 'contratos'
+                  ? `${monthlyProgress.current} / ${monthlyProgress.goal}`
+                  : `${fmt(monthlyProgress.current)} / ${fmt(monthlyProgress.goal)}`}
+              </p>
+            </div>
+            <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all ${monthlyProgress.pct >= 100 ? 'bg-green-500' : monthlyProgress.pct >= 70 ? 'bg-primary' : monthlyProgress.pct >= 40 ? 'bg-yellow-500' : 'bg-destructive'}`}
+                style={{ width: `${monthlyProgress.pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {monthlyProgress.pct >= 100
+                ? '🎉 Meta atingida!'
+                : `${monthlyProgress.pct.toFixed(0)}% concluído — faltam ${monthlyProgress.type === 'contratos'
+                    ? `${Math.max(0, monthlyProgress.goal - monthlyProgress.current)} contratos`
+                    : fmt(Math.max(0, monthlyProgress.goal - monthlyProgress.current))}`}
+            </p>
+          </div>
+        )}
+
         {loading ? <p className="text-center text-muted-foreground py-4">Carregando...</p> : filtered.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum resultado</p>
         ) : (
