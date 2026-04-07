@@ -452,6 +452,8 @@ export type Database = {
           bonus_threshold: number | null
           created_at: string
           id: string
+          monthly_goal_type: string
+          monthly_goal_value: number
           payment_day: number
           updated_at: string
           week_start_day: number
@@ -463,6 +465,8 @@ export type Database = {
           bonus_threshold?: number | null
           created_at?: string
           id?: string
+          monthly_goal_type?: string
+          monthly_goal_value?: number
           payment_day?: number
           updated_at?: string
           week_start_day?: number
@@ -474,6 +478,8 @@ export type Database = {
           bonus_threshold?: number | null
           created_at?: string
           id?: string
+          monthly_goal_type?: string
+          monthly_goal_value?: number
           payment_day?: number
           updated_at?: string
           week_start_day?: number

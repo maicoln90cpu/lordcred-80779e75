@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1436,8 +1436,9 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortConfig();
+  const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
 
-  useEffect(() => { loadSales(); }, []);
+  useEffect(() => { loadSales(); loadMonthlyGoal(); }, []);
 
   const loadSales = async () => {
     setLoading(true);
@@ -1445,6 +1446,34 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
     if (data) setSales(data as unknown as CommissionSale[]);
     setLoading(false);
   };
+
+  const loadMonthlyGoal = async () => {
+    const { data } = await supabase.from('commission_settings').select('monthly_goal_value, monthly_goal_type').limit(1).single();
+    if (data) setMonthlyGoal({ value: (data as any).monthly_goal_value ?? 0, type: (data as any).monthly_goal_type ?? 'contratos' });
+  };
+
+  // Current month sales for progress (per selected seller or own)
+  const currentMonthSales = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const targetSeller = sellerFilter !== 'all' ? sellerFilter : (!isAdmin ? userId : null);
+    return sales.filter(s => {
+      const d = new Date(s.sale_date);
+      if (d.getFullYear() !== y || d.getMonth() !== m) return false;
+      if (targetSeller && s.seller_id !== targetSeller) return false;
+      return true;
+    });
+  }, [sales, sellerFilter, isAdmin, userId]);
+
+  const monthlyProgress = useMemo(() => {
+    if (monthlyGoal.value <= 0) return null;
+    const current = monthlyGoal.type === 'contratos'
+      ? currentMonthSales.length
+      : currentMonthSales.reduce((a, s) => a + s.released_value, 0);
+    const pct = Math.min((current / monthlyGoal.value) * 100, 100);
+    return { current, goal: monthlyGoal.value, pct, type: monthlyGoal.type };
+  }, [monthlyGoal, currentMonthSales]);
 
   const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
 
@@ -1518,6 +1547,36 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           <Card><CardContent className="p-4 text-center"><p className="text-sm text-muted-foreground">Total Liberado</p><p className="text-2xl font-bold">{fmt(totalLiberado)}</p></CardContent></Card>
           <Card><CardContent className="p-4 text-center"><p className="text-sm text-muted-foreground">Comissão Total</p><p className="text-2xl font-bold text-primary">{fmt(totalComissao)}</p></CardContent></Card>
         </div>
+
+        {/* Monthly goal progress */}
+        {monthlyProgress && (
+          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                📊 Meta Mensal {monthlyProgress.type === 'contratos' ? '(Contratos)' : '(Valor Liberado)'}
+                {sellerFilter !== 'all' && <Badge variant="secondary" className="text-[10px]">{getSellerName(sellerFilter)}</Badge>}
+              </p>
+              <p className="text-sm font-bold">
+                {monthlyProgress.type === 'contratos'
+                  ? `${monthlyProgress.current} / ${monthlyProgress.goal}`
+                  : `${fmt(monthlyProgress.current)} / ${fmt(monthlyProgress.goal)}`}
+              </p>
+            </div>
+            <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all ${monthlyProgress.pct >= 100 ? 'bg-green-500' : monthlyProgress.pct >= 70 ? 'bg-primary' : monthlyProgress.pct >= 40 ? 'bg-yellow-500' : 'bg-destructive'}`}
+                style={{ width: `${monthlyProgress.pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {monthlyProgress.pct >= 100
+                ? '🎉 Meta atingida!'
+                : `${monthlyProgress.pct.toFixed(0)}% concluído — faltam ${monthlyProgress.type === 'contratos'
+                    ? `${Math.max(0, monthlyProgress.goal - monthlyProgress.current)} contratos`
+                    : fmt(Math.max(0, monthlyProgress.goal - monthlyProgress.current))}`}
+            </p>
+          </div>
+        )}
 
         {loading ? <p className="text-center text-muted-foreground py-4">Carregando...</p> : filtered.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">Nenhum resultado</p>
@@ -1681,6 +1740,8 @@ function ConfigTab() {
   const [bonusRate, setBonusRate] = useState<string>('0');
   const [bonusMode, setBonusMode] = useState<string>('valor');
   const [bonusFixedValue, setBonusFixedValue] = useState<string>('0');
+  const [monthlyGoalValue, setMonthlyGoalValue] = useState<string>('0');
+  const [monthlyGoalType, setMonthlyGoalType] = useState<string>('contratos');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -1704,6 +1765,8 @@ function ConfigTab() {
       setBonusRate(String((data as any).bonus_rate ?? 0));
       setBonusMode((data as any).bonus_mode ?? 'valor');
       setBonusFixedValue(String((data as any).bonus_fixed_value ?? 0));
+      setMonthlyGoalValue(String((data as any).monthly_goal_value ?? 0));
+      setMonthlyGoalType((data as any).monthly_goal_type ?? 'contratos');
     }
     setLoading(false);
   };
@@ -1727,6 +1790,8 @@ function ConfigTab() {
             bonus_rate: parseFloat(bonusRate) || 0,
             bonus_mode: bonusMode,
             bonus_fixed_value: parseFloat(bonusFixedValue) || 0,
+            monthly_goal_value: parseFloat(monthlyGoalValue) || 0,
+            monthly_goal_type: monthlyGoalType,
             updated_at: new Date().toISOString(),
           } as any)
           .eq('id', existing.id);
@@ -1862,6 +1927,30 @@ function ConfigTab() {
                     ? ` → bônus fixo R$ ${bonusFixedValue}/venda`
                     : ` → bônus ${bonusRate || '0'}%/venda`}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Monthly Goal */}
+          <div className="border-t pt-4">
+            <h3 className="font-medium text-sm border-b pb-2 mb-4">📊 Meta Mensal Global</h3>
+            <div className="grid gap-4 md:grid-cols-2 max-w-lg">
+              <div className="space-y-2">
+                <Label>Tipo de meta mensal</Label>
+                <Select value={monthlyGoalType} onValueChange={setMonthlyGoalType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contratos">Nº de Contratos</SelectItem>
+                    <SelectItem value="valor">Valor Liberado (R$)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{monthlyGoalType === 'contratos' ? 'Meta de contratos/mês' : 'Meta de valor/mês (R$)'}</Label>
+                <Input type="number" step={monthlyGoalType === 'valor' ? '0.01' : '1'}
+                  placeholder={monthlyGoalType === 'contratos' ? 'Ex: 50' : 'Ex: 100000'}
+                  value={monthlyGoalValue} onChange={e => setMonthlyGoalValue(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Deixe 0 para desativar. Visível no Extrato de cada vendedor.</p>
               </div>
             </div>
           </div>
