@@ -1872,7 +1872,30 @@ function ConfigTab() {
             </div>
           </div>
 
-          <div className="flex justify-start">
+          {/* Section: Monthly Goal */}
+          <div className="border-t pt-4">
+            <h3 className="font-medium text-sm border-b pb-2 mb-4">📊 Meta Mensal Global</h3>
+            <div className="grid gap-4 md:grid-cols-2 max-w-lg">
+              <div className="space-y-2">
+                <Label>Tipo de meta mensal</Label>
+                <Select value={monthlyGoalType} onValueChange={setMonthlyGoalType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contratos">Nº de Contratos</SelectItem>
+                    <SelectItem value="valor">Valor Liberado (R$)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{monthlyGoalType === 'contratos' ? 'Meta de contratos/mês' : 'Meta de valor/mês (R$)'}</Label>
+                <Input type="number" step={monthlyGoalType === 'valor' ? '0.01' : '1'}
+                  placeholder={monthlyGoalType === 'contratos' ? 'Ex: 50' : 'Ex: 100000'}
+                  value={monthlyGoalValue} onChange={e => setMonthlyGoalValue(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Deixe 0 para desativar. Visível no Extrato de cada vendedor.</p>
+              </div>
+            </div>
+          </div>
+
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Salvar Configurações
