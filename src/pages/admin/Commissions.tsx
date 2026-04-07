@@ -1605,7 +1605,32 @@ function ExtratoTab({ profiles, getSellerName, isAdmin, userId }: { profiles: Pr
           </div>
         )}
 
-        {loading ? <p className="text-center text-muted-foreground py-4">Carregando...</p> : filtered.length === 0 ? (
+        {/* Annual progress */}
+        {annualProgress && (
+          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">🏆 Progresso Anual ({new Date().getFullYear()})</p>
+              <Badge variant="outline" className="text-xs">{annualProgress.count} contratos no ano</Badge>
+            </div>
+            <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all ${annualProgress.pct >= 100 ? 'bg-green-500' : annualProgress.pct >= 70 ? 'bg-primary' : annualProgress.pct >= 40 ? 'bg-yellow-500' : 'bg-orange-400'}`}
+                style={{ width: `${annualProgress.pct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-muted-foreground">
+                {annualProgress.remaining > 0
+                  ? `Faltam ${annualProgress.remaining} para: ${annualProgress.nextReward}`
+                  : annualProgress.nextReward}
+              </p>
+              {annualProgress.currentReward && (
+                <Badge variant="secondary" className="text-[10px]">✅ {annualProgress.currentReward}</Badge>
+              )}
+            </div>
+          </div>
+        )}
+
           <p className="text-center text-muted-foreground py-4">Nenhum resultado</p>
         ) : (
           <Table>
