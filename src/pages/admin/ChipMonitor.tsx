@@ -16,7 +16,8 @@ import {
   Signal,
   SignalZero,
   User,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,7 @@ export default function ChipMonitor() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
