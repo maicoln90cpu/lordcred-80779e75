@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Plus, Pencil, Trash2, Settings, AlertTriangle, Search } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Settings, AlertTriangle, Search, Download, Upload } from 'lucide-react';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_RULES_CLT } from './CRSortUtils';
+import { parseClipboardText } from '@/lib/clipboardParser';
+import * as XLSX from 'xlsx';
 
 interface RuleCLT {
   id: string; data_vigencia: string; banco: string; tabela_chave: string;
@@ -31,6 +34,10 @@ export default function CRRulesCLT() {
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState('');
   const { sort, toggle } = useSortState();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ['cr-rules-clt'],
@@ -78,16 +85,91 @@ export default function CRRulesCLT() {
     finally { setDeleting(false); }
   };
 
+  // ===== IMPORT / EXPORT =====
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Taxa (%)'],
+      ['BANCO C6', '*', 'Ambos', '0', '999', '2.5'],
+    ]);
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo CLT');
+    XLSX.writeFile(wb, 'modelo_regras_clt.xlsx');
+  };
+
+  const exportRules = () => {
+    if (rules.length === 0) { toast({ title: 'Nenhuma regra para exportar' }); return; }
+    const data = rules.map(r => ({
+      'Banco': r.banco,
+      'Tabela Chave': r.tabela_chave,
+      'Seguro': r.seguro,
+      'Prazo Mín': r.prazo_min,
+      'Prazo Máx': r.prazo_max,
+      'Taxa (%)': r.taxa,
+      'Data Vigência': r.data_vigencia,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Regras CLT');
+    XLSX.writeFile(wb, 'regras_clt_exportadas.xlsx');
+    toast({ title: `${rules.length} regras exportadas` });
+  };
+
+  const parseImportData = (rows: Record<string, string>[]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rows.map(r => {
+      const banco = r['Banco'] || r['banco'] || '';
+      const tabela_chave = r['Tabela Chave'] || r['tabela_chave'] || r['Tabela'] || '*';
+      const seguroRaw = (r['Seguro (Sim/Não/Ambos)'] || r['Seguro'] || r['seguro'] || 'Ambos').trim();
+      const seguro = ['Sim', 'Não', 'Ambos'].includes(seguroRaw) ? seguroRaw : 'Ambos';
+      const prazo_min = parseInt((r['Prazo Mín'] || r['prazo_min'] || r['Prazo Min'] || '0').replace(',', '.')) || 0;
+      const prazo_max = parseInt((r['Prazo Máx'] || r['prazo_max'] || r['Prazo Max'] || '999').replace(',', '.')) || 999;
+      const taxa = parseFloat((r['Taxa (%)'] || r['taxa'] || r['Taxa'] || '0').replace(',', '.')) || 0;
+      return { data_vigencia: today, banco, tabela_chave, seguro, prazo_min, prazo_max, taxa };
+    }).filter(r => r.banco);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    setImportPreview(parseImportData(rows));
+    setImportDialogOpen(true);
+    if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Taxa (%)']);
+    setImportPreview(parseImportData(parsed.rows));
+  };
+
+  const confirmImport = async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+    const { error } = await supabase.from('cr_rules_clt').insert(importPreview);
+    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    else { toast({ title: `${importPreview.length} regras importadas` }); setImportDialogOpen(false); setImportPreview([]); qc.invalidateQueries({ queryKey: ['cr-rules-clt'] }); }
+    setImporting(false);
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg"><Settings className="w-5 h-5" /> Regras CLT</CardTitle>
             <CardDescription>Taxas de comissão esperada por banco, tabela, seguro e faixa de prazo.</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="relative"><Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 w-40 h-9" /></div>
+            <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={exportRules}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
+            <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
             <Button size="sm" onClick={() => setEditing({ ...EMPTY })}><Plus className="w-4 h-4 mr-1" /> Nova Regra</Button>
           </div>
         </div>
@@ -136,6 +218,7 @@ export default function CRRulesCLT() {
         )}
       </CardContent>
 
+      {/* Edit/Create Dialog */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editing?.id ? 'Editar' : 'Nova'} Regra CLT</DialogTitle></DialogHeader>
@@ -165,6 +248,7 @@ export default function CRRulesCLT() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-destructive" /> Excluir Regra</DialogTitle></DialogHeader>
@@ -175,6 +259,59 @@ export default function CRRulesCLT() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Importar Regras CLT</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Upload Excel (.xlsx)</Label>
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="block w-full text-sm mt-1 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground" />
+            </div>
+            <div>
+              <Label>Ou cole os dados (Ctrl+V)</Label>
+              <textarea onPaste={handlePaste} placeholder="Cole aqui os dados copiados da planilha..." className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] mt-1 placeholder:text-muted-foreground" />
+            </div>
+            {importPreview.length > 0 && (
+              <div className="border rounded-md p-3 bg-muted/30">
+                <p className="text-sm font-medium mb-2">Preview: {importPreview.length} regras (vigência: hoje)</p>
+                <div className="max-h-40 overflow-auto text-xs">
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead className="text-xs p-1">Banco</TableHead>
+                      <TableHead className="text-xs p-1">Tabela</TableHead>
+                      <TableHead className="text-xs p-1">Seguro</TableHead>
+                      <TableHead className="text-xs p-1 text-right">Prazo</TableHead>
+                      <TableHead className="text-xs p-1 text-right">Taxa</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {importPreview.slice(0, 10).map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="p-1">{r.banco}</TableCell>
+                          <TableCell className="p-1">{r.tabela_chave}</TableCell>
+                          <TableCell className="p-1">{r.seguro}</TableCell>
+                          <TableCell className="p-1 text-right">{r.prazo_min}-{r.prazo_max}</TableCell>
+                          <TableCell className="p-1 text-right">{r.taxa}%</TableCell>
+                        </TableRow>
+                      ))}
+                      {importPreview.length > 10 && <TableRow><TableCell colSpan={5} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmImport} disabled={importPreview.length === 0 || importing}>
+              {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+              Importar {importPreview.length} regras
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
     </Card>
   );
 }
