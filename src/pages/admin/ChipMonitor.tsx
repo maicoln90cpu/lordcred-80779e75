@@ -321,7 +321,16 @@ export default function ChipMonitor() {
               <span className="ml-2 text-xs text-primary">(auto-refresh 30s)</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={handleCleanupInstances}
+              disabled={isCleaning}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              {isCleaning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Limpar Inativas
+            </Button>
             <Button
               variant="outline"
               onClick={handleHealthCheck}
