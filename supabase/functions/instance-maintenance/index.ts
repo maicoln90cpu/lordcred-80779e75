@@ -39,7 +39,90 @@ Deno.serve(async (req) => {
 
     const results: string[] = []
 
-    // 1. Cleanup inactive chips (14+ days)
+    // ===== STEP 0: Clean up disconnected chips from UazAPI =====
+    const { data: disconnectedChips } = await adminClient
+      .from('chips')
+      .select('*')
+      .eq('status', 'disconnected')
+      .not('instance_token', 'is', null)
+
+    for (const chip of disconnectedChips || []) {
+      try {
+        const chipToken = chip.instance_token
+        if (chipToken) {
+          // Disconnect first (safety), then delete from UazAPI
+          await fetch(`${baseUrl}/instance/disconnect`, {
+            method: 'POST',
+            headers: { 'token': chipToken },
+          }).catch(() => {})
+
+          await fetch(`${baseUrl}/instance`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+          }).catch(() => {})
+        }
+
+        await adminClient.from('chips').update({
+          status: 'inactive',
+          health_fail_count: 0,
+          instance_token: null
+        }).eq('id', chip.id)
+        await logLifecycle(adminClient, chip.id, 'cleanup_disconnected', 'Auto-cleanup: disconnected chip removed from UazAPI and marked inactive')
+        results.push(`Cleaned disconnected: ${chip.instance_name}`)
+      } catch (e) {
+        results.push(`Error cleaning disconnected ${chip.instance_name}: ${e.message}`)
+      }
+    }
+
+    // ===== STEP 1: Ghost cleanup — remove UazAPI instances not in our DB =====
+    try {
+      const allInstancesRes = await fetch(`${baseUrl}/instance/all`, {
+        method: 'GET',
+        headers: { 'admintoken': adminToken },
+      })
+      if (allInstancesRes.ok) {
+        const allInstances = await allInstancesRes.json()
+        if (Array.isArray(allInstances)) {
+          // Get all instance_names from our DB
+          const { data: allDbChips } = await adminClient
+            .from('chips')
+            .select('instance_name, instance_token')
+
+          const dbNames = new Set((allDbChips || []).map(c => c.instance_name))
+          const dbTokens = new Set((allDbChips || []).filter(c => c.instance_token).map(c => c.instance_token))
+
+          let ghostCount = 0
+          for (const inst of allInstances) {
+            const instName = inst.name || inst.instance_name || ''
+            if (instName && !dbNames.has(instName)) {
+              // Ghost instance — not in our DB, delete it
+              try {
+                // Try to get the token from the instance list or use admin delete
+                const instToken = inst.token || ''
+                if (instToken) {
+                  await fetch(`${baseUrl}/instance`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'token': instToken },
+                  }).catch(() => {})
+                }
+                ghostCount++
+              } catch (_) {
+                // Ignore individual ghost deletion errors
+              }
+            }
+          }
+          if (ghostCount > 0) {
+            results.push(`Ghost cleanup: removed ${ghostCount} orphan instances from UazAPI`)
+          } else {
+            results.push('Ghost cleanup: no orphan instances found')
+          }
+        }
+      }
+    } catch (e) {
+      results.push(`Ghost cleanup error: ${e.message}`)
+    }
+
+    // ===== STEP 2: Cleanup inactive chips (14+ days) =====
     const { data: inactiveChips } = await adminClient
       .from('chips')
       .select('*')
@@ -66,15 +149,15 @@ Deno.serve(async (req) => {
           }).catch(() => {})
         }
 
-        await adminClient.from('chips').update({ status: 'inactive', health_fail_count: 0 }).eq('id', chip.id)
-        await logLifecycle(adminClient, chip.id, 'inactive', 'Auto-cleanup: 14+ days inactive')
+        await adminClient.from('chips').update({ status: 'inactive', health_fail_count: 0, instance_token: null }).eq('id', chip.id)
+        await logLifecycle(adminClient, chip.id, 'inactive', 'Auto-cleanup: 14+ days inactive, removed from UazAPI')
         results.push(`Cleaned up: ${chip.instance_name}`)
       } catch (e) {
         results.push(`Error cleaning ${chip.instance_name}: ${e.message}`)
       }
     }
 
-    // 2. Health monitoring with 3-strikes tolerance
+    // ===== STEP 3: Health monitoring with 3-strikes tolerance =====
     const { data: connectedChips } = await adminClient
       .from('chips')
       .select('*')
@@ -95,22 +178,32 @@ Deno.serve(async (req) => {
         if (data.status?.connected === true || data.status?.loggedIn === true) actualState = 'connected'
 
         if (actualState === 'connected') {
-          // Healthy — reset fail counter
           if (chip.health_fail_count > 0) {
             await adminClient.from('chips').update({ health_fail_count: 0 }).eq('id', chip.id)
           }
           results.push(`Healthy: ${chip.instance_name}`)
         } else {
-          // Failed — increment counter
           const newFailCount = (chip.health_fail_count || 0) + 1
 
           if (newFailCount >= STRIKE_THRESHOLD) {
+            // 3 strikes: mark disconnected AND delete from UazAPI
+            await fetch(`${baseUrl}/instance/disconnect`, {
+              method: 'POST',
+              headers: { 'token': chipToken },
+            }).catch(() => {})
+
+            await fetch(`${baseUrl}/instance`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            }).catch(() => {})
+
             await adminClient.from('chips').update({
               status: 'disconnected',
-              health_fail_count: newFailCount
+              health_fail_count: newFailCount,
+              instance_token: null
             }).eq('id', chip.id)
-            await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: ${STRIKE_THRESHOLD} consecutive failures — marked disconnected`)
-            results.push(`Status corrected (3 strikes): ${chip.instance_name} -> disconnected`)
+            await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: ${STRIKE_THRESHOLD} consecutive failures — removed from UazAPI`)
+            results.push(`Status corrected + UazAPI deleted (3 strikes): ${chip.instance_name}`)
           } else {
             await adminClient.from('chips').update({ health_fail_count: newFailCount }).eq('id', chip.id)
             results.push(`Warning: ${chip.instance_name} fail ${newFailCount}/${STRIKE_THRESHOLD}`)
@@ -119,11 +212,20 @@ Deno.serve(async (req) => {
       } catch (e) {
         const newFailCount = (chip.health_fail_count || 0) + 1
         if (newFailCount >= STRIKE_THRESHOLD) {
+          const chipToken = chip.instance_token
+          if (chipToken) {
+            await fetch(`${baseUrl}/instance`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            }).catch(() => {})
+          }
+
           await adminClient.from('chips').update({
             status: 'disconnected',
-            health_fail_count: newFailCount
+            health_fail_count: newFailCount,
+            instance_token: null
           }).eq('id', chip.id)
-          await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: network error + ${STRIKE_THRESHOLD} strikes`)
+          await logLifecycle(adminClient, chip.id, 'disconnected', `Maintenance: network error + ${STRIKE_THRESHOLD} strikes — removed from UazAPI`)
           results.push(`Error + 3 strikes ${chip.instance_name}: ${e.message}`)
         } else {
           await adminClient.from('chips').update({ health_fail_count: newFailCount }).eq('id', chip.id)

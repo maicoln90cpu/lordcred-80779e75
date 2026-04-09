@@ -16,7 +16,8 @@ import {
   Signal,
   SignalZero,
   User,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,7 @@ export default function ChipMonitor() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [profilesMap, setProfilesMap] = useState<Record<string, { email: string; name: string | null }>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -242,6 +244,28 @@ export default function ChipMonitor() {
     }
   };
 
+  const handleCleanupInstances = async () => {
+    if (isCleaning) return;
+    setIsCleaning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('instance-maintenance', {
+        body: {}
+      });
+      if (error) throw error;
+
+      const resultCount = data?.results?.length || 0;
+      toast({
+        title: '🧹 Limpeza concluída',
+        description: `${resultCount} ações executadas. Instâncias desconectadas e fantasmas foram removidas da UazAPI.`,
+      });
+      fetchAllData();
+    } catch (error: any) {
+      toast({ title: 'Erro na limpeza', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   const getMessageLimit = (phase: string) => {
     if (!settings) return 50;
     const map: Record<string, number> = {
@@ -319,7 +343,16 @@ export default function ChipMonitor() {
               <span className="ml-2 text-xs text-primary">(auto-refresh 30s)</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={handleCleanupInstances}
+              disabled={isCleaning}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              {isCleaning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Limpar Inativas
+            </Button>
             <Button
               variant="outline"
               onClick={handleHealthCheck}
