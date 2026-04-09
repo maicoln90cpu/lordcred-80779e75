@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,9 +13,13 @@ import { Loader2, History, Trash2, AlertTriangle, ChevronDown, ChevronRight } fr
 import { TSHead, useSortState, applySortToData, TOOLTIPS_HISTORICO } from './CRSortUtils';
 
 const fmtBRL = (v: number | null) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtDate = (d: string | null) => {
+  if (!d) return '-';
+  try { return format(new Date(d), 'dd/MM/yyyy'); } catch { return '-'; }
+};
 
 interface Gestao { id: string; nome: string; qtd_propostas: number | null; valor_liberado: number | null; comissao_esperada: number | null; comissao_recebida: number | null; diferenca: number | null; data_inicio: string | null; data_fim: string | null; created_at: string; }
-interface Detalhe { id: string; num_contrato: string | null; nome: string | null; banco: string | null; produto: string | null; valor_liberado: number | null; comissao_esperada: number | null; comissao_recebida: number | null; diferenca: number | null; }
+interface Detalhe { id: string; num_contrato: string | null; nome: string | null; banco: string | null; produto: string | null; valor_liberado: number | null; comissao_esperada: number | null; comissao_recebida: number | null; diferenca: number | null; data_pago: string | null; }
 
 export default function CRHistorico() {
   const { toast } = useToast();
@@ -32,7 +37,21 @@ export default function CRHistorico() {
   const { data: detalhes = [] } = useQuery({
     queryKey: ['cr-historico-detalhes', expanded],
     enabled: !!expanded,
-    queryFn: async () => { const { data, error } = await supabase.from('cr_historico_detalhado').select('*').eq('gestao_id', expanded!).order('banco').limit(2000); if (error) throw error; return data as Detalhe[]; },
+    queryFn: async () => {
+      // Batch fetch to get all details (may exceed 1000)
+      let all: Detalhe[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from('cr_historico_detalhado').select('*').eq('gestao_id', expanded!).order('banco').range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all = all.concat(data as Detalhe[]);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
+    },
   });
 
   const sortedDetalhes = applySortToData(detalhes, detailSort);
@@ -100,10 +119,11 @@ export default function CRHistorico() {
                           <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                         ) : (
                           <div className="border rounded-lg max-h-[400px] overflow-auto">
-                            <Table className="min-w-[800px]">
+                            <Table className="min-w-[900px]">
                               <TableHeader>
                                 <tr>
                                   <TSHead label="Contrato" sortKey="num_contrato" sort={detailSort} toggle={toggleDetailSort} tooltip={TOOLTIPS_HISTORICO.num_contrato} className="text-xs" />
+                                  <TSHead label="Data" sortKey="data_pago" sort={detailSort} toggle={toggleDetailSort} tooltip="Data de pagamento" className="text-xs" />
                                   <TSHead label="Banco" sortKey="banco" sort={detailSort} toggle={toggleDetailSort} tooltip={TOOLTIPS_HISTORICO.banco} className="text-xs" />
                                   <TSHead label="Produto" sortKey="produto" sort={detailSort} toggle={toggleDetailSort} tooltip={TOOLTIPS_HISTORICO.produto} className="text-xs" />
                                   <TSHead label="Valor Lib." sortKey="valor_liberado" sort={detailSort} toggle={toggleDetailSort} tooltip={TOOLTIPS_HISTORICO.valor_liberado} className="text-xs text-right" />
@@ -118,6 +138,7 @@ export default function CRHistorico() {
                                   return (
                                     <TableRow key={d.id} className={Math.abs(dd) > 0.01 ? 'bg-destructive/5' : ''}>
                                       <TableCell className="text-xs font-mono">{d.num_contrato || '-'}</TableCell>
+                                      <TableCell className="text-xs font-mono whitespace-nowrap">{fmtDate(d.data_pago)}</TableCell>
                                       <TableCell className="text-xs">{d.banco}</TableCell>
                                       <TableCell className="text-xs">{d.produto}</TableCell>
                                       <TableCell className="text-xs text-right font-mono">{fmtBRL(d.valor_liberado)}</TableCell>

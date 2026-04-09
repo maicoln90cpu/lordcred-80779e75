@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,41 +8,68 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
+import CRDateFilter from './CRDateFilter';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const COLORS = [
-  'hsl(var(--primary))',
-  'hsl(var(--accent))',
-  'hsl(var(--destructive))',
-  'hsl(210, 60%, 55%)',
-  'hsl(150, 50%, 45%)',
-  'hsl(40, 80%, 55%)',
-  'hsl(280, 50%, 55%)',
-  'hsl(0, 60%, 55%)',
-  'hsl(180, 50%, 45%)',
-  'hsl(320, 50%, 55%)',
+  'hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--destructive))',
+  'hsl(210, 60%, 55%)', 'hsl(150, 50%, 45%)', 'hsl(40, 80%, 55%)',
+  'hsl(280, 50%, 55%)', 'hsl(0, 60%, 55%)', 'hsl(180, 50%, 45%)', 'hsl(320, 50%, 55%)',
 ];
 
 interface RelatorioRow {
   produto: string | null;
   banco: string | null;
   valor_liberado: number | null;
+  data_pago: string | null;
 }
 
 export default function CRProductionDashboard() {
-  const { data: relatorio = [], isLoading } = useQuery({
-    queryKey: ['cr-relatorio-data'],
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataFim, setDataFim] = useState<Date | undefined>();
+
+  const { data: allRelatorio = [], isLoading } = useQuery({
+    queryKey: ['cr-relatorio-production-all'],
     queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from('cr_relatorio')
-        .select('produto, banco, valor_liberado')
-        .limit(5000);
-      return (data || []) as RelatorioRow[];
+      // Batch fetch to bypass 1000 limit
+      let all: RelatorioRow[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data } = await (supabase as any)
+          .from('cr_relatorio')
+          .select('produto, banco, valor_liberado, data_pago')
+          .range(from, from + pageSize - 1);
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
     },
   });
 
-  // By Banco
+  // Filter by date client-side
+  const relatorio = useMemo(() => {
+    let rows = allRelatorio;
+    if (dataInicio) {
+      const fromStr = format(dataInicio, 'yyyy-MM-dd');
+      rows = rows.filter(r => {
+        if (!r.data_pago) return false;
+        return r.data_pago.slice(0, 10) >= fromStr;
+      });
+    }
+    if (dataFim) {
+      const toStr = format(dataFim, 'yyyy-MM-dd');
+      rows = rows.filter(r => {
+        if (!r.data_pago) return false;
+        return r.data_pago.slice(0, 10) <= toStr;
+      });
+    }
+    return rows;
+  }, [allRelatorio, dataInicio, dataFim]);
+
   const byBanco = useMemo(() => {
     const map = new Map<string, { valor: number; count: number }>();
     for (const r of relatorio) {
@@ -56,7 +84,6 @@ export default function CRProductionDashboard() {
       .sort((a, b) => b.valor - a.valor);
   }, [relatorio]);
 
-  // By Produto
   const byProduto = useMemo(() => {
     const map = new Map<string, { valor: number; count: number }>();
     for (const r of relatorio) {
@@ -71,7 +98,6 @@ export default function CRProductionDashboard() {
       .sort((a, b) => b.valor - a.valor);
   }, [relatorio]);
 
-  // By Banco x Produto (top 10 bancos)
   const crossData = useMemo(() => {
     const top10 = byBanco.slice(0, 10).map(b => b.banco);
     const produtos = new Set<string>();
@@ -102,7 +128,7 @@ export default function CRProductionDashboard() {
     return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   }
 
-  if (relatorio.length === 0) {
+  if (allRelatorio.length === 0) {
     return <p className="text-center text-muted-foreground py-8 text-sm">Importe dados na aba Relatório (Import) primeiro.</p>;
   }
 
@@ -111,40 +137,27 @@ export default function CRProductionDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
+      <CRDateFilter dataInicio={dataInicio} dataFim={dataFim} setDataInicio={setDataInicio} setDataFim={setDataFim} />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-              <Building2 className="w-4 h-4" /> Bancos Ativos
-            </div>
-            <p className="text-2xl font-bold">{byBanco.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-              <Package className="w-4 h-4" /> Contratos Totais
-            </div>
-            <p className="text-2xl font-bold">{totalContratos.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-muted-foreground text-sm mb-1">Valor Liberado Total</div>
-            <p className="text-2xl font-bold">{fmtBRL(totalValor)}</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><Building2 className="w-4 h-4" /> Bancos Ativos</div>
+          <p className="text-2xl font-bold">{byBanco.length}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><Package className="w-4 h-4" /> Contratos Totais</div>
+          <p className="text-2xl font-bold">{totalContratos.toLocaleString('pt-BR')}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-6">
+          <div className="text-muted-foreground text-sm mb-1">Valor Liberado Total</div>
+          <p className="text-2xl font-bold">{fmtBRL(totalValor)}</p>
+        </CardContent></Card>
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar chart: top 10 bancos */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> Produção por Banco (Top 10)
-            </CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><Building2 className="w-4 h-4" /> Produção por Banco (Top 10)</CardTitle>
             <CardDescription>Valor liberado por banco — top 10 em volume</CardDescription>
           </CardHeader>
           <CardContent>
@@ -160,30 +173,17 @@ export default function CRProductionDashboard() {
           </CardContent>
         </Card>
 
-        {/* Pie chart: by produto */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Package className="w-4 h-4" /> Mix de Produtos
-            </CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><Package className="w-4 h-4" /> Mix de Produtos</CardTitle>
             <CardDescription>Distribuição do valor liberado por tipo de produto</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
-                <Pie
-                  data={byProduto}
-                  dataKey="valor"
-                  nameKey="produto"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={120}
-                  label={({ produto, percent }) => `${produto} (${(percent * 100).toFixed(0)}%)`}
-                  labelLine={{ strokeWidth: 1 }}
-                >
-                  {byProduto.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
+                <Pie data={byProduto} dataKey="valor" nameKey="produto" cx="50%" cy="50%" outerRadius={120}
+                  label={({ produto, percent }) => `${produto} (${(percent * 100).toFixed(0)}%)`} labelLine={{ strokeWidth: 1 }}>
+                  {byProduto.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                 </Pie>
                 <Tooltip formatter={(v: number) => fmtBRL(v)} contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 12 }} />
               </PieChart>
@@ -192,7 +192,6 @@ export default function CRProductionDashboard() {
         </Card>
       </div>
 
-      {/* Stacked bar: banco x produto */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Produção por Banco × Produto</CardTitle>
@@ -206,9 +205,7 @@ export default function CRProductionDashboard() {
               <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} className="fill-muted-foreground" />
               <Tooltip formatter={(v: number) => fmtBRL(v)} contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              {crossData.produtos.map((p, i) => (
-                <Bar key={p} dataKey={p} stackId="a" fill={COLORS[i % COLORS.length]} />
-              ))}
+              {crossData.produtos.map((p, i) => (<Bar key={p} dataKey={p} stackId="a" fill={COLORS[i % COLORS.length]} />))}
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
