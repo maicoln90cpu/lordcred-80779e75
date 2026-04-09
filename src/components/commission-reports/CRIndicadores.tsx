@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,6 +8,9 @@ import { TSHead, useSortState, applySortToData } from './CRSortUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import CREvolutionChart from './CREvolutionChart';
 import CRDivergenceAlerts from './CRDivergenceAlerts';
+import { useQuery } from '@tanstack/react-query';
+import { batchFetchRpc } from '@/lib/batchFetchRpc';
+import CRDateFilter from './CRDateFilter';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: number) => `${(v * 100).toFixed(2)}%`;
@@ -19,13 +21,19 @@ interface AuditRow {
 
 export default function CRIndicadores() {
   const { sort, toggle } = useSortState();
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataFim, setDataFim] = useState<Date | undefined>();
+
+  const dateFromStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : null;
+  const dateToStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : null;
 
   const { data: contractData = [], isLoading } = useQuery({
-    queryKey: ['cr-audit-rpc-full'],
+    queryKey: ['cr-audit-rpc-indicadores', dateFromStr, dateToStr],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('calculate_commission_audit', { _date_from: null, _date_to: null });
-      if (error) throw error;
-      return (data || []) as AuditRow[];
+      return batchFetchRpc<AuditRow>('calculate_commission_audit', {
+        _date_from: dateFromStr,
+        _date_to: dateToStr,
+      });
     }
   });
 
@@ -91,14 +99,18 @@ export default function CRIndicadores() {
   }, [contractData]);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-  if (contractData.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Importe dados na aba Relatório (Import) primeiro.</p>;
 
   return (
     <TooltipProvider delayDuration={300}>
     <div className="space-y-6">
+      <CRDateFilter dataInicio={dataInicio} dataFim={dataFim} setDataInicio={setDataInicio} setDataFim={setDataFim} />
       <CREvolutionChart />
       <CRDivergenceAlerts />
 
+      {contractData.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8 text-sm">Importe dados na aba Relatório (Import) primeiro.</p>
+      ) : (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6">
           <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><Target className="w-4 h-4" /> Acurácia Global</div>
@@ -207,6 +219,8 @@ export default function CRIndicadores() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
     </TooltipProvider>
   );

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -9,31 +8,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, BarChart3, Save, DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle, CalendarIcon } from 'lucide-react';
+import { Loader2, BarChart3, Save, DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle, Calculator } from 'lucide-react';
 import { TSHead, useSortState, applySortToData, TipWrap, TOOLTIPS_RESUMO } from './CRSortUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { batchFetchRpc } from '@/lib/batchFetchRpc';
+import CRDateFilter from './CRDateFilter';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtDate = (d: string | null) => {
+  if (!d) return '-';
+  try { return format(new Date(d), 'dd/MM/yyyy'); } catch { return '-'; }
+};
 
 interface AuditRow {
-  num_contrato: string;
-  nome: string;
-  banco: string;
-  produto: string;
-  tabela: string;
-  valor_liberado: number;
-  valor_assegurado: number;
-  prazo: number;
-  seguro: string;
-  vendedor: string;
-  data_pago: string | null;
-  comissao_recebida: number;
-  comissao_esperada: number;
-  diferenca: number;
+  num_contrato: string; nome: string; banco: string; produto: string; tabela: string;
+  valor_liberado: number; valor_assegurado: number; prazo: number; seguro: string;
+  vendedor: string; data_pago: string | null;
+  comissao_recebida: number; comissao_esperada: number; diferenca: number;
 }
 
 export default function CRResumo() {
@@ -47,23 +39,19 @@ export default function CRResumo() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const { sort: bancoSort, toggle: toggleBancoSort } = useSortState();
 
-  // Use server-side RPC for all calculations
   const dateFromStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : null;
   const dateToStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : null;
 
   const { data: auditData = [], isLoading } = useQuery({
     queryKey: ['cr-audit-rpc', dateFromStr, dateToStr],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('calculate_commission_audit', {
+      return batchFetchRpc<AuditRow>('calculate_commission_audit', {
         _date_from: dateFromStr,
         _date_to: dateToStr,
       });
-      if (error) throw error;
-      return (data || []) as AuditRow[];
     }
   });
 
-  // Build summary from server results (just aggregation, no heavy calc)
   const summary = useMemo(() => {
     let totalLiberado = 0, totalRecebida = 0, totalEsperada = 0, countFGTS = 0, countCLT = 0, countDiv = 0;
     const byBanco = new Map<string, { recebida: number; esperada: number; count: number }>();
@@ -140,46 +128,10 @@ export default function CRResumo() {
   return (
     <TooltipProvider delayDuration={300}>
     <div className="space-y-4">
-      {/* Date Filters */}
-      <Card>
-        <CardContent className="py-3">
-          <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-sm font-medium text-muted-foreground">Filtro de Período:</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal h-9", !dataInicio && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Data Início"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal h-9", !dataFim && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dataFim ? format(dataFim, "dd/MM/yyyy") : "Data Fim"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={dataFim} onSelect={setDataFim} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-            {(dataInicio || dataFim) && (
-              <Button variant="ghost" size="sm" onClick={() => { setDataInicio(undefined); setDataFim(undefined); }}>Limpar</Button>
-            )}
-            {(dataInicio || dataFim) && (
-              <Badge variant="secondary" className="text-xs">
-                {dataInicio ? format(dataInicio, "dd/MM/yyyy") : '...'} — {dataFim ? format(dataFim, "dd/MM/yyyy") : '...'}
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <CRDateFilter dataInicio={dataInicio} dataFim={dataFim} setDataInicio={setDataInicio} setDataFim={setDataFim} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 5 cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="pt-6">
           <TipWrap tip={TOOLTIPS_RESUMO.contratos}><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><FileText className="w-4 h-4" /> Contratos</div></TipWrap>
           <p className="text-2xl font-bold">{isLoading ? '...' : summary.count}</p>
@@ -193,10 +145,13 @@ export default function CRResumo() {
           <TipWrap tip={TOOLTIPS_RESUMO.comissao_recebida}><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><TrendingUp className="w-4 h-4" /> Comissão Recebida</div></TipWrap>
           <p className="text-2xl font-bold text-green-600">{isLoading ? '...' : fmtBRL(summary.totalRecebida)}</p>
         </CardContent></Card>
+        <Card><CardContent className="pt-6">
+          <TipWrap tip="Valor total que deveria ter sido pago de comissão, calculado pelas regras cadastradas"><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1"><Calculator className="w-4 h-4" /> Comissão Esperada</div></TipWrap>
+          <p className="text-2xl font-bold">{isLoading ? '...' : fmtBRL(summary.totalEsperada)}</p>
+        </CardContent></Card>
         <Card className={summary.diferenca < -0.01 ? 'border-destructive/50' : ''}><CardContent className="pt-6">
-          <TipWrap tip={TOOLTIPS_RESUMO.diferenca}><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">{summary.diferenca >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />} Diferença (Rec - Esp)</div></TipWrap>
+          <TipWrap tip={TOOLTIPS_RESUMO.diferenca}><div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">{summary.diferenca >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />} Diferença</div></TipWrap>
           <p className={`text-2xl font-bold ${summary.diferenca > 0.01 ? 'text-green-600' : summary.diferenca < -0.01 ? 'text-destructive' : ''}`}>{isLoading ? '...' : fmtBRL(summary.diferenca)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Esperada: {fmtBRL(summary.totalEsperada)}</p>
         </CardContent></Card>
       </div>
 
@@ -242,7 +197,7 @@ export default function CRResumo() {
         </CardContent>
       </Card>
 
-      {/* Detailed contracts table */}
+      {/* Detailed contracts table with Date column */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5" /> Detalhado ({auditData.length} contratos)</CardTitle>
@@ -253,10 +208,11 @@ export default function CRResumo() {
           ) : (
             <>
               <div className="border rounded-lg overflow-auto max-h-[500px] scrollbar-visible">
-                <table className="w-full min-w-[1100px]">
+                <table className="w-full min-w-[1200px]">
                   <thead className="sticky top-0 bg-background z-10">
                     <tr>
                       <TSHead label="Contrato" sortKey="num_contrato" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
+                      <TSHead label="Data" sortKey="data_pago" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
                       <TSHead label="Nome" sortKey="nome" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
                       <TSHead label="Banco" sortKey="banco" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
                       <TSHead label="Produto" sortKey="produto" sort={detailSort} toggle={toggleDetailSort} className="text-xs" />
@@ -270,6 +226,7 @@ export default function CRResumo() {
                     {pagedDetails.map((d, i) => (
                       <tr key={i} className="border-t">
                         <td className="px-4 py-1.5 text-xs font-mono">{d.num_contrato}</td>
+                        <td className="px-4 py-1.5 text-xs font-mono whitespace-nowrap">{fmtDate(d.data_pago)}</td>
                         <td className="px-4 py-1.5 text-xs max-w-[200px] truncate">{d.nome}</td>
                         <td className="px-4 py-1.5 text-xs">{d.banco}</td>
                         <td className="px-4 py-1.5 text-xs"><Badge variant={d.produto === 'FGTS' ? 'default' : 'secondary'} className="text-[10px]">{d.produto}</Badge></td>
@@ -296,7 +253,6 @@ export default function CRResumo() {
         </CardContent>
       </Card>
 
-      {/* Info card about related tabs */}
       <Card className="border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/10">
         <CardContent className="py-3 flex items-center gap-3">
           <BarChart3 className="w-5 h-5 text-blue-600" />
