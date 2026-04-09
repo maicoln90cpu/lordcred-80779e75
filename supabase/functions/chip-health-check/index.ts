@@ -145,12 +145,25 @@ Deno.serve(async (req) => {
           const newFailCount = (chip.health_fail_count || 0) + 1
 
           if (newFailCount >= STRIKE_THRESHOLD) {
-            // 3 strikes — mark as disconnected
+            // 3 strikes — mark as disconnected AND delete from UazAPI
+            if (chip.instance_token) {
+              await fetch(`${baseUrl}/instance/disconnect`, {
+                method: 'POST',
+                headers: { 'token': chip.instance_token },
+              }).catch(() => {})
+
+              await fetch(`${baseUrl}/instance`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'token': chip.instance_token },
+              }).catch(() => {})
+            }
+
             await adminClient
               .from('chips')
               .update({
                 status: 'disconnected',
                 health_fail_count: newFailCount,
+                instance_token: null,
                 last_connection_attempt: new Date().toISOString()
               })
               .eq('id', chip.id)
@@ -161,7 +174,7 @@ Deno.serve(async (req) => {
                 .insert({
                   chip_id: chip.id,
                   event: 'health_check_3strikes',
-                  details: `${STRIKE_THRESHOLD} consecutive failures — ${chip.status} → disconnected`
+                  details: `${STRIKE_THRESHOLD} consecutive failures — ${chip.status} → disconnected, removed from UazAPI`
                 })
             }
 
