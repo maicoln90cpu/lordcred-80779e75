@@ -1075,6 +1075,12 @@ function RatesFGTSTab() {
           <CardTitle>Taxas Comissão FGTS</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
+              const data = rates.map(r => ({ 'Banco': r.bank, 'Data Vigência': r.effective_date, 'Taxa Sem Seguro (%)': r.rate_no_insurance, 'Taxa Com Seguro (%)': r.rate_with_insurance }));
+              const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas FGTS'); XLSX.writeFile(wb, 'taxas_fgts_parceiros.xlsx');
+              toast({ title: `${rates.length} taxas exportadas` });
+            }}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
             <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
             <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
           </div>
@@ -1308,6 +1314,12 @@ function RatesCLTTab() {
           <CardTitle>Taxas Comissão CLT</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
+              const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': (r as any).table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));
+              const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas CLT'); XLSX.writeFile(wb, 'taxas_clt_parceiros.xlsx');
+              toast({ title: `${rates.length} taxas exportadas` });
+            }}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
             <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
             <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
           </div>
