@@ -388,7 +388,8 @@ async function generateAndSend(partnerId: string, userId: string) {
     }
   });
   const documentId = docRes.data.id;
-  console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
+  const documentKey = docRes.data.attributes?.key || docRes.data.id;
+  console.log('Document uploaded:', JSON.stringify({ documentId, documentKey, fileName }));
 
   // 3. Add signer
   const signerAttributes: Record<string, any> = {
