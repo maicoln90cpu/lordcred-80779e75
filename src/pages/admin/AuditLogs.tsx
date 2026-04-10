@@ -349,41 +349,53 @@ export default function AuditLogs() {
                                     </TabsContent>
                                     <TabsContent value="request">
                                       <ScrollArea className="h-[55vh]">
-                                        {log.details?.request_payload ? (
-                                          <div className="bg-muted/50 rounded-lg p-3">
-                                            <JsonTreeView data={log.details.request_payload} maxDepth={5} />
-                                          </div>
-                                        ) : (
-                                          <div className="text-center text-muted-foreground py-8 text-sm">
-                                            Payload de ida não disponível para este log.
-                                            <br />
-                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const reqData = log.details?.request_payload || extractFallbackRequest(log.details);
+                                          return reqData ? (
+                                            <div className="bg-muted/50 rounded-lg p-3">
+                                              {!log.details?.request_payload && (
+                                                <p className="text-xs text-muted-foreground mb-2 italic">⚠ Dados extraídos automaticamente (log legado)</p>
+                                              )}
+                                              <JsonTreeView data={reqData} maxDepth={5} />
+                                            </div>
+                                          ) : (
+                                            <div className="text-center text-muted-foreground py-8 text-sm">
+                                              Payload de ida não disponível para este log.
+                                              <br />
+                                              <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                            </div>
+                                          );
+                                        })()}
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="response">
                                       <ScrollArea className="h-[55vh]">
-                                        {log.details?.response_payload ? (
-                                          <div className="bg-muted/50 rounded-lg p-3">
-                                            <JsonTreeView
-                                              data={(() => {
-                                                const rp = log.details.response_payload;
-                                                if (typeof rp.body === 'string') {
-                                                  try { return { ...rp, body: JSON.parse(rp.body) }; } catch { /* keep */ }
-                                                }
-                                                return rp;
-                                              })()}
-                                              maxDepth={5}
-                                            />
-                                          </div>
-                                        ) : (
-                                          <div className="text-center text-muted-foreground py-8 text-sm">
-                                            Payload de resposta não disponível para este log.
-                                            <br />
-                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const resData = log.details?.response_payload || extractFallbackResponse(log.details);
+                                          if (resData) {
+                                            const displayData = (() => {
+                                              if (typeof resData.body === 'string') {
+                                                try { return { ...resData, body: JSON.parse(resData.body) }; } catch { /* keep */ }
+                                              }
+                                              return resData;
+                                            })();
+                                            return (
+                                              <div className="bg-muted/50 rounded-lg p-3">
+                                                {!log.details?.response_payload && (
+                                                  <p className="text-xs text-muted-foreground mb-2 italic">⚠ Dados extraídos automaticamente (log legado)</p>
+                                                )}
+                                                <JsonTreeView data={displayData} maxDepth={5} />
+                                              </div>
+                                            );
+                                          }
+                                          return (
+                                            <div className="text-center text-muted-foreground py-8 text-sm">
+                                              Payload de resposta não disponível para este log.
+                                              <br />
+                                              <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                            </div>
+                                          );
+                                        })()}
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="raw">
