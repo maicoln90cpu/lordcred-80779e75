@@ -12,23 +12,41 @@ Deno.serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log('ClickSign webhook received:', JSON.stringify(payload).substring(0, 1000));
+    console.log('ClickSign webhook received:', JSON.stringify(payload).substring(0, 2000));
 
-    // ClickSign API v3 webhook: payload.event.name contém o nome do evento
+    // ClickSign API v3 webhook structure:
+    // payload.event.name = event name
+    // payload.document = { key, downloads: { signed_file_url, ... } }
+    // payload.account, payload.envelope, payload.signer, etc.
     const eventName = payload?.event?.name || payload?.event || null;
-    const eventData = payload?.event?.data || payload?.data || {};
-
-    // Extrair identificadores do documento/envelope
-    const documentKey = eventData?.document?.key || eventData?.document_key || null;
-    const envelopeId = eventData?.envelope?.id || 
-                        eventData?.envelope_id || 
+    
+    // Document info — ClickSign v3 puts document at root level
+    const document = payload?.document || payload?.event?.data?.document || {};
+    const documentKey = document?.key || payload?.event?.data?.document_key || null;
+    
+    // Envelope info — also at root level in v3
+    const envelope = payload?.envelope || payload?.event?.data?.envelope || {};
+    const envelopeId = envelope?.id || 
+                        payload?.event?.data?.envelope_id || 
                         payload?.data?.id ||
-                        payload?.envelope?.id || 
                         null;
-    const signerKey = eventData?.signer?.key || null;
-    const signerEmail = eventData?.signer?.email || null;
+    
+    // Signer info
+    const signer = payload?.signer || payload?.event?.data?.signer || {};
+    const signerKey = signer?.key || null;
+    const signerEmail = signer?.email || null;
 
-    console.log('Parsed webhook:', JSON.stringify({ eventName, documentKey, envelopeId, signerKey, signerEmail }));
+    // Downloads — v3 puts them inside document
+    const downloads = document?.downloads || {};
+    const signedFileUrl = downloads?.signed_file_url || 
+                           downloads?.original_file_url ||
+                           null;
+
+    console.log('Parsed webhook:', JSON.stringify({ 
+      eventName, documentKey, envelopeId, signerKey, signerEmail,
+      hasSignedUrl: !!signedFileUrl,
+      payloadKeys: Object.keys(payload),
+    }));
 
     // Log the webhook
     await supabaseAdmin.from('audit_logs').insert({
@@ -40,6 +58,8 @@ Deno.serve(async (req) => {
         document_key: documentKey,
         envelope_id: envelopeId,
         signer_email: signerEmail,
+        signed_file_url: signedFileUrl ? '(present)' : null,
+        payload_keys: Object.keys(payload),
         payload: JSON.stringify(payload).substring(0, 5000),
       },
     });
@@ -51,8 +71,8 @@ Deno.serve(async (req) => {
     ];
 
     const isCompleted = (typeof eventName === 'string' && completedEvents.includes(eventName)) ||
-                         eventData?.status === 'closed' ||
-                         eventData?.status === 'finished' ||
+                         envelope?.status === 'closed' ||
+                         envelope?.status === 'finished' ||
                          payload?.data?.attributes?.status === 'closed' ||
                          payload?.data?.attributes?.status === 'finished';
 
@@ -106,37 +126,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Tentar obter a URL do documento assinado
-      let signedUrl = null;
-      try {
-        const CLICKSIGN_BASE_URL = Deno.env.get('CLICKSIGN_BASE_URL') || 'https://sandbox.clicksign.com';
-        const CLICKSIGN_TOKEN = Deno.env.get('CLICKSIGN_ACCESS_TOKEN') || '';
-
-        if (CLICKSIGN_TOKEN && envelopeId) {
-          const envelopeRes = await fetch(`${CLICKSIGN_BASE_URL}/api/v3/envelopes/${envelopeId}`, {
-            headers: {
-              'Authorization': CLICKSIGN_TOKEN,
-              'Accept': 'application/vnd.api+json',
-            },
-          });
-          if (envelopeRes.ok) {
-            const envelopeData = await envelopeRes.json();
-            signedUrl = envelopeData?.data?.attributes?.downloads?.signed_file_url ||
-                        envelopeData?.data?.attributes?.signed_file_url ||
-                        null;
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to fetch signed URL:', e);
-      }
-
-      // Atualizar parceiro
+      // Atualizar parceiro — NÃO salvamos signed_file_url permanentemente pois expira em 5min
+      // O download é feito on-demand via clicksign-api/getSignedUrl
       const updateData: Record<string, unknown> = {
         contrato_status: 'assinado',
         contrato_assinado_em: new Date().toISOString(),
         pipeline_status: 'contrato_assinado',
       };
-      if (signedUrl) updateData.contrato_signed_url = signedUrl;
 
       await supabaseAdmin.from('partners').update(updateData).eq('id', partner.id);
 
@@ -148,7 +144,6 @@ Deno.serve(async (req) => {
           event_name: eventName,
           document_key: documentKey,
           envelope_id: envelopeId,
-          signed_url: signedUrl,
           signer_email: signerEmail,
         },
         created_by: '00000000-0000-0000-0000-000000000000',
