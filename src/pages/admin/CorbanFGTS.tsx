@@ -188,6 +188,9 @@ export default function CorbanFGTS() {
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                     {loading ? 'Buscando...' : 'Buscar'}
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+                    <Settings2 className="w-4 h-4 mr-1" /> Payload
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -283,6 +286,13 @@ export default function CorbanFGTS() {
             </Card>
           </TabsContent>
         </Tabs>
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={buildFilaPayload()}
+          onSend={async (payload) => { await executeFilaSearch(payload); }}
+          title="Editar Payload — FGTS"
+        />
       </div>
     </DashboardLayout>
   );
