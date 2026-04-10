@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Copy, MessageCircle } from 'lucide-react';
+import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Copy, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { DEFAULT_ALIASES, type ColumnAlias } from './LeadImporter';
@@ -87,6 +88,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const [bulkSeller, setBulkSeller] = useState('');
   const [bulkProfile, setBulkProfile] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { sort, toggle: toggleSort } = useSortState();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -183,8 +185,9 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return Array.from(names).sort();
   }, [leads]);
 
-  const totalPages = Math.max(1, Math.ceil(leads.length / PAGE_SIZE));
-  const pagedLeads = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const sortedLeads = useMemo(() => applySortToData(leads, sort), [leads, sort]);
+  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE));
+  const pagedLeads = sortedLeads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const allPageSelected = pagedLeads.length > 0 && pagedLeads.every((l: any) => selectedIds.has(l.id));
 
@@ -526,34 +529,60 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                         <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                       </TableHead>
                       {visibleCols ? (
-                        visibleCols.map((col, i) => (
-                          <TableHead key={col.key} className={i === 0 ? 'sticky left-10 bg-background z-10' : ''}>
-                            {col.label}
-                          </TableHead>
-                        ))
+                        visibleCols.map((col, i) => {
+                          const SortIcon = sort.key === col.key ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead
+                              key={col.key}
+                              className={`cursor-pointer select-none hover:bg-muted/50 ${i === 0 ? 'sticky left-10 bg-background z-10' : ''}`}
+                              onClick={() => toggleSort(col.key)}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {col.label}
+                                <SortIcon className={`w-3 h-3 ${sort.key === col.key ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                              </span>
+                            </TableHead>
+                          );
+                        })
                       ) : (
                         <>
-                          <TableHead className="sticky left-10 bg-background z-10">Nome</TableHead>
-                          <TableHead>Telefone</TableHead>
-                          <TableHead>CPF</TableHead>
-                          <TableHead>Valor Lib.</TableHead>
-                          <TableHead>Prazo</TableHead>
-                          <TableHead>Parcela</TableHead>
-                          <TableHead>Banco</TableHead>
-                          <TableHead>Cód. Banco</TableHead>
-                          <TableHead>Banco Simulado</TableHead>
-                          <TableHead>Agência</TableHead>
-                          <TableHead>Conta</TableHead>
-                          <TableHead>Aprovado</TableHead>
-                          <TableHead>Reprovado</TableHead>
-                          <TableHead>Data Nasc.</TableHead>
-                          <TableHead>Nome Mãe</TableHead>
-                          <TableHead>Data Ref.</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Perfil</TableHead>
-                          <TableHead>Vendedor</TableHead>
-                          <TableHead>Lote</TableHead>
-                          <TableHead>Observações</TableHead>
+                          {[
+                            { key: 'nome', label: 'Nome', sticky: true },
+                            { key: 'telefone', label: 'Telefone' },
+                            { key: 'cpf', label: 'CPF' },
+                            { key: 'valor_lib', label: 'Valor Lib.' },
+                            { key: 'prazo', label: 'Prazo' },
+                            { key: 'vlr_parcela', label: 'Parcela' },
+                            { key: 'banco_nome', label: 'Banco' },
+                            { key: 'banco_codigo', label: 'Cód. Banco' },
+                            { key: 'banco_simulado', label: 'Banco Simulado' },
+                            { key: 'agencia', label: 'Agência' },
+                            { key: 'conta', label: 'Conta' },
+                            { key: 'aprovado', label: 'Aprovado' },
+                            { key: 'reprovado', label: 'Reprovado' },
+                            { key: 'data_nasc', label: 'Data Nasc.' },
+                            { key: 'nome_mae', label: 'Nome Mãe' },
+                            { key: 'data_ref', label: 'Data Ref.' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'perfil', label: 'Perfil' },
+                            { key: 'assigned_to', label: 'Vendedor' },
+                            { key: 'batch_name', label: 'Lote' },
+                            { key: 'notes', label: 'Observações' },
+                          ].map(col => {
+                            const SortIcon = sort.key === col.key ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                            return (
+                              <TableHead
+                                key={col.key}
+                                className={`cursor-pointer select-none hover:bg-muted/50 ${col.sticky ? 'sticky left-10 bg-background z-10' : ''}`}
+                                onClick={() => toggleSort(col.key)}
+                              >
+                                <span className="inline-flex items-center gap-1">
+                                  {col.label}
+                                  <SortIcon className={`w-3 h-3 ${sort.key === col.key ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                                </span>
+                              </TableHead>
+                            );
+                          })}
                         </>
                       )}
                       <TableHead className="w-10"></TableHead>

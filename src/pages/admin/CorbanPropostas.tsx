@@ -12,7 +12,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { invokeCorban } from '@/lib/invokeCorban';
@@ -128,6 +130,7 @@ export default function CorbanPropostas() {
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_VISIBLE));
   const [selectedProposta, setSelectedProposta] = useState<NormalizedCorbanProposta | null>(null);
+  const { sort, toggle: toggleSort } = useSortState();
 
   useEffect(() => {
     (async () => {
@@ -223,8 +226,9 @@ export default function CorbanPropostas() {
     return String(value);
   };
 
-  const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
-  const pagedPropostas = propostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const sortedPropostas = useMemo(() => applySortToData(propostas, sort), [propostas, sort]);
+  const totalPages = Math.ceil(sortedPropostas.length / PAGE_SIZE);
+  const pagedPropostas = sortedPropostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <DashboardLayout>
@@ -425,9 +429,21 @@ export default function CorbanPropostas() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {activeColumns.map(col => (
-                          <TableHead key={col.key} className="whitespace-nowrap text-xs">{col.label}</TableHead>
-                        ))}
+                        {activeColumns.map(col => {
+                          const Icon = sort.key === col.key ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead
+                              key={col.key}
+                              className="whitespace-nowrap text-xs cursor-pointer select-none hover:bg-muted/50"
+                              onClick={() => toggleSort(col.key as string)}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {col.label}
+                                <Icon className={`w-3 h-3 ${sort.key === col.key ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                              </span>
+                            </TableHead>
+                          );
+                        })}
                       </TableRow>
                     </TableHeader>
                     <TableBody>

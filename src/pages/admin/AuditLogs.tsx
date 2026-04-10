@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Shield, Clock, Send, Terminal, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
@@ -112,6 +114,7 @@ export default function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const { sort, toggle: toggleSort } = useSortState();
 
   // API Tester state
   const [apiUrl, setApiUrl] = useState('https://api.newcorban.com.br/api/propostas/');
@@ -144,7 +147,7 @@ export default function AuditLogs() {
     setLoadingMore(false);
   };
 
-  const filteredLogs = logs.filter(log => {
+  const filteredBase = logs.filter(log => {
     const matchesSearch = !searchTerm || 
       (log.user_email?.toLowerCase().includes(searchTerm.toLowerCase())) ||
       log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -152,6 +155,7 @@ export default function AuditLogs() {
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     return matchesSearch && matchesAction;
   });
+  const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
   const uniqueActions = [...new Set(logs.map(l => l.action))];
 
@@ -280,12 +284,28 @@ export default function AuditLogs() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Data/Hora</TableHead>
-                        <TableHead>Usuário</TableHead>
-                        <TableHead>Ação</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Tabela</TableHead>
-                        <TableHead>ID Alvo</TableHead>
+                        {[
+                          { key: 'created_at', label: 'Data/Hora' },
+                          { key: 'user_email', label: 'Usuário' },
+                          { key: 'action', label: 'Ação' },
+                          { key: '_status', label: 'Status' },
+                          { key: 'target_table', label: 'Tabela' },
+                          { key: 'target_id', label: 'ID Alvo' },
+                        ].map(col => {
+                          const Icon = sort.key === col.key ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead
+                              key={col.key}
+                              className="cursor-pointer select-none hover:bg-muted/50"
+                              onClick={() => toggleSort(col.key)}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {col.label}
+                                <Icon className={`w-3 h-3 ${sort.key === col.key ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                              </span>
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="w-20">Detalhes</TableHead>
                       </TableRow>
                     </TableHeader>

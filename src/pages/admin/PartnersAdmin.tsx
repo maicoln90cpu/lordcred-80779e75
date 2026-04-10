@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User, Download, AlertTriangle } from 'lucide-react';
+import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { PartnersDashboard } from '@/components/partners/PartnersDashboard';
@@ -62,6 +64,7 @@ export default function PartnersAdmin() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tabela' | 'kanban'>('tabela');
   const [duplicateWarning, setDuplicateWarning] = useState('');
+  const { sort, toggle: toggleSort } = useSortState();
 
   const [form, setForm] = useState({
     nome: '', telefone: '', cpf: '', email: '',
@@ -170,7 +173,7 @@ export default function PartnersAdmin() {
     }
   };
 
-  const filtered = partners.filter(p => {
+  const filteredBase = partners.filter(p => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (p.nome?.toLowerCase().includes(s)) ||
@@ -178,6 +181,7 @@ export default function PartnersAdmin() {
       (p.telefone?.toLowerCase().includes(s)) ||
       (p.cnpj?.toLowerCase().includes(s));
   });
+  const filtered = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
   const statusCounts = allPartners.reduce<Record<string, number>>((acc, p) => {
     acc[p.pipeline_status] = (acc[p.pipeline_status] || 0) + 1;
@@ -289,9 +293,25 @@ export default function PartnersAdmin() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-10">Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Status</TableHead>
+                      {[
+                        { key: 'nome', label: 'Nome', sticky: true },
+                        { key: 'telefone', label: 'Telefone' },
+                        { key: 'pipeline_status', label: 'Status' },
+                      ].map(col => {
+                        const Icon = sort.key === col.key ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                        return (
+                          <TableHead
+                            key={col.key}
+                            className={`cursor-pointer select-none hover:bg-muted/50 ${col.sticky ? 'sticky left-0 bg-background z-10' : ''}`}
+                            onClick={() => toggleSort(col.key)}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {col.label}
+                              <Icon className={`w-3 h-3 ${sort.key === col.key ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                            </span>
+                          </TableHead>
+                        );
+                      })}
                       {CRM_COLUMNS.map(col => (
                         <TableHead key={col.key} className="min-w-[140px]">{col.label}</TableHead>
                       ))}
