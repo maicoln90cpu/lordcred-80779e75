@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download } from 'lucide-react';
+import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
@@ -72,6 +72,26 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   return errors;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  'criado': 'Parceiro criado',
+  'dados_atualizados': 'Dados atualizados',
+  'status_alterado': 'Status alterado',
+  'contrato_gerado': 'Contrato gerado',
+  'contrato_assinado': 'Contrato assinado',
+  'contrato_enviado': 'Contrato enviado para assinatura',
+  'nota_adicionada': 'Nota adicionada',
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  'criado': '🆕',
+  'dados_atualizados': '✏️',
+  'status_alterado': '🔄',
+  'contrato_gerado': '📄',
+  'contrato_assinado': '✅',
+  'contrato_enviado': '📧',
+  'nota_adicionada': '💬',
+};
+
 export default function PartnerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -82,6 +102,7 @@ export default function PartnerDetail() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [contractPreviewText, setContractPreviewText] = useState('');
   const [contractPdfBase64, setContractPdfBase64] = useState('');
+  const [newNote, setNewNote] = useState('');
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -139,6 +160,24 @@ export default function PartnerDetail() {
       queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
       setDirty(false);
       toast({ title: 'Parceiro atualizado com sucesso' });
+    },
+    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('partner_history').insert({
+        partner_id: id!,
+        action: 'nota_adicionada',
+        details: { nota: newNote },
+        created_by: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
+      setNewNote('');
+      toast({ title: 'Nota adicionada' });
     },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
@@ -244,6 +283,7 @@ export default function PartnerDetail() {
             <TabsTrigger value="pessoal"><User className="w-4 h-4 mr-1" /> Dados Pessoais</TabsTrigger>
             <TabsTrigger value="pj"><Building2 className="w-4 h-4 mr-1" /> Dados PJ</TabsTrigger>
             <TabsTrigger value="contrato"><FileText className="w-4 h-4 mr-1" /> Contrato</TabsTrigger>
+            <TabsTrigger value="notas"><MessageSquare className="w-4 h-4 mr-1" /> Notas</TabsTrigger>
             <TabsTrigger value="historico"><History className="w-4 h-4 mr-1" /> Histórico</TabsTrigger>
           </TabsList>
 
@@ -332,7 +372,6 @@ export default function PartnerDetail() {
                         </a>
                       </div>
                     </div>
-                    {/* Inline PDF Viewer */}
                     <div className="rounded-lg border overflow-hidden">
                       <iframe
                         src={form.contrato_signed_url}
@@ -389,27 +428,78 @@ export default function PartnerDetail() {
             </Card>
           </TabsContent>
 
+          {/* New Notes Tab */}
+          <TabsContent value="notas">
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Notas e Comentários</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    placeholder="Adicionar uma nota sobre este parceiro..."
+                    rows={2}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={() => addNoteMutation.mutate()}
+                    disabled={!newNote.trim() || addNoteMutation.isPending}
+                    className="self-end"
+                  >
+                    {addNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {history.filter(h => h.action === 'nota_adicionada').length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota registrada ainda.</p>
+                  ) : (
+                    history.filter(h => h.action === 'nota_adicionada').map(h => (
+                      <div key={h.id} className="p-3 rounded-lg bg-muted/50 border">
+                        <p className="text-sm">{(h.details as any)?.nota || ''}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="historico">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Histórico de Ações</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Timeline de Ações</CardTitle></CardHeader>
               <CardContent>
                 {history.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">Nenhuma ação registrada ainda.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {history.map(h => (
-                      <div key={h.id} className="flex gap-3 items-start border-l-2 border-primary/30 pl-4 py-2">
-                        <Clock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium">{formatAction(h.action)}</p>
+                  <div className="space-y-1">
+                    {history.map((h, i) => (
+                      <div key={h.id} className="flex gap-3 items-start relative">
+                        {/* Timeline line */}
+                        {i < history.length - 1 && (
+                          <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
+                        )}
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm shrink-0 z-10">
+                          {ACTION_ICONS[h.action] || '📋'}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <p className="text-sm font-medium">{ACTION_LABELS[h.action] || h.action}</p>
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}
                           </p>
-                          {h.details && typeof h.details === 'object' && (
-                            <pre className="text-xs text-muted-foreground mt-1 bg-muted rounded p-2 overflow-x-auto max-w-full">
-                              {JSON.stringify(h.details, null, 2)}
-                            </pre>
+                          {h.action === 'nota_adicionada' && (h.details as any)?.nota && (
+                            <p className="text-sm mt-1 p-2 rounded bg-muted/50 border">{(h.details as any).nota}</p>
+                          )}
+                          {h.action !== 'nota_adicionada' && h.details && typeof h.details === 'object' && (
+                            <details className="mt-1">
+                              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver detalhes</summary>
+                              <pre className="text-xs text-muted-foreground mt-1 bg-muted rounded p-2 overflow-x-auto max-w-full">
+                                {JSON.stringify(h.details, null, 2)}
+                              </pre>
+                            </details>
                           )}
                         </div>
                       </div>
@@ -433,16 +523,4 @@ export default function PartnerDetail() {
       />
     </DashboardLayout>
   );
-}
-
-function formatAction(action: string): string {
-  const map: Record<string, string> = {
-    'criado': 'Parceiro criado',
-    'dados_atualizados': 'Dados atualizados',
-    'status_alterado': 'Status alterado',
-    'contrato_gerado': 'Contrato gerado',
-    'contrato_assinado': 'Contrato assinado',
-    'contrato_enviado': 'Contrato enviado para assinatura',
-  };
-  return map[action] || action;
 }
