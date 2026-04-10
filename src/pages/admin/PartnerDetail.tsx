@@ -11,11 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, ScrollText } from 'lucide-react';
+import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
-import { ContractTemplateEditor } from '@/components/partners/ContractTemplateEditor';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial' },
@@ -241,11 +240,10 @@ export default function PartnerDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="pessoal" className="space-y-4">
-          <TabsList>
+           <TabsList>
             <TabsTrigger value="pessoal"><User className="w-4 h-4 mr-1" /> Dados Pessoais</TabsTrigger>
             <TabsTrigger value="pj"><Building2 className="w-4 h-4 mr-1" /> Dados PJ</TabsTrigger>
             <TabsTrigger value="contrato"><FileText className="w-4 h-4 mr-1" /> Contrato</TabsTrigger>
-            <TabsTrigger value="template"><ScrollText className="w-4 h-4 mr-1" /> Template</TabsTrigger>
             <TabsTrigger value="historico"><History className="w-4 h-4 mr-1" /> Histórico</TabsTrigger>
           </TabsList>
 
@@ -313,16 +311,35 @@ export default function PartnerDetail() {
                 </div>
 
                 {form.contrato_status === 'assinado' && form.contrato_signed_url && (
-                  <div className="mt-6 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <p className="text-sm font-medium text-green-400 mb-2">✅ Contrato Assinado</p>
-                    {form.contrato_assinado_em && (
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Assinado em {format(new Date(form.contrato_assinado_em), 'dd/MM/yyyy HH:mm')}
-                      </p>
-                    )}
-                    <a href={form.contrato_signed_url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-                      Abrir documento assinado
-                    </a>
+                  <div className="mt-6 space-y-4">
+                    <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <p className="text-sm font-medium text-green-400 mb-2">✅ Contrato Assinado</p>
+                      {form.contrato_assinado_em && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Assinado em {format(new Date(form.contrato_assinado_em), 'dd/MM/yyyy HH:mm')}
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <a href={form.contrato_signed_url} target="_blank" rel="noreferrer">
+                          <Button variant="outline" size="sm">
+                            <Eye className="w-3.5 h-3.5 mr-1" /> Abrir na ClickSign
+                          </Button>
+                        </a>
+                        <a href={form.contrato_signed_url} download>
+                          <Button variant="outline" size="sm">
+                            <Download className="w-3.5 h-3.5 mr-1" /> Exportar PDF
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                    {/* Inline PDF Viewer */}
+                    <div className="rounded-lg border overflow-hidden">
+                      <iframe
+                        src={form.contrato_signed_url}
+                        className="w-full h-[70vh] bg-background"
+                        title="Contrato assinado"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -372,9 +389,6 @@ export default function PartnerDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="template">
-            <ContractTemplateEditor />
-          </TabsContent>
 
           <TabsContent value="historico">
             <Card>

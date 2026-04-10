@@ -42,6 +42,7 @@ import Permissions from "./pages/admin/Permissions";
 import BankCredentials from "./pages/admin/BankCredentials";
 import PartnersAdmin from "./pages/admin/PartnersAdmin";
 import PartnerDetail from "./pages/admin/PartnerDetail";
+import ContractTemplate from "./pages/admin/ContractTemplate";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
 import WhatsApp from "./pages/WhatsApp";
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="/admin/permissions" element={<ProtectedRoute blockSellers><Permissions /></ProtectedRoute>} />
               <Route path="/admin/bancos" element={<ProtectedRoute blockSellers><BankCredentials /></ProtectedRoute>} />
               <Route path="/admin/parceiros" element={<ProtectedRoute blockSellers><PartnersAdmin /></ProtectedRoute>} />
+              <Route path="/admin/parceiros/template" element={<ProtectedRoute blockSellers><ContractTemplate /></ProtectedRoute>} />
               <Route path="/admin/parceiros/:id" element={<ProtectedRoute blockSellers><PartnerDetail /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

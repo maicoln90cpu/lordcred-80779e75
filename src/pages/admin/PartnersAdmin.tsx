@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Trash2, Users2, Filter } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, ScrollText } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PIPELINE_STATUSES = [
@@ -51,16 +51,17 @@ export default function PartnersAdmin() {
     pipeline_status: 'contato_inicial', obs: '',
   });
 
-  const { data: partners = [], isLoading } = useQuery({
-    queryKey: ['partners', statusFilter],
+  // Always fetch ALL partners for accurate counts, filter in front-end
+  const { data: allPartners = [], isLoading } = useQuery({
+    queryKey: ['partners'],
     queryFn: async () => {
-      let q = supabase.from('partners').select('*').order('created_at', { ascending: false });
-      if (statusFilter !== 'all') q = q.eq('pipeline_status', statusFilter);
-      const { data, error } = await q;
+      const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
   });
+
+  const partners = statusFilter === 'all' ? allPartners : allPartners.filter(p => p.pipeline_status === statusFilter);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -111,7 +112,8 @@ export default function PartnersAdmin() {
       (p.cnpj?.toLowerCase().includes(s));
   });
 
-  const statusCounts = partners.reduce<Record<string, number>>((acc, p) => {
+  // Count over ALL partners regardless of active filter
+  const statusCounts = allPartners.reduce<Record<string, number>>((acc, p) => {
     acc[p.pipeline_status] = (acc[p.pipeline_status] || 0) + 1;
     return acc;
   }, {});
@@ -124,9 +126,14 @@ export default function PartnersAdmin() {
             <h1 className="text-2xl font-bold">Parceiros</h1>
             <p className="text-sm text-muted-foreground">Pipeline de captação e gestão de parceiros comerciais</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Parceiro
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/admin/parceiros/template')}>
+              <ScrollText className="w-4 h-4 mr-2" /> Template do Contrato
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Parceiro
+            </Button>
+          </div>
         </div>
 
         {/* Status cards */}
@@ -135,16 +142,21 @@ export default function PartnersAdmin() {
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${statusFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
           >
-            Todos ({partners.length})
+            Todos ({allPartners.length})
           </button>
           {PIPELINE_STATUSES.map(s => {
             const count = statusCounts[s.value] || 0;
-            if (count === 0 && statusFilter !== s.value) return null;
             return (
               <button
                 key={s.value}
                 onClick={() => setStatusFilter(s.value === statusFilter ? 'all' : s.value)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${statusFilter === s.value ? 'bg-primary text-primary-foreground' : s.color + ' hover:opacity-80'}`}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  statusFilter === s.value
+                    ? 'bg-primary text-primary-foreground'
+                    : count === 0
+                      ? 'bg-muted/50 text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground'
+                      : s.color + ' hover:opacity-80'
+                }`}
               >
                 {s.label} ({count})
               </button>
