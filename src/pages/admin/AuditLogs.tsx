@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Shield, Clock, Send, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 
 interface AuditLog {
   id: string;
