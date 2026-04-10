@@ -1,9 +1,8 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2, Eye, EyeOff, ChevronRight } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Eye, EyeOff, ChevronRight, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,6 +15,7 @@ import { toast } from 'sonner';
 import { useCorbanFeatures } from '@/hooks/useCorbanFeatures';
 import { InstitutionSelect } from '@/components/corban/InstitutionSelect';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 interface Login {
   id: string;
@@ -35,6 +35,7 @@ export default function SellerFGTS() {
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<any>(null);
+  const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   const { isFeatureVisible } = useCorbanFeatures();
 
   const canInsert = isFeatureVisible('seller_consulta_fgts');
@@ -60,21 +61,29 @@ export default function SellerFGTS() {
     })();
   }, [instituicao, canInsert]);
 
-  const handleSearch = async () => {
-    setLoading(true);
+  const buildPayload = () => {
     const today = new Date().toISOString().split('T')[0];
-    const { data, error } = await invokeCorban('listQueueFGTS', {
+    return {
       filters: {
         searchString: searchCpf.replace(/\D/g, ''),
         instituicao,
         data: { startDate: today, endDate: today }
       }
-    });
+    };
+  };
+
+  const executeSearch = async (payload: Record<string, unknown>) => {
+    setLoading(true);
+    const { data, error } = await invokeCorban('listQueueFGTS', payload);
     setLoading(false);
     if (error) { toast.error('Erro ao buscar', { description: error }); return; }
     const list = Array.isArray(data) ? data : (data?.fila || data?.data || []);
     setFilaItems(list);
     if (list.length === 0) toast.info('Nenhum item encontrado');
+  };
+
+  const handleSearch = async () => {
+    await executeSearch(buildPayload());
   };
 
   const handleInsert = async () => {
@@ -158,12 +167,17 @@ export default function SellerFGTS() {
           <CardHeader>
             <CardTitle className="text-base flex items-center justify-between">
               <span>Minhas Consultas</span>
-              {filaItems.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setColumnsOpen(true)}>
-                  {hiddenCols.size > 0 ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                  Colunas ({visibleColumns.length}/{allColumns.length})
+              <div className="flex gap-2">
+                {filaItems.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setColumnsOpen(true)}>
+                    {hiddenCols.size > 0 ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                    Colunas ({visibleColumns.length}/{allColumns.length})
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+                  <Settings2 className="w-4 h-4 mr-1" /> Payload
                 </Button>
-              )}
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -242,6 +256,14 @@ export default function SellerFGTS() {
             </div>
           </SheetContent>
         </Sheet>
+
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={buildPayload()}
+          onSend={async (payload) => { await executeSearch(payload); }}
+          title="Editar Payload — FGTS"
+        />
       </div>
     </DashboardLayout>
   );
