@@ -101,16 +101,28 @@ interface RepasseRow { ade: string | null; cod_contrato: string | null; cms_rep_
 interface SeguroRow { descricao: string | null; valor_comissao: number | null; }
 
 export default function CREvolutionChart() {
+  const fetchAllRows = async (table: string, columns: string) => {
+    const allData: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      const { data, error } = await (supabase as any).from(table).select(columns).range(from, from + batchSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allData.push(...data);
+      if (data.length < batchSize) break;
+      from += batchSize;
+    }
+    return allData;
+  };
+
   const { data: relatorio = [], isLoading: l0 } = useQuery({
     queryKey: ['cr-relatorio-data'],
-    queryFn: async () => {
-      const { data } = await (supabase as any).from('cr_relatorio').select('data_pago, num_contrato, produto, banco, prazo, tabela, valor_liberado, seguro').limit(5000);
-      return (data || []) as RelatorioRow[];
-    }
+    queryFn: async () => fetchAllRows('cr_relatorio', 'data_pago, num_contrato, produto, banco, prazo, tabela, valor_liberado, seguro') as Promise<RelatorioRow[]>,
   });
-  const { data: geral = [] } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => { const { data } = await supabase.from('cr_geral').select('ade, cod_contrato, cms_rep').limit(5000); return (data || []) as GeralRow[]; } });
-  const { data: repasse = [] } = useQuery({ queryKey: ['cr-repasse-report'], queryFn: async () => { const { data } = await supabase.from('cr_repasse').select('ade, cod_contrato, cms_rep_favorecido').limit(5000); return (data || []) as RepasseRow[]; } });
-  const { data: seguros = [] } = useQuery({ queryKey: ['cr-seguros-report'], queryFn: async () => { const { data } = await supabase.from('cr_seguros').select('descricao, valor_comissao').limit(5000); return (data || []) as SeguroRow[]; } });
+  const { data: geral = [] } = useQuery({ queryKey: ['cr-geral-report'], queryFn: async () => fetchAllRows('cr_geral', 'ade, cod_contrato, cms_rep') as Promise<GeralRow[]> });
+  const { data: repasse = [] } = useQuery({ queryKey: ['cr-repasse-report'], queryFn: async () => fetchAllRows('cr_repasse', 'ade, cod_contrato, cms_rep_favorecido') as Promise<RepasseRow[]> });
+  const { data: seguros = [] } = useQuery({ queryKey: ['cr-seguros-report'], queryFn: async () => fetchAllRows('cr_seguros', 'descricao, valor_comissao') as Promise<SeguroRow[]> });
   const { data: rulesFGTS = [] } = useQuery({ queryKey: ['cr-rules-fgts'], queryFn: async () => { const { data } = await supabase.from('cr_rules_fgts').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleFGTS[]; } });
   const { data: rulesCLT = [] } = useQuery({ queryKey: ['cr-rules-clt'], queryFn: async () => { const { data } = await supabase.from('cr_rules_clt').select('*').order('data_vigencia', { ascending: false }); return (data || []) as RuleCLT[]; } });
 

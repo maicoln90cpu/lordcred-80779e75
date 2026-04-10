@@ -269,7 +269,8 @@ export default function AuditLogs() {
               </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
-                {filteredLogs.length} registros
+                {filteredLogs.length} de {logs.length} registros
+                {hasMore && ' (mais disponíveis)'}
               </Badge>
             </div>
 
@@ -444,6 +445,14 @@ export default function AuditLogs() {
                   </Table>
                 </ScrollArea>
               </CardContent>
+              {hasMore && (
+                <div className="flex justify-center p-3 border-t">
+                  <Button variant="outline" size="sm" onClick={() => loadLogs(false)} disabled={loadingMore}>
+                    {loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Carregar mais registros
+                  </Button>
+                </div>
+              )}
             </Card>
           </TabsContent>
 
