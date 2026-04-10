@@ -159,7 +159,7 @@ const normalizeSingleProposta = (input: unknown): NormalizedCorbanProposta => {
 
   return {
     proposta_id: toFlatString(findDeepValue(source, ['proposta_id', 'id', 'codigo_proposta'])),
-    cpf: toFlatString(findDeepValue(source, ['cpf', 'cpf_cliente', 'documento', 'cpfcnpj'])),
+    cpf: toFlatString(findDeepValue(source, ['cpf', 'cpf_cliente', 'cliente_cpf', 'documento', 'cpfcnpj'])),
     nome: toFlatString(findDeepValue(source, ['nome', 'nome_cliente', 'cliente_nome', 'nome_completo'])),
     telefone: toFlatString(findDeepValue(source, ['telefone', 'celular', 'fone', 'whatsapp'])),
     banco: toFlatString(findDeepValue(source, ['banco_nome', 'nome_banco', 'banco_averbacao_nome', 'banco_averbacao', 'banco'])),

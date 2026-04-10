@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Database, RefreshCw, Loader2 } from 'lucide-react';
+import { Database, RefreshCw, Loader2, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 const ASSET_TYPES = [
   { key: 'status', label: 'Status' },
@@ -26,6 +27,7 @@ export default function CorbanAssets() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [activeTab, setActiveTab] = useState('status');
+  const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
 
   const { data: cachedAssets = [], refetch } = useQuery({
     queryKey: ['corban-assets-cache', activeTab],
@@ -122,6 +124,9 @@ export default function CorbanAssets() {
               <RefreshCw className={`w-4 h-4 mr-2 ${syncing === activeTab ? 'animate-spin' : ''}`} />
               {syncing === activeTab ? 'Sincronizando...' : 'Sincronizar'}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+              <Settings2 className="w-4 h-4 mr-1" /> Payload
+            </Button>
           </div>
 
           {ASSET_TYPES.map(t => (
@@ -174,6 +179,17 @@ export default function CorbanAssets() {
             </TabsContent>
           ))}
         </Tabs>
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={{ asset: activeTab }}
+          onSend={async (payload) => {
+            const assetType = (payload as any).asset || activeTab;
+            const count = await syncAsset(assetType);
+            if (count > 0) { toast.success(`${count} itens sincronizados`); refetch(); }
+          }}
+          title="Editar Payload — Assets"
+        />
       </div>
     </DashboardLayout>
   );

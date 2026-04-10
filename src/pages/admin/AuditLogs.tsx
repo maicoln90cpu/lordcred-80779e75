@@ -246,7 +246,7 @@ export default function AuditLogs() {
                                     <Eye className="w-3.5 h-3.5" />
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-3xl max-h-[80vh]">
+                                <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
                                   <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
                                       Detalhes do Log
@@ -261,7 +261,7 @@ export default function AuditLogs() {
                                       <TabsTrigger value="raw" className="flex-1">JSON Completo</TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="resumo">
-                                      <ScrollArea className="max-h-[55vh]">
+                                      <ScrollArea className="h-[55vh]">
                                         <div className="space-y-3 p-1">
                                           <div className="grid grid-cols-2 gap-3 text-sm">
                                             <div><span className="text-muted-foreground">Usuário:</span> <span className="font-medium">{log.user_email || '—'}</span></div>
@@ -289,7 +289,7 @@ export default function AuditLogs() {
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="request">
-                                      <ScrollArea className="max-h-[55vh]">
+                                      <ScrollArea className="h-[55vh]">
                                         {log.details?.request_payload ? (
                                           <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
                                             {JSON.stringify(log.details.request_payload, null, 2)}
@@ -304,7 +304,7 @@ export default function AuditLogs() {
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="response">
-                                      <ScrollArea className="max-h-[55vh]">
+                                      <ScrollArea className="h-[55vh]">
                                         {log.details?.response_payload ? (
                                           <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
                                             {(() => {
@@ -329,7 +329,7 @@ export default function AuditLogs() {
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="raw">
-                                      <ScrollArea className="max-h-[55vh]">
+                                      <ScrollArea className="h-[55vh]">
                                         <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
                                           {JSON.stringify(log.details, null, 2)}
                                         </pre>

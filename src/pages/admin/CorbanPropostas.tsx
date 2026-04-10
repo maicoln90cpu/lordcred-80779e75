@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 interface CachedAsset {
   asset_id: string;
@@ -37,7 +38,7 @@ export default function CorbanPropostas() {
   const [bancoFilter, setBancoFilter] = useState<string>('');
   const [cachedStatus, setCachedStatus] = useState<CachedAsset[]>([]);
   const [cachedBancos, setCachedBancos] = useState<CachedAsset[]>([]);
-
+  const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   useEffect(() => {
     (async () => {
       const [statusRes, bancosRes] = await Promise.all([
@@ -54,28 +55,24 @@ export default function CorbanPropostas() {
     return items.find((item) => item.asset_id === value)?.asset_label || value;
   };
 
-  const handleSearch = async () => {
-    if (!dateFrom || !dateTo) {
-      toast.error('Informe data inicial e final para buscar');
-      return;
-    }
-
-    if (dateFrom > dateTo) {
-      toast.error('A data inicial não pode ser maior que a data final');
-      return;
-    }
-
-    setLoading(true);
-    const filters = {
+  const buildPayload = () => {
+    const filters: Record<string, any> = {
       status: [],
       data: {
         tipo: 'cadastro',
-        startDate: format(dateFrom, 'yyyy-MM-dd'),
-        endDate: format(dateTo, 'yyyy-MM-dd'),
+        startDate: dateFrom ? format(dateFrom, 'yyyy-MM-dd') : '',
+        endDate: dateTo ? format(dateTo, 'yyyy-MM-dd') : '',
       },
     };
+    if (statusFilter) filters.status = [statusFilter];
+    if (bancoFilter) filters.banco = bancoFilter;
+    if (searchCpf.trim()) filters.searchString = searchCpf.trim();
+    return { exactPayload: true, filters };
+  };
 
-    const { data, error } = await invokeCorban('getPropostas', { exactPayload: true, filters });
+  const executeSearch = async (payload: Record<string, unknown>) => {
+    setLoading(true);
+    const { data, error } = await invokeCorban('getPropostas', payload);
     setLoading(false);
     setPage(0);
     if (error) {
@@ -87,6 +84,18 @@ export default function CorbanPropostas() {
     if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada para os filtros informados');
     }
+  };
+
+  const handleSearch = async () => {
+    if (!dateFrom || !dateTo) {
+      toast.error('Informe data inicial e final para buscar');
+      return;
+    }
+    if (dateFrom > dateTo) {
+      toast.error('A data inicial não pode ser maior que a data final');
+      return;
+    }
+    await executeSearch(buildPayload());
   };
 
   const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
@@ -188,6 +197,9 @@ export default function CorbanPropostas() {
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                 {loading ? 'Buscando...' : 'Buscar'}
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+                <Settings2 className="w-4 h-4 mr-1" /> Payload
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -244,6 +256,13 @@ export default function CorbanPropostas() {
             </CardContent>
           </Card>
         )}
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={buildPayload()}
+          onSend={async (payload) => { await executeSearch(payload); }}
+          title="Editar Payload — Propostas"
+        />
       </div>
     </DashboardLayout>
   );

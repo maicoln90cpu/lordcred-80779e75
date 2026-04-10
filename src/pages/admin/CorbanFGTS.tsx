@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 interface Login {
   id: string;
@@ -33,7 +34,7 @@ export default function CorbanFGTS() {
   const [loadingLogins, setLoadingLogins] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date());
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
-
+  const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   // Fetch logins when instituicao changes
   useEffect(() => {
     (async () => {
@@ -49,11 +50,8 @@ export default function CorbanFGTS() {
     })();
   }, [instituicao]);
 
-  const handleSearchFila = async () => {
-    setLoading(true);
-    const filters: Record<string, any> = {
-      instituicao,
-    };
+  const buildFilaPayload = () => {
+    const filters: Record<string, any> = { instituicao };
     if (searchCpf.trim()) filters.searchString = searchCpf.replace(/\D/g, '');
     if (dateFrom || dateTo) {
       filters.data = {};
@@ -61,8 +59,12 @@ export default function CorbanFGTS() {
       if (dateTo) filters.data.endDate = format(dateTo, 'yyyy-MM-dd');
       else filters.data.endDate = format(new Date(), 'yyyy-MM-dd');
     }
+    return { filters };
+  };
 
-    const { data, error } = await invokeCorban('listQueueFGTS', { filters });
+  const executeFilaSearch = async (payload: Record<string, unknown>) => {
+    setLoading(true);
+    const { data, error } = await invokeCorban('listQueueFGTS', payload);
     setLoading(false);
     if (error) {
       toast.error('Erro ao buscar fila FGTS', { description: error });
@@ -71,6 +73,10 @@ export default function CorbanFGTS() {
     const list = Array.isArray(data) ? data : (data?.fila || data?.data || []);
     setFilaItems(list);
     if (list.length === 0) toast.info('Nenhum item encontrado na fila');
+  };
+
+  const handleSearchFila = async () => {
+    await executeFilaSearch(buildFilaPayload());
   };
 
   const handleInsert = async () => {
@@ -182,6 +188,9 @@ export default function CorbanFGTS() {
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                     {loading ? 'Buscando...' : 'Buscar'}
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+                    <Settings2 className="w-4 h-4 mr-1" /> Payload
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -277,6 +286,13 @@ export default function CorbanFGTS() {
             </Card>
           </TabsContent>
         </Tabs>
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={buildFilaPayload()}
+          onSend={async (payload) => { await executeFilaSearch(payload); }}
+          title="Editar Payload — FGTS"
+        />
       </div>
     </DashboardLayout>
   );
