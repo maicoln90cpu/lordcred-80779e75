@@ -7,6 +7,7 @@ const corsHeaders = {
 
 const CLICKSIGN_BASE_URL = Deno.env.get('CLICKSIGN_BASE_URL') || 'https://sandbox.clicksign.com';
 const CLICKSIGN_TOKEN = Deno.env.get('CLICKSIGN_ACCESS_TOKEN') || '';
+const CLICKSIGN_ACCOUNT_ID = Deno.env.get('CLICKSIGN_ACCOUNT_ID') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -102,62 +103,113 @@ async function clicksignFetch(path: string, method: string, body?: any) {
   return data;
 }
 
-// ---------- Default contract template (fallback when DB is empty) ----------
-const DEFAULT_CONTRACT_TEMPLATE = [
-  'CONTRATO DE PARCERIA COMERCIAL AUTONOMA',
-  '',
-  'Pelo presente instrumento particular, de um lado:',
-  '',
-  'LORD CRED, pessoa juridica de direito privado, inscrita no CNPJ 42.824.770/0001-07, com sede na Rua Jose Maria da Luz, n. 2900, Loja 01, Centro, Palhoca/SC, CEP 88.131-000, neste ato representada por Silas Carlos Dias, brasileiro, solteiro, CPF n. 112.937.439-41, doravante denominada CONTRATANTE;',
-  '',
-  'E, de outro lado:',
-  '',
-  '{{RAZAO_SOCIAL}}, pessoa juridica de direito privado, inscrita no CNPJ {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, CPF n. {{REPRESENTANTE_CPF}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;',
-  '',
-  'Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTONOMA, mediante as clausulas e condicoes seguintes:',
-  '',
-  'CLAUSULA 1 - DO OBJETO',
-  'O presente contrato tem por objeto comercializacao, pela EMPRESA PARCEIRA, dos produtos e/ou servicos oferecidos pela CONTRATANTE.',
-  '',
-  'CLAUSULA 2 - DA NATUREZA JURIDICA DA RELACAO',
-  'O presente contrato possui natureza estritamente civil e comercial, nao gerando qualquer vinculo empregaticio, societario, associativo ou de representacao comercial exclusiva entre as partes.',
-  '',
-  'CLAUSULA 3 - DA REMUNERACAO',
-  'O PARCEIRO fara jus a comissao de no minimo 0,50% sobre o valor dos produtos vendidos por sua intermediacao.',
-  'O pagamento sera realizado ate o dia {{DIA_PAGAMENTO}} do mes subsequente ao recebimento dos valores pela CONTRATANTE.',
-  '',
-  'CLAUSULA 4 - DA NAO CONCORRENCIA',
-  'A EMPRESA PARCEIRA compromete-se, durante a vigencia e por 12 meses apos rescisao, a nao comercializar produtos concorrentes.',
-  '',
-  'CLAUSULA 5 - DA CONFIDENCIALIDADE',
-  'A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informacoes da CONTRATANTE por 5 anos apos o termino.',
-  '',
-  'CLAUSULA 6 - DO REGIME DE TRABALHO REMOTO (HOME OFFICE)',
-  'As atividades serao realizadas em regime de trabalho remoto (home office).',
-  '',
-  'CLAUSULA 7 - DA PROTECAO DE DADOS PESSOAIS (LGPD)',
-  'A EMPRESA PARCEIRA declara estar ciente da Lei 13.709/2018 (LGPD) e compromete-se a cumpri-la.',
-  '',
-  'CLAUSULA 8 - DA MULTA CONTRATUAL',
-  'O descumprimento de qualquer clausula sujeitara a parte infratora ao pagamento de multa contratual.',
-  '',
-  'CLAUSULA 9 - DA VIGENCIA E RESCISAO',
-  'O presente contrato vigorara por prazo determinado de {{VIGENCIA_MESES}} meses.',
-  'Rescisao mediante aviso previo por escrito com antecedencia de {{AVISO_PREVIO_DIAS}} dias.',
-  '',
-  'CLAUSULA 10 - DO FORO',
-  'Fica eleito o foro da Comarca de Palhoca/SC para dirimir eventuais controversias.',
-  '',
-  'E por estarem justas e contratadas, firmam o presente instrumento.',
-  '',
-  'Palhoca/SC, {{DIA}} de {{MES}} de {{ANO}}.',
-  '',
-  '___________________________________',
-  'LORD CRED (CONTRATANTE)',
-  '',
-  '___________________________________',
-  '{{RAZAO_SOCIAL}} (EMPRESA PARCEIRA)',
-].join('\n');
+// ---------- Default contract template (full 5-page version) ----------
+const DEFAULT_CONTRACT_TEMPLATE = `CONTRATO DE PARCERIA COMERCIAL AUTÔNOMA
+
+Pelo presente instrumento particular, de um lado:
+
+LORD CRED, pessoa jurídica de direito privado, inscrita no CNPJ nº 42.824.770/0001-07, com sede na Rua José Maria da Luz, n. 2900, Loja 01, Centro, Palhoça/SC, CEP 88.131-000, neste ato representada por Silas Carlos Dias, brasileiro, solteiro, CPF n. 112.937.439-41, residente e domiciliado na Rua Humberto Anibal Climaco, n. 266, E. 507, Forquilhinhas São José/SC doravante denominada CONTRATANTE;
+
+E, de outro lado:
+
+{{RAZAO_SOCIAL}}, pessoa jurídica de direito privado, inscrita no CNPJ nº {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, CPF n. {{REPRESENTANTE_CPF}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;
+
+Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTÔNOMA, mediante as cláusulas e condições seguintes:
+
+CLÁUSULA 1 – DO OBJETO
+O presente contrato tem por objeto comercialização, pela EMPRESA PARCEIRA, dos produtos e/ou serviços oferecidos pela CONTRATANTE, mediante as condições estabelecidas neste instrumento.
+§1º As atividades não descritas no objeto deste contrato não estarão sujeitas ao regime de parceria empresarial descrito neste instrumento.
+
+CLÁUSULA 2 – DA NATUREZA JURÍDICA DA RELAÇÃO
+O presente contrato possui natureza estritamente civil e comercial, não gerando qualquer vínculo empregatício, societário, associativo ou de representação comercial exclusiva entre as partes.
+§1º A EMPRESA PARCEIRA atuará com total autonomia, assumindo os riscos de sua atividade, inexistindo subordinação jurídica, pessoalidade, habitualidade compulsória ou contraprestação financeira fixa, razão pela qual inexistem, na presente relação comercial, os requisitos caracterizadores de relação de emprego (conforme arts 2º e 3º da CLT).
+§2º A EMPRESA PARCEIRA não estará sujeita a controle de jornada, exclusividade, fiscalização hierárquica ou qualquer forma de subordinação estrutural.
+§3º A EMPRESA PARCEIRA poderá prestar serviços a terceiros, salvo nas hipóteses previstas na cláusula de não concorrência deste contrato e desde que não conflite e/ou prejudique os interesses da CONTRATANTE.
+§4º A EMPRESA PARCEIRA é integralmente responsável pelo recolhimento de seus tributos, contribuições previdenciárias e demais encargos decorrentes dos valores recebidos.
+§5º A inexistência de resultados ou a ausência de intermediações não gera qualquer obrigação de pagamento mínimo por parte da CONTRATANTE.
+§6º A EMPRESA PARCEIRA não possui poderes para representar juridicamente a CONTRATANTE (tanto na esfera administrativa quanto judicial), salvo autorização expressa e escrita.
+
+CLÁUSULA 3 – DA REMUNERAÇÃO
+O PARCEIRO fará jus à comissão de no mínimo 0,50% (zero vírgula cinquenta por cento) sobre o valor dos produtos e/ou serviços que forem vendidos por sua intermediação.
+§1º O percentual de comissão poderá ser aumentado de acordo com o desempenho individual da EMPRESA PARCEIRA e o atingimento de metas comerciais estabelecidas pela CONTRATANTE, podendo haver majoração progressiva conforme critérios internos da empresa.
+§2º A comissão somente será devida após a efetiva venda e o pagamento pelo cliente.
+§3º Em caso de inadimplemento, cancelamento, distrato ou devolução de valores pelo cliente, a comissão não será devida ou poderá ser estornada proporcionalmente.
+§4º O pagamento será realizado até o dia {{DIA_PAGAMENTO}} do mês subsequente ao recebimento dos valores pela CONTRATANTE.
+§5º Não haverá pagamento de qualquer valor fixo, ajuda de custo, verba de representação ou remuneração mínima garantida.
+§6º Nos casos em que a EMPRESA PARCEIRA realizar indicação de novos clientes ou parceiros comerciais que venham a efetivamente contratar produtos ou serviços da CONTRATANTE, será devida bonificação adicional inicial de 0,10% (zero vírgula dez por cento) sobre o valor da negociação realizada, a qual também poderá ser aumentada, conforme critérios, interesse e disponibilidade da CONTRATANTE.
+§7º A bonificação por indicação poderá ser aumentada progressivamente conforme critérios de desempenho, volume de negócios gerados ou políticas comerciais internas da CONTRATANTE.
+
+CLÁUSULA 4 – DA NÃO CONCORRÊNCIA
+A EMPRESA PARCEIRA compromete-se, durante a vigência deste contrato e pelo prazo de 12 (doze) meses após sua rescisão, a não:
+a) Comercializar produtos ou serviços idênticos ou diretamente concorrentes aos da CONTRATANTE para clientes por ele prospectados durante a vigência deste contrato;
+b) Utilizar informações estratégicas, listas de clientes ou dados comerciais da CONTRATANTE para benefício próprio ou de terceiros;
+c) Desviar clientela vinculada aos negócios intermediados.
+§1º A restrição limita-se à área de atuação correspondente aos produtos/serviços objeto desta parceria, isto é, aqueles oferecidos pela CONTRATANTE.
+§2º A presente cláusula não impede a EMPRESA PARCEIRA de exercer sua atividade profissional de forma ampla, desde que não haja concorrência direta ou indireta nos termos acima definidos.
+
+CLÁUSULA 5 – DA CONFIDENCIALIDADE
+A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informações comerciais, estratégicas, financeiras e operacionais da CONTRATANTE a que tiver acesso em razão do presente contrato, obrigação essa que permanecerá por 5 (cinco) anos após o término deste contrato.
+§1º A EMPRESA PARCEIRA compromete-se a não divulgar, compartilhar, reproduzir ou utilizar para benefício próprio ou de terceiros quaisquer informações confidenciais a que tiver acesso em razão deste contrato.
+§2º A EMPRESA PARCEIRA responderá civil, administrativa e criminalmente pelo uso indevido, divulgação ou vazamento de quaisquer informações obtidas em razão desta relação contratual, ainda que tal utilização indevida seja praticada por terceiros que tenham tido acesso às informações por sua responsabilidade.
+§3º Consideram-se informações confidenciais, entre outras: dados de clientes, estratégias comerciais, listas de contatos, políticas internas, condições comerciais, documentos internos, informações financeiras e quaisquer outros dados não públicos da CONTRATANTE.
+§4º Durante o contrato a CONTRATANTE terá a liberdade de acrescentar novas informações confidenciais, sobre as quais a EMPRESA PARCEIRA terá o mesmo dever de confidencialidade exposto nesta cláusula.
+
+CLÁUSULA 6 – DO REGIME DE TRABALHO REMOTO (HOME OFFICE)
+As atividades desempenhadas pela EMPRESA PARCEIRA serão realizadas em regime de trabalho remoto (home office), sendo executadas integralmente fora das dependências físicas da CONTRATANTE.
+§1º Em razão da natureza autônoma da parceria e da realização das atividades em regime remoto, não haverá controle de jornada, fiscalização de horário, exigência de presença física nas dependências da CONTRATANTE ou imposição de rotina laboral pela CONTRATANTE.
+§2º A EMPRESA PARCEIRA será integralmente responsável pela estrutura necessária para execução de suas atividades, incluindo equipamentos, internet, local de trabalho, energia elétrica e demais recursos necessários.
+§3º A EMPRESA PARCEIRA declara estar ciente de que não possui horários e dias fixos de trabalho, podendo organizar livremente sua agenda e a forma de execução das atividades comerciais.
+
+CLÁUSULA 7 - DA PROTEÇÃO DE DADOS PESSOAIS (LGPD)
+A EMPRESA PARCEIRA declara estar ciente das disposições da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados – LGPD) e compromete-se a cumprir integralmente todos os seus dispositivos, especialmente no que se refere ao tratamento de dados pessoais a que tiver acesso em razão deste contrato.
+§1º Para os fins da LGPD, a EMPRESA PARCEIRA atuará na qualidade de OPERADOR, realizando o tratamento de dados pessoais exclusivamente em nome da CONTRATANTE, que figura como CONTROLADORA, limitando-se às finalidades estritamente necessárias à execução da parceria comercial.
+§2º A EMPRESA PARCEIRA compromete-se a:
+I – Tratar os dados pessoais apenas mediante instruções da CONTRATANTE;
+II – Utilizar os dados exclusivamente para fins relacionados à execução deste contrato, vedado qualquer uso diverso;
+III – Não compartilhar, ceder, divulgar ou disponibilizar dados pessoais a terceiros sem autorização prévia e expressa da CONTRATANTE;
+IV – Adotar medidas técnicas e administrativas aptas a proteger os dados pessoais contra acessos não autorizados, destruição, perda, alteração, comunicação ou qualquer forma de tratamento inadequado ou ilícito;
+V – Manter registro das operações de tratamento realizadas quando solicitado;
+VI – Assegurar que quaisquer pessoas eventualmente envolvidos no tratamento de dados estejam igualmente vinculadas a dever de confidencialidade.
+§3º A EMPRESA PARCEIRA compromete-se a comunicar imediatamente à CONTRATANTE a ocorrência de qualquer incidente de segurança que possa acarretar risco ou dano relevante aos titulares dos dados, fornecendo todas as informações necessárias para a adoção das medidas cabíveis.
+§4º Encerrado o presente contrato, a EMPRESA PARCEIRA deverá, a critério da CONTRATANTE, eliminar ou devolver todos os dados pessoais a que tiver tido acesso, ressalvadas hipóteses legais de conservação obrigatória.
+§5º O descumprimento das obrigações previstas nesta cláusula sujeitará a EMPRESA PARCEIRA à responsabilidade integral por eventuais danos causados à CONTRATANTE ou a terceiros, sem prejuízo da aplicação da multa contratual prevista neste instrumento.
+§6º As obrigações previstas nesta cláusula subsistirão mesmo após o término da relação contratual, pelo prazo legal aplicável.
+
+CLÁUSULA 8 – DA MULTA CONTRATUAL
+O descumprimento de qualquer cláusula ou obrigação prevista neste contrato sujeitará a parte infratora ao pagamento de multa contratual, sem prejuízo das demais medidas cabíveis.
+§1º Caso o descumprimento seja praticado pela EMPRESA PARCEIRA, esta ficará sujeita ao pagamento de multa equivalente a 30% (trinta por cento) do valor estimado das comissões percebidas nos últimos 12 (doze) meses, ou o valor mínimo de R$ 5.000,00 (cinco mil reais), prevalecendo o maior.
+§2º Caso o descumprimento seja praticado pela CONTRATANTE, esta ficará sujeita ao pagamento de multa equivalente a 10% (dez por cento) do valor estimado das comissões percebidas pela CONTRATADA nos últimos 12 (doze) meses.
+§3º No caso específico de violação da cláusula de confidencialidade, não concorrência, uso indevido de marca, carteira de clientes ou informações comerciais da CONTRATANTE, a multa aplicável à EMPRESA PARCEIRA será equivalente a R$ 5.000,00 (cinco mil reais) ou 40% (quarenta por cento) do valor do negócio envolvido, prevalecendo o maior valor.
+§4º A aplicação da multa contratual não exclui o direito da parte prejudicada de pleitear indenização suplementar por perdas e danos caso o prejuízo efetivamente sofrido seja superior ao valor da penalidade estipulada.
+
+CLÁUSULA 9 – DA VIGÊNCIA E RESCISÃO
+O presente contrato vigorará por prazo determinado de {{VIGENCIA_MESES}} meses.
+§1º Este contrato poderá ser rescindido por qualquer das partes mediante aviso prévio por escrito com antecedência mínima de {{AVISO_PREVIO_DIAS}} dias.
+§2º Poderá haver rescisão imediata em caso de:
+a) Descumprimento/violação de quaisquer cláusulas;
+b) Ato que prejudique a CONTRATANTE em qualquer esfera (civil, administrativa e/ou criminal);
+c) Utilização indevida da marca, nome empresarial, logotipo ou quaisquer sinais distintivos da CONTRATANTE;
+d) Prática de conduta que cause ou possa causar dano à imagem, reputação ou credibilidade da CONTRATANTE perante clientes, parceiros ou o mercado;
+e) Comercialização de produtos ou serviços da CONTRATANTE em desacordo com as condições, valores ou políticas previamente estabelecidas;
+f) Prestação de informações falsas, incompletas ou enganosas a clientes, parceiros ou à própria CONTRATANTE;
+g) Transferência, cessão ou delegação das atividades previstas neste contrato a terceiros sem prévia e expressa autorização da CONTRATANTE;
+h) Envolvimento da EMPRESA PARCEIRA em práticas ilícitas, fraudulentas ou contrárias à legislação vigente;
+i) Decretação de falência, recuperação judicial, dissolução ou encerramento das atividades da EMPRESA PARCEIRA, quando aplicável;
+j) Prática de concorrência desleal ou comercialização de produtos ou serviços concorrentes em desacordo com as condições estabelecidas neste contrato;
+k) Qualquer conduta da EMPRESA PARCEIRA que comprometa a execução regular do objeto contratual.
+
+CLÁUSULA 10 – DO FORO
+Fica eleito o foro da Comarca de Palhoça/SC, com renúncia a qualquer outro, por mais privilegiado que seja, para dirimir eventuais controvérsias.
+
+E por estarem justas e contratadas, firmam o presente instrumento em duas vias de igual teor.
+
+Palhoça/SC, {{DIA}} de {{MES}} de {{ANO}}.
+
+___________________________________
+LORD CRED (CONTRATANTE)
+
+___________________________________
+{{CNPJ_CURTO}} {{REPRESENTANTE_NOME}} (EMPRESA PARCEIRA)`;
 
 // ---------- Dynamic template loading ----------
 
@@ -168,8 +220,7 @@ async function loadContractTemplate(): Promise<string> {
     .limit(1)
     .single();
   const tpl = data?.contract_template || '';
-  if (tpl.length > 100) return tpl;
-  // If template is empty/minimal in DB, use the full default template
+  if (tpl.length > 500) return tpl;
   return DEFAULT_CONTRACT_TEMPLATE;
 }
 
@@ -185,15 +236,22 @@ function replacePlaceholders(template: string, partner: any, now: Date): string 
   const rawCpf = (partner.cpf || '').replace(/\D/g, '');
   const cpfFormatted = rawCpf.length === 11 ? formatCpf(rawCpf) : (partner.cpf || '___');
 
+  // CNPJ curto: extract first 9 digits (before /0001-XX)
+  const rawCnpj = (partner.cnpj || '').replace(/\D/g, '');
+  const cnpjCurto = rawCnpj.length >= 8
+    ? `${rawCnpj.slice(0,2)}.${rawCnpj.slice(2,5)}.${rawCnpj.slice(5,8)}`
+    : (partner.cnpj || '___');
+
   const map: Record<string, string> = {
     '{{RAZAO_SOCIAL}}': partner.razao_social || partner.nome || '___',
     '{{CNPJ}}': partner.cnpj || '___',
+    '{{CNPJ_CURTO}}': cnpjCurto,
     '{{ENDERECO_PJ}}': partner.endereco_pj || partner.endereco || '___',
     '{{REPRESENTANTE_NOME}}': partner.nome || '___',
     '{{REPRESENTANTE_NACIONALIDADE}}': partner.nacionalidade || '___',
     '{{REPRESENTANTE_ESTADO_CIVIL}}': partner.estado_civil || '___',
     '{{REPRESENTANTE_CPF}}': cpfFormatted,
-    '{{REPRESENTANTE_ENDERECO}}': partner.endereco || '___',
+    '{{REPRESENTANTE_ENDERECO}}': partner.endereco || partner.endereco_pj || '___',
     '{{DIA_PAGAMENTO}}': diaPagamento,
     '{{VIGENCIA_MESES}}': vigencia,
     '{{AVISO_PREVIO_DIAS}}': avisoPrevio,
@@ -228,7 +286,6 @@ function generatePdfBytes(text: string): Uint8Array {
       wrappedLines.push({ text: '', bold: false });
       continue;
     }
-    // Detect bold lines: all-caps titles or CLÁUSULA headers
     const isBold = /^(CONTRATO|CLÁUSULA|CLAUSULA|CONTRATANTE|CONTRATADO|LORD CRED|E, de outro|Pelo presente|Resolvem firmar|Palhoça|___)/i.test(line.trim());
     let remaining = line;
     while (remaining.length > maxCharsPerLine) {
@@ -248,12 +305,10 @@ function generatePdfBytes(text: string): Uint8Array {
   if (pages.length === 0) pages.push([{ text: '', bold: false }]);
 
   function esc(s: string): string {
-    // Convert to Latin-1 compatible chars and escape PDF special chars
     return s
       .replace(/\\/g, '\\\\')
       .replace(/\(/g, '\\(')
       .replace(/\)/g, '\\)')
-      // Map common special chars to Latin-1 octal codes
       .replace(/ã/g, '\\343').replace(/Ã/g, '\\303')
       .replace(/á/g, '\\341').replace(/Á/g, '\\301')
       .replace(/â/g, '\\342').replace(/Â/g, '\\302')
@@ -285,18 +340,11 @@ function generatePdfBytes(text: string): Uint8Array {
     return objCount;
   }
 
-  // 1 - Catalog
   addObj('<< /Type /Catalog /Pages 2 0 R >>');
-
-  // 2 - Pages placeholder
   const pagesObjNum = objCount + 1;
   addObj('PAGES_PLACEHOLDER');
-
-  // 3 - Font Regular (Helvetica)
   const fontRegObj = objCount + 1;
   addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-
-  // 4 - Font Bold (Helvetica-Bold)
   const fontBoldObj = objCount + 1;
   addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
@@ -307,7 +355,6 @@ function generatePdfBytes(text: string): Uint8Array {
     let stream = 'BT\n';
     let y = pageHeight - margin;
 
-    // Header line on first page
     if (pi === 0) {
       stream += `/F2 8 Tf\n0.5 0.5 0.5 rg\n`;
       stream += `1 0 0 1 ${margin} ${pageHeight - 30} Tm\n(LORD CRED - Contrato de Parceria Comercial) Tj\n`;
@@ -322,14 +369,11 @@ function generatePdfBytes(text: string): Uint8Array {
       y -= lineHeight;
     }
 
-    // Footer with page number
     stream += `/F1 8 Tf\n0.5 0.5 0.5 rg\n`;
     stream += `1 0 0 1 ${pageWidth / 2 - 20} 25 Tm\n(P\\341gina ${pi + 1} de ${pages.length}) Tj\n`;
     stream += `0 0 0 rg\n`;
-
     stream += 'ET\n';
 
-    // Draw header line on first page
     if (pi === 0) {
       stream += `0.2 0.4 0.7 RG\n0.5 w\n${margin} ${pageHeight - 35} m ${pageWidth - margin} ${pageHeight - 35} l S\n`;
     }
@@ -343,11 +387,9 @@ function generatePdfBytes(text: string): Uint8Array {
     pageObjNums.push(pageObj);
   }
 
-  // Update Pages object
   const kidsStr = pageObjNums.map(n => `${n} 0 R`).join(' ');
   objects[pagesObjNum - 1] = `${pagesObjNum} 0 obj\n<< /Type /Pages /Kids [${kidsStr}] /Count ${pageObjNums.length} >>\nendobj\n`;
 
-  // Build final PDF
   let pdf = '%PDF-1.4\n';
   for (let i = 0; i < objects.length; i++) {
     offsets[i] = pdf.length;
@@ -377,7 +419,6 @@ async function generateContractText(partner: any, now: Date): Promise<string> {
   if (template) {
     return replacePlaceholders(template, partner, now);
   }
-  // Fallback if no template saved
   const dia = now.getDate();
   const mes = MESES[now.getMonth()];
   const ano = now.getFullYear();
@@ -525,23 +566,28 @@ async function generateAndSend(partnerId: string, userId: string) {
     console.warn('Notification failed (non-critical):', e);
   }
 
-  // 8. Update partner record
+  // 8. Build direct download URL using account ID
+  const downloadUrl = CLICKSIGN_ACCOUNT_ID
+    ? `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${documentId}?kind=original`
+    : `${CLICKSIGN_BASE_URL}/envelopes/${envelopeId}`;
+
+  // 9. Update partner record
   await supabaseAdmin.from('partners').update({
     envelope_id: envelopeId,
     document_key: documentKey,
     contrato_status: 'pendente_parceiro',
-    contrato_url: `${CLICKSIGN_BASE_URL}/envelopes/${envelopeId}`,
+    contrato_url: downloadUrl,
   }).eq('id', partnerId);
 
-  // 9. Log history
+  // 10. Log history
   await supabaseAdmin.from('partner_history').insert({
     partner_id: partnerId,
     action: 'contrato_enviado',
-    details: { envelope_id: envelopeId, signer_email: partner.email },
+    details: { envelope_id: envelopeId, document_id: documentId, signer_email: partner.email },
     created_by: userId,
   });
 
-  // 10. Audit log
+  // 11. Audit log
   await supabaseAdmin.from('audit_logs').insert({
     user_id: userId,
     action: 'clicksign_contract_generated',
@@ -549,6 +595,7 @@ async function generateAndSend(partnerId: string, userId: string) {
     target_id: partnerId,
     details: {
       envelope_id: envelopeId,
+      document_id: documentId,
       partner_name: partner.nome,
       partner_email: partner.email,
       file_name: fileName,
@@ -564,44 +611,42 @@ async function getEnvelopeStatus(envelopeId: string) {
 
 async function getSignedDocumentUrl(partnerId: string) {
   const { data: partner, error } = await supabaseAdmin
-    .from('partners').select('document_key, envelope_id, nome').eq('id', partnerId).single();
+    .from('partners').select('document_key, envelope_id, nome, contrato_url').eq('id', partnerId).single();
   if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
 
-  // ClickSign API v3: documents are accessed via envelope endpoint
-  if (partner.envelope_id) {
+  // Strategy 1: Build direct download URL using account ID + document ID from envelope
+  if (partner.envelope_id && CLICKSIGN_ACCOUNT_ID) {
     try {
-      // List documents in the envelope
       const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
       const docs = docsRes?.data || [];
-      console.log('Envelope documents:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
+      console.log('Envelope documents for download:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
 
-      for (const doc of docs) {
-        const downloads = doc?.attributes?.downloads || {};
-        const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
-        if (signedUrl) {
-          return { signed_url: signedUrl, source: 'envelope_documents', partner_name: partner.nome };
-        }
-      }
-
-      // If no download URLs in documents, try envelope details for URL
-      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
-      const envUrl = envRes?.data?.attributes?.url || null;
-      if (envUrl) {
-        return { signed_url: envUrl, source: 'envelope_url', partner_name: partner.nome };
+      if (docs.length > 0) {
+        const docId = docs[0].id;
+        // Check envelope status to determine kind
+        const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
+        const envStatus = envRes?.data?.attributes?.status || '';
+        const kind = envStatus === 'closed' ? 'signed' : 'original';
+        const downloadUrl = `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${docId}?kind=${kind}`;
+        console.log('Built download URL:', downloadUrl, 'envelope status:', envStatus);
+        return { signed_url: downloadUrl, source: 'direct_download', partner_name: partner.nome };
       }
     } catch (e) {
-      console.warn('Failed to fetch envelope documents:', e);
+      console.warn('Failed to build direct download URL:', e);
     }
   }
 
-  // Final fallback: contrato_url from DB
-  const { data: fullPartner } = await supabaseAdmin
-    .from('partners').select('contrato_url').eq('id', partnerId).single();
-  if (fullPartner?.contrato_url) {
-    return { signed_url: fullPartner.contrato_url, source: 'db_url', partner_name: partner.nome };
+  // Strategy 2: Use contrato_url from DB if it looks like a download URL
+  if (partner.contrato_url && partner.contrato_url.includes('/download/packs/direct/')) {
+    return { signed_url: partner.contrato_url, source: 'db_url', partner_name: partner.nome };
   }
 
-  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o envelope_id está salvo no parceiro.');
+  // Strategy 3: Fallback to envelope page
+  if (partner.envelope_id) {
+    return { signed_url: `${CLICKSIGN_BASE_URL}/envelopes/${partner.envelope_id}`, source: 'envelope_fallback', partner_name: partner.nome };
+  }
+
+  throw new HttpError(404, 'Não foi possível obter a URL do documento. Verifique se o contrato foi gerado.');
 }
 
 Deno.serve(async (req) => {

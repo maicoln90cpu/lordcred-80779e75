@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 const PLACEHOLDERS = [
   { key: '{{RAZAO_SOCIAL}}', desc: 'Razão social ou nome do parceiro' },
   { key: '{{CNPJ}}', desc: 'CNPJ da empresa parceira' },
+  { key: '{{CNPJ_CURTO}}', desc: 'CNPJ abreviado (sem filial)' },
   { key: '{{ENDERECO_PJ}}', desc: 'Endereço PJ completo' },
   { key: '{{REPRESENTANTE_NOME}}', desc: 'Nome do representante legal' },
   { key: '{{REPRESENTANTE_NACIONALIDADE}}', desc: 'Nacionalidade' },
@@ -43,85 +44,86 @@ O presente contrato tem por objeto comercialização, pela EMPRESA PARCEIRA, dos
 
 CLÁUSULA 2 – DA NATUREZA JURÍDICA DA RELAÇÃO
 O presente contrato possui natureza estritamente civil e comercial, não gerando qualquer vínculo empregatício, societário, associativo ou de representação comercial exclusiva entre as partes.
-§1º A EMPRESA PARCEIRA atuará com total autonomia, assumindo os riscos de sua atividade, inexistindo subordinação jurídica, pessoalidade, habitualidade compulsória ou contraprestação financeira fixa.
+§1º A EMPRESA PARCEIRA atuará com total autonomia, assumindo os riscos de sua atividade, inexistindo subordinação jurídica, pessoalidade, habitualidade compulsória ou contraprestação financeira fixa, razão pela qual inexistem, na presente relação comercial, os requisitos caracterizadores de relação de emprego (conforme arts 2º e 3º da CLT).
 §2º A EMPRESA PARCEIRA não estará sujeita a controle de jornada, exclusividade, fiscalização hierárquica ou qualquer forma de subordinação estrutural.
-§3º A EMPRESA PARCEIRA poderá prestar serviços a terceiros, salvo nas hipóteses previstas na cláusula de não concorrência deste contrato.
-§4º A EMPRESA PARCEIRA é integralmente responsável pelo recolhimento de seus tributos, contribuições previdenciárias e demais encargos.
+§3º A EMPRESA PARCEIRA poderá prestar serviços a terceiros, salvo nas hipóteses previstas na cláusula de não concorrência deste contrato e desde que não conflite e/ou prejudique os interesses da CONTRATANTE.
+§4º A EMPRESA PARCEIRA é integralmente responsável pelo recolhimento de seus tributos, contribuições previdenciárias e demais encargos decorrentes dos valores recebidos.
 §5º A inexistência de resultados ou a ausência de intermediações não gera qualquer obrigação de pagamento mínimo por parte da CONTRATANTE.
-§6º A EMPRESA PARCEIRA não possui poderes para representar juridicamente a CONTRATANTE, salvo autorização expressa e escrita.
+§6º A EMPRESA PARCEIRA não possui poderes para representar juridicamente a CONTRATANTE (tanto na esfera administrativa quanto judicial), salvo autorização expressa e escrita.
 
 CLÁUSULA 3 – DA REMUNERAÇÃO
-O PARCEIRO fará jus à comissão de no mínimo 0,50% sobre o valor dos produtos e/ou serviços que forem vendidos por sua intermediação.
-§1º O percentual de comissão poderá ser aumentado de acordo com o desempenho individual da EMPRESA PARCEIRA.
+O PARCEIRO fará jus à comissão de no mínimo 0,50% (zero vírgula cinquenta por cento) sobre o valor dos produtos e/ou serviços que forem vendidos por sua intermediação.
+§1º O percentual de comissão poderá ser aumentado de acordo com o desempenho individual da EMPRESA PARCEIRA e o atingimento de metas comerciais estabelecidas pela CONTRATANTE, podendo haver majoração progressiva conforme critérios internos da empresa.
 §2º A comissão somente será devida após a efetiva venda e o pagamento pelo cliente.
 §3º Em caso de inadimplemento, cancelamento, distrato ou devolução de valores pelo cliente, a comissão não será devida ou poderá ser estornada proporcionalmente.
 §4º O pagamento será realizado até o dia {{DIA_PAGAMENTO}} do mês subsequente ao recebimento dos valores pela CONTRATANTE.
 §5º Não haverá pagamento de qualquer valor fixo, ajuda de custo, verba de representação ou remuneração mínima garantida.
-§6º Nos casos em que a EMPRESA PARCEIRA realizar indicação de novos clientes ou parceiros comerciais, será devida bonificação adicional inicial de 0,10% sobre o valor da negociação realizada.
-§7º A bonificação por indicação poderá ser aumentada progressivamente conforme critérios de desempenho.
+§6º Nos casos em que a EMPRESA PARCEIRA realizar indicação de novos clientes ou parceiros comerciais que venham a efetivamente contratar produtos ou serviços da CONTRATANTE, será devida bonificação adicional inicial de 0,10% (zero vírgula dez por cento) sobre o valor da negociação realizada, a qual também poderá ser aumentada, conforme critérios, interesse e disponibilidade da CONTRATANTE.
+§7º A bonificação por indicação poderá ser aumentada progressivamente conforme critérios de desempenho, volume de negócios gerados ou políticas comerciais internas da CONTRATANTE.
 
 CLÁUSULA 4 – DA NÃO CONCORRÊNCIA
-A EMPRESA PARCEIRA compromete-se, durante a vigência deste contrato e pelo prazo de 12 meses após sua rescisão, a não:
-a) Comercializar produtos ou serviços idênticos ou diretamente concorrentes aos da CONTRATANTE;
+A EMPRESA PARCEIRA compromete-se, durante a vigência deste contrato e pelo prazo de 12 (doze) meses após sua rescisão, a não:
+a) Comercializar produtos ou serviços idênticos ou diretamente concorrentes aos da CONTRATANTE para clientes por ele prospectados durante a vigência deste contrato;
 b) Utilizar informações estratégicas, listas de clientes ou dados comerciais da CONTRATANTE para benefício próprio ou de terceiros;
 c) Desviar clientela vinculada aos negócios intermediados.
-§1º A restrição limita-se à área de atuação correspondente aos produtos/serviços objeto desta parceria.
-§2º A presente cláusula não impede a EMPRESA PARCEIRA de exercer sua atividade profissional de forma ampla, desde que não haja concorrência direta ou indireta.
+§1º A restrição limita-se à área de atuação correspondente aos produtos/serviços objeto desta parceria, isto é, aqueles oferecidos pela CONTRATANTE.
+§2º A presente cláusula não impede a EMPRESA PARCEIRA de exercer sua atividade profissional de forma ampla, desde que não haja concorrência direta ou indireta nos termos acima definidos.
 
 CLÁUSULA 5 – DA CONFIDENCIALIDADE
-A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informações comerciais, estratégicas, financeiras e operacionais da CONTRATANTE a que tiver acesso em razão do presente contrato, obrigação essa que permanecerá por 5 anos após o término deste contrato.
-§1º A EMPRESA PARCEIRA compromete-se a não divulgar, compartilhar, reproduzir ou utilizar para benefício próprio ou de terceiros quaisquer informações confidenciais.
-§2º A EMPRESA PARCEIRA responderá civil, administrativa e criminalmente pelo uso indevido, divulgação ou vazamento de quaisquer informações.
-§3º Consideram-se informações confidenciais: dados de clientes, estratégias comerciais, listas de contatos, políticas internas, condições comerciais, documentos internos, informações financeiras e quaisquer outros dados não públicos da CONTRATANTE.
+A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informações comerciais, estratégicas, financeiras e operacionais da CONTRATANTE a que tiver acesso em razão do presente contrato, obrigação essa que permanecerá por 5 (cinco) anos após o término deste contrato.
+§1º A EMPRESA PARCEIRA compromete-se a não divulgar, compartilhar, reproduzir ou utilizar para benefício próprio ou de terceiros quaisquer informações confidenciais a que tiver acesso em razão deste contrato.
+§2º A EMPRESA PARCEIRA responderá civil, administrativa e criminalmente pelo uso indevido, divulgação ou vazamento de quaisquer informações obtidas em razão desta relação contratual, ainda que tal utilização indevida seja praticada por terceiros que tenham tido acesso às informações por sua responsabilidade.
+§3º Consideram-se informações confidenciais, entre outras: dados de clientes, estratégias comerciais, listas de contatos, políticas internas, condições comerciais, documentos internos, informações financeiras e quaisquer outros dados não públicos da CONTRATANTE.
+§4º Durante o contrato a CONTRATANTE terá a liberdade de acrescentar novas informações confidenciais, sobre as quais a EMPRESA PARCEIRA terá o mesmo dever de confidencialidade exposto nesta cláusula.
 
 CLÁUSULA 6 – DO REGIME DE TRABALHO REMOTO (HOME OFFICE)
-As atividades desempenhadas pela EMPRESA PARCEIRA serão realizadas em regime de trabalho remoto (home office).
-§1º Não haverá controle de jornada, fiscalização de horário, exigência de presença física ou imposição de rotina laboral pela CONTRATANTE.
-§2º A EMPRESA PARCEIRA será integralmente responsável pela estrutura necessária para execução de suas atividades.
-§3º A EMPRESA PARCEIRA declara estar ciente de que não possui horários e dias fixos de trabalho.
+As atividades desempenhadas pela EMPRESA PARCEIRA serão realizadas em regime de trabalho remoto (home office), sendo executadas integralmente fora das dependências físicas da CONTRATANTE.
+§1º Em razão da natureza autônoma da parceria e da realização das atividades em regime remoto, não haverá controle de jornada, fiscalização de horário, exigência de presença física nas dependências da CONTRATANTE ou imposição de rotina laboral pela CONTRATANTE.
+§2º A EMPRESA PARCEIRA será integralmente responsável pela estrutura necessária para execução de suas atividades, incluindo equipamentos, internet, local de trabalho, energia elétrica e demais recursos necessários.
+§3º A EMPRESA PARCEIRA declara estar ciente de que não possui horários e dias fixos de trabalho, podendo organizar livremente sua agenda e a forma de execução das atividades comerciais.
 
-CLÁUSULA 7 – DA PROTEÇÃO DE DADOS PESSOAIS (LGPD)
-A EMPRESA PARCEIRA declara estar ciente das disposições da Lei nº 13.709/2018 (LGPD) e compromete-se a cumprir integralmente todos os seus dispositivos.
-§1º Para os fins da LGPD, a EMPRESA PARCEIRA atuará na qualidade de OPERADOR, realizando o tratamento de dados pessoais exclusivamente em nome da CONTRATANTE.
+CLÁUSULA 7 - DA PROTEÇÃO DE DADOS PESSOAIS (LGPD)
+A EMPRESA PARCEIRA declara estar ciente das disposições da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados – LGPD) e compromete-se a cumprir integralmente todos os seus dispositivos, especialmente no que se refere ao tratamento de dados pessoais a que tiver acesso em razão deste contrato.
+§1º Para os fins da LGPD, a EMPRESA PARCEIRA atuará na qualidade de OPERADOR, realizando o tratamento de dados pessoais exclusivamente em nome da CONTRATANTE, que figura como CONTROLADORA, limitando-se às finalidades estritamente necessárias à execução da parceria comercial.
 §2º A EMPRESA PARCEIRA compromete-se a:
 I – Tratar os dados pessoais apenas mediante instruções da CONTRATANTE;
-II – Utilizar os dados exclusivamente para fins relacionados à execução deste contrato;
-III – Não compartilhar dados pessoais a terceiros sem autorização prévia e expressa;
-IV – Adotar medidas técnicas e administrativas aptas a proteger os dados pessoais;
+II – Utilizar os dados exclusivamente para fins relacionados à execução deste contrato, vedado qualquer uso diverso;
+III – Não compartilhar, ceder, divulgar ou disponibilizar dados pessoais a terceiros sem autorização prévia e expressa da CONTRATANTE;
+IV – Adotar medidas técnicas e administrativas aptas a proteger os dados pessoais contra acessos não autorizados, destruição, perda, alteração, comunicação ou qualquer forma de tratamento inadequado ou ilícito;
 V – Manter registro das operações de tratamento realizadas quando solicitado;
-VI – Assegurar que quaisquer pessoas envolvidas no tratamento de dados estejam vinculadas a dever de confidencialidade.
-§3º A EMPRESA PARCEIRA compromete-se a comunicar imediatamente qualquer incidente de segurança.
-§4º Encerrado o presente contrato, a EMPRESA PARCEIRA deverá eliminar ou devolver todos os dados pessoais.
-§5º O descumprimento sujeitará a EMPRESA PARCEIRA à responsabilidade integral por eventuais danos.
-§6º As obrigações previstas nesta cláusula subsistirão mesmo após o término da relação contratual.
+VI – Assegurar que quaisquer pessoas eventualmente envolvidos no tratamento de dados estejam igualmente vinculadas a dever de confidencialidade.
+§3º A EMPRESA PARCEIRA compromete-se a comunicar imediatamente à CONTRATANTE a ocorrência de qualquer incidente de segurança que possa acarretar risco ou dano relevante aos titulares dos dados, fornecendo todas as informações necessárias para a adoção das medidas cabíveis.
+§4º Encerrado o presente contrato, a EMPRESA PARCEIRA deverá, a critério da CONTRATANTE, eliminar ou devolver todos os dados pessoais a que tiver tido acesso, ressalvadas hipóteses legais de conservação obrigatória.
+§5º O descumprimento das obrigações previstas nesta cláusula sujeitará a EMPRESA PARCEIRA à responsabilidade integral por eventuais danos causados à CONTRATANTE ou a terceiros, sem prejuízo da aplicação da multa contratual prevista neste instrumento.
+§6º As obrigações previstas nesta cláusula subsistirão mesmo após o término da relação contratual, pelo prazo legal aplicável.
 
 CLÁUSULA 8 – DA MULTA CONTRATUAL
-O descumprimento de qualquer cláusula sujeitará a parte infratora ao pagamento de multa contratual.
-§1º Multa pela EMPRESA PARCEIRA: 30% do valor estimado das comissões nos últimos 12 meses, ou R$ 5.000,00, prevalecendo o maior.
-§2º Multa pela CONTRATANTE: 10% do valor estimado das comissões percebidas pela CONTRATADA nos últimos 12 meses.
-§3º Violação de confidencialidade/não concorrência: R$ 5.000,00 ou 40% do valor do negócio envolvido, prevalecendo o maior valor.
-§4º A aplicação da multa não exclui o direito de pleitear indenização suplementar por perdas e danos.
+O descumprimento de qualquer cláusula ou obrigação prevista neste contrato sujeitará a parte infratora ao pagamento de multa contratual, sem prejuízo das demais medidas cabíveis.
+§1º Caso o descumprimento seja praticado pela EMPRESA PARCEIRA, esta ficará sujeita ao pagamento de multa equivalente a 30% (trinta por cento) do valor estimado das comissões percebidas nos últimos 12 (doze) meses, ou o valor mínimo de R$ 5.000,00 (cinco mil reais), prevalecendo o maior.
+§2º Caso o descumprimento seja praticado pela CONTRATANTE, esta ficará sujeita ao pagamento de multa equivalente a 10% (dez por cento) do valor estimado das comissões percebidas pela CONTRATADA nos últimos 12 (doze) meses.
+§3º No caso específico de violação da cláusula de confidencialidade, não concorrência, uso indevido de marca, carteira de clientes ou informações comerciais da CONTRATANTE, a multa aplicável à EMPRESA PARCEIRA será equivalente a R$ 5.000,00 (cinco mil reais) ou 40% (quarenta por cento) do valor do negócio envolvido, prevalecendo o maior valor.
+§4º A aplicação da multa contratual não exclui o direito da parte prejudicada de pleitear indenização suplementar por perdas e danos caso o prejuízo efetivamente sofrido seja superior ao valor da penalidade estipulada.
 
 CLÁUSULA 9 – DA VIGÊNCIA E RESCISÃO
 O presente contrato vigorará por prazo determinado de {{VIGENCIA_MESES}} meses.
 §1º Este contrato poderá ser rescindido por qualquer das partes mediante aviso prévio por escrito com antecedência mínima de {{AVISO_PREVIO_DIAS}} dias.
 §2º Poderá haver rescisão imediata em caso de:
 a) Descumprimento/violação de quaisquer cláusulas;
-b) Ato que prejudique a CONTRATANTE;
-c) Utilização indevida da marca, nome empresarial, logotipo ou quaisquer sinais distintivos;
-d) Prática de conduta que cause dano à imagem ou reputação da CONTRATANTE;
-e) Comercialização em desacordo com as condições previamente estabelecidas;
-f) Prestação de informações falsas, incompletas ou enganosas;
-g) Transferência das atividades a terceiros sem autorização;
-h) Envolvimento em práticas ilícitas ou fraudulentas;
-i) Decretação de falência, recuperação judicial ou encerramento das atividades;
-j) Prática de concorrência desleal;
-k) Qualquer conduta que comprometa a execução regular do objeto contratual.
+b) Ato que prejudique a CONTRATANTE em qualquer esfera (civil, administrativa e/ou criminal);
+c) Utilização indevida da marca, nome empresarial, logotipo ou quaisquer sinais distintivos da CONTRATANTE;
+d) Prática de conduta que cause ou possa causar dano à imagem, reputação ou credibilidade da CONTRATANTE perante clientes, parceiros ou o mercado;
+e) Comercialização de produtos ou serviços da CONTRATANTE em desacordo com as condições, valores ou políticas previamente estabelecidas;
+f) Prestação de informações falsas, incompletas ou enganosas a clientes, parceiros ou à própria CONTRATANTE;
+g) Transferência, cessão ou delegação das atividades previstas neste contrato a terceiros sem prévia e expressa autorização da CONTRATANTE;
+h) Envolvimento da EMPRESA PARCEIRA em práticas ilícitas, fraudulentas ou contrárias à legislação vigente;
+i) Decretação de falência, recuperação judicial, dissolução ou encerramento das atividades da EMPRESA PARCEIRA, quando aplicável;
+j) Prática de concorrência desleal ou comercialização de produtos ou serviços concorrentes em desacordo com as condições estabelecidas neste contrato;
+k) Qualquer conduta da EMPRESA PARCEIRA que comprometa a execução regular do objeto contratual.
 
 CLÁUSULA 10 – DO FORO
-Fica eleito o foro da Comarca de Palhoça/SC para dirimir eventuais controvérsias.
+Fica eleito o foro da Comarca de Palhoça/SC, com renúncia a qualquer outro, por mais privilegiado que seja, para dirimir eventuais controvérsias.
 
-E por estarem justas e contratadas, firmam o presente instrumento.
+E por estarem justas e contratadas, firmam o presente instrumento em duas vias de igual teor.
 
 Palhoça/SC, {{DIA}} de {{MES}} de {{ANO}}.
 
@@ -129,7 +131,7 @@ ___________________________________
 LORD CRED (CONTRATANTE)
 
 ___________________________________
-{{RAZAO_SOCIAL}} (EMPRESA PARCEIRA)`;
+{{CNPJ_CURTO}} {{REPRESENTANTE_NOME}} (EMPRESA PARCEIRA)`;
 
 export function ContractTemplateEditor() {
   const [template, setTemplate] = useState('');
@@ -145,11 +147,10 @@ export function ContractTemplateEditor() {
         .limit(1)
         .single();
       const text = data?.contract_template || '';
-      if (text.length > 100) {
+      if (text.length > 500) {
         setTemplate(text);
         setOriginal(text);
       } else {
-        // Template is empty in DB - auto-save the default
         setTemplate(DEFAULT_TEMPLATE);
         setOriginal(DEFAULT_TEMPLATE);
         await supabase
