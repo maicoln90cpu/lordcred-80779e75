@@ -285,85 +285,116 @@ async function handleUazapiChat(adminClient: any, chip: any, payload: any) {
 }
 
 async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
-  console.log('messages_update FULL payload:', JSON.stringify(payload))
-  
-  let updateList: any[] = []
-  
-  if (payload.message && payload.message.messageid) {
-    updateList = [payload.message]
-  } else if (payload.updates && Array.isArray(payload.updates)) {
-    updateList = payload.updates
-  } else if (payload.data && Array.isArray(payload.data)) {
-    updateList = payload.data
-  } else if (payload.messageid) {
-    updateList = [payload]
-  } else {
-    updateList = [payload]
+  console.log('messages_update payload:', JSON.stringify(payload).substring(0, 500))
+
+  // ── 1. Determine the status from UazAPI payload ──
+  // UazAPI sends: event.Type (Read/Played/Delivered) and/or state at root
+  const eventType = payload?.event?.Type || ''
+  const rootState = payload?.state || ''
+  const stateRaw = eventType || rootState
+  const stateStr = String(stateRaw).toLowerCase()
+
+  console.log(`messages_update: event.Type=${eventType}, state=${rootState}, resolved=${stateStr}`)
+
+  // ── 2. Collect all message IDs ──
+  // UazAPI v2 primary format: event.MessageIDs (array)
+  // Fallback formats for legacy/other payloads
+  let messageIds: string[] = []
+
+  if (payload?.event?.MessageIDs && Array.isArray(payload.event.MessageIDs)) {
+    messageIds = payload.event.MessageIDs.filter((id: any) => typeof id === 'string' && id.length > 0)
   }
 
-  for (const update of updateList) {
-    if (!update) continue
-    const messageId = update?.messageid || update?.message?.messageid || update?.key?.id || update?.id || payload?.messageid
-    const state = update?.state || update?.status || update?.ack || update?.message?.status || payload?.state || payload?.ack
-    
-    console.log(`messages_update: extracted messageId=${messageId}, state=${state} (type: ${typeof state})`)
-    
-    if (!messageId || state === undefined || state === null) continue
+  // Fallback: single message ID from various legacy fields
+  if (messageIds.length === 0) {
+    const singleId = payload?.messageid || payload?.message?.messageid || payload?.key?.id || payload?.id
+    if (singleId) messageIds = [singleId]
+  }
 
-    let newStatus = ''
-    const stateStr = String(state).toLowerCase()
-    
-    if (stateStr === 'revoked' || stateStr === 'deleted' || state === 0) {
-      console.log(`Message ${messageId} was deleted/revoked`)
-      const { error: delError } = await adminClient
+  // Fallback: updates array (legacy format)
+  if (messageIds.length === 0 && payload?.updates && Array.isArray(payload.updates)) {
+    for (const u of payload.updates) {
+      const mid = u?.messageid || u?.key?.id || u?.id
+      if (mid) messageIds.push(mid)
+    }
+  }
+
+  if (messageIds.length === 0) {
+    console.log('messages_update: no message IDs found in payload, skipping')
+    return
+  }
+
+  console.log(`messages_update: ${messageIds.length} message ID(s): [${messageIds.slice(0, 5).join(', ')}${messageIds.length > 5 ? '...' : ''}]`)
+
+  // ── 3. Handle special states (revoked/edited) ──
+  if (stateStr === 'revoked' || stateStr === 'deleted') {
+    for (const mid of messageIds) {
+      const { data, error } = await adminClient
         .from('message_history')
         .update({ message_content: '[Mensagem apagada]', status: 'deleted' })
         .eq('chip_id', chip.id)
-        .eq('message_id', messageId)
-      if (!delError) {
-        console.log(`Message ${messageId} marked as deleted in DB`)
-      }
-      continue
+        .eq('message_id', mid)
+        .select('id')
+      console.log(`Message ${mid} deleted: ${data?.length || 0} row(s) affected${error ? ', error: ' + error.message : ''}`)
     }
+    return
+  }
 
-    if (stateStr === 'edited' || update?.editedMessage || update?.message?.editedMessage) {
-      const editedText = update?.editedMessage?.text || update?.message?.editedMessage?.text || update?.editedMessage?.conversation || ''
-      if (editedText) {
-        console.log(`Message ${messageId} was edited: ${editedText.substring(0, 50)}`)
+  if (stateStr === 'edited') {
+    const editedText = payload?.event?.editedMessage?.text || payload?.editedMessage?.text || payload?.message?.editedMessage?.text || ''
+    if (editedText) {
+      for (const mid of messageIds) {
         await adminClient
           .from('message_history')
           .update({ message_content: editedText })
           .eq('chip_id', chip.id)
-          .eq('message_id', messageId)
+          .eq('message_id', mid)
+        console.log(`Message ${mid} edited: ${editedText.substring(0, 50)}`)
       }
-      continue
     }
+    return
+  }
 
-    if (state === 4 || state === 5 || stateStr === 'read' || stateStr === 'played' || stateStr === 'read_by_me' || stateStr === '4' || stateStr === '5') {
-      newStatus = 'read'
-    } else if (state === 3 || stateStr === 'delivered' || stateStr === 'delivery_ack' || stateStr === '3') {
-      newStatus = 'delivered'
-    } else if (state === 2 || state === 1 || stateStr === 'sent' || stateStr === 'server_ack' || stateStr === '2' || stateStr === '1') {
-      newStatus = 'sent'
-    }
+  // ── 4. Map state to our status ──
+  let newStatus = ''
+  if (stateStr === 'read' || stateStr === 'played' || stateStr === 'read_by_me' || stateStr === '4' || stateStr === '5') {
+    newStatus = 'read'
+  } else if (stateStr === 'delivered' || stateStr === 'delivery_ack' || stateStr === '3') {
+    newStatus = 'delivered'
+  } else if (stateStr === 'sent' || stateStr === 'server_ack' || stateStr === '1' || stateStr === '2') {
+    newStatus = 'sent'
+  }
 
-    if (!newStatus) {
-      console.log(`Unknown message status state: ${state} (type: ${typeof state})`)
-      continue
-    }
+  if (!newStatus) {
+    console.log(`messages_update: unknown state "${stateRaw}", skipping`)
+    return
+  }
 
-    const { error } = await adminClient
+  // ── 5. Batch update all message IDs ──
+  let totalUpdated = 0
+
+  // Use .in() for batch update when multiple IDs
+  if (messageIds.length === 1) {
+    const { data, error } = await adminClient
       .from('message_history')
       .update({ status: newStatus })
       .eq('chip_id', chip.id)
-      .eq('message_id', messageId)
-
-    if (!error) {
-      console.log(`Message ${messageId} status updated to ${newStatus} (raw state: ${state})`)
-    } else {
-      console.log(`Failed to update message ${messageId}: ${error.message}`)
-    }
+      .eq('message_id', messageIds[0])
+      .select('id')
+    totalUpdated = data?.length || 0
+    if (error) console.log(`Failed to update ${messageIds[0]}: ${error.message}`)
+  } else {
+    const { data, error } = await adminClient
+      .from('message_history')
+      .update({ status: newStatus })
+      .eq('chip_id', chip.id)
+      .in('message_id', messageIds)
+      .select('id')
+    totalUpdated = data?.length || 0
+    if (error) console.log(`Failed batch update: ${error.message}`)
   }
+
+  console.log(`messages_update: status=${newStatus}, IDs=${messageIds.length}, matched=${totalUpdated}`)
 }
 
 async function handleConnectionUpdate(adminClient: any, chip: any, payload: any) {
