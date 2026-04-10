@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2, Eye, EyeOff, ChevronRight } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2, Eye, EyeOff, ChevronRight, Copy, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { invokeCorban } from '@/lib/invokeCorban';
@@ -27,12 +28,20 @@ interface Login {
   label?: string;
 }
 
+interface BatchResult {
+  cpf: string;
+  success: boolean;
+  error?: string;
+}
+
 export default function CorbanFGTS() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
   const [filaItems, setFilaItems] = useState<any[]>([]);
   const [insertCpf, setInsertCpf] = useState('');
+  const [batchCpfs, setBatchCpfs] = useState('');
   const [inserting, setInserting] = useState(false);
+  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
   const [instituicao, setInstituicao] = useState('facta');
   const [logins, setLogins] = useState<Login[]>([]);
   const [selectedLogin, setSelectedLogin] = useState('');
@@ -43,17 +52,26 @@ export default function CorbanFGTS() {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<any>(null);
+  const [insertMode, setInsertMode] = useState<'single' | 'batch'>('single');
 
-  // Extract all column keys from results
   const allColumns = useMemo(() => {
     const keys = new Set<string>();
-    filaItems.forEach(item => {
-      Object.keys(item).forEach(k => keys.add(k));
-    });
+    filaItems.forEach(item => Object.keys(item).forEach(k => keys.add(k)));
     return Array.from(keys);
   }, [filaItems]);
 
   const visibleColumns = useMemo(() => allColumns.filter(c => !hiddenCols.has(c)), [allColumns, hiddenCols]);
+
+  // Summary stats from filaItems
+  const filaStats = useMemo(() => {
+    if (filaItems.length === 0) return null;
+    const statusMap: Record<string, number> = {};
+    filaItems.forEach(item => {
+      const s = item.status || item.situacao || item.status_descricao || 'desconhecido';
+      statusMap[String(s)] = (statusMap[String(s)] || 0) + 1;
+    });
+    return { total: filaItems.length, porStatus: statusMap };
+  }, [filaItems]);
 
   useEffect(() => {
     (async () => {
@@ -98,7 +116,7 @@ export default function CorbanFGTS() {
     await executeFilaSearch(buildFilaPayload());
   };
 
-  const handleInsert = async () => {
+  const handleInsertSingle = async () => {
     if (!insertCpf.trim()) { toast.error('Informe um CPF'); return; }
     if (!selectedLogin) { toast.error('Selecione um login'); return; }
     setInserting(true);
@@ -111,6 +129,43 @@ export default function CorbanFGTS() {
     } else {
       toast.success('CPF incluído na fila FGTS com sucesso!');
       setInsertCpf('');
+    }
+  };
+
+  const handleInsertBatch = async () => {
+    if (!batchCpfs.trim()) { toast.error('Informe ao menos um CPF'); return; }
+    if (!selectedLogin) { toast.error('Selecione um login'); return; }
+
+    // Parse CPFs from text (one per line, comma-separated, or space-separated)
+    const cpfList = batchCpfs
+      .split(/[\n,;]+/)
+      .map(c => c.replace(/\D/g, '').trim())
+      .filter(c => c.length >= 11);
+
+    if (cpfList.length === 0) { toast.error('Nenhum CPF válido encontrado'); return; }
+
+    setInserting(true);
+    setBatchResults([]);
+    const results: BatchResult[] = [];
+
+    for (const cpf of cpfList) {
+      const { error } = await invokeCorban('insertQueueFGTS', {
+        content: { cpf, instituicao, login_banco: selectedLogin }
+      });
+      results.push({ cpf, success: !error, error: error || undefined });
+    }
+
+    setBatchResults(results);
+    setInserting(false);
+
+    const successCount = results.filter(r => r.success).length;
+    const errorCount = results.filter(r => !r.success).length;
+
+    if (errorCount === 0) {
+      toast.success(`${successCount} CPF(s) incluídos com sucesso!`);
+      setBatchCpfs('');
+    } else {
+      toast.warning(`${successCount} incluídos, ${errorCount} com erro`);
     }
   };
 
@@ -215,6 +270,26 @@ export default function CorbanFGTS() {
               </CardContent>
             </Card>
 
+            {/* Summary stats */}
+            {filaStats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-lg font-bold">{filaStats.total}</p>
+                    <p className="text-[10px] text-muted-foreground">Total na Fila</p>
+                  </CardContent>
+                </Card>
+                {Object.entries(filaStats.porStatus).sort(([, a], [, b]) => b - a).slice(0, 3).map(([status, count]) => (
+                  <Card key={status}>
+                    <CardContent className="p-3">
+                      <p className="text-lg font-bold">{count}</p>
+                      <p className="text-[10px] text-muted-foreground truncate" title={status}>{status}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
             {filaItems.length > 0 && (
               <Card>
                 <CardHeader>
@@ -252,18 +327,29 @@ export default function CorbanFGTS() {
             )}
           </TabsContent>
 
-          <TabsContent value="incluir">
+          <TabsContent value="incluir" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Incluir CPF na Fila FGTS</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Incluir CPF na Fila FGTS</CardTitle>
+                  <div className="flex border rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setInsertMode('single')}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${insertMode === 'single' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                    >
+                      Individual
+                    </button>
+                    <button
+                      onClick={() => setInsertMode('batch')}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${insertMode === 'batch' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                    >
+                      Em Lote
+                    </button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3 items-end">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">CPF</label>
-                    <Input placeholder="Somente números..." value={insertCpf} onChange={(e) => setInsertCpf(e.target.value)} className="w-48" />
-                  </div>
-
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Instituição</label>
                     <InstitutionSelect value={instituicao} onChange={setInstituicao} className="w-52" />
@@ -282,12 +368,68 @@ export default function CorbanFGTS() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <Button onClick={handleInsert} disabled={inserting || !selectedLogin}>
-                    {inserting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                    {inserting ? 'Enviando...' : 'Enviar para Fila'}
-                  </Button>
                 </div>
+
+                {insertMode === 'single' ? (
+                  <div className="flex gap-3 items-end">
+                    <div className="space-y-1 flex-1 max-w-xs">
+                      <label className="text-xs text-muted-foreground">CPF</label>
+                      <Input placeholder="Somente números..." value={insertCpf} onChange={(e) => setInsertCpf(e.target.value)} />
+                    </div>
+                    <Button onClick={handleInsertSingle} disabled={inserting || !selectedLogin}>
+                      {inserting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                      {inserting ? 'Enviando...' : 'Enviar para Fila'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">CPFs (um por linha ou separados por vírgula)</label>
+                      <Textarea
+                        placeholder={"12345678901\n98765432100\n11122233344"}
+                        value={batchCpfs}
+                        onChange={(e) => setBatchCpfs(e.target.value)}
+                        rows={6}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        {batchCpfs.split(/[\n,;]+/).map(c => c.replace(/\D/g, '').trim()).filter(c => c.length >= 11).length} CPF(s) detectados
+                      </p>
+                    </div>
+                    <Button onClick={handleInsertBatch} disabled={inserting || !selectedLogin}>
+                      {inserting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Copy className="w-4 h-4 mr-2" />}
+                      {inserting ? 'Enviando lote...' : 'Enviar Lote para Fila'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Batch results */}
+                {batchResults.length > 0 && (
+                  <Card className="border-dashed">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Resultado do Lote</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                        {batchResults.map((r, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            {r.success ? (
+                              <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            ) : (
+                              <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />
+                            )}
+                            <span className="font-mono">{r.cpf}</span>
+                            {r.error && <span className="text-destructive truncate">— {r.error}</span>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t flex gap-3 text-xs text-muted-foreground">
+                        <span className="text-emerald-500 font-medium">{batchResults.filter(r => r.success).length} sucesso</span>
+                        <span className="text-destructive font-medium">{batchResults.filter(r => !r.success).length} erro</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
