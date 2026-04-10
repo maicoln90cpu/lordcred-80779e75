@@ -40,6 +40,8 @@ import Commissions from "./pages/admin/Commissions";
 import CommissionReports from "./pages/admin/CommissionReports";
 import Permissions from "./pages/admin/Permissions";
 import BankCredentials from "./pages/admin/BankCredentials";
+import PartnersAdmin from "./pages/admin/PartnersAdmin";
+import PartnerDetail from "./pages/admin/PartnerDetail";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
 import WhatsApp from "./pages/WhatsApp";
