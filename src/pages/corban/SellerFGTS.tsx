@@ -1,15 +1,21 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2 } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Eye, EyeOff, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState, useEffect } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useEffect, useMemo } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 import { useCorbanFeatures } from '@/hooks/useCorbanFeatures';
+import { InstitutionSelect } from '@/components/corban/InstitutionSelect';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 
 interface Login {
   id: string;
@@ -26,9 +32,20 @@ export default function SellerFGTS() {
   const [instituicao, setInstituicao] = useState('facta');
   const [logins, setLogins] = useState<Login[]>([]);
   const [selectedLogin, setSelectedLogin] = useState('');
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<any>(null);
   const { isFeatureVisible } = useCorbanFeatures();
 
   const canInsert = isFeatureVisible('seller_consulta_fgts');
+
+  const allColumns = useMemo(() => {
+    const keys = new Set<string>();
+    filaItems.forEach(item => Object.keys(item).forEach(k => keys.add(k)));
+    return Array.from(keys);
+  }, [filaItems]);
+
+  const visibleColumns = useMemo(() => allColumns.filter(c => !hiddenCols.has(c)), [allColumns, hiddenCols]);
 
   useEffect(() => {
     if (!canInsert) return;
@@ -54,20 +71,14 @@ export default function SellerFGTS() {
       }
     });
     setLoading(false);
-    if (error) {
-      toast.error('Erro ao buscar', { description: error });
-      return;
-    }
+    if (error) { toast.error('Erro ao buscar', { description: error }); return; }
     const list = Array.isArray(data) ? data : (data?.fila || data?.data || []);
     setFilaItems(list);
     if (list.length === 0) toast.info('Nenhum item encontrado');
   };
 
   const handleInsert = async () => {
-    if (!insertCpf.trim()) {
-      toast.error('Informe um CPF');
-      return;
-    }
+    if (!insertCpf.trim()) { toast.error('Informe um CPF'); return; }
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
       content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, login_banco: selectedLogin }
@@ -79,6 +90,20 @@ export default function SellerFGTS() {
       toast.success('CPF enviado para consulta FGTS!');
       setInsertCpf('');
     }
+  };
+
+  const renderCellValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'object') return JSON.stringify(value).substring(0, 80);
+    return String(value);
+  };
+
+  const toggleCol = (col: string) => {
+    setHiddenCols(prev => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col); else next.add(col);
+      return next;
+    });
   };
 
   return (
@@ -101,25 +126,11 @@ export default function SellerFGTS() {
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">CPF</label>
-                  <Input
-                    placeholder="Somente números..."
-                    value={insertCpf}
-                    onChange={(e) => setInsertCpf(e.target.value)}
-                    className="w-48"
-                  />
+                  <Input placeholder="Somente números..." value={insertCpf} onChange={(e) => setInsertCpf(e.target.value)} className="w-48" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Instituição</label>
-                  <Select value={instituicao} onValueChange={setInstituicao}>
-                    <SelectTrigger className="w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="facta">Facta</SelectItem>
-                      <SelectItem value="mercantil">Mercantil</SelectItem>
-                      <SelectItem value="pan">Pan</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <InstitutionSelect value={instituicao} onChange={setInstituicao} className="w-52" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Login</label>
@@ -145,7 +156,15 @@ export default function SellerFGTS() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Minhas Consultas</CardTitle>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Minhas Consultas</span>
+              {filaItems.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setColumnsOpen(true)}>
+                  {hiddenCols.size > 0 ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                  Colunas ({visibleColumns.length}/{allColumns.length})
+                </Button>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex gap-3 mb-4">
@@ -163,30 +182,32 @@ export default function SellerFGTS() {
             </div>
 
             {filaItems.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>CPF</TableHead>
-                    <TableHead>Instituição</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filaItems.map((item: any, i: number) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-mono text-xs">{item.cpf || '—'}</TableCell>
-                      <TableCell>{item.instituicao || instituicao}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{item.status || '—'}</Badge>
-                      </TableCell>
-                      <TableCell>{item.valor ? `R$ ${Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                      <TableCell className="text-xs">{item.data || item.created_at || '—'}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {visibleColumns.map(col => (
+                        <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
+                      ))}
+                      <TableHead className="w-8" />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filaItems.map((item: any, i: number) => (
+                      <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(item)}>
+                        {visibleColumns.map(col => (
+                          <TableCell key={col} className="text-xs max-w-[200px] truncate">
+                            {renderCellValue(item[col])}
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Busque por CPF para ver consultas FGTS
@@ -194,6 +215,33 @@ export default function SellerFGTS() {
             )}
           </CardContent>
         </Card>
+
+        {/* Columns selector */}
+        <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
+          <PopoverContent className="w-64 p-0" align="start" side="bottom">
+            <div className="p-3 border-b"><p className="text-sm font-medium">Colunas visíveis</p></div>
+            <ScrollArea className="h-[240px] p-2">
+              {allColumns.map(col => (
+                <label key={col} className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-accent rounded cursor-pointer">
+                  <Checkbox checked={!hiddenCols.has(col)} onCheckedChange={() => toggleCol(col)} />
+                  <span className="truncate">{col}</span>
+                </label>
+              ))}
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+
+        {/* Detail drawer */}
+        <Sheet open={!!detailItem} onOpenChange={(o) => !o && setDetailItem(null)}>
+          <SheetContent className="sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Detalhes do Item FGTS</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <JsonTreeView data={detailItem} defaultExpanded maxDepth={4} />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </DashboardLayout>
   );

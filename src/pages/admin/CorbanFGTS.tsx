@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2, Eye, EyeOff, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState, useEffect } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
+import { InstitutionSelect } from '@/components/corban/InstitutionSelect';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 
 interface Login {
   id: string;
@@ -35,7 +40,21 @@ export default function CorbanFGTS() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date());
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
-  // Fetch logins when instituicao changes
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [detailItem, setDetailItem] = useState<any>(null);
+
+  // Extract all column keys from results
+  const allColumns = useMemo(() => {
+    const keys = new Set<string>();
+    filaItems.forEach(item => {
+      Object.keys(item).forEach(k => keys.add(k));
+    });
+    return Array.from(keys);
+  }, [filaItems]);
+
+  const visibleColumns = useMemo(() => allColumns.filter(c => !hiddenCols.has(c)), [allColumns, hiddenCols]);
+
   useEffect(() => {
     (async () => {
       setLoadingLogins(true);
@@ -80,21 +99,11 @@ export default function CorbanFGTS() {
   };
 
   const handleInsert = async () => {
-    if (!insertCpf.trim()) {
-      toast.error('Informe um CPF');
-      return;
-    }
-    if (!selectedLogin) {
-      toast.error('Selecione um login');
-      return;
-    }
+    if (!insertCpf.trim()) { toast.error('Informe um CPF'); return; }
+    if (!selectedLogin) { toast.error('Selecione um login'); return; }
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
-      content: {
-        cpf: insertCpf.replace(/\D/g, ''),
-        instituicao,
-        login_banco: selectedLogin,
-      }
+      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, login_banco: selectedLogin }
     });
     setInserting(false);
     if (error) {
@@ -103,6 +112,20 @@ export default function CorbanFGTS() {
       toast.success('CPF incluído na fila FGTS com sucesso!');
       setInsertCpf('');
     }
+  };
+
+  const renderCellValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'object') return JSON.stringify(value).substring(0, 80);
+    return String(value);
+  };
+
+  const toggleCol = (col: string) => {
+    setHiddenCols(prev => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col); else next.add(col);
+      return next;
+    });
   };
 
   return (
@@ -142,16 +165,7 @@ export default function CorbanFGTS() {
 
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Instituição</label>
-                    <Select value={instituicao} onValueChange={setInstituicao}>
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="facta">Facta</SelectItem>
-                        <SelectItem value="mercantil">Mercantil</SelectItem>
-                        <SelectItem value="pan">Pan</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <InstitutionSelect value={instituicao} onChange={setInstituicao} className="w-52" />
                   </div>
 
                   <div className="space-y-1">
@@ -188,6 +202,12 @@ export default function CorbanFGTS() {
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                     {loading ? 'Buscando...' : 'Buscar'}
                   </Button>
+                  {filaItems.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => setColumnsOpen(true)}>
+                      {hiddenCols.size > 0 ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                      Colunas ({visibleColumns.length}/{allColumns.length})
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
                     <Settings2 className="w-4 h-4 mr-1" /> Payload
                   </Button>
@@ -205,23 +225,23 @@ export default function CorbanFGTS() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>CPF</TableHead>
-                          <TableHead>Instituição</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Valor</TableHead>
-                          <TableHead>Data</TableHead>
+                          {visibleColumns.map(col => (
+                            <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
+                          ))}
+                          <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filaItems.map((item: any, i: number) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono text-xs">{item.cpf || '—'}</TableCell>
-                            <TableCell>{item.instituicao || instituicao}</TableCell>
+                          <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(item)}>
+                            {visibleColumns.map(col => (
+                              <TableCell key={col} className="text-xs max-w-[200px] truncate">
+                                {renderCellValue(item[col])}
+                              </TableCell>
+                            ))}
                             <TableCell>
-                              <Badge variant="outline" className="text-xs">{item.status || '—'}</Badge>
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
                             </TableCell>
-                            <TableCell>{item.valor ? `R$ ${Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
-                            <TableCell className="text-xs">{item.data || item.created_at || '—'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -241,26 +261,12 @@ export default function CorbanFGTS() {
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">CPF</label>
-                    <Input
-                      placeholder="Somente números..."
-                      value={insertCpf}
-                      onChange={(e) => setInsertCpf(e.target.value)}
-                      className="w-48"
-                    />
+                    <Input placeholder="Somente números..." value={insertCpf} onChange={(e) => setInsertCpf(e.target.value)} className="w-48" />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Instituição</label>
-                    <Select value={instituicao} onValueChange={setInstituicao}>
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="facta">Facta</SelectItem>
-                        <SelectItem value="mercantil">Mercantil</SelectItem>
-                        <SelectItem value="pan">Pan</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <InstitutionSelect value={instituicao} onChange={setInstituicao} className="w-52" />
                   </div>
 
                   <div className="space-y-1">
@@ -286,6 +292,36 @@ export default function CorbanFGTS() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Columns selector popover */}
+        <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
+          <PopoverContent className="w-64 p-0" align="start" side="bottom">
+            <div className="p-3 border-b">
+              <p className="text-sm font-medium">Colunas visíveis</p>
+            </div>
+            <ScrollArea className="h-[240px] p-2">
+              {allColumns.map(col => (
+                <label key={col} className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-accent rounded cursor-pointer">
+                  <Checkbox checked={!hiddenCols.has(col)} onCheckedChange={() => toggleCol(col)} />
+                  <span className="truncate">{col}</span>
+                </label>
+              ))}
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+
+        {/* Detail drawer */}
+        <Sheet open={!!detailItem} onOpenChange={(o) => !o && setDetailItem(null)}>
+          <SheetContent className="sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Detalhes do Item FGTS</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <JsonTreeView data={detailItem} defaultExpanded maxDepth={4} />
+            </div>
+          </SheetContent>
+        </Sheet>
+
         <PayloadEditorDialog
           open={payloadEditorOpen}
           onOpenChange={setPayloadEditorOpen}
