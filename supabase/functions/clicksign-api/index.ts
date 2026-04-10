@@ -15,6 +15,18 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const textEncoder = new TextEncoder();
 
+class HttpError extends Error {
+  status: number;
+  details?: unknown;
+
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
 function sanitizeFilenamePart(value: string): string {
   return value
     .normalize('NFD')
@@ -38,6 +50,68 @@ function toDataUriBase64(content: string, mimeType: string): string {
   return `data:${mimeType};base64,${btoa(binary)}`;
 }
 
+function normalizeSignerName(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function validateSignerName(value: string): string {
+  const signerName = normalizeSignerName(value);
+  const parts = signerName.split(' ').filter(Boolean);
+
+  if (!signerName || parts.length < 2) {
+    throw new HttpError(
+      400,
+      'O nome do signatário precisa conter nome e sobrenome para assinatura na ClickSign. Atualize o cadastro do parceiro.',
+    );
+  }
+
+  if (/\d/.test(signerName)) {
+    throw new HttpError(
+      400,
+      'O nome do signatário não pode conter números para assinatura na ClickSign. Atualize o cadastro do parceiro.',
+    );
+  }
+
+  return signerName;
+}
+
+function isValidCpf(value: string): boolean {
+  if (!/^\d{11}$/.test(value) || /^(\d)\1{10}$/.test(value)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(value[i]) * (10 - i);
+  const firstDigit = ((sum * 10) % 11) % 10;
+  if (firstDigit !== Number(value[9])) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(value[i]) * (11 - i);
+  const secondDigit = ((sum * 10) % 11) % 10;
+  return secondDigit === Number(value[10]);
+}
+
+function formatCpf(value: string): string {
+  return `${value.slice(0,3)}.${value.slice(3,6)}.${value.slice(6,9)}-${value.slice(9)}`;
+}
+
+function getSignerDocumentation(cpf?: string | null): string | undefined {
+  const rawCpf = (cpf || '').replace(/\D/g, '');
+
+  if (!rawCpf) return undefined;
+
+  if (!isValidCpf(rawCpf)) {
+    throw new HttpError(
+      400,
+      'O CPF do parceiro está inválido para assinatura na ClickSign. Atualize o cadastro antes de enviar o contrato.',
+    );
+  }
+
+  return formatCpf(rawCpf);
+}
+
 async function clicksignFetch(path: string, method: string, body?: any) {
   const url = `${CLICKSIGN_BASE_URL}${path}`;
   const headers: Record<string, string> = {
@@ -55,7 +129,7 @@ async function clicksignFetch(path: string, method: string, body?: any) {
 
   if (!res.ok) {
     console.error(`ClickSign ${method} ${path} → ${res.status}`, data);
-    throw new Error(`ClickSign API error ${res.status}: ${JSON.stringify(data)}`);
+    throw new HttpError(res.status, `ClickSign API error ${res.status}: ${JSON.stringify(data)}`, data);
   }
   return data;
 }
@@ -70,6 +144,8 @@ async function generateAndSend(partnerId: string, userId: string) {
     throw new Error('Parceiro precisa ter nome e email para gerar contrato');
   }
 
+  const signerName = validateSignerName(partner.nome);
+  const formattedCpf = getSignerDocumentation(partner.cpf);
   const now = new Date();
 
   // 2. Create envelope
@@ -106,13 +182,6 @@ async function generateAndSend(partnerId: string, userId: string) {
   console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
 
   // 4. Add signer - Partner
-  const signerName = (partner.nome || '').trim();
-  const rawCpf = (partner.cpf || '').replace(/\D/g, '');
-  // ClickSign requires CPF formatted as xxx.xxx.xxx-xx
-  const formattedCpf = rawCpf.length === 11
-    ? `${rawCpf.slice(0,3)}.${rawCpf.slice(3,6)}.${rawCpf.slice(6,9)}-${rawCpf.slice(9)}`
-    : undefined;
-
   const signerAttributes: Record<string, any> = {
     name: signerName,
     email: partner.email,
@@ -320,8 +389,11 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('clicksign-api error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const message = error instanceof Error ? error.message : 'Erro interno';
+    const status = error instanceof HttpError ? error.status : 500;
+
+    return new Response(JSON.stringify({ error: message }), {
+      status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
