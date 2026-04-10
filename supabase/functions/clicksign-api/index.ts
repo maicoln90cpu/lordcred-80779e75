@@ -597,18 +597,16 @@ async function generateAndSend(partnerId: string, userId: string) {
     created_by: userId,
   });
 
-  // 11. Audit log
+  // 11. Audit log with separated request/response
   await supabaseAdmin.from('audit_logs').insert({
     user_id: userId,
     action: 'clicksign_contract_generated',
     target_table: 'partners',
     target_id: partnerId,
     details: {
-      envelope_id: envelopeId,
-      document_id: documentId,
-      partner_name: partner.nome,
-      partner_email: partner.email,
-      file_name: fileName,
+      success: true,
+      request_payload: { partner_id: partnerId, partner_name: partner.nome, partner_email: partner.email, file_name: fileName },
+      response_payload: { envelope_id: envelopeId, document_id: documentId, signer_id: signerId, status: 'pendente_parceiro' },
     },
   });
 
@@ -700,7 +698,11 @@ async function resendNotification(partnerId: string, userId: string) {
     action: 'clicksign_resend_notification',
     target_table: 'partners',
     target_id: partnerId,
-    details: { envelope_id: partner.envelope_id, partner_name: partner.nome, notified: notifiedCount },
+    details: {
+      success: notifiedCount > 0,
+      request_payload: { partner_id: partnerId, envelope_id: partner.envelope_id, action: 'resend_notification' },
+      response_payload: { notified: notifiedCount, signers_total: signers.length, partner_name: partner.nome },
+    },
   });
 
   return { success: true, notified: notifiedCount, envelope_id: partner.envelope_id };
