@@ -1700,6 +1700,137 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_history: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string
+          details: Json | null
+          id: string
+          partner_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          created_by: string
+          details?: Json | null
+          id?: string
+          partner_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string
+          details?: Json | null
+          id?: string
+          partner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_history_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          aviso_previo_dias: number | null
+          captacao_tipo: string | null
+          cnpj: string | null
+          contrato_assinado_em: string | null
+          contrato_signed_url: string | null
+          contrato_status: string | null
+          contrato_url: string | null
+          cpf: string | null
+          created_at: string
+          data_contato: string | null
+          dia_pagamento: number | null
+          email: string | null
+          endereco: string | null
+          endereco_pj: string | null
+          envelope_id: string | null
+          estado_civil: string | null
+          id: string
+          idade: number | null
+          indicado_por: string | null
+          nacionalidade: string | null
+          nome: string
+          obs: string | null
+          pipeline_status: string
+          pix_pj: string | null
+          razao_social: string | null
+          telefone: string | null
+          treinamento_status: string | null
+          updated_at: string
+          vigencia_meses: number | null
+        }
+        Insert: {
+          aviso_previo_dias?: number | null
+          captacao_tipo?: string | null
+          cnpj?: string | null
+          contrato_assinado_em?: string | null
+          contrato_signed_url?: string | null
+          contrato_status?: string | null
+          contrato_url?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_contato?: string | null
+          dia_pagamento?: number | null
+          email?: string | null
+          endereco?: string | null
+          endereco_pj?: string | null
+          envelope_id?: string | null
+          estado_civil?: string | null
+          id?: string
+          idade?: number | null
+          indicado_por?: string | null
+          nacionalidade?: string | null
+          nome: string
+          obs?: string | null
+          pipeline_status?: string
+          pix_pj?: string | null
+          razao_social?: string | null
+          telefone?: string | null
+          treinamento_status?: string | null
+          updated_at?: string
+          vigencia_meses?: number | null
+        }
+        Update: {
+          aviso_previo_dias?: number | null
+          captacao_tipo?: string | null
+          cnpj?: string | null
+          contrato_assinado_em?: string | null
+          contrato_signed_url?: string | null
+          contrato_status?: string | null
+          contrato_url?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_contato?: string | null
+          dia_pagamento?: number | null
+          email?: string | null
+          endereco?: string | null
+          endereco_pj?: string | null
+          envelope_id?: string | null
+          estado_civil?: string | null
+          id?: string
+          idade?: number | null
+          indicado_por?: string | null
+          nacionalidade?: string | null
+          nome?: string
+          obs?: string | null
+          pipeline_status?: string
+          pix_pj?: string | null
+          razao_social?: string | null
+          telefone?: string | null
+          treinamento_status?: string | null
+          updated_at?: string
+          vigencia_meses?: number | null
+        }
+        Relationships: []
+      }
       product_info_cells: {
         Row: {
           column_id: string
