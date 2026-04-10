@@ -106,15 +106,24 @@ async function generateAndSend(partnerId: string, userId: string) {
   console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
 
   // 4. Add signer - Partner
+  const signerName = (partner.nome || '').trim();
+  const rawCpf = (partner.cpf || '').replace(/\D/g, '');
+  // ClickSign requires CPF formatted as xxx.xxx.xxx-xx
+  const formattedCpf = rawCpf.length === 11
+    ? `${rawCpf.slice(0,3)}.${rawCpf.slice(3,6)}.${rawCpf.slice(6,9)}-${rawCpf.slice(9)}`
+    : undefined;
+
+  const signerAttributes: Record<string, any> = {
+    name: signerName,
+    email: partner.email,
+    refusable: true,
+  };
+  if (formattedCpf) signerAttributes.documentation = formattedCpf;
+
   const signerRes = await clicksignFetch(`/api/v3/envelopes/${envelopeId}/signers`, 'POST', {
     data: {
       type: 'signers',
-      attributes: {
-        name: partner.nome,
-        email: partner.email,
-        refusable: true,
-        documentation: partner.cpf?.replace(/\D/g, '') || undefined,
-      }
+      attributes: signerAttributes,
     }
   });
   const signerId = signerRes.data.id;
