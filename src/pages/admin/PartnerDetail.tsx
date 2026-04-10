@@ -361,13 +361,30 @@ export default function PartnerDetail() {
                         </p>
                       )}
                       <div className="flex gap-2">
-                        {form.contrato_url && (
-                          <a href={form.contrato_url} target="_blank" rel="noreferrer">
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-3.5 h-3.5 mr-1" /> Ver na ClickSign
-                            </Button>
-                          </a>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={downloadingPdf}
+                          onClick={async () => {
+                            setDownloadingPdf(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('clicksign-api', {
+                                body: { action: 'get_signed_url', partner_id: id },
+                              });
+                              if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
+                              if (data?.signed_url) {
+                                window.open(data.signed_url, '_blank');
+                              }
+                            } catch (e: any) {
+                              toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+                            } finally {
+                              setDownloadingPdf(false);
+                            }
+                          }}
+                        >
+                          {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                          Visualizar Contrato
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -382,7 +399,7 @@ export default function PartnerDetail() {
                               if (data?.signed_url) {
                                 window.open(data.signed_url, '_blank');
                               } else {
-                                toast({ title: 'URL não encontrada', description: 'Não foi possível obter o link do PDF assinado.', variant: 'destructive' });
+                                toast({ title: 'URL não encontrada', variant: 'destructive' });
                               }
                             } catch (e: any) {
                               toast({ title: 'Erro ao buscar PDF', description: e.message, variant: 'destructive' });
@@ -396,9 +413,6 @@ export default function PartnerDetail() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      💡 Para visualizar o contrato completo, use os botões acima. A ClickSign não permite incorporar documentos diretamente no sistema.
-                    </p>
                   </div>
                 )}
 
@@ -406,11 +420,32 @@ export default function PartnerDetail() {
                   <div className="mt-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
                     <p className="text-sm font-medium text-amber-400 mb-2">⏳ Aguardando Assinatura do Parceiro</p>
                     <p className="text-xs text-muted-foreground mb-2">O contrato foi enviado para o email do parceiro via ClickSign.</p>
-                    {form.contrato_url && (
-                      <a href={form.contrato_url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-                        Ver envelope na ClickSign
-                      </a>
-                    )}
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={downloadingPdf}
+                        onClick={async () => {
+                          setDownloadingPdf(true);
+                          try {
+                            const { data, error } = await supabase.functions.invoke('clicksign-api', {
+                              body: { action: 'get_signed_url', partner_id: id },
+                            });
+                            if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
+                            if (data?.signed_url) {
+                              window.open(data.signed_url, '_blank');
+                            }
+                          } catch (e: any) {
+                            toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+                          } finally {
+                            setDownloadingPdf(false);
+                          }
+                        }}
+                      >
+                        {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                        Visualizar Contrato
+                      </Button>
+                    </div>
                   </div>
                 )}
 
