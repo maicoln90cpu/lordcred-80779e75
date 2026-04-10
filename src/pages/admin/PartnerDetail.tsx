@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, GraduationCap, History } from 'lucide-react';
+import { ArrowLeft, Save, Clock, User, Building2, FileText, GraduationCap, History, Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PIPELINE_STATUSES = [
@@ -284,11 +284,36 @@ export default function PartnerDetail() {
                   </div>
                 )}
 
-                {form.contrato_status !== 'assinado' && (
-                  <div className="mt-6 p-4 rounded-lg bg-muted border">
+                {form.contrato_status === 'pendente_parceiro' && (
+                  <div className="mt-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm font-medium text-amber-400 mb-2">⏳ Aguardando Assinatura do Parceiro</p>
+                    <p className="text-xs text-muted-foreground mb-2">O contrato foi enviado para o email do parceiro via ClickSign.</p>
+                    {form.contrato_url && (
+                      <a href={form.contrato_url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+                        Ver envelope na ClickSign
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {(form.contrato_status === 'pendente' || form.contrato_status === 'gerado') && (
+                  <div className="mt-6 p-4 rounded-lg bg-muted border space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      🔒 A geração automática de contratos via ClickSign será habilitada na Etapa 4.
+                      Clique abaixo para gerar o contrato automaticamente e enviar para assinatura digital via ClickSign.
                     </p>
+                    {!form.email && (
+                      <p className="text-sm text-destructive">⚠️ O parceiro precisa ter um email cadastrado para receber o contrato.</p>
+                    )}
+                    <Button
+                      onClick={() => generateContractMutation.mutate()}
+                      disabled={!form.email || !form.nome || generateContractMutation.isPending}
+                    >
+                      {generateContractMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando contrato...</>
+                      ) : (
+                        <><Send className="w-4 h-4 mr-2" /> Gerar Contrato e Enviar para Assinatura</>
+                      )}
+                    </Button>
                   </div>
                 )}
               </CardContent>
