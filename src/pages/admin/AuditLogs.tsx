@@ -41,6 +41,44 @@ const actionLabels: Record<string, { label: string; className: string }> = {
   ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400' },
 };
 
+type LogStatus = 'success' | 'error' | 'info';
+
+function getLogStatus(log: AuditLog): LogStatus {
+  if (log.details?.success === true) return 'success';
+  if (log.details?.success === false || log.details?.error || log.details?.error_message) return 'error';
+  if (log.action.includes('_created') || log.action.includes('_updated') || log.action.includes('contract_generated') || log.action.includes('contrato')) return 'success';
+  if (log.action.includes('_deleted')) return 'info';
+  return 'info';
+}
+
+const statusConfig: Record<LogStatus, { label: string; icon: typeof CheckCircle2; className: string }> = {
+  success: { label: 'Sucesso', icon: CheckCircle2, className: 'bg-green-500/20 text-green-400' },
+  error: { label: 'Erro', icon: XCircle, className: 'bg-destructive/20 text-destructive' },
+  info: { label: 'Info', icon: Info, className: 'bg-muted text-muted-foreground' },
+};
+
+function extractFallbackRequest(details: any): Record<string, any> | null {
+  if (!details || details.request_payload) return null;
+  const keys = ['partner_id', 'partner_name', 'partner_email', 'envelope_id', 'action', 'file_name', 'signer_email'];
+  const result: Record<string, any> = {};
+  for (const k of keys) {
+    if (details[k] !== undefined) result[k] = details[k];
+  }
+  if (details.old) result.dados_anteriores = details.old;
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function extractFallbackResponse(details: any): Record<string, any> | null {
+  if (!details || details.response_payload) return null;
+  const keys = ['document_id', 'signer_id', 'status', 'notified', 'signers_total', 'envelope_id'];
+  const result: Record<string, any> = {};
+  for (const k of keys) {
+    if (details[k] !== undefined) result[k] = details[k];
+  }
+  if (details.new) result.dados_novos = details.new;
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 const PAYLOAD_PLACEHOLDER = `{
   "auth": {
     "username": "SEU_USUARIO",
