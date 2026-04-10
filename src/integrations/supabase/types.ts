@@ -47,6 +47,36 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_credentials: {
+        Row: {
+          bank_name: string
+          created_at: string
+          id: string
+          link: string
+          password: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          bank_name: string
+          created_at?: string
+          id?: string
+          link?: string
+          password?: string
+          updated_at?: string
+          username?: string
+        }
+        Update: {
+          bank_name?: string
+          created_at?: string
+          id?: string
+          link?: string
+          password?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       chip_lifecycle_logs: {
         Row: {
           chip_id: string | null
