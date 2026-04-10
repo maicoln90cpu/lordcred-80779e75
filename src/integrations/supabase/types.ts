@@ -1737,7 +1737,9 @@ export type Database = {
       }
       partners: {
         Row: {
+          aceitou: string | null
           aviso_previo_dias: number | null
+          captacao_parceiro: string | null
           captacao_tipo: string | null
           cnpj: string | null
           contrato_assinado_em: string | null
@@ -1746,29 +1748,36 @@ export type Database = {
           contrato_url: string | null
           cpf: string | null
           created_at: string
+          criou_mei: string | null
           data_contato: string | null
           dia_pagamento: number | null
           email: string | null
           endereco: string | null
           endereco_pj: string | null
           envelope_id: string | null
+          enviou_link: boolean | null
           estado_civil: string | null
           id: string
           idade: number | null
           indicado_por: string | null
+          info_mei: string | null
           nacionalidade: string | null
           nome: string
           obs: string | null
           pipeline_status: string
           pix_pj: string | null
           razao_social: string | null
+          reuniao: string | null
+          reuniao_marcada: string | null
           telefone: string | null
           treinamento_status: string | null
           updated_at: string
           vigencia_meses: number | null
         }
         Insert: {
+          aceitou?: string | null
           aviso_previo_dias?: number | null
+          captacao_parceiro?: string | null
           captacao_tipo?: string | null
           cnpj?: string | null
           contrato_assinado_em?: string | null
@@ -1777,29 +1786,36 @@ export type Database = {
           contrato_url?: string | null
           cpf?: string | null
           created_at?: string
+          criou_mei?: string | null
           data_contato?: string | null
           dia_pagamento?: number | null
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null
           envelope_id?: string | null
+          enviou_link?: boolean | null
           estado_civil?: string | null
           id?: string
           idade?: number | null
           indicado_por?: string | null
+          info_mei?: string | null
           nacionalidade?: string | null
           nome: string
           obs?: string | null
           pipeline_status?: string
           pix_pj?: string | null
           razao_social?: string | null
+          reuniao?: string | null
+          reuniao_marcada?: string | null
           telefone?: string | null
           treinamento_status?: string | null
           updated_at?: string
           vigencia_meses?: number | null
         }
         Update: {
+          aceitou?: string | null
           aviso_previo_dias?: number | null
+          captacao_parceiro?: string | null
           captacao_tipo?: string | null
           cnpj?: string | null
           contrato_assinado_em?: string | null
@@ -1808,22 +1824,27 @@ export type Database = {
           contrato_url?: string | null
           cpf?: string | null
           created_at?: string
+          criou_mei?: string | null
           data_contato?: string | null
           dia_pagamento?: number | null
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null
           envelope_id?: string | null
+          enviou_link?: boolean | null
           estado_civil?: string | null
           id?: string
           idade?: number | null
           indicado_por?: string | null
+          info_mei?: string | null
           nacionalidade?: string | null
           nome?: string
           obs?: string | null
           pipeline_status?: string
           pix_pj?: string | null
           razao_social?: string | null
+          reuniao?: string | null
+          reuniao_marcada?: string | null
           telefone?: string | null
           treinamento_status?: string | null
           updated_at?: string
