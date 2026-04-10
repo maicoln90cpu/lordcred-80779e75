@@ -36,6 +36,9 @@ const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   seller_fgts: ['/corban/fgts'],
   whatsapp: ['/whatsapp'],
   master_admin: ['/admin/master'],
+  bank_credentials: ['/admin/bancos'],
+  partners: ['/admin/parceiros', '/admin/parceiros/template'],
+  contract_template: ['/admin/parceiros/template'],
 };
 
 /** Builds reverse map: route → feature_key */

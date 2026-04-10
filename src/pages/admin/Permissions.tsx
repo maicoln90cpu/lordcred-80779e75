@@ -46,6 +46,9 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   settings_warming: 'Configurações de aquecimento de chips',
   warming_reports: 'Relatórios de aquecimento',
   master_admin: 'Painel Master com SQL e exportação',
+  bank_credentials: 'Credenciais de acesso aos bancos parceiros',
+  partners: 'CRM de gestão de parceiros comerciais',
+  contract_template: 'Template global de contratos de parceiros',
 };
 
 interface FeaturePermission {
