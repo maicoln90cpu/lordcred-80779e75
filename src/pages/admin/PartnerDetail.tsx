@@ -110,7 +110,24 @@ export default function PartnerDetail() {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
-  if (isLoading) {
+  const generateContractMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('clicksign-api', {
+        body: { action: 'generate_and_send', partner_id: id },
+      });
+      if (error) throw new Error(error.message || 'Erro ao gerar contrato');
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['partner', id] });
+      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
+      toast({ title: 'Contrato gerado e enviado!', description: 'O parceiro receberá um email com o link para assinatura.' });
+    },
+    onError: (e: any) => toast({ title: 'Erro ao gerar contrato', description: e.message, variant: 'destructive' }),
+  });
+
+
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>
