@@ -39,6 +39,7 @@ import CorbanConfig from "./pages/admin/CorbanConfig";
 import Commissions from "./pages/admin/Commissions";
 import CommissionReports from "./pages/admin/CommissionReports";
 import Permissions from "./pages/admin/Permissions";
+import BankCredentials from "./pages/admin/BankCredentials";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
 import WhatsApp from "./pages/WhatsApp";
@@ -97,6 +98,7 @@ const App = () => (
               <Route path="/corban/propostas" element={<ProtectedRoute><SellerPropostas /></ProtectedRoute>} />
               <Route path="/corban/fgts" element={<ProtectedRoute><SellerFGTS /></ProtectedRoute>} />
               <Route path="/admin/permissions" element={<ProtectedRoute blockSellers><Permissions /></ProtectedRoute>} />
+              <Route path="/admin/bancos" element={<ProtectedRoute blockSellers><BankCredentials /></ProtectedRoute>} />
               <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
