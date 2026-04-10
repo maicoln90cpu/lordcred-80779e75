@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Shield, Clock, Send, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 
 interface AuditLog {
   id: string;
@@ -285,15 +286,25 @@ export default function AuditLogs() {
                                               <strong>Erro:</strong> {log.details.error_message}
                                             </div>
                                           )}
+                                          {/* Show remaining details as tree excluding known keys */}
+                                          {log.details && (() => {
+                                            const { success, error_message, request_payload, response_payload, ...rest } = log.details;
+                                            return Object.keys(rest).length > 0 ? (
+                                              <div className="mt-3 bg-muted/50 rounded-lg p-3">
+                                                <p className="text-xs text-muted-foreground mb-2 font-medium">Dados adicionais:</p>
+                                                <JsonTreeView data={rest} maxDepth={4} />
+                                              </div>
+                                            ) : null;
+                                          })()}
                                         </div>
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="request">
                                       <ScrollArea className="h-[55vh]">
                                         {log.details?.request_payload ? (
-                                          <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
-                                            {JSON.stringify(log.details.request_payload, null, 2)}
-                                          </pre>
+                                          <div className="bg-muted/50 rounded-lg p-3">
+                                            <JsonTreeView data={log.details.request_payload} maxDepth={5} />
+                                          </div>
                                         ) : (
                                           <div className="text-center text-muted-foreground py-8 text-sm">
                                             Payload de ida não disponível para este log.
@@ -306,19 +317,18 @@ export default function AuditLogs() {
                                     <TabsContent value="response">
                                       <ScrollArea className="h-[55vh]">
                                         {log.details?.response_payload ? (
-                                          <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
-                                            {(() => {
-                                              const rp = log.details.response_payload;
-                                              // Try to parse body if string
-                                              if (typeof rp.body === 'string') {
-                                                try {
-                                                  const parsed = JSON.parse(rp.body);
-                                                  return JSON.stringify({ ...rp, body: parsed }, null, 2);
-                                                } catch { /* keep as-is */ }
-                                              }
-                                              return JSON.stringify(rp, null, 2);
-                                            })()}
-                                          </pre>
+                                          <div className="bg-muted/50 rounded-lg p-3">
+                                            <JsonTreeView
+                                              data={(() => {
+                                                const rp = log.details.response_payload;
+                                                if (typeof rp.body === 'string') {
+                                                  try { return { ...rp, body: JSON.parse(rp.body) }; } catch { /* keep */ }
+                                                }
+                                                return rp;
+                                              })()}
+                                              maxDepth={5}
+                                            />
+                                          </div>
                                         ) : (
                                           <div className="text-center text-muted-foreground py-8 text-sm">
                                             Payload de resposta não disponível para este log.
@@ -330,9 +340,9 @@ export default function AuditLogs() {
                                     </TabsContent>
                                     <TabsContent value="raw">
                                       <ScrollArea className="h-[55vh]">
-                                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
-                                          {JSON.stringify(log.details, null, 2)}
-                                        </pre>
+                                        <div className="bg-muted/50 rounded-lg p-3">
+                                          <JsonTreeView data={log.details} maxDepth={5} />
+                                        </div>
                                       </ScrollArea>
                                     </TabsContent>
                                   </Tabs>
