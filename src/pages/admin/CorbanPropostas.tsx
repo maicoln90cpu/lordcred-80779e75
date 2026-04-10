@@ -330,90 +330,134 @@ export default function CorbanPropostas() {
         </Card>
 
         {propostas.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{propostas.length} proposta(s) encontrada(s)</CardTitle>
-                {/* Column selector */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Columns3 className="w-4 h-4 mr-1" /> Colunas ({activeColumns.length})
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-0" align="end">
-                    <ScrollArea className="h-[400px]">
-                      <div className="p-3 space-y-3">
-                        {GROUPS.map(group => {
-                          const groupCols = ALL_COLUMNS.filter(c => c.group === group);
-                          const allChecked = groupCols.every(c => visibleColumns.has(c.key as string));
-                          return (
-                            <div key={group}>
-                              <div
-                                className="flex items-center gap-2 cursor-pointer mb-1"
-                                onClick={() => toggleGroup(group)}
-                              >
-                                <Checkbox checked={allChecked} className="h-3.5 w-3.5" />
-                                <span className="text-xs font-semibold text-primary">{group}</span>
+          <>
+            {/* Summary KPI cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-lg font-bold">{propostas.length}</p>
+                  <p className="text-[10px] text-muted-foreground">Total Propostas</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-lg font-bold text-emerald-500">
+                    {fmtBRL(propostas.reduce((s, p) => s + (p.valor_liberado || 0), 0))}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Valor Total Liberado</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-lg font-bold">
+                    {new Set(propostas.map(p => p.banco).filter(Boolean)).size}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Bancos</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(
+                      propostas.reduce<Record<string, number>>((acc, p) => {
+                        const s = resolveCachedLabel(cachedStatus, p.status);
+                        acc[s] = (acc[s] || 0) + 1;
+                        return acc;
+                      }, {})
+                    ).sort(([, a], [, b]) => b - a).slice(0, 3).map(([label, count]) => (
+                      <Badge key={label} variant="outline" className="text-[10px]">{label}: {count}</Badge>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Top Status</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{propostas.length} proposta(s) encontrada(s)</CardTitle>
+                  {/* Column selector */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Columns3 className="w-4 h-4 mr-1" /> Colunas ({activeColumns.length})
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-0" align="end">
+                      <ScrollArea className="h-[400px]">
+                        <div className="p-3 space-y-3">
+                          {GROUPS.map(group => {
+                            const groupCols = ALL_COLUMNS.filter(c => c.group === group);
+                            const allChecked = groupCols.every(c => visibleColumns.has(c.key as string));
+                            return (
+                              <div key={group}>
+                                <div
+                                  className="flex items-center gap-2 cursor-pointer mb-1"
+                                  onClick={() => toggleGroup(group)}
+                                >
+                                  <Checkbox checked={allChecked} className="h-3.5 w-3.5" />
+                                  <span className="text-xs font-semibold text-primary">{group}</span>
+                                </div>
+                                <div className="ml-5 space-y-0.5">
+                                  {groupCols.map(col => (
+                                    <div
+                                      key={col.key}
+                                      className="flex items-center gap-2 cursor-pointer py-0.5"
+                                      onClick={() => toggleColumn(col.key as string)}
+                                    >
+                                      <Checkbox checked={visibleColumns.has(col.key as string)} className="h-3 w-3" />
+                                      <span className="text-xs text-muted-foreground">{col.label}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="ml-5 space-y-0.5">
-                                {groupCols.map(col => (
-                                  <div
-                                    key={col.key}
-                                    className="flex items-center gap-2 cursor-pointer py-0.5"
-                                    onClick={() => toggleColumn(col.key as string)}
-                                  >
-                                    <Checkbox checked={visibleColumns.has(col.key as string)} className="h-3 w-3" />
-                                    <span className="text-xs text-muted-foreground">{col.label}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="w-full">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {activeColumns.map(col => (
-                        <TableHead key={col.key} className="whitespace-nowrap text-xs">{col.label}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagedPropostas.map((p, i) => (
-                      <TableRow
-                        key={`${p.proposta_id || i}`}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setSelectedProposta(p)}
-                      >
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
                         {activeColumns.map(col => (
-                          <TableCell key={col.key} className="text-xs whitespace-nowrap max-w-[200px] truncate">
-                            {formatCellValue(col, p)}
-                          </TableCell>
+                          <TableHead key={col.key} className="whitespace-nowrap text-xs">{col.label}</TableHead>
                         ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 py-3 border-t">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {pagedPropostas.map((p, i) => (
+                        <TableRow
+                          key={`${p.proposta_id || i}`}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setSelectedProposta(p)}
+                        >
+                          {activeColumns.map(col => (
+                            <TableCell key={col.key} className="text-xs whitespace-nowrap max-w-[200px] truncate">
+                              {formatCellValue(col, p)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 py-3 border-t">
+                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                    <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
+                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Detail drawer */}
