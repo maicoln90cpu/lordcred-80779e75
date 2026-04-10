@@ -50,11 +50,8 @@ export default function CorbanFGTS() {
     })();
   }, [instituicao]);
 
-  const handleSearchFila = async () => {
-    setLoading(true);
-    const filters: Record<string, any> = {
-      instituicao,
-    };
+  const buildFilaPayload = () => {
+    const filters: Record<string, any> = { instituicao };
     if (searchCpf.trim()) filters.searchString = searchCpf.replace(/\D/g, '');
     if (dateFrom || dateTo) {
       filters.data = {};
@@ -62,8 +59,12 @@ export default function CorbanFGTS() {
       if (dateTo) filters.data.endDate = format(dateTo, 'yyyy-MM-dd');
       else filters.data.endDate = format(new Date(), 'yyyy-MM-dd');
     }
+    return { filters };
+  };
 
-    const { data, error } = await invokeCorban('listQueueFGTS', { filters });
+  const executeFilaSearch = async (payload: Record<string, unknown>) => {
+    setLoading(true);
+    const { data, error } = await invokeCorban('listQueueFGTS', payload);
     setLoading(false);
     if (error) {
       toast.error('Erro ao buscar fila FGTS', { description: error });
@@ -72,6 +73,10 @@ export default function CorbanFGTS() {
     const list = Array.isArray(data) ? data : (data?.fila || data?.data || []);
     setFilaItems(list);
     if (list.length === 0) toast.info('Nenhum item encontrado na fila');
+  };
+
+  const handleSearchFila = async () => {
+    await executeFilaSearch(buildFilaPayload());
   };
 
   const handleInsert = async () => {
