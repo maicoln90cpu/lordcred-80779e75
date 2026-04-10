@@ -1,16 +1,21 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Database, RefreshCw, Loader2, Settings2 } from 'lucide-react';
+import { Database, RefreshCw, Loader2, Settings2, Eye, EyeOff, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useMemo } from 'react';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 
 const ASSET_TYPES = [
   { key: 'status', label: 'Status' },
@@ -28,6 +33,9 @@ export default function CorbanAssets() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [activeTab, setActiveTab] = useState('status');
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
+  const [hiddenCols, setHiddenCols] = useState<Record<string, Set<string>>>({});
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<any>(null);
 
   const { data: cachedAssets = [], refetch } = useQuery({
     queryKey: ['corban-assets-cache', activeTab],
@@ -42,14 +50,54 @@ export default function CorbanAssets() {
     },
   });
 
+  // Extract ALL columns from raw_data across all items for current tab
+  const allColumns = useMemo(() => {
+    const keys = new Set<string>();
+    keys.add('asset_id');
+    keys.add('asset_label');
+    cachedAssets.forEach((a: any) => {
+      if (a.raw_data && typeof a.raw_data === 'object' && !Array.isArray(a.raw_data)) {
+        Object.keys(a.raw_data).forEach(k => keys.add(k));
+      }
+    });
+    keys.add('synced_at');
+    return Array.from(keys);
+  }, [cachedAssets]);
+
+  const tabHiddenCols = hiddenCols[activeTab] || new Set<string>();
+  const visibleColumns = useMemo(() => allColumns.filter(c => !tabHiddenCols.has(c)), [allColumns, tabHiddenCols]);
+
+  const toggleCol = (col: string) => {
+    setHiddenCols(prev => {
+      const tabSet = new Set(prev[activeTab] || []);
+      if (tabSet.has(col)) tabSet.delete(col); else tabSet.add(col);
+      return { ...prev, [activeTab]: tabSet };
+    });
+  };
+
+  const getCellValue = (asset: any, col: string): unknown => {
+    if (col === 'asset_id') return asset.asset_id;
+    if (col === 'asset_label') return asset.asset_label;
+    if (col === 'synced_at') return asset.synced_at ? new Date(asset.synced_at).toLocaleString('pt-BR') : '—';
+    return asset.raw_data?.[col] ?? null;
+  };
+
+  const renderCellValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+    if (typeof value === 'object') {
+      if (Array.isArray(value)) return `[${value.length} itens]`;
+      return JSON.stringify(value).substring(0, 80) + '…';
+    }
+    return String(value);
+  };
+
   const syncAsset = async (assetType: string): Promise<number> => {
     const { data, error } = await invokeCorban('getAssets', { asset: assetType });
     if (error) {
       toast.error(`Erro ao sincronizar ${assetType}`, { description: error });
       return 0;
     }
-
-    // The edge function now normalizes and returns items with asset_id/asset_label
     const items = Array.isArray(data) ? data : [];
     let synced = 0;
     for (const item of items) {
@@ -115,18 +163,21 @@ export default function CorbanAssets() {
                 <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
               ))}
             </TabsList>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleSync(activeTab)}
-              disabled={syncing === activeTab || syncingAll}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${syncing === activeTab ? 'animate-spin' : ''}`} />
-              {syncing === activeTab ? 'Sincronizando...' : 'Sincronizar'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
-              <Settings2 className="w-4 h-4 mr-1" /> Payload
-            </Button>
+            <div className="flex gap-2">
+              {cachedAssets.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setColumnsOpen(!columnsOpen)}>
+                  {tabHiddenCols.size > 0 ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                  Colunas ({visibleColumns.length}/{allColumns.length})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => handleSync(activeTab)} disabled={syncing === activeTab || syncingAll}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncing === activeTab ? 'animate-spin' : ''}`} />
+                {syncing === activeTab ? 'Sincronizando...' : 'Sincronizar'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
+                <Settings2 className="w-4 h-4 mr-1" /> Payload
+              </Button>
+            </div>
           </div>
 
           {ASSET_TYPES.map(t => (
@@ -155,18 +206,22 @@ export default function CorbanAssets() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Sincronizado em</TableHead>
+                            {visibleColumns.map(col => (
+                              <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
+                            ))}
+                            <TableHead className="w-8" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {cachedAssets.map((a: any) => (
-                            <TableRow key={a.id}>
-                              <TableCell className="font-mono text-xs">{a.asset_id}</TableCell>
-                              <TableCell>{a.asset_label}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground">
-                                {new Date(a.synced_at).toLocaleString('pt-BR')}
+                            <TableRow key={a.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(a)}>
+                              {visibleColumns.map(col => (
+                                <TableCell key={col} className="text-xs max-w-[200px] truncate">
+                                  {renderCellValue(getCellValue(a, col))}
+                                </TableCell>
+                              ))}
+                              <TableCell>
+                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
                               </TableCell>
                             </TableRow>
                           ))}
@@ -179,6 +234,34 @@ export default function CorbanAssets() {
             </TabsContent>
           ))}
         </Tabs>
+
+        {/* Columns selector */}
+        <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
+          <PopoverContent className="w-64 p-0" align="end" side="bottom">
+            <div className="p-3 border-b"><p className="text-sm font-medium">Colunas visíveis</p></div>
+            <ScrollArea className="h-[280px] p-2">
+              {allColumns.map(col => (
+                <label key={col} className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-accent rounded cursor-pointer">
+                  <Checkbox checked={!tabHiddenCols.has(col)} onCheckedChange={() => toggleCol(col)} />
+                  <span className="truncate">{col}</span>
+                </label>
+              ))}
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+
+        {/* Detail drawer */}
+        <Sheet open={!!detailItem} onOpenChange={(o) => !o && setDetailItem(null)}>
+          <SheetContent className="sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>{detailItem?.asset_label || 'Detalhes do Asset'}</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <JsonTreeView data={detailItem?.raw_data || detailItem} defaultExpanded maxDepth={5} />
+            </div>
+          </SheetContent>
+        </Sheet>
+
         <PayloadEditorDialog
           open={payloadEditorOpen}
           onOpenChange={setPayloadEditorOpen}
