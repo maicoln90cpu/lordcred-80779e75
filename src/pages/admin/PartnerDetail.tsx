@@ -155,6 +155,7 @@ export default function PartnerDetail() {
     },
     onSuccess: (data) => {
       setContractPreviewText(data.contract_text);
+      setContractPdfBase64(data.pdf_base64 || '');
       setPreviewOpen(true);
     },
     onError: (e: any) => toast({ title: 'Erro ao gerar prévia', description: e.message, variant: 'destructive' }),
@@ -411,6 +412,8 @@ export default function PartnerDetail() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         contractText={contractPreviewText}
+        pdfBase64={contractPdfBase64}
+        partnerName={form.nome}
         onConfirmSend={() => generateContractMutation.mutate()}
         isSending={generateContractMutation.isPending}
       />
