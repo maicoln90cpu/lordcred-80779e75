@@ -174,7 +174,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
     chip_id: chip.id,
     message_content: messageContent,
     direction: isFromMe ? 'outgoing' : 'incoming',
-    status: 'delivered',
+    status: isFromMe ? 'sent' : 'delivered',
     recipient_phone: recipientPhone || null,
     remote_jid: remoteJid,
     message_id: msg.messageid || msg.id || null,
@@ -370,16 +370,24 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
     return
   }
 
-  // ── 5. Batch update all message IDs ──
+  // ── 5. Batch update all message IDs (with downgrade protection) ──
+  // Status hierarchy: sent(1) → delivered(2) → read(3). Never downgrade.
+  const statusRank: Record<string, number> = { sent: 1, delivered: 2, read: 3 }
+  const newRank = statusRank[newStatus] || 0
+  const excludeStatuses = Object.entries(statusRank)
+    .filter(([, rank]) => rank >= newRank)
+    .map(([s]) => s)
+
   let totalUpdated = 0
 
-  // Use .in() for batch update when multiple IDs
+  // Build query: update only messages whose current status is "lower" than newStatus
   if (messageIds.length === 1) {
     const { data, error } = await adminClient
       .from('message_history')
       .update({ status: newStatus })
       .eq('chip_id', chip.id)
       .eq('message_id', messageIds[0])
+      .not('status', 'in', `(${excludeStatuses.join(',')})`)
       .select('id')
     totalUpdated = data?.length || 0
     if (error) console.log(`Failed to update ${messageIds[0]}: ${error.message}`)
@@ -389,6 +397,7 @@ async function handleMessagesUpdate(adminClient: any, chip: any, payload: any) {
       .update({ status: newStatus })
       .eq('chip_id', chip.id)
       .in('message_id', messageIds)
+      .not('status', 'in', `(${excludeStatuses.join(',')})`)
       .select('id')
     totalUpdated = data?.length || 0
     if (error) console.log(`Failed batch update: ${error.message}`)
