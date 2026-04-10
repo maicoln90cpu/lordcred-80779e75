@@ -370,11 +370,16 @@ export default function PartnerDetail() {
                             setDownloadingPdf(true);
                             try {
                               const { data, error } = await supabase.functions.invoke('clicksign-api', {
-                                body: { action: 'get_signed_url', partner_id: id },
+                                body: { action: 'download_pdf', partner_id: id },
                               });
                               if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
-                              if (data?.signed_url) {
-                                window.open(data.signed_url, '_blank');
+                              if (data?.pdf_base64) {
+                                const byteChars = atob(data.pdf_base64);
+                                const byteArray = new Uint8Array(byteChars.length);
+                                for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+                                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                const url = URL.createObjectURL(blob);
+                                window.open(url, '_blank');
                               }
                             } catch (e: any) {
                               toast({ title: 'Erro', description: e.message, variant: 'destructive' });
