@@ -102,6 +102,63 @@ async function clicksignFetch(path: string, method: string, body?: any) {
   return data;
 }
 
+// ---------- Default contract template (fallback when DB is empty) ----------
+const DEFAULT_CONTRACT_TEMPLATE = [
+  'CONTRATO DE PARCERIA COMERCIAL AUTONOMA',
+  '',
+  'Pelo presente instrumento particular, de um lado:',
+  '',
+  'LORD CRED, pessoa juridica de direito privado, inscrita no CNPJ 42.824.770/0001-07, com sede na Rua Jose Maria da Luz, n. 2900, Loja 01, Centro, Palhoca/SC, CEP 88.131-000, neste ato representada por Silas Carlos Dias, brasileiro, solteiro, CPF n. 112.937.439-41, doravante denominada CONTRATANTE;',
+  '',
+  'E, de outro lado:',
+  '',
+  '{{RAZAO_SOCIAL}}, pessoa juridica de direito privado, inscrita no CNPJ {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, CPF n. {{REPRESENTANTE_CPF}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;',
+  '',
+  'Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTONOMA, mediante as clausulas e condicoes seguintes:',
+  '',
+  'CLAUSULA 1 - DO OBJETO',
+  'O presente contrato tem por objeto comercializacao, pela EMPRESA PARCEIRA, dos produtos e/ou servicos oferecidos pela CONTRATANTE.',
+  '',
+  'CLAUSULA 2 - DA NATUREZA JURIDICA DA RELACAO',
+  'O presente contrato possui natureza estritamente civil e comercial, nao gerando qualquer vinculo empregaticio, societario, associativo ou de representacao comercial exclusiva entre as partes.',
+  '',
+  'CLAUSULA 3 - DA REMUNERACAO',
+  'O PARCEIRO fara jus a comissao de no minimo 0,50% sobre o valor dos produtos vendidos por sua intermediacao.',
+  'O pagamento sera realizado ate o dia {{DIA_PAGAMENTO}} do mes subsequente ao recebimento dos valores pela CONTRATANTE.',
+  '',
+  'CLAUSULA 4 - DA NAO CONCORRENCIA',
+  'A EMPRESA PARCEIRA compromete-se, durante a vigencia e por 12 meses apos rescisao, a nao comercializar produtos concorrentes.',
+  '',
+  'CLAUSULA 5 - DA CONFIDENCIALIDADE',
+  'A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informacoes da CONTRATANTE por 5 anos apos o termino.',
+  '',
+  'CLAUSULA 6 - DO REGIME DE TRABALHO REMOTO (HOME OFFICE)',
+  'As atividades serao realizadas em regime de trabalho remoto (home office).',
+  '',
+  'CLAUSULA 7 - DA PROTECAO DE DADOS PESSOAIS (LGPD)',
+  'A EMPRESA PARCEIRA declara estar ciente da Lei 13.709/2018 (LGPD) e compromete-se a cumpri-la.',
+  '',
+  'CLAUSULA 8 - DA MULTA CONTRATUAL',
+  'O descumprimento de qualquer clausula sujeitara a parte infratora ao pagamento de multa contratual.',
+  '',
+  'CLAUSULA 9 - DA VIGENCIA E RESCISAO',
+  'O presente contrato vigorara por prazo determinado de {{VIGENCIA_MESES}} meses.',
+  'Rescisao mediante aviso previo por escrito com antecedencia de {{AVISO_PREVIO_DIAS}} dias.',
+  '',
+  'CLAUSULA 10 - DO FORO',
+  'Fica eleito o foro da Comarca de Palhoca/SC para dirimir eventuais controversias.',
+  '',
+  'E por estarem justas e contratadas, firmam o presente instrumento.',
+  '',
+  'Palhoca/SC, {{DIA}} de {{MES}} de {{ANO}}.',
+  '',
+  '___________________________________',
+  'LORD CRED (CONTRATANTE)',
+  '',
+  '___________________________________',
+  '{{RAZAO_SOCIAL}} (EMPRESA PARCEIRA)',
+].join('\n');
+
 // ---------- Dynamic template loading ----------
 
 async function loadContractTemplate(): Promise<string> {
@@ -110,7 +167,10 @@ async function loadContractTemplate(): Promise<string> {
     .select('contract_template')
     .limit(1)
     .single();
-  return data?.contract_template || '';
+  const tpl = data?.contract_template || '';
+  if (tpl.length > 100) return tpl;
+  // If template is empty/minimal in DB, use the full default template
+  return DEFAULT_CONTRACT_TEMPLATE;
 }
 
 // ---------- Replace placeholders in template ----------
@@ -507,43 +567,41 @@ async function getSignedDocumentUrl(partnerId: string) {
     .from('partners').select('document_key, envelope_id, nome').eq('id', partnerId).single();
   if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
 
-  // Try to get download URL from the document
-  if (partner.document_key) {
-    try {
-      const docRes = await clicksignFetch(`/api/v3/documents/${partner.document_key}`, 'GET');
-      const downloads = docRes?.data?.attributes?.downloads || {};
-      const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
-      if (signedUrl) {
-        return { signed_url: signedUrl, source: 'document', partner_name: partner.nome };
-      }
-    } catch (e) {
-      console.warn('Failed to fetch document by key:', e);
-    }
-  }
-
-  // Fallback: try envelope documents list
+  // ClickSign API v3: documents are accessed via envelope endpoint
   if (partner.envelope_id) {
     try {
-      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
-      const docs = envRes?.included?.filter((i: any) => i.type === 'documents') || [];
+      // List documents in the envelope
+      const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
+      const docs = docsRes?.data || [];
+      console.log('Envelope documents:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
+
       for (const doc of docs) {
         const downloads = doc?.attributes?.downloads || {};
         const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
         if (signedUrl) {
-          return { signed_url: signedUrl, source: 'envelope', partner_name: partner.nome };
+          return { signed_url: signedUrl, source: 'envelope_documents', partner_name: partner.nome };
         }
       }
-      // Return envelope URL as fallback
+
+      // If no download URLs in documents, try envelope details for URL
+      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
       const envUrl = envRes?.data?.attributes?.url || null;
       if (envUrl) {
         return { signed_url: envUrl, source: 'envelope_url', partner_name: partner.nome };
       }
     } catch (e) {
-      console.warn('Failed to fetch envelope:', e);
+      console.warn('Failed to fetch envelope documents:', e);
     }
   }
 
-  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o document_key está salvo no parceiro.');
+  // Final fallback: contrato_url from DB
+  const { data: fullPartner } = await supabaseAdmin
+    .from('partners').select('contrato_url').eq('id', partnerId).single();
+  if (fullPartner?.contrato_url) {
+    return { signed_url: fullPartner.contrato_url, source: 'db_url', partner_name: partner.nome };
+  }
+
+  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o envelope_id está salvo no parceiro.');
 }
 
 Deno.serve(async (req) => {

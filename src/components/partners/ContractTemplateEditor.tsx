@@ -144,9 +144,20 @@ export function ContractTemplateEditor() {
         .select('contract_template')
         .limit(1)
         .single();
-      const text = data?.contract_template || DEFAULT_TEMPLATE;
-      setTemplate(text);
-      setOriginal(text);
+      const text = data?.contract_template || '';
+      if (text.length > 100) {
+        setTemplate(text);
+        setOriginal(text);
+      } else {
+        // Template is empty in DB - auto-save the default
+        setTemplate(DEFAULT_TEMPLATE);
+        setOriginal(DEFAULT_TEMPLATE);
+        await supabase
+          .from('system_settings')
+          .update({ contract_template: DEFAULT_TEMPLATE })
+          .not('id', 'is', null);
+        console.log('Auto-saved default contract template to DB');
+      }
       setLoading(false);
     })();
   }, []);
