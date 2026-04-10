@@ -2060,6 +2060,7 @@ export type Database = {
           batch_pause_seconds: number
           batch_size: number
           consecutive_message_limit: number
+          contract_template: string | null
           cooldown_after_error: number
           created_at: string
           days_phase_aquecido: number
@@ -2109,6 +2110,7 @@ export type Database = {
           batch_pause_seconds?: number
           batch_size?: number
           consecutive_message_limit?: number
+          contract_template?: string | null
           cooldown_after_error?: number
           created_at?: string
           days_phase_aquecido?: number
@@ -2158,6 +2160,7 @@ export type Database = {
           batch_pause_seconds?: number
           batch_size?: number
           consecutive_message_limit?: number
+          contract_template?: string | null
           cooldown_after_error?: number
           created_at?: string
           days_phase_aquecido?: number
