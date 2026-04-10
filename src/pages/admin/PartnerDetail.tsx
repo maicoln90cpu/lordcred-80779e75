@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,15 +6,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, GraduationCap, History, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
+import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial' },
@@ -43,6 +43,35 @@ const TREINAMENTO_STATUSES = [
   { value: 'concluido', label: 'Concluído' },
 ];
 
+function isValidCpf(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 11 || /^(\d)\1{10}$/.test(raw)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(raw[i]) * (10 - i);
+  if (((sum * 10) % 11) % 10 !== Number(raw[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(raw[i]) * (11 - i);
+  return ((sum * 10) % 11) % 10 === Number(raw[10]);
+}
+
+function validateForContract(form: Record<string, any>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const nome = (form.nome || '').trim();
+  const parts = nome.split(' ').filter(Boolean);
+  if (!nome) errors.nome = 'Nome é obrigatório';
+  else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome';
+  else if (/\d/.test(nome)) errors.nome = 'Nome não pode conter números';
+
+  const cpf = (form.cpf || '').replace(/\D/g, '');
+  if (!cpf) errors.cpf = 'CPF é obrigatório';
+  else if (!isValidCpf(cpf)) errors.cpf = 'CPF inválido';
+
+  if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
+  if (!form.telefone) errors.telefone = 'Telefone é obrigatório';
+
+  return errors;
+}
+
 export default function PartnerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -50,6 +79,8 @@ export default function PartnerDetail() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
   const [dirty, setDirty] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [contractPreviewText, setContractPreviewText] = useState('');
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -87,13 +118,14 @@ export default function PartnerDetail() {
     setDirty(true);
   };
 
+  const contractErrors = useMemo(() => validateForContract(form), [form]);
+  const canGenerateContract = Object.keys(contractErrors).length === 0;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const { id: _id, created_at, updated_at, ...updates } = form;
       const { error } = await supabase.from('partners').update(updates).eq('id', id!);
       if (error) throw error;
-
-      // Log change in history
       await supabase.from('partner_history').insert({
         partner_id: id!,
         action: 'dados_atualizados',
@@ -110,6 +142,22 @@ export default function PartnerDetail() {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('clicksign-api', {
+        body: { action: 'preview', partner_id: id },
+      });
+      if (error) throw new Error(error.message || 'Erro ao gerar prévia');
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      setContractPreviewText(data.contract_text);
+      setPreviewOpen(true);
+    },
+    onError: (e: any) => toast({ title: 'Erro ao gerar prévia', description: e.message, variant: 'destructive' }),
+  });
+
   const generateContractMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('clicksign-api', {
@@ -120,13 +168,13 @@ export default function PartnerDetail() {
       return data;
     },
     onSuccess: () => {
+      setPreviewOpen(false);
       queryClient.invalidateQueries({ queryKey: ['partner', id] });
       queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
       toast({ title: 'Contrato gerado e enviado!', description: 'O parceiro receberá um email com o link para assinatura.' });
     },
     onError: (e: any) => toast({ title: 'Erro ao gerar contrato', description: e.message, variant: 'destructive' }),
   });
-
 
   if (isLoading) {
     return (
@@ -146,25 +194,6 @@ export default function PartnerDetail() {
       </DashboardLayout>
     );
   }
-
-  const Field = ({ label, field, placeholder, type = 'text', colSpan = false }: { label: string; field: string; placeholder?: string; type?: string; colSpan?: boolean }) => (
-    <div className={colSpan ? 'col-span-2' : ''}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Input type={type} value={form[field] ?? ''} onChange={e => updateField(field, e.target.value || null)} placeholder={placeholder} className="mt-1" />
-    </div>
-  );
-
-  const SelectField = ({ label, field, options }: { label: string; field: string; options: { value: string; label: string }[] }) => (
-    <div>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Select value={form[field] ?? ''} onValueChange={v => updateField(field, v)}>
-        <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-        <SelectContent>
-          {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 
   return (
     <DashboardLayout>
@@ -192,17 +221,17 @@ export default function PartnerDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
-              <SelectField label="Status Pipeline" field="pipeline_status" options={PIPELINE_STATUSES} />
+              <PartnerSelectField label="Status Pipeline" field="pipeline_status" value={form.pipeline_status} onChange={updateField} options={PIPELINE_STATUSES} />
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <SelectField label="Status Contrato" field="contrato_status" options={CONTRATO_STATUSES} />
+              <PartnerSelectField label="Status Contrato" field="contrato_status" value={form.contrato_status} onChange={updateField} options={CONTRATO_STATUSES} />
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <SelectField label="Status Treinamento" field="treinamento_status" options={TREINAMENTO_STATUSES} />
+              <PartnerSelectField label="Status Treinamento" field="treinamento_status" value={form.treinamento_status} onChange={updateField} options={TREINAMENTO_STATUSES} />
             </CardContent>
           </Card>
         </div>
@@ -221,30 +250,30 @@ export default function PartnerDetail() {
               <CardHeader><CardTitle className="text-lg">Dados Pessoais</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Nome Completo" field="nome" placeholder="Nome completo" />
-                  <Field label="CPF" field="cpf" placeholder="000.000.000-00" />
-                  <Field label="Telefone" field="telefone" placeholder="(00) 00000-0000" />
-                  <Field label="Email" field="email" placeholder="email@exemplo.com" type="email" />
-                  <Field label="Nacionalidade" field="nacionalidade" placeholder="Brasileira" />
-                  <Field label="Estado Civil" field="estado_civil" placeholder="Solteiro(a)" />
-                  <Field label="Idade" field="idade" placeholder="30" type="number" />
-                  <Field label="Endereço" field="endereco" placeholder="Rua, nº, bairro, cidade - UF" colSpan />
+                  <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo" required error={contractErrors.nome} />
+                  <PartnerField label="CPF" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00" required error={contractErrors.cpf} />
+                  <PartnerField label="Telefone" field="telefone" value={form.telefone} onChange={updateField} placeholder="(00) 00000-0000" required error={contractErrors.telefone} />
+                  <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
+                  <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" />
+                  <PartnerField label="Estado Civil" field="estado_civil" value={form.estado_civil} onChange={updateField} placeholder="Solteiro(a)" />
+                  <PartnerField label="Idade" field="idade" value={form.idade} onChange={updateField} placeholder="30" type="number" />
+                  <PartnerField label="Endereço" field="endereco" value={form.endereco} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF" colSpan />
                   <div className="col-span-2 grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Tipo de Captação</Label>
-                      <Select value={form.captacao_tipo ?? ''} onValueChange={v => updateField('captacao_tipo', v)}>
-                        <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="indicacao">Indicação</SelectItem>
-                          <SelectItem value="redes_sociais">Redes Sociais</SelectItem>
-                          <SelectItem value="anuncio">Anúncio</SelectItem>
-                          <SelectItem value="organico">Orgânico</SelectItem>
-                          <SelectItem value="evento">Evento</SelectItem>
-                          <SelectItem value="outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Field label="Indicado por" field="indicado_por" placeholder="Quem indicou" />
+                    <PartnerSelectField
+                      label="Tipo de Captação"
+                      field="captacao_tipo"
+                      value={form.captacao_tipo}
+                      onChange={updateField}
+                      options={[
+                        { value: 'indicacao', label: 'Indicação' },
+                        { value: 'redes_sociais', label: 'Redes Sociais' },
+                        { value: 'anuncio', label: 'Anúncio' },
+                        { value: 'organico', label: 'Orgânico' },
+                        { value: 'evento', label: 'Evento' },
+                        { value: 'outro', label: 'Outro' },
+                      ]}
+                    />
+                    <PartnerField label="Indicado por" field="indicado_por" value={form.indicado_por} onChange={updateField} placeholder="Quem indicou" />
                   </div>
                 </div>
                 <div className="mt-4">
@@ -260,10 +289,10 @@ export default function PartnerDetail() {
               <CardHeader><CardTitle className="text-lg">Dados da Pessoa Jurídica</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="CNPJ" field="cnpj" placeholder="00.000.000/0000-00" />
-                  <Field label="Razão Social" field="razao_social" placeholder="Razão Social Ltda" />
-                  <Field label="Endereço PJ" field="endereco_pj" placeholder="Rua, nº, bairro, cidade - UF, CEP" colSpan />
-                  <Field label="Chave PIX PJ" field="pix_pj" placeholder="Chave PIX da empresa" colSpan />
+                  <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" />
+                  <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" />
+                  <PartnerField label="Endereço PJ" field="endereco_pj" value={form.endereco_pj} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF, CEP" colSpan />
+                  <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
                 </div>
               </CardContent>
             </Card>
@@ -274,18 +303,9 @@ export default function PartnerDetail() {
               <CardHeader><CardTitle className="text-lg">Contrato</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Dia de Pagamento</Label>
-                    <Input type="number" value={form.dia_pagamento ?? 7} onChange={e => updateField('dia_pagamento', parseInt(e.target.value) || 7)} className="mt-1" min={1} max={31} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Vigência (meses)</Label>
-                    <Input type="number" value={form.vigencia_meses ?? 12} onChange={e => updateField('vigencia_meses', parseInt(e.target.value) || 12)} className="mt-1" min={1} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Aviso Prévio (dias)</Label>
-                    <Input type="number" value={form.aviso_previo_dias ?? 7} onChange={e => updateField('aviso_previo_dias', parseInt(e.target.value) || 7)} className="mt-1" min={1} />
-                  </div>
+                  <PartnerField label="Dia de Pagamento" field="dia_pagamento" value={form.dia_pagamento ?? 7} onChange={(f, v) => updateField(f, parseInt(v) || 7)} type="number" />
+                  <PartnerField label="Vigência (meses)" field="vigencia_meses" value={form.vigencia_meses ?? 12} onChange={(f, v) => updateField(f, parseInt(v) || 12)} type="number" />
+                  <PartnerField label="Aviso Prévio (dias)" field="aviso_previo_dias" value={form.aviso_previo_dias ?? 7} onChange={(f, v) => updateField(f, parseInt(v) || 7)} type="number" />
                 </div>
 
                 {form.contrato_status === 'assinado' && form.contrato_signed_url && (
@@ -316,20 +336,30 @@ export default function PartnerDetail() {
 
                 {(form.contrato_status === 'pendente' || form.contrato_status === 'gerado') && (
                   <div className="mt-6 p-4 rounded-lg bg-muted border space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Clique abaixo para gerar o contrato automaticamente e enviar para assinatura digital via ClickSign.
-                    </p>
-                    {!form.email && (
-                      <p className="text-sm text-destructive">⚠️ O parceiro precisa ter um email cadastrado para receber o contrato.</p>
+                    {!canGenerateContract && (
+                      <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                        <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-destructive mb-1">Preencha os campos obrigatórios antes de gerar o contrato:</p>
+                          <ul className="list-disc list-inside text-destructive/80 text-xs space-y-0.5">
+                            {Object.values(contractErrors).map((err, i) => (
+                              <li key={i}>{err}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
                     )}
+                    <p className="text-sm text-muted-foreground">
+                      Clique abaixo para gerar a prévia do contrato. Após revisá-lo, você poderá confirmar o envio para assinatura digital via ClickSign.
+                    </p>
                     <Button
-                      onClick={() => generateContractMutation.mutate()}
-                      disabled={!form.email || !form.nome || generateContractMutation.isPending}
+                      onClick={() => previewMutation.mutate()}
+                      disabled={!canGenerateContract || previewMutation.isPending}
                     >
-                      {generateContractMutation.isPending ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando contrato...</>
+                      {previewMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando prévia...</>
                       ) : (
-                        <><Send className="w-4 h-4 mr-2" /> Gerar Contrato e Enviar para Assinatura</>
+                        <><Eye className="w-4 h-4 mr-2" /> Gerar Prévia do Contrato</>
                       )}
                     </Button>
                   </div>
@@ -369,6 +399,14 @@ export default function PartnerDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ContractPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        contractText={contractPreviewText}
+        onConfirmSend={() => generateContractMutation.mutate()}
+        isSending={generateContractMutation.isPending}
+      />
     </DashboardLayout>
   );
 }
