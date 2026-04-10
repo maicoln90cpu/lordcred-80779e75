@@ -1751,6 +1751,7 @@ export type Database = {
           criou_mei: string | null
           data_contato: string | null
           dia_pagamento: number | null
+          document_key: string | null
           email: string | null
           endereco: string | null
           endereco_pj: string | null
@@ -1789,6 +1790,7 @@ export type Database = {
           criou_mei?: string | null
           data_contato?: string | null
           dia_pagamento?: number | null
+          document_key?: string | null
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null
@@ -1827,6 +1829,7 @@ export type Database = {
           criou_mei?: string | null
           data_contato?: string | null
           dia_pagamento?: number | null
+          document_key?: string | null
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null

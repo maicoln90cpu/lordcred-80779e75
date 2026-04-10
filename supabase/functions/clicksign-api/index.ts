@@ -388,7 +388,8 @@ async function generateAndSend(partnerId: string, userId: string) {
     }
   });
   const documentId = docRes.data.id;
-  console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
+  const documentKey = docRes.data.attributes?.key || docRes.data.id;
+  console.log('Document uploaded:', JSON.stringify({ documentId, documentKey, fileName }));
 
   // 3. Add signer
   const signerAttributes: Record<string, any> = {
@@ -467,6 +468,7 @@ async function generateAndSend(partnerId: string, userId: string) {
   // 8. Update partner record
   await supabaseAdmin.from('partners').update({
     envelope_id: envelopeId,
+    document_key: documentKey,
     contrato_status: 'pendente_parceiro',
     contrato_url: `${CLICKSIGN_BASE_URL}/envelopes/${envelopeId}`,
   }).eq('id', partnerId);
