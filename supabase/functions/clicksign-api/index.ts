@@ -13,6 +13,30 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const textEncoder = new TextEncoder();
+
+function sanitizeFilenamePart(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+    .slice(0, 60) || 'parceiro';
+}
+
+function toDataUriBase64(content: string, mimeType: string): string {
+  const bytes = textEncoder.encode(content);
+  let binary = '';
+
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+
+  return `data:${mimeType};base64,${btoa(binary)}`;
+}
 
 async function clicksignFetch(path: string, method: string, body?: any) {
   const url = `${CLICKSIGN_BASE_URL}${path}`;
@@ -63,42 +87,23 @@ async function generateAndSend(partnerId: string, userId: string) {
   const envelopeId = envelopeRes.data.id;
   console.log('Envelope created:', envelopeId);
 
-  // 3. Try to download DOCX template from storage, generate simple text if unavailable
-  // For now, create a simple document via ClickSign's template or upload text
-  // Since DOCX manipulation in Deno is complex, we'll create the contract as
-  // a simple text/HTML document uploaded to ClickSign
-
+  // 3. Build a plain-text document compatible with ClickSign Base64 upload
   const contractContent = generateContractText(partner, now);
+  const sanitizedName = sanitizeFilenamePart(partner.nome || partner.razao_social || 'parceiro');
+  const fileName = `contrato_${sanitizedName}_${now.getTime()}.txt`;
+  const contentBase64 = toDataUriBase64(contractContent, 'text/plain');
 
-  // Upload document as a file (ClickSign accepts file upload)
-  const formData = new FormData();
-  const blob = new Blob([contractContent], { type: 'text/html' });
-  const fileName = `contrato_${partner.nome.replace(/\s+/g, '_')}_${now.getTime()}.html`;
-
-  // Use ClickSign upload endpoint
-  const uploadUrl = `${CLICKSIGN_BASE_URL}/api/v3/envelopes/${envelopeId}/documents`;
-  const uploadHeaders: Record<string, string> = {
-    'Authorization': CLICKSIGN_TOKEN,
-    'Accept': 'application/vnd.api+json',
-  };
-
-  const uploadForm = new FormData();
-  uploadForm.append('data[type]', 'documents');
-  uploadForm.append('data[attributes][filename]', fileName);
-  uploadForm.append('data[attributes][content_base64]', btoa(unescape(encodeURIComponent(contractContent))));
-
-  // Try JSON upload with base64
   const docRes = await clicksignFetch(`/api/v3/envelopes/${envelopeId}/documents`, 'POST', {
     data: {
       type: 'documents',
       attributes: {
         filename: fileName,
-        content_base64: btoa(unescape(encodeURIComponent(contractContent))),
+        content_base64: contentBase64,
       }
     }
   });
   const documentId = docRes.data.id;
-  console.log('Document uploaded:', documentId);
+  console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
 
   // 4. Add signer - Partner
   const signerRes = await clicksignFetch(`/api/v3/envelopes/${envelopeId}/signers`, 'POST', {
@@ -198,6 +203,7 @@ async function generateAndSend(partnerId: string, userId: string) {
       envelope_id: envelopeId,
       partner_name: partner.nome,
       partner_email: partner.email,
+      file_name: fileName,
     },
   });
 
@@ -217,50 +223,39 @@ function generateContractText(partner: any, now: Date): string {
   const vigencia = partner.vigencia_meses || 12;
   const avisoPrevio = partner.aviso_previo_dias || 7;
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Contrato de Parceria Comercial</title>
-<style>body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.6;margin:40px;color:#333}
-h1{text-align:center;font-size:16pt;margin-bottom:30px}
-h2{font-size:13pt;margin-top:20px}
-.signature{margin-top:60px;display:flex;justify-content:space-between}
-.sig-block{text-align:center;width:45%}
-.sig-line{border-top:1px solid #333;margin-top:60px;padding-top:8px}
-</style></head><body>
-<h1>CONTRATO DE PARCERIA COMERCIAL</h1>
+  return `CONTRATO DE PARCERIA COMERCIAL
 
-<p><strong>CONTRATANTE:</strong> LORD CRED LTDA, pessoa jurídica de direito privado, inscrita no CNPJ, doravante denominada simplesmente CONTRATANTE.</p>
+CONTRATANTE:
+LORD CRED LTDA, pessoa jurídica de direito privado, inscrita no CNPJ, doravante denominada simplesmente CONTRATANTE.
 
-<p><strong>CONTRATADO:</strong> ${partner.razao_social || partner.nome}, ${partner.cnpj ? `inscrita no CNPJ sob nº ${partner.cnpj}` : `CPF nº ${partner.cpf || '___'}`}, com sede em ${partner.endereco_pj || partner.endereco || '___'}, doravante denominada simplesmente CONTRATADO.</p>
+CONTRATADO:
+${partner.razao_social || partner.nome}, ${partner.cnpj ? `inscrita no CNPJ sob nº ${partner.cnpj}` : `CPF nº ${partner.cpf || '___'}`}, com sede/endereço em ${partner.endereco_pj || partner.endereco || '___'}, doravante denominada simplesmente CONTRATADO.
 
-<h2>CLÁUSULA 1ª - DO OBJETO</h2>
-<p>O presente contrato tem por objeto a prestação de serviços de parceria comercial para captação e intermediação de operações de crédito consignado e FGTS.</p>
+CLÁUSULA 1ª - DO OBJETO
+O presente contrato tem por objeto a prestação de serviços de parceria comercial para captação e intermediação de operações de crédito consignado e FGTS.
 
-<h2>CLÁUSULA 2ª - DAS OBRIGAÇÕES</h2>
-<p>O CONTRATADO se compromete a atuar de forma ética e transparente na captação de clientes, seguindo as diretrizes e procedimentos estabelecidos pela CONTRATANTE.</p>
+CLÁUSULA 2ª - DAS OBRIGAÇÕES
+O CONTRATADO se compromete a atuar de forma ética e transparente na captação de clientes, seguindo as diretrizes e procedimentos estabelecidos pela CONTRATANTE.
 
-<h2>CLÁUSULA 3ª - DA REMUNERAÇÃO</h2>
-<p>A CONTRATANTE pagará ao CONTRATADO comissão conforme tabela vigente, a ser creditada todo dia <strong>${diaPagamento}</strong> do mês subsequente à operação.</p>
+CLÁUSULA 3ª - DA REMUNERAÇÃO
+A CONTRATANTE pagará ao CONTRATADO comissão conforme tabela vigente, a ser creditada todo dia ${diaPagamento} do mês subsequente à operação.
 
-<h2>CLÁUSULA 4ª - DA VIGÊNCIA</h2>
-<p>O presente contrato terá vigência de <strong>${vigencia} meses</strong> a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.</p>
+CLÁUSULA 4ª - DA VIGÊNCIA
+O presente contrato terá vigência de ${vigencia} meses a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.
 
-<h2>CLÁUSULA 5ª - DA RESCISÃO</h2>
-<p>O presente contrato poderá ser rescindido por qualquer das partes, mediante aviso prévio de <strong>${avisoPrevio} dias</strong>.</p>
+CLÁUSULA 5ª - DA RESCISÃO
+O presente contrato poderá ser rescindido por qualquer das partes, mediante aviso prévio de ${avisoPrevio} dias.
 
-<h2>CLÁUSULA 6ª - DO FORO</h2>
-<p>As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer dúvidas oriundas do presente contrato.</p>
+CLÁUSULA 6ª - DO FORO
+As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer dúvidas oriundas do presente contrato.
 
-<p style="margin-top:30px">Por estarem assim justas e contratadas, as partes firmam o presente instrumento em ${dia} de ${mes} de ${ano}.</p>
+Por estarem assim justas e contratadas, as partes firmam o presente instrumento em ${dia} de ${mes} de ${ano}.
 
-<div class="signature">
-<div class="sig-block">
-<div class="sig-line">LORD CRED LTDA<br>CONTRATANTE</div>
-</div>
-<div class="sig-block">
-<div class="sig-line">${partner.razao_social || partner.nome}<br>CONTRATADO</div>
-</div>
-</div>
-</body></html>`;
+LORD CRED LTDA
+CONTRATANTE
+
+${partner.razao_social || partner.nome}
+CONTRATADO`;
 }
 
 Deno.serve(async (req) => {
