@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -348,78 +348,14 @@ export default function PartnersAdmin() {
             </CardContent>
           </Card>
         ) : (
-          /* Kanban View */
-          <ScrollArea className="w-full pb-4">
-            <div className="flex gap-4 min-w-max">
-              {PIPELINE_STATUSES.map(status => {
-                const cards = filtered.filter(p => p.pipeline_status === status.value);
-                return (
-                  <div key={status.value} className="w-[280px] shrink-0">
-                    <div className={`rounded-t-lg px-3 py-2 ${status.color}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold">{status.label}</span>
-                        <Badge variant="secondary" className="text-[10px] h-5">{cards.length}</Badge>
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 rounded-b-lg p-2 space-y-2 min-h-[200px] border border-t-0 border-border/50">
-                      {cards.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-8">Vazio</p>
-                      ) : cards.map(p => (
-                        <Card
-                          key={p.id}
-                          className="cursor-pointer hover:border-primary/50 transition-colors"
-                          onClick={() => navigate(`/admin/parceiros/${p.id}`)}
-                        >
-                          <CardContent className="p-3 space-y-2">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-medium text-sm truncate flex-1">{p.nome}</p>
-                              {isInactive(p) && (
-                                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-500 shrink-0">
-                                  Inativo
-                                </span>
-                              )}
-                            </div>
-                            {p.telefone && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Phone className="w-3 h-3" /> {p.telefone}
-                              </div>
-                            )}
-                            {p.captacao_tipo && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <User className="w-3 h-3" /> {p.captacao_tipo}
-                              </div>
-                            )}
-                            <div className="flex gap-1 flex-wrap">
-                              {(p as any).reuniao_marcada && <Badge variant="outline" className="text-[10px]">📅 {(p as any).reuniao_marcada}</Badge>}
-                              {(p as any).criou_mei === 'Sim' && <Badge variant="outline" className="text-[10px]">✅ MEI</Badge>}
-                              {(p as any).enviou_link && <Badge variant="outline" className="text-[10px]">🔗 Link</Badge>}
-                            </div>
-                            {/* Quick status move */}
-                            <div onClick={e => e.stopPropagation()}>
-                              <Select
-                                value={p.pipeline_status}
-                                onValueChange={v => updatePipelineStatus(p.id, v)}
-                              >
-                                <SelectTrigger className="h-6 text-[10px] border-dashed">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {PIPELINE_STATUSES.map(s => (
-                                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          /* Kanban View with Drag & Drop */
+          <PartnerKanbanBoard
+            partners={filtered}
+            statuses={PIPELINE_STATUSES}
+            isInactive={isInactive}
+            onMove={updatePipelineStatus}
+            onCardClick={(id) => navigate(`/admin/parceiros/${id}`)}
+          />
         )}
       </div>
 
