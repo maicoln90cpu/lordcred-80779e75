@@ -270,12 +270,21 @@ export default function AuditLogs() {
                     <TableBody>
                       {filteredLogs.map(log => {
                         const actionInfo = actionLabels[log.action] || { label: log.action, className: 'bg-muted text-muted-foreground' };
+                        const logStatus = getLogStatus(log);
+                        const statusInfo = statusConfig[logStatus];
+                        const StatusIcon = statusInfo.icon;
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
                             <TableCell className="text-sm">{log.user_email || '—'}</TableCell>
                             <TableCell>
                               <Badge className={cn('text-xs', actionInfo.className)}>{actionInfo.label}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn('text-xs gap-1', statusInfo.className)}>
+                                <StatusIcon className="w-3 h-3" />
+                                {statusInfo.label}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-mono">{log.target_table || '—'}</TableCell>
                             <TableCell className="text-xs font-mono max-w-[120px] truncate">{log.target_id || '—'}</TableCell>
