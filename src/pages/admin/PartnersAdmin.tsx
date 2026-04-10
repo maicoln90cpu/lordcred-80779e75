@@ -19,6 +19,7 @@ import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User,
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { PartnersDashboard } from '@/components/partners/PartnersDashboard';
+import PartnerKanbanBoard from '@/components/partners/PartnerKanbanBoard';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial', color: 'bg-muted text-muted-foreground' },
