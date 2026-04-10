@@ -1046,8 +1046,17 @@ Deno.serve(async (req) => {
     }
 
   } catch (error) {
+    const errMsg = error.message || 'Internal server error'
+    const isTimeout = errMsg.includes('timeout') || errMsg.includes('AbortError')
+    const isDisconnect = errMsg.includes('disconnected') || errMsg.includes('not connected') || errMsg.includes('Chip token not found') || errMsg.includes('instance token not found')
+
+    if (isTimeout || isDisconnect) {
+      console.warn('UazAPI recoverable error:', errMsg)
+      return jsonResponse({ success: false, error: errMsg, fallback: true }, 200)
+    }
+
     console.error('UazAPI error:', error)
-    return jsonResponse({ error: error.message || 'Internal server error' }, 500)
+    return jsonResponse({ error: errMsg }, 500)
   }
 })
 
