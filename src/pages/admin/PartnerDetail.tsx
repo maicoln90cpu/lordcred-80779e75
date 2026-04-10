@@ -103,6 +103,7 @@ export default function PartnerDetail() {
   const [contractPreviewText, setContractPreviewText] = useState('');
   const [contractPdfBase64, setContractPdfBase64] = useState('');
   const [newNote, setNewNote] = useState('');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -350,7 +351,7 @@ export default function PartnerDetail() {
                   <PartnerField label="Aviso Prévio (dias)" field="aviso_previo_dias" value={form.aviso_previo_dias ?? 7} onChange={(f, v) => updateField(f, parseInt(v) || 7)} type="number" />
                 </div>
 
-                {form.contrato_status === 'assinado' && form.contrato_signed_url && (
+                {form.contrato_status === 'assinado' && (
                   <div className="mt-6 space-y-4">
                     <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
                       <p className="text-sm font-medium text-green-400 mb-2">✅ Contrato Assinado</p>
@@ -360,25 +361,50 @@ export default function PartnerDetail() {
                         </p>
                       )}
                       <div className="flex gap-2">
-                        <a href={form.contrato_signed_url} target="_blank" rel="noreferrer">
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-3.5 h-3.5 mr-1" /> Abrir na ClickSign
-                          </Button>
-                        </a>
-                        <a href={form.contrato_signed_url} download>
-                          <Button variant="outline" size="sm">
-                            <Download className="w-3.5 h-3.5 mr-1" /> Exportar PDF
-                          </Button>
-                        </a>
+                        {form.contrato_url && (
+                          <a href={form.contrato_url} target="_blank" rel="noreferrer">
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-3.5 h-3.5 mr-1" /> Ver na ClickSign
+                            </Button>
+                          </a>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={downloadingPdf}
+                          onClick={async () => {
+                            setDownloadingPdf(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('clicksign-api', {
+                                body: { action: 'get_signed_url', partner_id: id },
+                              });
+                              if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
+                              if (data?.signed_url) {
+                                window.open(data.signed_url, '_blank');
+                              } else {
+                                toast({ title: 'URL não encontrada', description: 'Não foi possível obter o link do PDF assinado.', variant: 'destructive' });
+                              }
+                            } catch (e: any) {
+                              toast({ title: 'Erro ao buscar PDF', description: e.message, variant: 'destructive' });
+                            } finally {
+                              setDownloadingPdf(false);
+                            }
+                          }}
+                        >
+                          {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1" />}
+                          Baixar PDF Assinado
+                        </Button>
                       </div>
                     </div>
-                    <div className="rounded-lg border overflow-hidden">
-                      <iframe
-                        src={form.contrato_signed_url}
-                        className="w-full h-[70vh] bg-background"
-                        title="Contrato assinado"
-                      />
-                    </div>
+                    {form.contrato_url && (
+                      <div className="rounded-lg border overflow-hidden">
+                        <iframe
+                          src={form.contrato_url}
+                          className="w-full h-[70vh] bg-background"
+                          title="Contrato na ClickSign"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
