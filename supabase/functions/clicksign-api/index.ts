@@ -551,10 +551,16 @@ async function generateAndSend(partnerId: string, userId: string) {
   });
   console.log('Envelope activated');
 
-  // 7. Notify signer (use per-signer endpoint with empty body)
+  // 7. Notify signer via JSON:API /notifications endpoint
+  const notificationBody = {
+    data: {
+      type: 'notifications',
+      attributes: { message: null },
+    }
+  };
   const notifySigner = async (attempt: number) => {
     try {
-      await clicksignFetch(`/api/v3/envelopes/${envelopeId}/signers/${signerId}/notify`, 'POST', {});
+      await clicksignFetch(`/api/v3/envelopes/${envelopeId}/signers/${signerId}/notifications`, 'POST', notificationBody);
       console.log(`Notification sent to signer ${signerId} (attempt ${attempt})`);
       return true;
     } catch (e) {
@@ -664,10 +670,16 @@ async function resendNotification(partnerId: string, userId: string) {
   const signers = signersRes?.data || [];
   if (signers.length === 0) throw new HttpError(404, 'Nenhum signatário encontrado no envelope.');
 
+  const notificationBody = {
+    data: {
+      type: 'notifications',
+      attributes: { message: null },
+    }
+  };
   let notifiedCount = 0;
   for (const signer of signers) {
     try {
-      await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/signers/${signer.id}/notify`, 'POST', {});
+      await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/signers/${signer.id}/notifications`, 'POST', notificationBody);
       notifiedCount++;
       console.log(`Resend notification to signer ${signer.id} (${signer.attributes?.email || 'unknown'})`);
     } catch (e) {
