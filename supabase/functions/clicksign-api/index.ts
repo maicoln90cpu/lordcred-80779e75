@@ -102,49 +102,119 @@ async function clicksignFetch(path: string, method: string, body?: any) {
   return data;
 }
 
-// ---------- PDF generation using simple text-to-PDF ----------
+// ---------- Dynamic template loading ----------
+
+async function loadContractTemplate(): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from('system_settings')
+    .select('contract_template')
+    .limit(1)
+    .single();
+  return data?.contract_template || '';
+}
+
+// ---------- Replace placeholders in template ----------
+
+function replacePlaceholders(template: string, partner: any, now: Date): string {
+  const dia = now.getDate().toString();
+  const mes = MESES[now.getMonth()];
+  const ano = now.getFullYear().toString();
+  const diaPagamento = (partner.dia_pagamento || 7).toString();
+  const vigencia = (partner.vigencia_meses || 12).toString();
+  const avisoPrevio = (partner.aviso_previo_dias || 7).toString();
+  const rawCpf = (partner.cpf || '').replace(/\D/g, '');
+  const cpfFormatted = rawCpf.length === 11 ? formatCpf(rawCpf) : (partner.cpf || '___');
+
+  const map: Record<string, string> = {
+    '{{RAZAO_SOCIAL}}': partner.razao_social || partner.nome || '___',
+    '{{CNPJ}}': partner.cnpj || '___',
+    '{{ENDERECO_PJ}}': partner.endereco_pj || partner.endereco || '___',
+    '{{REPRESENTANTE_NOME}}': partner.nome || '___',
+    '{{REPRESENTANTE_NACIONALIDADE}}': partner.nacionalidade || '___',
+    '{{REPRESENTANTE_ESTADO_CIVIL}}': partner.estado_civil || '___',
+    '{{REPRESENTANTE_CPF}}': cpfFormatted,
+    '{{REPRESENTANTE_ENDERECO}}': partner.endereco || '___',
+    '{{DIA_PAGAMENTO}}': diaPagamento,
+    '{{VIGENCIA_MESES}}': vigencia,
+    '{{AVISO_PREVIO_DIAS}}': avisoPrevio,
+    '{{DIA}}': dia,
+    '{{MES}}': mes,
+    '{{ANO}}': ano,
+  };
+
+  let result = template;
+  for (const [key, value] of Object.entries(map)) {
+    result = result.split(key).join(value);
+  }
+  return result;
+}
+
+// ---------- PDF generation ----------
 
 function generatePdfBytes(text: string): Uint8Array {
-  // Build a minimal valid PDF with the contract text
   const lines = text.split('\n');
-  const pageWidth = 595; // A4
+  const pageWidth = 595;
   const pageHeight = 842;
-  const margin = 50;
+  const margin = 60;
   const lineHeight = 14;
-  const maxCharsPerLine = 80;
+  const maxCharsPerLine = 78;
   const usableHeight = pageHeight - margin * 2;
   const linesPerPage = Math.floor(usableHeight / lineHeight);
 
   // Word-wrap lines
-  const wrappedLines: string[] = [];
+  const wrappedLines: { text: string; bold: boolean }[] = [];
   for (const line of lines) {
     if (line.length === 0) {
-      wrappedLines.push('');
+      wrappedLines.push({ text: '', bold: false });
       continue;
     }
+    // Detect bold lines: all-caps titles or CLÁUSULA headers
+    const isBold = /^(CONTRATO|CLÁUSULA|CLAUSULA|CONTRATANTE|CONTRATADO|LORD CRED|E, de outro|Pelo presente|Resolvem firmar|Palhoça|___)/i.test(line.trim());
     let remaining = line;
     while (remaining.length > maxCharsPerLine) {
       let breakAt = remaining.lastIndexOf(' ', maxCharsPerLine);
       if (breakAt <= 0) breakAt = maxCharsPerLine;
-      wrappedLines.push(remaining.slice(0, breakAt));
+      wrappedLines.push({ text: remaining.slice(0, breakAt), bold: isBold });
       remaining = remaining.slice(breakAt).trimStart();
     }
-    wrappedLines.push(remaining);
+    wrappedLines.push({ text: remaining, bold: isBold });
   }
 
   // Split into pages
-  const pages: string[][] = [];
+  const pages: { text: string; bold: boolean }[][] = [];
   for (let i = 0; i < wrappedLines.length; i += linesPerPage) {
     pages.push(wrappedLines.slice(i, i + linesPerPage));
   }
-  if (pages.length === 0) pages.push(['']);
+  if (pages.length === 0) pages.push([{ text: '', bold: false }]);
 
-  // Escape PDF string special chars
   function esc(s: string): string {
-    return s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    // Convert to Latin-1 compatible chars and escape PDF special chars
+    return s
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)')
+      // Map common special chars to Latin-1 octal codes
+      .replace(/ã/g, '\\343').replace(/Ã/g, '\\303')
+      .replace(/á/g, '\\341').replace(/Á/g, '\\301')
+      .replace(/â/g, '\\342').replace(/Â/g, '\\302')
+      .replace(/à/g, '\\340').replace(/À/g, '\\300')
+      .replace(/é/g, '\\351').replace(/É/g, '\\311')
+      .replace(/ê/g, '\\352').replace(/Ê/g, '\\312')
+      .replace(/í/g, '\\355').replace(/Í/g, '\\315')
+      .replace(/ó/g, '\\363').replace(/Ó/g, '\\323')
+      .replace(/ô/g, '\\364').replace(/Ô/g, '\\324')
+      .replace(/õ/g, '\\365').replace(/Õ/g, '\\325')
+      .replace(/ú/g, '\\372').replace(/Ú/g, '\\332')
+      .replace(/ü/g, '\\374').replace(/Ü/g, '\\334')
+      .replace(/ç/g, '\\347').replace(/Ç/g, '\\307')
+      .replace(/º/g, '\\272').replace(/ª/g, '\\252')
+      .replace(/–/g, '-').replace(/—/g, '-')
+      .replace(/"/g, '"').replace(/"/g, '"')
+      .replace(/'/g, "'").replace(/'/g, "'")
+      .replace(/§/g, '\\247')
+      .replace(/€/g, 'EUR');
   }
 
-  // Build PDF objects
   const objects: string[] = [];
   let objCount = 0;
   const offsets: number[] = [];
@@ -158,35 +228,58 @@ function generatePdfBytes(text: string): Uint8Array {
   // 1 - Catalog
   addObj('<< /Type /Catalog /Pages 2 0 R >>');
 
-  // 2 - Pages (placeholder, update later)
+  // 2 - Pages placeholder
   const pagesObjNum = objCount + 1;
   addObj('PAGES_PLACEHOLDER');
 
-  // 3 - Font
-  const fontObj = objCount + 1;
+  // 3 - Font Regular (Helvetica)
+  const fontRegObj = objCount + 1;
   addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
 
-  // Create page objects
-  const pageObjNums: number[] = [];
-  const streamObjNums: number[] = [];
+  // 4 - Font Bold (Helvetica-Bold)
+  const fontBoldObj = objCount + 1;
+  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
-  for (const pageLines of pages) {
-    // Build stream content
-    let stream = `BT\n/F1 11 Tf\n`;
+  const pageObjNums: number[] = [];
+
+  for (let pi = 0; pi < pages.length; pi++) {
+    const pageLines = pages[pi];
+    let stream = 'BT\n';
     let y = pageHeight - margin;
+
+    // Header line on first page
+    if (pi === 0) {
+      stream += `/F2 8 Tf\n0.5 0.5 0.5 rg\n`;
+      stream += `1 0 0 1 ${margin} ${pageHeight - 30} Tm\n(LORD CRED - Contrato de Parceria Comercial) Tj\n`;
+      stream += `0 0 0 rg\n`;
+    }
+
     for (const line of pageLines) {
-      stream += `1 0 0 1 ${margin} ${y} Tm\n(${esc(line)}) Tj\n`;
+      const fontSize = line.bold ? 11 : 10;
+      const fontRef = line.bold ? '/F2' : '/F1';
+      stream += `${fontRef} ${fontSize} Tf\n`;
+      stream += `1 0 0 1 ${margin} ${y} Tm\n(${esc(line.text)}) Tj\n`;
       y -= lineHeight;
     }
+
+    // Footer with page number
+    stream += `/F1 8 Tf\n0.5 0.5 0.5 rg\n`;
+    stream += `1 0 0 1 ${pageWidth / 2 - 20} 25 Tm\n(P\\341gina ${pi + 1} de ${pages.length}) Tj\n`;
+    stream += `0 0 0 rg\n`;
+
     stream += 'ET\n';
+
+    // Draw header line on first page
+    if (pi === 0) {
+      stream += `0.2 0.4 0.7 RG\n0.5 w\n${margin} ${pageHeight - 35} m ${pageWidth - margin} ${pageHeight - 35} l S\n`;
+    }
 
     const streamBytes = new TextEncoder().encode(stream);
     const streamObj = objCount + 1;
     addObj(`<< /Length ${streamBytes.length} >>\nstream\n${stream}endstream`);
-    streamObjNums.push(streamObj);
 
     const pageObj = objCount + 1;
-    addObj(`<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${streamObj} 0 R /Resources << /Font << /F1 ${fontObj} 0 R >> >> >>`);
+    addObj(`<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${streamObj} 0 R /Resources << /Font << /F1 ${fontRegObj} 0 R /F2 ${fontBoldObj} 0 R >> >> >>`);
     pageObjNums.push(pageObj);
   }
 
@@ -217,47 +310,18 @@ function generatePdfBytes(text: string): Uint8Array {
   return new TextEncoder().encode(pdf);
 }
 
-function generateContractText(partner: any, now: Date): string {
+// ---------- Contract text generation (uses dynamic template) ----------
+
+async function generateContractText(partner: any, now: Date): Promise<string> {
+  const template = await loadContractTemplate();
+  if (template) {
+    return replacePlaceholders(template, partner, now);
+  }
+  // Fallback if no template saved
   const dia = now.getDate();
   const mes = MESES[now.getMonth()];
   const ano = now.getFullYear();
-  const diaPagamento = partner.dia_pagamento || 7;
-  const vigencia = partner.vigencia_meses || 12;
-  const avisoPrevio = partner.aviso_previo_dias || 7;
-
-  return `CONTRATO DE PARCERIA COMERCIAL
-
-CONTRATANTE:
-LORD CRED LTDA, pessoa juridica de direito privado, inscrita no CNPJ, doravante denominada simplesmente CONTRATANTE.
-
-CONTRATADO:
-${partner.razao_social || partner.nome}, ${partner.cnpj ? `inscrita no CNPJ sob no ${partner.cnpj}` : `CPF no ${partner.cpf || '___'}`}, com sede/endereco em ${partner.endereco_pj || partner.endereco || '___'}, doravante denominada simplesmente CONTRATADO.
-
-CLAUSULA 1a - DO OBJETO
-O presente contrato tem por objeto a prestacao de servicos de parceria comercial para captacao e intermediacao de operacoes de credito consignado e FGTS.
-
-CLAUSULA 2a - DAS OBRIGACOES
-O CONTRATADO se compromete a atuar de forma etica e transparente na captacao de clientes, seguindo as diretrizes e procedimentos estabelecidos pela CONTRATANTE.
-
-CLAUSULA 3a - DA REMUNERACAO
-A CONTRATANTE pagara ao CONTRATADO comissao conforme tabela vigente, a ser creditada todo dia ${diaPagamento} do mes subsequente a operacao.
-
-CLAUSULA 4a - DA VIGENCIA
-O presente contrato tera vigencia de ${vigencia} meses a contar da data de assinatura, podendo ser renovado por igual periodo mediante acordo entre as partes.
-
-CLAUSULA 5a - DA RESCISAO
-O presente contrato podera ser rescindido por qualquer das partes, mediante aviso previo de ${avisoPrevio} dias.
-
-CLAUSULA 6a - DO FORO
-As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer duvidas oriundas do presente contrato.
-
-Por estarem assim justas e contratadas, as partes firmam o presente instrumento em ${dia} de ${mes} de ${ano}.
-
-LORD CRED LTDA
-CONTRATANTE
-
-${partner.razao_social || partner.nome}
-CONTRATADO`;
+  return `CONTRATO DE PARCERIA COMERCIAL\n\nCONTRATANTE: LORD CRED LTDA\nCONTRATADO: ${partner.razao_social || partner.nome}\n\nPalhoça/SC, ${dia} de ${mes} de ${ano}.`;
 }
 
 async function previewContract(partnerId: string) {
@@ -271,8 +335,11 @@ async function previewContract(partnerId: string) {
   validateSignerName(partner.nome);
   getSignerDocumentation(partner.cpf);
 
-  const contractText = generateContractText(partner, new Date());
-  return { contract_text: contractText };
+  const contractText = await generateContractText(partner, new Date());
+  const pdfBytes = generatePdfBytes(contractText);
+  const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+
+  return { contract_text: contractText, pdf_base64: pdfBase64 };
 }
 
 async function generateAndSend(partnerId: string, userId: string) {
@@ -303,8 +370,8 @@ async function generateAndSend(partnerId: string, userId: string) {
   const envelopeId = envelopeRes.data.id;
   console.log('Envelope created:', envelopeId);
 
-  // 2. Generate PDF and upload
-  const contractContent = generateContractText(partner, now);
+  // 2. Generate PDF with dynamic template and upload
+  const contractContent = await generateContractText(partner, now);
   const pdfBytes = generatePdfBytes(contractContent);
   const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
   const sanitizedName = sanitizeFilenamePart(partner.nome || partner.razao_social || 'parceiro');
@@ -382,7 +449,7 @@ async function generateAndSend(partnerId: string, userId: string) {
   });
   console.log('Envelope activated');
 
-  // 7. Notify signers (correct endpoint: /notify)
+  // 7. Notify signers
   try {
     await clicksignFetch(`/api/v3/envelopes/${envelopeId}/notify`, 'POST', {
       data: {
