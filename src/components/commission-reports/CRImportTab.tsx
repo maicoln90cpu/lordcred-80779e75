@@ -206,9 +206,18 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
   const { data: existingData = [], isLoading, refetch } = useQuery({
     queryKey: [`cr-${module}`],
     queryFn: async () => {
-      const { data, error } = await supabase.from(tableName as any).select('*').order('created_at', { ascending: false }).limit(1000);
-      if (error) throw error;
-      return (data || []) as Record<string, any>[];
+      const allData: Record<string, any>[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from(tableName as any).select('*').order('created_at', { ascending: false }).range(from, from + batchSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData.push(...(data as Record<string, any>[]));
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
+      return allData;
     }
   });
 

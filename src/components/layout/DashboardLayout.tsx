@@ -85,67 +85,67 @@ const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Aquecimento',
     items: [
+      { label: 'Config. Aquecimento', icon: Settings, href: '/settingsaquecimento', sellerHidden: true },
       { label: 'Dash. Aquecimento', icon: LayoutDashboard, href: '/dashboard', sellerHidden: true },
       { label: 'Meus Chips', icon: Smartphone, href: '/chips', sellerHidden: true },
-      { label: 'Config. Aquecimento', icon: Settings, href: '/settingsaquecimento', sellerHidden: true },
       { label: 'Relat. Aquecimento', icon: BarChart3, href: '/admin/warming-reports', sellerHidden: true },
-    ],
-  },
-  {
-    groupLabel: 'Equipe',
-    items: [
-      { label: 'Usuários', icon: Users, href: '/admin/users', sellerHidden: true },
-      { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
-      { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
-      { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
-      { label: 'Info Produtos', icon: PackageSearch, href: '/admin/product-info', sellerHidden: true },
-    ],
-  },
-  {
-    groupLabel: 'Financeiro',
-    items: [
-      { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
-      { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
-      { label: 'Parceiros', icon: Users2, href: '/admin/parceiros', sellerHidden: true },
-      { label: 'Bancos', icon: Landmark, href: '/admin/bancos', sellerHidden: true },
-    ],
-  },
-  {
-    groupLabel: 'Operações',
-    items: [
-      { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
-      { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
-      { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
-      { label: 'Templates', icon: FileText, href: '/admin/templates' },
-      { label: 'Notas Rápidas', icon: Zap, href: '/admin/quick-replies' },
     ],
   },
   {
     groupLabel: 'Comunicação',
     items: [
-      { label: 'Tickets', icon: Ticket, href: '/admin/tickets' },
       { label: 'Chat Interno', icon: MessageSquare, href: '/chat' },
-    ],
-  },
-  {
-    groupLabel: 'Ferramentas',
-    items: [
-      { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
-      { label: 'Assistência Remota', icon: Eye, href: '/admin/remote', sellerHidden: true },
-      { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
-      { label: 'Permissões', icon: Shield, href: '/admin/permissions', sellerHidden: true, supportHidden: true },
+      { label: 'Tickets', icon: Ticket, href: '/admin/tickets' },
     ],
   },
   {
     groupLabel: 'Corban',
     items: [
-      { label: 'Dashboard Corban', icon: Building2, href: '/admin/corban', sellerHidden: true },
-      { label: 'Propostas', icon: ClipboardList, href: '/admin/corban/propostas', sellerHidden: true },
-      { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
       { label: 'Assets/Tabelas', icon: Database, href: '/admin/corban/assets', sellerHidden: true },
       { label: 'Config Corban', icon: Cog, href: '/admin/corban/config', sellerHidden: true },
-      { label: 'Minhas Propostas', icon: ClipboardList, href: '/corban/propostas', supportHidden: true },
       { label: 'Consulta FGTS', icon: Landmark, href: '/corban/fgts', supportHidden: true },
+      { label: 'Dashboard Corban', icon: Building2, href: '/admin/corban', sellerHidden: true },
+      { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
+      { label: 'Minhas Propostas', icon: ClipboardList, href: '/corban/propostas', supportHidden: true },
+      { label: 'Propostas', icon: ClipboardList, href: '/admin/corban/propostas', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Equipe',
+    items: [
+      { label: 'Info Produtos', icon: PackageSearch, href: '/admin/product-info', sellerHidden: true },
+      { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
+      { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
+      { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
+      { label: 'Usuários', icon: Users, href: '/admin/users', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Ferramentas',
+    items: [
+      { label: 'Assistência Remota', icon: Eye, href: '/admin/remote', sellerHidden: true },
+      { label: 'Links Úteis', icon: Link2, href: '/admin/links', sellerHidden: true },
+      { label: 'Logs de Auditoria', icon: Shield, href: '/admin/audit-logs', sellerHidden: true },
+      { label: 'Permissões', icon: Shield, href: '/admin/permissions', sellerHidden: true, supportHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Financeiro',
+    items: [
+      { label: 'Bancos', icon: Landmark, href: '/admin/bancos', sellerHidden: true },
+      { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
+      { label: 'Parceiros', icon: Users2, href: '/admin/parceiros', sellerHidden: true },
+      { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Operações',
+    items: [
+      { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
+      { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
+      { label: 'Notas Rápidas', icon: Zap, href: '/admin/quick-replies' },
+      { label: 'Templates', icon: FileText, href: '/admin/templates' },
+      { label: 'Webhooks', icon: Webhook, href: '/admin/webhooks', sellerHidden: true },
     ],
   },
   {
