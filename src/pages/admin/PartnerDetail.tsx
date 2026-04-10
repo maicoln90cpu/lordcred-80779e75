@@ -82,6 +82,7 @@ export default function PartnerDetail() {
   const [dirty, setDirty] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [contractPreviewText, setContractPreviewText] = useState('');
+  const [contractPdfBase64, setContractPdfBase64] = useState('');
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
