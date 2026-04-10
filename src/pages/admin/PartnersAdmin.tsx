@@ -72,9 +72,18 @@ export default function PartnersAdmin() {
   const { data: allPartners = [], isLoading } = useQuery({
     queryKey: ['partners'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+      const allData: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false }).range(from, from + batchSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
+      return allData;
     },
   });
 

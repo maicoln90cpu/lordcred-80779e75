@@ -102,9 +102,13 @@ const PAYLOAD_PLACEHOLDER = `{
   }
 }`;
 
+const PAGE_SIZE = 500;
+
 export default function AuditLogs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -116,17 +120,28 @@ export default function AuditLogs() {
   const [apiSending, setApiSending] = useState(false);
 
   useEffect(() => {
-    loadLogs();
+    loadLogs(true);
   }, []);
 
-  const loadLogs = async () => {
+  const loadLogs = async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setLogs([]);
+    } else {
+      setLoadingMore(true);
+    }
+    const from = reset ? 0 : logs.length;
     const { data, error } = await supabase
       .from('audit_logs')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(500);
-    if (!error && data) setLogs(data);
+      .range(from, from + PAGE_SIZE - 1);
+    if (!error && data) {
+      setLogs(prev => reset ? data : [...prev, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+    }
     setLoading(false);
+    setLoadingMore(false);
   };
 
   const filteredLogs = logs.filter(log => {
@@ -254,7 +269,8 @@ export default function AuditLogs() {
               </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
-                {filteredLogs.length} registros
+                {filteredLogs.length} de {logs.length} registros
+                {hasMore && ' (mais disponíveis)'}
               </Badge>
             </div>
 
@@ -429,6 +445,14 @@ export default function AuditLogs() {
                   </Table>
                 </ScrollArea>
               </CardContent>
+              {hasMore && (
+                <div className="flex justify-center p-3 border-t">
+                  <Button variant="outline" size="sm" onClick={() => loadLogs(false)} disabled={loadingMore}>
+                    {loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Carregar mais registros
+                  </Button>
+                </div>
+              )}
             </Card>
           </TabsContent>
 
