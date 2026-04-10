@@ -110,7 +110,10 @@ async function loadContractTemplate(): Promise<string> {
     .select('contract_template')
     .limit(1)
     .single();
-  return data?.contract_template || '';
+  const tpl = data?.contract_template || '';
+  if (tpl.length > 100) return tpl;
+  // If template is empty/minimal in DB, use the full default template
+  return DEFAULT_CONTRACT_TEMPLATE;
 }
 
 // ---------- Replace placeholders in template ----------
@@ -507,43 +510,41 @@ async function getSignedDocumentUrl(partnerId: string) {
     .from('partners').select('document_key, envelope_id, nome').eq('id', partnerId).single();
   if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
 
-  // Try to get download URL from the document
-  if (partner.document_key) {
-    try {
-      const docRes = await clicksignFetch(`/api/v3/documents/${partner.document_key}`, 'GET');
-      const downloads = docRes?.data?.attributes?.downloads || {};
-      const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
-      if (signedUrl) {
-        return { signed_url: signedUrl, source: 'document', partner_name: partner.nome };
-      }
-    } catch (e) {
-      console.warn('Failed to fetch document by key:', e);
-    }
-  }
-
-  // Fallback: try envelope documents list
+  // ClickSign API v3: documents are accessed via envelope endpoint
   if (partner.envelope_id) {
     try {
-      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
-      const docs = envRes?.included?.filter((i: any) => i.type === 'documents') || [];
+      // List documents in the envelope
+      const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
+      const docs = docsRes?.data || [];
+      console.log('Envelope documents:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
+
       for (const doc of docs) {
         const downloads = doc?.attributes?.downloads || {};
         const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
         if (signedUrl) {
-          return { signed_url: signedUrl, source: 'envelope', partner_name: partner.nome };
+          return { signed_url: signedUrl, source: 'envelope_documents', partner_name: partner.nome };
         }
       }
-      // Return envelope URL as fallback
+
+      // If no download URLs in documents, try envelope details for URL
+      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
       const envUrl = envRes?.data?.attributes?.url || null;
       if (envUrl) {
         return { signed_url: envUrl, source: 'envelope_url', partner_name: partner.nome };
       }
     } catch (e) {
-      console.warn('Failed to fetch envelope:', e);
+      console.warn('Failed to fetch envelope documents:', e);
     }
   }
 
-  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o document_key está salvo no parceiro.');
+  // Final fallback: contrato_url from DB
+  const { data: fullPartner } = await supabaseAdmin
+    .from('partners').select('contrato_url').eq('id', partnerId).single();
+  if (fullPartner?.contrato_url) {
+    return { signed_url: fullPartner.contrato_url, source: 'db_url', partner_name: partner.nome };
+  }
+
+  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o envelope_id está salvo no parceiro.');
 }
 
 Deno.serve(async (req) => {

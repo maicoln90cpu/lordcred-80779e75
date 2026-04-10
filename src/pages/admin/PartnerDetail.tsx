@@ -396,15 +396,9 @@ export default function PartnerDetail() {
                         </Button>
                       </div>
                     </div>
-                    {form.contrato_url && (
-                      <div className="rounded-lg border overflow-hidden">
-                        <iframe
-                          src={form.contrato_url}
-                          className="w-full h-[70vh] bg-background"
-                          title="Contrato na ClickSign"
-                        />
-                      </div>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      💡 Para visualizar o contrato completo, use os botões acima. A ClickSign não permite incorporar documentos diretamente no sistema.
+                    </p>
                   </div>
                 )}
 
