@@ -653,6 +653,68 @@ async function getSignedDocumentUrl(partnerId: string) {
   throw new HttpError(404, 'Não foi possível obter a URL do documento. Verifique se o contrato foi gerado.');
 }
 
+async function resendNotification(partnerId: string, userId: string) {
+  const { data: partner, error } = await supabaseAdmin
+    .from('partners').select('envelope_id, nome, email').eq('id', partnerId).single();
+  if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
+  if (!partner.envelope_id) throw new HttpError(400, 'Este parceiro não possui envelope de contrato. Gere o contrato primeiro.');
+
+  // List signers
+  const signersRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/signers`, 'GET');
+  const signers = signersRes?.data || [];
+  if (signers.length === 0) throw new HttpError(404, 'Nenhum signatário encontrado no envelope.');
+
+  let notifiedCount = 0;
+  for (const signer of signers) {
+    try {
+      await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/signers/${signer.id}/notify`, 'POST', {});
+      notifiedCount++;
+      console.log(`Resend notification to signer ${signer.id} (${signer.attributes?.email || 'unknown'})`);
+    } catch (e) {
+      console.warn(`Failed to notify signer ${signer.id}:`, e);
+    }
+  }
+
+  // Log
+  await supabaseAdmin.from('partner_history').insert({
+    partner_id: partnerId,
+    action: 'contrato_reenviado',
+    details: { envelope_id: partner.envelope_id, signers_notified: notifiedCount },
+    created_by: userId,
+  });
+
+  await supabaseAdmin.from('audit_logs').insert({
+    user_id: userId,
+    action: 'clicksign_resend_notification',
+    target_table: 'partners',
+    target_id: partnerId,
+    details: { envelope_id: partner.envelope_id, partner_name: partner.nome, notified: notifiedCount },
+  });
+
+  return { success: true, notified: notifiedCount, envelope_id: partner.envelope_id };
+}
+
+async function downloadPdfProxy(partnerId: string) {
+  const urlResult = await getSignedDocumentUrl(partnerId);
+  const pdfUrl = urlResult.signed_url;
+
+  // Fetch PDF via server-side to bypass CORS
+  const res = await fetch(pdfUrl, {
+    headers: { 'Authorization': CLICKSIGN_TOKEN },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('PDF download failed:', res.status, text);
+    throw new HttpError(res.status, `Falha ao baixar PDF: ${res.status}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+  return { pdf_base64: base64, filename: `contrato_${urlResult.partner_name || 'parceiro'}.pdf` };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -704,6 +766,16 @@ Deno.serve(async (req) => {
         if (!partner_id) throw new HttpError(400, 'partner_id is required');
         result = await getSignedDocumentUrl(partner_id);
         break;
+      case 'resend_notification': {
+        if (!partner_id) throw new HttpError(400, 'partner_id is required');
+        result = await resendNotification(partner_id, userId);
+        break;
+      }
+      case 'download_pdf': {
+        if (!partner_id) throw new HttpError(400, 'partner_id is required');
+        result = await downloadPdfProxy(partner_id);
+        break;
+      }
       default:
         throw new HttpError(400, `Unknown action: ${action}`);
     }

@@ -21,26 +21,37 @@ Deno.serve(async (req) => {
     })
 
     // Optional: validate caller (admin or support) if Authorization header present
+    // Cron jobs (pg_net) may send anon key which isn't a valid user JWT — skip gracefully
     const authHeader = req.headers.get('Authorization')
     if (authHeader?.startsWith('Bearer ')) {
-      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: authHeader } }
-      })
-      const token = authHeader.replace('Bearer ', '')
-      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
-      if (claimsError || !claimsData?.claims?.sub) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-      const userId = claimsData.claims.sub as string
-      const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).single()
-      const role = roleData?.role
-      if (role !== 'master' && role !== 'admin' && role !== 'support') {
-        return new Response(JSON.stringify({ error: 'Access denied' }), {
-          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+      try {
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+        const token = authHeader.replace('Bearer ', '')
+        
+        // Skip validation if the token looks like the anon key (not a user JWT)
+        if (token !== supabaseAnonKey) {
+          const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+            global: { headers: { Authorization: authHeader } }
+          })
+          const { data: { user }, error: userError } = await userClient.auth.getUser(token)
+          if (userError || !user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+              status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          const userId = user.id
+          const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).single()
+          const role = roleData?.role
+          if (role !== 'master' && role !== 'admin' && role !== 'support') {
+            return new Response(JSON.stringify({ error: 'Access denied' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        }
+        // If token === anonKey, this is a cron/pg_net call — proceed without auth
+      } catch (authErr) {
+        // Auth validation failed (likely cron call) — proceed without auth
+        console.log('Auth validation skipped (likely cron call):', authErr)
       }
     }
 
