@@ -13,12 +13,10 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const textEncoder = new TextEncoder();
 
 class HttpError extends Error {
   status: number;
   details?: unknown;
-
   constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.name = 'HttpError';
@@ -39,17 +37,6 @@ function sanitizeFilenamePart(value: string): string {
     .slice(0, 60) || 'parceiro';
 }
 
-function toDataUriBase64(content: string, mimeType: string): string {
-  const bytes = textEncoder.encode(content);
-  let binary = '';
-
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-
-  return `data:${mimeType};base64,${btoa(binary)}`;
-}
-
 function normalizeSignerName(value: string): string {
   return value
     .normalize('NFKC')
@@ -61,36 +48,23 @@ function normalizeSignerName(value: string): string {
 function validateSignerName(value: string): string {
   const signerName = normalizeSignerName(value);
   const parts = signerName.split(' ').filter(Boolean);
-
   if (!signerName || parts.length < 2) {
-    throw new HttpError(
-      400,
-      'O nome do signatário precisa conter nome e sobrenome para assinatura na ClickSign. Atualize o cadastro do parceiro.',
-    );
+    throw new HttpError(400, 'O nome do signatário precisa conter nome e sobrenome.');
   }
-
   if (/\d/.test(signerName)) {
-    throw new HttpError(
-      400,
-      'O nome do signatário não pode conter números para assinatura na ClickSign. Atualize o cadastro do parceiro.',
-    );
+    throw new HttpError(400, 'O nome do signatário não pode conter números.');
   }
-
   return signerName;
 }
 
 function isValidCpf(value: string): boolean {
   if (!/^\d{11}$/.test(value) || /^(\d)\1{10}$/.test(value)) return false;
-
   let sum = 0;
   for (let i = 0; i < 9; i++) sum += Number(value[i]) * (10 - i);
-  const firstDigit = ((sum * 10) % 11) % 10;
-  if (firstDigit !== Number(value[9])) return false;
-
+  if (((sum * 10) % 11) % 10 !== Number(value[9])) return false;
   sum = 0;
   for (let i = 0; i < 10; i++) sum += Number(value[i]) * (11 - i);
-  const secondDigit = ((sum * 10) % 11) % 10;
-  return secondDigit === Number(value[10]);
+  return ((sum * 10) % 11) % 10 === Number(value[10]);
 }
 
 function formatCpf(value: string): string {
@@ -99,16 +73,10 @@ function formatCpf(value: string): string {
 
 function getSignerDocumentation(cpf?: string | null): string | undefined {
   const rawCpf = (cpf || '').replace(/\D/g, '');
-
   if (!rawCpf) return undefined;
-
   if (!isValidCpf(rawCpf)) {
-    throw new HttpError(
-      400,
-      'O CPF do parceiro está inválido para assinatura na ClickSign. Atualize o cadastro antes de enviar o contrato.',
-    );
+    throw new HttpError(400, 'O CPF do parceiro está inválido.');
   }
-
   return formatCpf(rawCpf);
 }
 
@@ -134,21 +102,193 @@ async function clicksignFetch(path: string, method: string, body?: any) {
   return data;
 }
 
-async function generateAndSend(partnerId: string, userId: string) {
-  // 1. Fetch partner data
+// ---------- PDF generation using simple text-to-PDF ----------
+
+function generatePdfBytes(text: string): Uint8Array {
+  // Build a minimal valid PDF with the contract text
+  const lines = text.split('\n');
+  const pageWidth = 595; // A4
+  const pageHeight = 842;
+  const margin = 50;
+  const lineHeight = 14;
+  const maxCharsPerLine = 80;
+  const usableHeight = pageHeight - margin * 2;
+  const linesPerPage = Math.floor(usableHeight / lineHeight);
+
+  // Word-wrap lines
+  const wrappedLines: string[] = [];
+  for (const line of lines) {
+    if (line.length === 0) {
+      wrappedLines.push('');
+      continue;
+    }
+    let remaining = line;
+    while (remaining.length > maxCharsPerLine) {
+      let breakAt = remaining.lastIndexOf(' ', maxCharsPerLine);
+      if (breakAt <= 0) breakAt = maxCharsPerLine;
+      wrappedLines.push(remaining.slice(0, breakAt));
+      remaining = remaining.slice(breakAt).trimStart();
+    }
+    wrappedLines.push(remaining);
+  }
+
+  // Split into pages
+  const pages: string[][] = [];
+  for (let i = 0; i < wrappedLines.length; i += linesPerPage) {
+    pages.push(wrappedLines.slice(i, i + linesPerPage));
+  }
+  if (pages.length === 0) pages.push(['']);
+
+  // Escape PDF string special chars
+  function esc(s: string): string {
+    return s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  }
+
+  // Build PDF objects
+  const objects: string[] = [];
+  let objCount = 0;
+  const offsets: number[] = [];
+
+  function addObj(content: string): number {
+    objCount++;
+    objects.push(`${objCount} 0 obj\n${content}\nendobj\n`);
+    return objCount;
+  }
+
+  // 1 - Catalog
+  addObj('<< /Type /Catalog /Pages 2 0 R >>');
+
+  // 2 - Pages (placeholder, update later)
+  const pagesObjNum = objCount + 1;
+  addObj('PAGES_PLACEHOLDER');
+
+  // 3 - Font
+  const fontObj = objCount + 1;
+  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+
+  // Create page objects
+  const pageObjNums: number[] = [];
+  const streamObjNums: number[] = [];
+
+  for (const pageLines of pages) {
+    // Build stream content
+    let stream = `BT\n/F1 11 Tf\n`;
+    let y = pageHeight - margin;
+    for (const line of pageLines) {
+      stream += `1 0 0 1 ${margin} ${y} Tm\n(${esc(line)}) Tj\n`;
+      y -= lineHeight;
+    }
+    stream += 'ET\n';
+
+    const streamBytes = new TextEncoder().encode(stream);
+    const streamObj = objCount + 1;
+    addObj(`<< /Length ${streamBytes.length} >>\nstream\n${stream}endstream`);
+    streamObjNums.push(streamObj);
+
+    const pageObj = objCount + 1;
+    addObj(`<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${streamObj} 0 R /Resources << /Font << /F1 ${fontObj} 0 R >> >> >>`);
+    pageObjNums.push(pageObj);
+  }
+
+  // Update Pages object
+  const kidsStr = pageObjNums.map(n => `${n} 0 R`).join(' ');
+  objects[pagesObjNum - 1] = `${pagesObjNum} 0 obj\n<< /Type /Pages /Kids [${kidsStr}] /Count ${pageObjNums.length} >>\nendobj\n`;
+
+  // Build final PDF
+  let pdf = '%PDF-1.4\n';
+  for (let i = 0; i < objects.length; i++) {
+    offsets[i] = pdf.length;
+    pdf += objects[i];
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += 'xref\n';
+  pdf += `0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 0; i < objects.length; i++) {
+    pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+  pdf += 'trailer\n';
+  pdf += `<< /Size ${objects.length + 1} /Root 1 0 R >>\n`;
+  pdf += 'startxref\n';
+  pdf += `${xrefOffset}\n`;
+  pdf += '%%EOF\n';
+
+  return new TextEncoder().encode(pdf);
+}
+
+function generateContractText(partner: any, now: Date): string {
+  const dia = now.getDate();
+  const mes = MESES[now.getMonth()];
+  const ano = now.getFullYear();
+  const diaPagamento = partner.dia_pagamento || 7;
+  const vigencia = partner.vigencia_meses || 12;
+  const avisoPrevio = partner.aviso_previo_dias || 7;
+
+  return `CONTRATO DE PARCERIA COMERCIAL
+
+CONTRATANTE:
+LORD CRED LTDA, pessoa juridica de direito privado, inscrita no CNPJ, doravante denominada simplesmente CONTRATANTE.
+
+CONTRATADO:
+${partner.razao_social || partner.nome}, ${partner.cnpj ? `inscrita no CNPJ sob no ${partner.cnpj}` : `CPF no ${partner.cpf || '___'}`}, com sede/endereco em ${partner.endereco_pj || partner.endereco || '___'}, doravante denominada simplesmente CONTRATADO.
+
+CLAUSULA 1a - DO OBJETO
+O presente contrato tem por objeto a prestacao de servicos de parceria comercial para captacao e intermediacao de operacoes de credito consignado e FGTS.
+
+CLAUSULA 2a - DAS OBRIGACOES
+O CONTRATADO se compromete a atuar de forma etica e transparente na captacao de clientes, seguindo as diretrizes e procedimentos estabelecidos pela CONTRATANTE.
+
+CLAUSULA 3a - DA REMUNERACAO
+A CONTRATANTE pagara ao CONTRATADO comissao conforme tabela vigente, a ser creditada todo dia ${diaPagamento} do mes subsequente a operacao.
+
+CLAUSULA 4a - DA VIGENCIA
+O presente contrato tera vigencia de ${vigencia} meses a contar da data de assinatura, podendo ser renovado por igual periodo mediante acordo entre as partes.
+
+CLAUSULA 5a - DA RESCISAO
+O presente contrato podera ser rescindido por qualquer das partes, mediante aviso previo de ${avisoPrevio} dias.
+
+CLAUSULA 6a - DO FORO
+As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer duvidas oriundas do presente contrato.
+
+Por estarem assim justas e contratadas, as partes firmam o presente instrumento em ${dia} de ${mes} de ${ano}.
+
+LORD CRED LTDA
+CONTRATANTE
+
+${partner.razao_social || partner.nome}
+CONTRATADO`;
+}
+
+async function previewContract(partnerId: string) {
   const { data: partner, error: pErr } = await supabaseAdmin
     .from('partners').select('*').eq('id', partnerId).single();
-  if (pErr || !partner) throw new Error(`Parceiro não encontrado: ${pErr?.message}`);
+  if (pErr || !partner) throw new Error(`Parceiro nao encontrado: ${pErr?.message}`);
 
   if (!partner.nome || !partner.email) {
-    throw new Error('Parceiro precisa ter nome e email para gerar contrato');
+    throw new HttpError(400, 'Parceiro precisa ter nome e email.');
+  }
+  validateSignerName(partner.nome);
+  getSignerDocumentation(partner.cpf);
+
+  const contractText = generateContractText(partner, new Date());
+  return { contract_text: contractText };
+}
+
+async function generateAndSend(partnerId: string, userId: string) {
+  const { data: partner, error: pErr } = await supabaseAdmin
+    .from('partners').select('*').eq('id', partnerId).single();
+  if (pErr || !partner) throw new Error(`Parceiro nao encontrado: ${pErr?.message}`);
+
+  if (!partner.nome || !partner.email) {
+    throw new HttpError(400, 'Parceiro precisa ter nome e email.');
   }
 
   const signerName = validateSignerName(partner.nome);
   const formattedCpf = getSignerDocumentation(partner.cpf);
   const now = new Date();
 
-  // 2. Create envelope
+  // 1. Create envelope
   const envelopeRes = await clicksignFetch('/api/v3/envelopes', 'POST', {
     data: {
       type: 'envelopes',
@@ -163,11 +303,13 @@ async function generateAndSend(partnerId: string, userId: string) {
   const envelopeId = envelopeRes.data.id;
   console.log('Envelope created:', envelopeId);
 
-  // 3. Build a plain-text document compatible with ClickSign Base64 upload
+  // 2. Generate PDF and upload
   const contractContent = generateContractText(partner, now);
+  const pdfBytes = generatePdfBytes(contractContent);
+  const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
   const sanitizedName = sanitizeFilenamePart(partner.nome || partner.razao_social || 'parceiro');
-  const fileName = `contrato_${sanitizedName}_${now.getTime()}.txt`;
-  const contentBase64 = toDataUriBase64(contractContent, 'text/plain');
+  const fileName = `contrato_${sanitizedName}_${now.getTime()}.pdf`;
+  const contentBase64 = `data:application/pdf;base64,${pdfBase64}`;
 
   const docRes = await clicksignFetch(`/api/v3/envelopes/${envelopeId}/documents`, 'POST', {
     data: {
@@ -181,7 +323,7 @@ async function generateAndSend(partnerId: string, userId: string) {
   const documentId = docRes.data.id;
   console.log('Document uploaded:', JSON.stringify({ documentId, fileName }));
 
-  // 4. Add signer - Partner
+  // 3. Add signer
   const signerAttributes: Record<string, any> = {
     name: signerName,
     email: partner.email,
@@ -198,13 +340,13 @@ async function generateAndSend(partnerId: string, userId: string) {
   const signerId = signerRes.data.id;
   console.log('Signer added:', signerId);
 
-  // 5. Add requirement (qualification) for the signer
+  // 4. Qualification requirement (role: contractee)
   await clicksignFetch(`/api/v3/envelopes/${envelopeId}/requirements`, 'POST', {
     data: {
       type: 'requirements',
       attributes: {
         action: 'agree',
-        role: 'sign',
+        role: 'contractee',
       },
       relationships: {
         document: { data: { type: 'documents', id: documentId } },
@@ -212,9 +354,9 @@ async function generateAndSend(partnerId: string, userId: string) {
       }
     }
   });
-  console.log('Requirement added');
+  console.log('Qualification requirement added');
 
-  // 6. Add authentication for signer (email token)
+  // 5. Authentication requirement (email token)
   await clicksignFetch(`/api/v3/envelopes/${envelopeId}/requirements`, 'POST', {
     data: {
       type: 'requirements',
@@ -223,31 +365,30 @@ async function generateAndSend(partnerId: string, userId: string) {
         auth: 'email',
       },
       relationships: {
+        document: { data: { type: 'documents', id: documentId } },
         signer: { data: { type: 'signers', id: signerId } },
       }
     }
   });
   console.log('Auth requirement added');
 
-  // 7. Activate envelope (status: running)
+  // 6. Activate envelope
   await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'PATCH', {
     data: {
       type: 'envelopes',
       id: envelopeId,
-      attributes: {
-        status: 'running',
-      }
+      attributes: { status: 'running' },
     }
   });
   console.log('Envelope activated');
 
-  // 8. Notify signers
+  // 7. Notify signers (correct endpoint: /notify)
   try {
-    await clicksignFetch(`/api/v3/envelopes/${envelopeId}/notifications`, 'POST', {
+    await clicksignFetch(`/api/v3/envelopes/${envelopeId}/notify`, 'POST', {
       data: {
         type: 'notifications',
         attributes: {
-          message: `Olá ${partner.nome}, seu contrato de parceria está pronto para assinatura.`,
+          message: `Ola ${partner.nome}, seu contrato de parceria esta pronto para assinatura.`,
         }
       }
     });
@@ -256,14 +397,14 @@ async function generateAndSend(partnerId: string, userId: string) {
     console.warn('Notification failed (non-critical):', e);
   }
 
-  // 9. Update partner record
+  // 8. Update partner record
   await supabaseAdmin.from('partners').update({
     envelope_id: envelopeId,
     contrato_status: 'pendente_parceiro',
     contrato_url: `${CLICKSIGN_BASE_URL}/envelopes/${envelopeId}`,
   }).eq('id', partnerId);
 
-  // 10. Log history
+  // 9. Log history
   await supabaseAdmin.from('partner_history').insert({
     partner_id: partnerId,
     action: 'contrato_enviado',
@@ -271,7 +412,7 @@ async function generateAndSend(partnerId: string, userId: string) {
     created_by: userId,
   });
 
-  // 11. Audit log
+  // 10. Audit log
   await supabaseAdmin.from('audit_logs').insert({
     user_id: userId,
     action: 'clicksign_contract_generated',
@@ -289,51 +430,7 @@ async function generateAndSend(partnerId: string, userId: string) {
 }
 
 async function getEnvelopeStatus(envelopeId: string) {
-  const data = await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'GET');
-  return data;
-}
-
-function generateContractText(partner: any, now: Date): string {
-  const dia = now.getDate();
-  const mes = MESES[now.getMonth()];
-  const ano = now.getFullYear();
-  const diaPagamento = partner.dia_pagamento || 7;
-  const vigencia = partner.vigencia_meses || 12;
-  const avisoPrevio = partner.aviso_previo_dias || 7;
-
-  return `CONTRATO DE PARCERIA COMERCIAL
-
-CONTRATANTE:
-LORD CRED LTDA, pessoa jurídica de direito privado, inscrita no CNPJ, doravante denominada simplesmente CONTRATANTE.
-
-CONTRATADO:
-${partner.razao_social || partner.nome}, ${partner.cnpj ? `inscrita no CNPJ sob nº ${partner.cnpj}` : `CPF nº ${partner.cpf || '___'}`}, com sede/endereço em ${partner.endereco_pj || partner.endereco || '___'}, doravante denominada simplesmente CONTRATADO.
-
-CLÁUSULA 1ª - DO OBJETO
-O presente contrato tem por objeto a prestação de serviços de parceria comercial para captação e intermediação de operações de crédito consignado e FGTS.
-
-CLÁUSULA 2ª - DAS OBRIGAÇÕES
-O CONTRATADO se compromete a atuar de forma ética e transparente na captação de clientes, seguindo as diretrizes e procedimentos estabelecidos pela CONTRATANTE.
-
-CLÁUSULA 3ª - DA REMUNERAÇÃO
-A CONTRATANTE pagará ao CONTRATADO comissão conforme tabela vigente, a ser creditada todo dia ${diaPagamento} do mês subsequente à operação.
-
-CLÁUSULA 4ª - DA VIGÊNCIA
-O presente contrato terá vigência de ${vigencia} meses a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.
-
-CLÁUSULA 5ª - DA RESCISÃO
-O presente contrato poderá ser rescindido por qualquer das partes, mediante aviso prévio de ${avisoPrevio} dias.
-
-CLÁUSULA 6ª - DO FORO
-As partes elegem o foro da comarca da sede da CONTRATANTE para dirimir quaisquer dúvidas oriundas do presente contrato.
-
-Por estarem assim justas e contratadas, as partes firmam o presente instrumento em ${dia} de ${mes} de ${ano}.
-
-LORD CRED LTDA
-CONTRATANTE
-
-${partner.razao_social || partner.nome}
-CONTRATADO`;
+  return await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'GET');
 }
 
 Deno.serve(async (req) => {
@@ -342,7 +439,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate JWT
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -372,16 +468,20 @@ Deno.serve(async (req) => {
 
     let result;
     switch (action) {
+      case 'preview':
+        if (!partner_id) throw new HttpError(400, 'partner_id is required');
+        result = await previewContract(partner_id);
+        break;
       case 'generate_and_send':
-        if (!partner_id) throw new Error('partner_id is required');
+        if (!partner_id) throw new HttpError(400, 'partner_id is required');
         result = await generateAndSend(partner_id, userId);
         break;
       case 'get_status':
-        if (!envelope_id) throw new Error('envelope_id is required');
+        if (!envelope_id) throw new HttpError(400, 'envelope_id is required');
         result = await getEnvelopeStatus(envelope_id);
         break;
       default:
-        throw new Error(`Unknown action: ${action}`);
+        throw new HttpError(400, `Unknown action: ${action}`);
     }
 
     return new Response(JSON.stringify(result), {
