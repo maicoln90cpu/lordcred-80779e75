@@ -551,19 +551,23 @@ async function generateAndSend(partnerId: string, userId: string) {
   });
   console.log('Envelope activated');
 
-  // 7. Notify signers
-  try {
-    await clicksignFetch(`/api/v3/envelopes/${envelopeId}/notify`, 'POST', {
-      data: {
-        type: 'notifications',
-        attributes: {
-          message: `Ola ${partner.nome}, seu contrato de parceria esta pronto para assinatura.`,
-        }
-      }
-    });
-    console.log('Notification sent');
-  } catch (e) {
-    console.warn('Notification failed (non-critical):', e);
+  // 7. Notify signer (use per-signer endpoint with empty body)
+  const notifySigner = async (attempt: number) => {
+    try {
+      await clicksignFetch(`/api/v3/envelopes/${envelopeId}/signers/${signerId}/notify`, 'POST', {});
+      console.log(`Notification sent to signer ${signerId} (attempt ${attempt})`);
+      return true;
+    } catch (e) {
+      console.warn(`Notification attempt ${attempt} failed:`, e);
+      return false;
+    }
+  };
+
+  // Try notify with retry after 2s
+  const notified = await notifySigner(1);
+  if (!notified) {
+    await new Promise(r => setTimeout(r, 2000));
+    await notifySigner(2);
   }
 
   // 8. Build direct download URL using account ID
