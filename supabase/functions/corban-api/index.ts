@@ -293,7 +293,11 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('audit_logs').insert({
         user_id: userId, user_email: userEmail, action: 'corban_rawProxy',
         target_table: 'corban_api',
-        details: { url: proxyUrl, status_code: proxyResp.status, response_preview: proxyText.substring(0, 500) },
+        details: {
+          request_payload: { url: proxyUrl, method: 'POST', body: proxyBody },
+          response_payload: { status_code: proxyResp.status, body: proxyText.substring(0, 5000) },
+          success: proxyResp.ok,
+        },
       })
 
       return new Response(JSON.stringify({
@@ -457,11 +461,10 @@ Deno.serve(async (req) => {
         action: `corban_${action}`,
         target_table: 'corban_api',
         details: {
-          action, params: params || {},
-          status_code: corbanResponse.status,
+          request_payload: { url: apiUrl, method: 'POST', action, params: params || {}, body: { ...corbanBody, auth: '***REDACTED***' } },
+          response_payload: { status_code: corbanResponse.status, body: responseText.substring(0, 5000) },
           success: false,
           error_message: errMsg,
-          response_preview: responseText.substring(0, 500),
         },
       })
 
@@ -478,11 +481,9 @@ Deno.serve(async (req) => {
       action: `corban_${action}`,
       target_table: 'corban_api',
       details: {
-        action,
-        params: params || {},
-        status_code: corbanResponse.status,
+        request_payload: { url: apiUrl, method: 'POST', action, params: params || {}, body: { ...corbanBody, auth: '***REDACTED***' } },
+        response_payload: { status_code: corbanResponse.status, body: responseText.substring(0, 5000) },
         success: corbanResponse.ok,
-        response_preview: responseText.substring(0, 500),
       },
     })
 

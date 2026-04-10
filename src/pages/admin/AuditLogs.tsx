@@ -246,15 +246,96 @@ export default function AuditLogs() {
                                     <Eye className="w-3.5 h-3.5" />
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-2xl max-h-[80vh]">
+                                <DialogContent className="max-w-3xl max-h-[80vh]">
                                   <DialogHeader>
-                                    <DialogTitle>Detalhes do Log</DialogTitle>
+                                    <DialogTitle className="flex items-center gap-2">
+                                      Detalhes do Log
+                                      <Badge className={cn('text-xs', actionInfo.className)}>{actionInfo.label}</Badge>
+                                    </DialogTitle>
                                   </DialogHeader>
-                                  <ScrollArea className="max-h-[60vh]">
-                                    <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
-                                      {JSON.stringify(log.details, null, 2)}
-                                    </pre>
-                                  </ScrollArea>
+                                  <Tabs defaultValue="resumo" className="w-full">
+                                    <TabsList className="w-full">
+                                      <TabsTrigger value="resumo" className="flex-1">Resumo</TabsTrigger>
+                                      <TabsTrigger value="request" className="flex-1">Request (Ida)</TabsTrigger>
+                                      <TabsTrigger value="response" className="flex-1">Response (Volta)</TabsTrigger>
+                                      <TabsTrigger value="raw" className="flex-1">JSON Completo</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="resumo">
+                                      <ScrollArea className="max-h-[55vh]">
+                                        <div className="space-y-3 p-1">
+                                          <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div><span className="text-muted-foreground">Usuário:</span> <span className="font-medium">{log.user_email || '—'}</span></div>
+                                            <div><span className="text-muted-foreground">Data/Hora:</span> <span className="font-mono text-xs">{formatDate(log.created_at)}</span></div>
+                                            <div><span className="text-muted-foreground">Ação:</span> <span className="font-medium">{log.action}</span></div>
+                                            <div><span className="text-muted-foreground">Tabela:</span> <span className="font-mono text-xs">{log.target_table || '—'}</span></div>
+                                            <div><span className="text-muted-foreground">ID Alvo:</span> <span className="font-mono text-xs">{log.target_id || '—'}</span></div>
+                                            <div>
+                                              <span className="text-muted-foreground">Resultado:</span>{' '}
+                                              {log.details?.success === true ? (
+                                                <Badge className="bg-green-500/20 text-green-400 text-xs">Sucesso</Badge>
+                                              ) : log.details?.success === false ? (
+                                                <Badge className="bg-destructive/20 text-destructive text-xs">Erro</Badge>
+                                              ) : (
+                                                <span className="text-xs">—</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {log.details?.error_message && (
+                                            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive">
+                                              <strong>Erro:</strong> {log.details.error_message}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </ScrollArea>
+                                    </TabsContent>
+                                    <TabsContent value="request">
+                                      <ScrollArea className="max-h-[55vh]">
+                                        {log.details?.request_payload ? (
+                                          <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
+                                            {JSON.stringify(log.details.request_payload, null, 2)}
+                                          </pre>
+                                        ) : (
+                                          <div className="text-center text-muted-foreground py-8 text-sm">
+                                            Payload de ida não disponível para este log.
+                                            <br />
+                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                          </div>
+                                        )}
+                                      </ScrollArea>
+                                    </TabsContent>
+                                    <TabsContent value="response">
+                                      <ScrollArea className="max-h-[55vh]">
+                                        {log.details?.response_payload ? (
+                                          <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
+                                            {(() => {
+                                              const rp = log.details.response_payload;
+                                              // Try to parse body if string
+                                              if (typeof rp.body === 'string') {
+                                                try {
+                                                  const parsed = JSON.parse(rp.body);
+                                                  return JSON.stringify({ ...rp, body: parsed }, null, 2);
+                                                } catch { /* keep as-is */ }
+                                              }
+                                              return JSON.stringify(rp, null, 2);
+                                            })()}
+                                          </pre>
+                                        ) : (
+                                          <div className="text-center text-muted-foreground py-8 text-sm">
+                                            Payload de resposta não disponível para este log.
+                                            <br />
+                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                          </div>
+                                        )}
+                                      </ScrollArea>
+                                    </TabsContent>
+                                    <TabsContent value="raw">
+                                      <ScrollArea className="max-h-[55vh]">
+                                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto whitespace-pre-wrap">
+                                          {JSON.stringify(log.details, null, 2)}
+                                        </pre>
+                                      </ScrollArea>
+                                    </TabsContent>
+                                  </Tabs>
                                 </DialogContent>
                               </Dialog>
                             </TableCell>
