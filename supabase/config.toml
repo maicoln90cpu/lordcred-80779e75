@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.corban-status-sync]
 verify_jwt = false
+
+[functions.clicksign-api]
+verify_jwt = false
+
+[functions.clicksign-webhook]
+verify_jwt = false
