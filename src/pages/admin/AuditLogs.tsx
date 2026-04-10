@@ -261,6 +261,7 @@ export default function AuditLogs() {
                         <TableHead>Data/Hora</TableHead>
                         <TableHead>Usuário</TableHead>
                         <TableHead>Ação</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Tabela</TableHead>
                         <TableHead>ID Alvo</TableHead>
                         <TableHead className="w-20">Detalhes</TableHead>
