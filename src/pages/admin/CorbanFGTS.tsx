@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Landmark, Search, Plus, Loader2, Calendar as CalendarIcon, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 interface Login {
   id: string;
@@ -33,7 +34,7 @@ export default function CorbanFGTS() {
   const [loadingLogins, setLoadingLogins] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date());
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
-
+  const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   // Fetch logins when instituicao changes
   useEffect(() => {
     (async () => {

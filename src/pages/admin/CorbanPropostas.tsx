@@ -256,6 +256,13 @@ export default function CorbanPropostas() {
             </CardContent>
           </Card>
         )}
+        <PayloadEditorDialog
+          open={payloadEditorOpen}
+          onOpenChange={setPayloadEditorOpen}
+          initialPayload={buildPayload()}
+          onSend={async (payload) => { await executeSearch(payload); }}
+          title="Editar Payload — Propostas"
+        />
       </div>
     </DashboardLayout>
   );
