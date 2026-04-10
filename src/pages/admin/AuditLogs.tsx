@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Search, Eye, Shield, Clock, Send, Terminal } from 'lucide-react';
+import { Loader2, Search, Eye, Shield, Clock, Send, Terminal, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
@@ -39,7 +39,51 @@ const actionLabels: Record<string, { label: string; className: string }> = {
   settings_updated: { label: 'Config Alterada', className: 'bg-yellow-500/20 text-yellow-400' },
   ticket_created: { label: 'Ticket Criado', className: 'bg-green-500/20 text-green-400' },
   ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400' },
+  clicksign_contract_generated: { label: 'Contrato Gerado', className: 'bg-green-500/20 text-green-400' },
+  clicksign_resend_notification: { label: 'Contrato Reenviado', className: 'bg-orange-500/20 text-orange-400' },
+  clicksign_webhook_signed: { label: 'Contrato Assinado', className: 'bg-green-500/20 text-green-400' },
+  partner_created: { label: 'Parceiro Criado', className: 'bg-green-500/20 text-green-400' },
+  partner_updated: { label: 'Parceiro Atualizado', className: 'bg-blue-500/20 text-blue-400' },
+  partner_deleted: { label: 'Parceiro Excluído', className: 'bg-destructive/20 text-destructive' },
 };
+
+type LogStatus = 'success' | 'error' | 'info';
+
+function getLogStatus(log: AuditLog): LogStatus {
+  if (log.details?.success === true) return 'success';
+  if (log.details?.success === false || log.details?.error || log.details?.error_message) return 'error';
+  if (log.action.includes('_created') || log.action.includes('_updated') || log.action.includes('contract_generated') || log.action.includes('contrato')) return 'success';
+  if (log.action.includes('_deleted')) return 'info';
+  return 'info';
+}
+
+const statusConfig: Record<LogStatus, { label: string; icon: typeof CheckCircle2; className: string }> = {
+  success: { label: 'Sucesso', icon: CheckCircle2, className: 'bg-green-500/20 text-green-400' },
+  error: { label: 'Erro', icon: XCircle, className: 'bg-destructive/20 text-destructive' },
+  info: { label: 'Info', icon: Info, className: 'bg-muted text-muted-foreground' },
+};
+
+function extractFallbackRequest(details: any): Record<string, any> | null {
+  if (!details || details.request_payload) return null;
+  const keys = ['partner_id', 'partner_name', 'partner_email', 'envelope_id', 'action', 'file_name', 'signer_email'];
+  const result: Record<string, any> = {};
+  for (const k of keys) {
+    if (details[k] !== undefined) result[k] = details[k];
+  }
+  if (details.old) result.dados_anteriores = details.old;
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function extractFallbackResponse(details: any): Record<string, any> | null {
+  if (!details || details.response_payload) return null;
+  const keys = ['document_id', 'signer_id', 'status', 'notified', 'signers_total', 'envelope_id'];
+  const result: Record<string, any> = {};
+  for (const k of keys) {
+    if (details[k] !== undefined) result[k] = details[k];
+  }
+  if (details.new) result.dados_novos = details.new;
+  return Object.keys(result).length > 0 ? result : null;
+}
 
 const PAYLOAD_PLACEHOLDER = `{
   "auth": {
@@ -223,6 +267,7 @@ export default function AuditLogs() {
                         <TableHead>Data/Hora</TableHead>
                         <TableHead>Usuário</TableHead>
                         <TableHead>Ação</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Tabela</TableHead>
                         <TableHead>ID Alvo</TableHead>
                         <TableHead className="w-20">Detalhes</TableHead>
@@ -231,12 +276,21 @@ export default function AuditLogs() {
                     <TableBody>
                       {filteredLogs.map(log => {
                         const actionInfo = actionLabels[log.action] || { label: log.action, className: 'bg-muted text-muted-foreground' };
+                        const logStatus = getLogStatus(log);
+                        const statusInfo = statusConfig[logStatus];
+                        const StatusIcon = statusInfo.icon;
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
                             <TableCell className="text-sm">{log.user_email || '—'}</TableCell>
                             <TableCell>
                               <Badge className={cn('text-xs', actionInfo.className)}>{actionInfo.label}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn('text-xs gap-1', statusInfo.className)}>
+                                <StatusIcon className="w-3 h-3" />
+                                {statusInfo.label}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-mono">{log.target_table || '—'}</TableCell>
                             <TableCell className="text-xs font-mono max-w-[120px] truncate">{log.target_id || '—'}</TableCell>
@@ -301,41 +355,53 @@ export default function AuditLogs() {
                                     </TabsContent>
                                     <TabsContent value="request">
                                       <ScrollArea className="h-[55vh]">
-                                        {log.details?.request_payload ? (
-                                          <div className="bg-muted/50 rounded-lg p-3">
-                                            <JsonTreeView data={log.details.request_payload} maxDepth={5} />
-                                          </div>
-                                        ) : (
-                                          <div className="text-center text-muted-foreground py-8 text-sm">
-                                            Payload de ida não disponível para este log.
-                                            <br />
-                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const reqData = log.details?.request_payload || extractFallbackRequest(log.details);
+                                          return reqData ? (
+                                            <div className="bg-muted/50 rounded-lg p-3">
+                                              {!log.details?.request_payload && (
+                                                <p className="text-xs text-muted-foreground mb-2 italic">⚠ Dados extraídos automaticamente (log legado)</p>
+                                              )}
+                                              <JsonTreeView data={reqData} maxDepth={5} />
+                                            </div>
+                                          ) : (
+                                            <div className="text-center text-muted-foreground py-8 text-sm">
+                                              Payload de ida não disponível para este log.
+                                              <br />
+                                              <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                            </div>
+                                          );
+                                        })()}
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="response">
                                       <ScrollArea className="h-[55vh]">
-                                        {log.details?.response_payload ? (
-                                          <div className="bg-muted/50 rounded-lg p-3">
-                                            <JsonTreeView
-                                              data={(() => {
-                                                const rp = log.details.response_payload;
-                                                if (typeof rp.body === 'string') {
-                                                  try { return { ...rp, body: JSON.parse(rp.body) }; } catch { /* keep */ }
-                                                }
-                                                return rp;
-                                              })()}
-                                              maxDepth={5}
-                                            />
-                                          </div>
-                                        ) : (
-                                          <div className="text-center text-muted-foreground py-8 text-sm">
-                                            Payload de resposta não disponível para este log.
-                                            <br />
-                                            <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const resData = log.details?.response_payload || extractFallbackResponse(log.details);
+                                          if (resData) {
+                                            const displayData = (() => {
+                                              if (typeof resData.body === 'string') {
+                                                try { return { ...resData, body: JSON.parse(resData.body) }; } catch { /* keep */ }
+                                              }
+                                              return resData;
+                                            })();
+                                            return (
+                                              <div className="bg-muted/50 rounded-lg p-3">
+                                                {!log.details?.response_payload && (
+                                                  <p className="text-xs text-muted-foreground mb-2 italic">⚠ Dados extraídos automaticamente (log legado)</p>
+                                                )}
+                                                <JsonTreeView data={displayData} maxDepth={5} />
+                                              </div>
+                                            );
+                                          }
+                                          return (
+                                            <div className="text-center text-muted-foreground py-8 text-sm">
+                                              Payload de resposta não disponível para este log.
+                                              <br />
+                                              <span className="text-xs">(Logs antigos não possuem esta informação separada)</span>
+                                            </div>
+                                          );
+                                        })()}
                                       </ScrollArea>
                                     </TabsContent>
                                     <TabsContent value="raw">
