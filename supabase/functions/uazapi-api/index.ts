@@ -29,9 +29,26 @@ async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: 
     const response = await fetch(url, { ...fetchOptions, signal: controller.signal })
     return response
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      throw new Error(`UazAPI request timeout after ${timeout}ms: ${url.split('/').pop()}`)
+    if (err?.name === 'AbortError') {
+      throw createUazapiError(`UazAPI request timeout after ${timeout}ms: ${url.split('/').pop()}`, {
+        code: 'UAZAPI_TIMEOUT',
+        recoverable: true,
+      })
     }
+
+    const errMsg = toErrorMessage(err).toLowerCase()
+    if (
+      err?.name === 'TypeError' ||
+      errMsg.includes('failed to fetch') ||
+      errMsg.includes('network') ||
+      errMsg.includes('socket')
+    ) {
+      throw createUazapiError(toErrorMessage(err), {
+        code: 'UAZAPI_NETWORK_ERROR',
+        recoverable: true,
+      })
+    }
+
     throw err
   } finally {
     clearTimeout(tid)
@@ -54,6 +71,47 @@ function jsonResponse(body: any, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+type UazapiError = Error & {
+  code?: string
+  recoverable?: boolean
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string') return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return 'Internal server error'
+  }
+}
+
+function createUazapiError(message: string, options: { code?: string; recoverable?: boolean } = {}): UazapiError {
+  const error = new Error(message) as UazapiError
+  if (options.code) error.code = options.code
+  if (options.recoverable) error.recoverable = true
+  return error
+}
+
+function isRecoverableUazapiError(error: unknown): boolean {
+  const typedError = error as UazapiError | undefined
+  if (typedError?.recoverable) return true
+
+  const text = toErrorMessage(error).toLowerCase()
+  return (
+    text.includes('timeout') ||
+    text.includes('aborterror') ||
+    text.includes('failed to fetch') ||
+    text.includes('network') ||
+    text.includes('load failed') ||
+    text.includes('socket') ||
+    text.includes('disconnected') ||
+    text.includes('not connected') ||
+    text.includes('chip token not found') ||
+    text.includes('instance token not found')
+  )
 }
 
 // Timeout presets (ms)
@@ -482,21 +540,33 @@ Deno.serve(async (req) => {
         if (!chipToken) throw new Error('Chip token not found')
         if (!chatId) throw new Error('chatId is required')
 
-        const response = await fetchWithTimeout(`${baseUrl}/chat/read`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ number: chatId, read: true }),
-          timeout: TIMEOUT.FAST,
-        })
-        const data = await safeJson(response)
+        try {
+          const response = await fetchWithTimeout(`${baseUrl}/chat/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            body: JSON.stringify({ number: chatId, read: true }),
+            timeout: TIMEOUT.FAST,
+          })
+          const data = await safeJson(response)
 
-        await adminClient
-          .from('conversations')
-          .update({ unread_count: 0 })
-          .eq('chip_id', chipId)
-          .eq('remote_jid', chatId)
+          if (!response.ok) {
+            const errMsg = data?.message || data?.error || `UazAPI returned ${response.status}`
+            console.warn(`mark-read failed: status=${response.status}, error=${errMsg}`)
+            return jsonResponse({ success: false, error: errMsg, fallback: response.status >= 500 }, 200)
+          }
 
-        return jsonResponse({ success: true, data })
+          await adminClient
+            .from('conversations')
+            .update({ unread_count: 0 })
+            .eq('chip_id', chipId)
+            .eq('remote_jid', chatId)
+
+          return jsonResponse({ success: true, data })
+        } catch (error) {
+          const errMsg = toErrorMessage(error)
+          console.warn(`mark-read recoverable error: ${errMsg}`)
+          return jsonResponse({ success: false, error: errMsg, fallback: true }, 200)
+        }
       }
 
       case 'mark-unread': {
@@ -504,21 +574,33 @@ Deno.serve(async (req) => {
         if (!chipToken) throw new Error('Chip token not found')
         if (!chatId) throw new Error('chatId is required')
 
-        const response = await fetchWithTimeout(`${baseUrl}/chat/read`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'token': chipToken },
-          body: JSON.stringify({ number: chatId, read: false }),
-          timeout: TIMEOUT.FAST,
-        })
-        const data = await safeJson(response)
+        try {
+          const response = await fetchWithTimeout(`${baseUrl}/chat/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'token': chipToken },
+            body: JSON.stringify({ number: chatId, read: false }),
+            timeout: TIMEOUT.FAST,
+          })
+          const data = await safeJson(response)
 
-        await adminClient
-          .from('conversations')
-          .update({ unread_count: 1 })
-          .eq('chip_id', chipId)
-          .eq('remote_jid', chatId)
+          if (!response.ok) {
+            const errMsg = data?.message || data?.error || `UazAPI returned ${response.status}`
+            console.warn(`mark-unread failed: status=${response.status}, error=${errMsg}`)
+            return jsonResponse({ success: false, error: errMsg, fallback: response.status >= 500 }, 200)
+          }
 
-        return jsonResponse({ success: true, data })
+          await adminClient
+            .from('conversations')
+            .update({ unread_count: 1 })
+            .eq('chip_id', chipId)
+            .eq('remote_jid', chatId)
+
+          return jsonResponse({ success: true, data })
+        } catch (error) {
+          const errMsg = toErrorMessage(error)
+          console.warn(`mark-unread recoverable error: ${errMsg}`)
+          return jsonResponse({ success: false, error: errMsg, fallback: true }, 200)
+        }
       }
 
       case 'send-presence': {
@@ -1046,16 +1128,14 @@ Deno.serve(async (req) => {
     }
 
   } catch (error) {
-    const errMsg = error.message || 'Internal server error'
-    const isTimeout = errMsg.includes('timeout') || errMsg.includes('AbortError')
-    const isDisconnect = errMsg.includes('disconnected') || errMsg.includes('not connected') || errMsg.includes('Chip token not found') || errMsg.includes('instance token not found')
+    const errMsg = toErrorMessage(error)
 
-    if (isTimeout || isDisconnect) {
+    if (isRecoverableUazapiError(error)) {
       console.warn('UazAPI recoverable error:', errMsg)
       return jsonResponse({ success: false, error: errMsg, fallback: true }, 200)
     }
 
-    console.error('UazAPI error:', error)
+    console.error('UazAPI error:', errMsg)
     return jsonResponse({ error: errMsg }, 500)
   }
 })
