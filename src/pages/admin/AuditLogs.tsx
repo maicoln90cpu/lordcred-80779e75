@@ -39,6 +39,12 @@ const actionLabels: Record<string, { label: string; className: string }> = {
   settings_updated: { label: 'Config Alterada', className: 'bg-yellow-500/20 text-yellow-400' },
   ticket_created: { label: 'Ticket Criado', className: 'bg-green-500/20 text-green-400' },
   ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400' },
+  clicksign_contract_generated: { label: 'Contrato Gerado', className: 'bg-green-500/20 text-green-400' },
+  clicksign_resend_notification: { label: 'Contrato Reenviado', className: 'bg-orange-500/20 text-orange-400' },
+  clicksign_webhook_signed: { label: 'Contrato Assinado', className: 'bg-green-500/20 text-green-400' },
+  partner_created: { label: 'Parceiro Criado', className: 'bg-green-500/20 text-green-400' },
+  partner_updated: { label: 'Parceiro Atualizado', className: 'bg-blue-500/20 text-blue-400' },
+  partner_deleted: { label: 'Parceiro Excluído', className: 'bg-destructive/20 text-destructive' },
 };
 
 type LogStatus = 'success' | 'error' | 'info';
