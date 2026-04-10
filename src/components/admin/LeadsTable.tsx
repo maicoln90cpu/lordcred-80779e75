@@ -88,6 +88,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const [bulkSeller, setBulkSeller] = useState('');
   const [bulkProfile, setBulkProfile] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { sort, toggle: toggleSort } = useSortState();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -184,8 +185,9 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     return Array.from(names).sort();
   }, [leads]);
 
-  const totalPages = Math.max(1, Math.ceil(leads.length / PAGE_SIZE));
-  const pagedLeads = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const sortedLeads = useMemo(() => applySortToData(leads, sort), [leads, sort]);
+  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE));
+  const pagedLeads = sortedLeads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const allPageSelected = pagedLeads.length > 0 && pagedLeads.every((l: any) => selectedIds.has(l.id));
 
