@@ -128,8 +128,8 @@ export default function PartnerDetail() {
   });
 
 
+  if (isLoading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>
       </DashboardLayout>
     );
