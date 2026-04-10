@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 
 interface CachedAsset {
   asset_id: string;
