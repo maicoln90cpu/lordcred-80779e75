@@ -1,4 +1,5 @@
 export interface NormalizedCorbanProposta {
+  // Campos já existentes
   proposta_id: string | null;
   cpf: string | null;
   nome: string | null;
@@ -13,6 +14,50 @@ export interface NormalizedCorbanProposta {
   data_pagamento: string | null;
   convenio: string | null;
   tipo_liberacao?: string | null;
+
+  // Proposta
+  proposta_id_banco?: string | null;
+  valor_financiado?: number | null;
+  taxa?: string | null;
+  seguro?: string | null;
+  tabela_nome?: string | null;
+  link_formalizacao?: string | null;
+  comissoes?: string | null;
+
+  // Equipe
+  vendedor_nome?: string | null;
+  digitador_nome?: string | null;
+  equipe_nome?: string | null;
+  promotora_nome?: string | null;
+  origem?: string | null;
+
+  // API
+  status_api?: string | null;
+  status_api_descricao?: string | null;
+  data_atualizacao_api?: string | null;
+  data_status?: string | null;
+
+  // Datas
+  data_formalizacao?: string | null;
+  data_averbacao?: string | null;
+
+  // Averbação
+  agencia?: string | null;
+  conta?: string | null;
+  banco_averbacao?: string | null;
+  pix?: string | null;
+
+  // Cliente
+  cliente_sexo?: string | null;
+  nascimento?: string | null;
+  nome_mae?: string | null;
+  renda?: number | null;
+  endereco_completo?: string | null;
+
+  // Outros
+  observacoes?: string | null;
+  tipo_cadastro?: string | null;
+
   raw?: unknown;
 }
 
@@ -111,6 +156,28 @@ const toFlatNumber = (value: unknown): number | null => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const buildEnderecoCompleto = (source: unknown): string | null => {
+  const logradouro = toFlatString(findDeepValue(source, ['logradouro', 'rua', 'endereco']));
+  const numero = toFlatString(findDeepValue(source, ['numero']));
+  const complemento = toFlatString(findDeepValue(source, ['complemento']));
+  const bairro = toFlatString(findDeepValue(source, ['bairro']));
+  const cidade = toFlatString(findDeepValue(source, ['cidade', 'municipio']));
+  const uf = toFlatString(findDeepValue(source, ['uf', 'estado']));
+  const cep = toFlatString(findDeepValue(source, ['cep']));
+
+  const parts = [logradouro, numero, complemento, bairro, cidade, uf, cep].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : null;
+};
+
+const buildObservacoes = (source: unknown): string | null => {
+  const lastApi = toFlatString(findDeepValue(source, ['observacao_api', 'obs_api', 'last_api']));
+  const lastManual = toFlatString(findDeepValue(source, ['observacao', 'obs', 'last_manual', 'observacoes']));
+  const parts = [];
+  if (lastApi) parts.push(`API: ${lastApi}`);
+  if (lastManual) parts.push(`Manual: ${lastManual}`);
+  return parts.length > 0 ? parts.join(' | ') : null;
+};
+
 const coerceToPropostasArray = (input: unknown): Record<string, unknown>[] => {
   const parsed = maybeParseJson(input);
 
@@ -158,6 +225,7 @@ const normalizeSingleProposta = (input: unknown): NormalizedCorbanProposta => {
   const prazoValue = findDeepValue(source, ['prazo', 'prazos', 'parcelas', 'quantidade_parcelas']);
 
   return {
+    // Campos originais
     proposta_id: toFlatString(findDeepValue(source, ['proposta_id', 'id', 'codigo_proposta'])),
     cpf: toFlatString(findDeepValue(source, ['cpf', 'cpf_cliente', 'cliente_cpf', 'documento', 'cpfcnpj'])),
     nome: toFlatString(findDeepValue(source, ['nome', 'nome_cliente', 'cliente_nome', 'nome_completo'])),
@@ -172,6 +240,50 @@ const normalizeSingleProposta = (input: unknown): NormalizedCorbanProposta => {
     data_pagamento: toFlatString(findDeepValue(source, ['data_pagamento', 'pagamento', 'data_pago'])),
     convenio: toFlatString(findDeepValue(source, ['convenio_nome', 'convenio'])),
     tipo_liberacao: toFlatString(findDeepValue(source, ['tipo_liberacao'])),
+
+    // Proposta extras
+    proposta_id_banco: toFlatString(findDeepValue(source, ['proposta_id_banco', 'id_banco', 'numero_proposta_banco'])),
+    valor_financiado: toFlatNumber(findDeepValue(source, ['valor_financiado', 'vlr_financiado', 'valor_bruto'])),
+    taxa: toFlatString(findDeepValue(source, ['taxa', 'taxa_juros', 'taxa_cliente'])),
+    seguro: toFlatString(findDeepValue(source, ['seguro', 'tipo_seguro', 'seguro_prestamista'])),
+    tabela_nome: toFlatString(findDeepValue(source, ['tabela_nome', 'nome_tabela', 'tabela'])),
+    link_formalizacao: toFlatString(findDeepValue(source, ['link_formalizacao', 'url_formalizacao', 'link'])),
+    comissoes: toFlatString(findDeepValue(source, ['comissao', 'comissoes', 'valor_comissao'])),
+
+    // Equipe
+    vendedor_nome: toFlatString(findDeepValue(source, ['vendedor_nome', 'nome_vendedor', 'vendedor'])),
+    digitador_nome: toFlatString(findDeepValue(source, ['digitador_nome', 'nome_digitador', 'digitador'])),
+    equipe_nome: toFlatString(findDeepValue(source, ['equipe_nome', 'nome_equipe', 'equipe'])),
+    promotora_nome: toFlatString(findDeepValue(source, ['promotora_nome', 'nome_promotora', 'promotora', 'substabelecimento'])),
+    origem: toFlatString(findDeepValue(source, ['origem', 'canal'])),
+
+    // API
+    status_api: toFlatString(findDeepValue(source, ['status_api', 'codigo_status'])),
+    status_api_descricao: toFlatString(findDeepValue(source, ['status_api_descricao', 'descricao_status_api'])),
+    data_atualizacao_api: toFlatString(findDeepValue(source, ['data_atualizacao_api', 'ultima_atualizacao_api', 'data_atualizacao'])),
+    data_status: toFlatString(findDeepValue(source, ['data_status', 'data_ultimo_status'])),
+
+    // Datas
+    data_formalizacao: toFlatString(findDeepValue(source, ['data_formalizacao', 'formalizacao'])),
+    data_averbacao: toFlatString(findDeepValue(source, ['data_averbacao', 'averbacao_data'])),
+
+    // Averbação
+    agencia: toFlatString(findDeepValue(source, ['agencia', 'agencia_pagamento'])),
+    conta: toFlatString(findDeepValue(source, ['conta', 'conta_pagamento', 'numero_conta'])),
+    banco_averbacao: toFlatString(findDeepValue(source, ['banco_averbacao', 'banco_pagamento'])),
+    pix: toFlatString(findDeepValue(source, ['pix', 'chave_pix'])),
+
+    // Cliente
+    cliente_sexo: toFlatString(findDeepValue(source, ['sexo', 'genero'])),
+    nascimento: toFlatString(findDeepValue(source, ['nascimento', 'data_nascimento', 'dt_nascimento'])),
+    nome_mae: toFlatString(findDeepValue(source, ['nome_mae', 'mae', 'filiacao'])),
+    renda: toFlatNumber(findDeepValue(source, ['renda', 'renda_mensal', 'salario'])),
+    endereco_completo: buildEnderecoCompleto(source),
+
+    // Outros
+    observacoes: buildObservacoes(source),
+    tipo_cadastro: toFlatString(findDeepValue(source, ['tipo_cadastro', 'tipo'])),
+
     raw: source,
   };
 };

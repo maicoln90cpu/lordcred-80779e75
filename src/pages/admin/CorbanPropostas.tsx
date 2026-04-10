@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2 } from 'lucide-react';
+import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2, Columns3, ChevronDown, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState, useEffect } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { invokeCorban } from '@/lib/invokeCorban';
@@ -23,6 +27,89 @@ interface CachedAsset {
 }
 
 const fmtBRL = (v: number | null) => v != null ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
+
+// All available columns grouped
+const ALL_COLUMNS: { key: keyof NormalizedCorbanProposta; label: string; group: string; default?: boolean; format?: 'brl' | 'text' }[] = [
+  // Essenciais (default visíveis)
+  { key: 'cpf', label: 'CPF', group: 'Essencial', default: true },
+  { key: 'nome', label: 'Nome', group: 'Essencial', default: true },
+  { key: 'banco', label: 'Banco', group: 'Essencial', default: true },
+  { key: 'produto', label: 'Produto', group: 'Essencial', default: true },
+  { key: 'status', label: 'Status', group: 'Essencial', default: true },
+  { key: 'valor_liberado', label: 'Valor Lib.', group: 'Essencial', default: true, format: 'brl' },
+  { key: 'valor_parcela', label: 'Parcela', group: 'Essencial', default: true, format: 'brl' },
+  { key: 'prazo', label: 'Prazo', group: 'Essencial', default: true },
+  { key: 'data_cadastro', label: 'Data Cadastro', group: 'Essencial', default: true },
+  { key: 'convenio', label: 'Convênio', group: 'Essencial', default: true },
+
+  // Proposta
+  { key: 'proposta_id', label: 'ID Proposta', group: 'Proposta' },
+  { key: 'proposta_id_banco', label: 'ID Banco', group: 'Proposta' },
+  { key: 'valor_financiado', label: 'Valor Financiado', group: 'Proposta', format: 'brl' },
+  { key: 'taxa', label: 'Taxa', group: 'Proposta' },
+  { key: 'seguro', label: 'Seguro', group: 'Proposta' },
+  { key: 'tabela_nome', label: 'Tabela', group: 'Proposta' },
+  { key: 'tipo_liberacao', label: 'Tipo Liberação', group: 'Proposta' },
+  { key: 'comissoes', label: 'Comissões', group: 'Proposta' },
+  { key: 'link_formalizacao', label: 'Link Formalização', group: 'Proposta' },
+
+  // Equipe
+  { key: 'vendedor_nome', label: 'Vendedor', group: 'Equipe' },
+  { key: 'digitador_nome', label: 'Digitador', group: 'Equipe' },
+  { key: 'equipe_nome', label: 'Equipe', group: 'Equipe' },
+  { key: 'promotora_nome', label: 'Promotora', group: 'Equipe' },
+  { key: 'origem', label: 'Origem', group: 'Equipe' },
+
+  // Datas
+  { key: 'data_pagamento', label: 'Data Pagamento', group: 'Datas' },
+  { key: 'data_formalizacao', label: 'Data Formalização', group: 'Datas' },
+  { key: 'data_averbacao', label: 'Data Averbação', group: 'Datas' },
+  { key: 'data_status', label: 'Data Status', group: 'Datas' },
+
+  // API
+  { key: 'status_api', label: 'Status API (cod)', group: 'API' },
+  { key: 'status_api_descricao', label: 'Status API (desc)', group: 'API' },
+  { key: 'data_atualizacao_api', label: 'Atualização API', group: 'API' },
+
+  // Averbação
+  { key: 'agencia', label: 'Agência', group: 'Averbação' },
+  { key: 'conta', label: 'Conta', group: 'Averbação' },
+  { key: 'banco_averbacao', label: 'Banco Averbação', group: 'Averbação' },
+  { key: 'pix', label: 'PIX', group: 'Averbação' },
+
+  // Cliente
+  { key: 'telefone', label: 'Telefone', group: 'Cliente' },
+  { key: 'nascimento', label: 'Nascimento', group: 'Cliente' },
+  { key: 'cliente_sexo', label: 'Sexo', group: 'Cliente' },
+  { key: 'nome_mae', label: 'Nome da Mãe', group: 'Cliente' },
+  { key: 'renda', label: 'Renda', group: 'Cliente', format: 'brl' },
+  { key: 'endereco_completo', label: 'Endereço', group: 'Cliente' },
+
+  // Outros
+  { key: 'tipo_cadastro', label: 'Tipo Cadastro', group: 'Outros' },
+  { key: 'observacoes', label: 'Observações', group: 'Outros' },
+];
+
+const DEFAULT_VISIBLE = new Set(ALL_COLUMNS.filter(c => c.default).map(c => c.key));
+const GROUPS = [...new Set(ALL_COLUMNS.map(c => c.group))];
+
+function DetailSection({ title, items }: { title: string; items: { label: string; value: string | number | null | undefined }[] }) {
+  const hasAny = items.some(i => i.value != null && i.value !== '' && i.value !== '—');
+  if (!hasAny) return null;
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold text-primary">{title}</h4>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {items.map((item, i) => (
+          <div key={i}>
+            <span className="text-[10px] text-muted-foreground uppercase">{item.label}</span>
+            <p className="text-sm truncate">{item.value ?? '—'}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function CorbanPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
@@ -39,6 +126,9 @@ export default function CorbanPropostas() {
   const [cachedStatus, setCachedStatus] = useState<CachedAsset[]>([]);
   const [cachedBancos, setCachedBancos] = useState<CachedAsset[]>([]);
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_VISIBLE));
+  const [selectedProposta, setSelectedProposta] = useState<NormalizedCorbanProposta | null>(null);
+
   useEffect(() => {
     (async () => {
       const [statusRes, bancosRes] = await Promise.all([
@@ -54,6 +144,26 @@ export default function CorbanPropostas() {
     if (!value) return '—';
     return items.find((item) => item.asset_id === value)?.asset_label || value;
   };
+
+  const toggleColumn = useCallback((key: string) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleGroup = useCallback((group: string) => {
+    const groupKeys = ALL_COLUMNS.filter(c => c.group === group).map(c => c.key as string);
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      const allVisible = groupKeys.every(k => next.has(k));
+      groupKeys.forEach(k => allVisible ? next.delete(k) : next.add(k));
+      return next;
+    });
+  }, []);
+
+  const activeColumns = ALL_COLUMNS.filter(c => visibleColumns.has(c.key as string));
 
   const buildPayload = () => {
     const filters: Record<string, any> = {
@@ -96,6 +206,21 @@ export default function CorbanPropostas() {
       return;
     }
     await executeSearch(buildPayload());
+  };
+
+  const formatCellValue = (col: typeof ALL_COLUMNS[0], p: NormalizedCorbanProposta) => {
+    const value = p[col.key];
+    if (value == null || value === '') return '—';
+    if (col.format === 'brl') return fmtBRL(value as number);
+    if (col.key === 'status') return <Badge variant="outline" className="text-xs">{resolveCachedLabel(cachedStatus, value as string)}</Badge>;
+    if (col.key === 'link_formalizacao' && value) {
+      return (
+        <a href={value as string} target="_blank" rel="noreferrer" className="text-primary underline text-xs flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          <ExternalLink className="w-3 h-3" /> Abrir
+        </a>
+      );
+    }
+    return String(value);
   };
 
   const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
@@ -207,45 +332,79 @@ export default function CorbanPropostas() {
         {propostas.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{propostas.length} proposta(s) encontrada(s)</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{propostas.length} proposta(s) encontrada(s)</CardTitle>
+                {/* Column selector */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Columns3 className="w-4 h-4 mr-1" /> Colunas ({activeColumns.length})
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-0" align="end">
+                    <ScrollArea className="h-[400px]">
+                      <div className="p-3 space-y-3">
+                        {GROUPS.map(group => {
+                          const groupCols = ALL_COLUMNS.filter(c => c.group === group);
+                          const allChecked = groupCols.every(c => visibleColumns.has(c.key as string));
+                          return (
+                            <div key={group}>
+                              <div
+                                className="flex items-center gap-2 cursor-pointer mb-1"
+                                onClick={() => toggleGroup(group)}
+                              >
+                                <Checkbox checked={allChecked} className="h-3.5 w-3.5" />
+                                <span className="text-xs font-semibold text-primary">{group}</span>
+                              </div>
+                              <div className="ml-5 space-y-0.5">
+                                {groupCols.map(col => (
+                                  <div
+                                    key={col.key}
+                                    className="flex items-center gap-2 cursor-pointer py-0.5"
+                                    onClick={() => toggleColumn(col.key as string)}
+                                  >
+                                    <Checkbox checked={visibleColumns.has(col.key as string)} className="h-3 w-3" />
+                                    <span className="text-xs text-muted-foreground">{col.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <ScrollArea className="w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>CPF</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Banco</TableHead>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Valor Lib.</TableHead>
-                      <TableHead>Parcela</TableHead>
-                      <TableHead>Prazo</TableHead>
-                      <TableHead>Data Cadastro</TableHead>
-                      <TableHead>Convênio</TableHead>
+                      {activeColumns.map(col => (
+                        <TableHead key={col.key} className="whitespace-nowrap text-xs">{col.label}</TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pagedPropostas.map((p, i) => (
-                      <TableRow key={`${p.proposta_id || i}`}>
-                        <TableCell className="font-mono text-xs">{p.cpf || '—'}</TableCell>
-                        <TableCell>{p.nome || '—'}</TableCell>
-                        <TableCell>{p.banco || '—'}</TableCell>
-                        <TableCell>{p.produto || '—'}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">{resolveCachedLabel(cachedStatus, p.status)}</Badge>
-                        </TableCell>
-                        <TableCell>{fmtBRL(p.valor_liberado)}</TableCell>
-                        <TableCell>{fmtBRL(p.valor_parcela)}</TableCell>
-                        <TableCell>{p.prazo || '—'}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{p.data_cadastro || '—'}</TableCell>
-                        <TableCell className="text-xs">{p.convenio || resolveCachedLabel(cachedBancos, p.banco)}</TableCell>
+                      <TableRow
+                        key={`${p.proposta_id || i}`}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedProposta(p)}
+                      >
+                        {activeColumns.map(col => (
+                          <TableCell key={col.key} className="text-xs whitespace-nowrap max-w-[200px] truncate">
+                            {formatCellValue(col, p)}
+                          </TableCell>
+                        ))}
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 py-3 border-t">
                   <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
@@ -256,6 +415,97 @@ export default function CorbanPropostas() {
             </CardContent>
           </Card>
         )}
+
+        {/* Detail drawer */}
+        <Sheet open={!!selectedProposta} onOpenChange={() => setSelectedProposta(null)}>
+          <SheetContent className="sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="text-lg">Detalhes da Proposta</SheetTitle>
+            </SheetHeader>
+            {selectedProposta && (
+              <div className="mt-4 space-y-4">
+                <DetailSection title="📋 Proposta" items={[
+                  { label: 'ID', value: selectedProposta.proposta_id },
+                  { label: 'ID Banco', value: selectedProposta.proposta_id_banco },
+                  { label: 'Banco', value: selectedProposta.banco },
+                  { label: 'Produto', value: selectedProposta.produto },
+                  { label: 'Convênio', value: selectedProposta.convenio },
+                  { label: 'Tabela', value: selectedProposta.tabela_nome },
+                  { label: 'Status', value: resolveCachedLabel(cachedStatus, selectedProposta.status) },
+                  { label: 'Valor Liberado', value: fmtBRL(selectedProposta.valor_liberado) },
+                  { label: 'Valor Financiado', value: fmtBRL(selectedProposta.valor_financiado ?? null) },
+                  { label: 'Parcela', value: fmtBRL(selectedProposta.valor_parcela) },
+                  { label: 'Prazo', value: selectedProposta.prazo },
+                  { label: 'Taxa', value: selectedProposta.taxa },
+                  { label: 'Seguro', value: selectedProposta.seguro },
+                  { label: 'Tipo Liberação', value: selectedProposta.tipo_liberacao },
+                  { label: 'Comissões', value: selectedProposta.comissoes },
+                ]} />
+                <Separator />
+                <DetailSection title="👤 Cliente" items={[
+                  { label: 'Nome', value: selectedProposta.nome },
+                  { label: 'CPF', value: selectedProposta.cpf },
+                  { label: 'Telefone', value: selectedProposta.telefone },
+                  { label: 'Nascimento', value: selectedProposta.nascimento },
+                  { label: 'Sexo', value: selectedProposta.cliente_sexo },
+                  { label: 'Nome da Mãe', value: selectedProposta.nome_mae },
+                  { label: 'Renda', value: selectedProposta.renda != null ? fmtBRL(selectedProposta.renda) : null },
+                  { label: 'Endereço', value: selectedProposta.endereco_completo },
+                ]} />
+                <Separator />
+                <DetailSection title="📅 Datas" items={[
+                  { label: 'Cadastro', value: selectedProposta.data_cadastro },
+                  { label: 'Pagamento', value: selectedProposta.data_pagamento },
+                  { label: 'Formalização', value: selectedProposta.data_formalizacao },
+                  { label: 'Averbação', value: selectedProposta.data_averbacao },
+                  { label: 'Status', value: selectedProposta.data_status },
+                  { label: 'Atualização API', value: selectedProposta.data_atualizacao_api },
+                ]} />
+                <Separator />
+                <DetailSection title="🏦 Averbação" items={[
+                  { label: 'Banco', value: selectedProposta.banco_averbacao },
+                  { label: 'Agência', value: selectedProposta.agencia },
+                  { label: 'Conta', value: selectedProposta.conta },
+                  { label: 'PIX', value: selectedProposta.pix },
+                ]} />
+                <Separator />
+                <DetailSection title="👥 Equipe" items={[
+                  { label: 'Vendedor', value: selectedProposta.vendedor_nome },
+                  { label: 'Digitador', value: selectedProposta.digitador_nome },
+                  { label: 'Equipe', value: selectedProposta.equipe_nome },
+                  { label: 'Promotora', value: selectedProposta.promotora_nome },
+                  { label: 'Origem', value: selectedProposta.origem },
+                ]} />
+                <Separator />
+                <DetailSection title="🔌 API" items={[
+                  { label: 'Status API', value: selectedProposta.status_api },
+                  { label: 'Descrição', value: selectedProposta.status_api_descricao },
+                  { label: 'Tipo Cadastro', value: selectedProposta.tipo_cadastro },
+                ]} />
+                {selectedProposta.observacoes && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold text-primary">📝 Observações</h4>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">{selectedProposta.observacoes}</p>
+                    </div>
+                  </>
+                )}
+                {selectedProposta.link_formalizacao && (
+                  <>
+                    <Separator />
+                    <a href={selectedProposta.link_formalizacao} target="_blank" rel="noreferrer">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="w-4 h-4 mr-2" /> Abrir Link de Formalização
+                      </Button>
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+
         <PayloadEditorDialog
           open={payloadEditorOpen}
           onOpenChange={setPayloadEditorOpen}
