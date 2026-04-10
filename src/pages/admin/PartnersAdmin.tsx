@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,12 +12,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User, Download, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
+import { PartnersDashboard } from '@/components/partners/PartnersDashboard';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial', color: 'bg-muted text-muted-foreground' },
@@ -43,6 +44,8 @@ const CRM_COLUMNS: { key: string; label: string; options: string[] }[] = [
   { key: 'captacao_parceiro', label: 'Captação', options: ['Entrevista', 'Indicação', 'Redes Sociais', 'Outro', ''] },
 ];
 
+const INACTIVITY_DAYS = 7;
+
 const getStatusBadge = (status: string) => {
   const s = PIPELINE_STATUSES.find(p => p.value === status);
   return s ? <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.color}`}>{s.label}</span> : <Badge variant="outline">{status}</Badge>;
@@ -57,6 +60,7 @@ export default function PartnersAdmin() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tabela' | 'kanban'>('tabela');
+  const [duplicateWarning, setDuplicateWarning] = useState('');
 
   const [form, setForm] = useState({
     nome: '', telefone: '', cpf: '', email: '',
@@ -74,6 +78,25 @@ export default function PartnersAdmin() {
   });
 
   const partners = statusFilter === 'all' ? allPartners : allPartners.filter(p => p.pipeline_status === statusFilter);
+
+  // Duplicate detection
+  const checkDuplicate = (cpf: string, telefone: string) => {
+    if (!cpf && !telefone) { setDuplicateWarning(''); return; }
+    const cleanCpf = cpf.replace(/\D/g, '');
+    const cleanTel = telefone.replace(/\D/g, '');
+    const dup = allPartners.find(p => {
+      if (cleanCpf && p.cpf?.replace(/\D/g, '') === cleanCpf) return true;
+      if (cleanTel && p.telefone?.replace(/\D/g, '') === cleanTel) return true;
+      return false;
+    });
+    setDuplicateWarning(dup ? `⚠️ Possível duplicado: "${dup.nome}" (${dup.pipeline_status})` : '');
+  };
+
+  // Inactivity badge
+  const isInactive = (p: any) => {
+    const daysSince = (Date.now() - new Date(p.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince > INACTIVITY_DAYS && !['ativo', 'desistencia'].includes(p.pipeline_status);
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -94,6 +117,7 @@ export default function PartnersAdmin() {
       queryClient.invalidateQueries({ queryKey: ['partners'] });
       setDialogOpen(false);
       setForm({ nome: '', telefone: '', cpf: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
+      setDuplicateWarning('');
       toast({ title: 'Parceiro criado com sucesso' });
     },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
@@ -150,6 +174,30 @@ export default function PartnersAdmin() {
     return acc;
   }, {});
 
+  const handleExport = () => {
+    const exportData = filtered.map(p => ({
+      Nome: p.nome,
+      Telefone: p.telefone || '',
+      CPF: p.cpf || '',
+      Email: p.email || '',
+      CNPJ: p.cnpj || '',
+      Status: PIPELINE_STATUSES.find(s => s.value === p.pipeline_status)?.label || p.pipeline_status,
+      'Data Contato': p.data_contato || '',
+      'Reunião Marcada': (p as any).reuniao_marcada || '',
+      'Reunião': (p as any).reuniao || '',
+      'Aceitou': (p as any).aceitou || '',
+      'Criou MEI': (p as any).criou_mei || '',
+      Captação: p.captacao_tipo || '',
+      Observações: p.obs || '',
+      Criado: format(new Date(p.created_at), 'dd/MM/yyyy'),
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Parceiros');
+    XLSX.writeFile(wb, `parceiros_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    toast({ title: `${exportData.length} parceiros exportados` });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -159,6 +207,9 @@ export default function PartnersAdmin() {
             <p className="text-sm text-muted-foreground">Pipeline de captação e gestão de parceiros comerciais</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
+              <Download className="w-4 h-4 mr-2" /> Exportar
+            </Button>
             <Button variant="outline" onClick={() => navigate('/admin/parceiros/template')}>
               <ScrollText className="w-4 h-4 mr-2" /> Template
             </Button>
@@ -167,6 +218,9 @@ export default function PartnersAdmin() {
             </Button>
           </div>
         </div>
+
+        {/* Dashboard Metrics */}
+        <PartnersDashboard partners={allPartners as any} />
 
         {/* Status filters */}
         <div className="flex gap-2 flex-wrap">
@@ -242,7 +296,14 @@ export default function PartnersAdmin() {
                     ) : filtered.map(p => (
                       <TableRow key={p.id} className="hover:bg-muted/50">
                         <TableCell className="sticky left-0 bg-background z-10 font-medium cursor-pointer" onClick={() => navigate(`/admin/parceiros/${p.id}`)}>
-                          {p.nome}
+                          <div className="flex items-center gap-2">
+                            {p.nome}
+                            {isInactive(p) && (
+                              <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-500" title={`Sem atualização há +${INACTIVITY_DAYS} dias`}>
+                                Inativo
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-sm">{p.telefone || '—'}</TableCell>
                         <TableCell>{getStatusBadge(p.pipeline_status)}</TableCell>
@@ -310,7 +371,14 @@ export default function PartnersAdmin() {
                           onClick={() => navigate(`/admin/parceiros/${p.id}`)}
                         >
                           <CardContent className="p-3 space-y-2">
-                            <p className="font-medium text-sm truncate">{p.nome}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-sm truncate flex-1">{p.nome}</p>
+                              {isInactive(p) && (
+                                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-500 shrink-0">
+                                  Inativo
+                                </span>
+                              )}
+                            </div>
                             {p.telefone && (
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Phone className="w-3 h-3" /> {p.telefone}
@@ -356,7 +424,7 @@ export default function PartnersAdmin() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setDuplicateWarning(''); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Novo Parceiro</DialogTitle>
@@ -369,13 +437,29 @@ export default function PartnersAdmin() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Telefone</Label>
-                <Input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} placeholder="(00) 00000-0000" />
+                <Input value={form.telefone} onChange={e => {
+                  const v = e.target.value;
+                  setForm(f => ({ ...f, telefone: v }));
+                  checkDuplicate(form.cpf, v);
+                }} placeholder="(00) 00000-0000" />
               </div>
               <div className="grid gap-2">
                 <Label>CPF</Label>
-                <Input value={form.cpf} onChange={e => setForm(f => ({ ...f, cpf: e.target.value }))} placeholder="000.000.000-00" />
+                <Input value={form.cpf} onChange={e => {
+                  const v = e.target.value;
+                  setForm(f => ({ ...f, cpf: v }));
+                  checkDuplicate(v, form.telefone);
+                }} placeholder="000.000.000-00" />
               </div>
             </div>
+
+            {duplicateWarning && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-xs text-amber-500">{duplicateWarning}</p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label>Email</Label>
               <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" />
