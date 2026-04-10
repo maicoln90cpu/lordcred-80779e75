@@ -502,6 +502,50 @@ async function getEnvelopeStatus(envelopeId: string) {
   return await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'GET');
 }
 
+async function getSignedDocumentUrl(partnerId: string) {
+  const { data: partner, error } = await supabaseAdmin
+    .from('partners').select('document_key, envelope_id, nome').eq('id', partnerId).single();
+  if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
+
+  // Try to get download URL from the document
+  if (partner.document_key) {
+    try {
+      const docRes = await clicksignFetch(`/api/v3/documents/${partner.document_key}`, 'GET');
+      const downloads = docRes?.data?.attributes?.downloads || {};
+      const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
+      if (signedUrl) {
+        return { signed_url: signedUrl, source: 'document', partner_name: partner.nome };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch document by key:', e);
+    }
+  }
+
+  // Fallback: try envelope documents list
+  if (partner.envelope_id) {
+    try {
+      const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
+      const docs = envRes?.included?.filter((i: any) => i.type === 'documents') || [];
+      for (const doc of docs) {
+        const downloads = doc?.attributes?.downloads || {};
+        const signedUrl = downloads.signed_file_url || downloads.original_file_url || null;
+        if (signedUrl) {
+          return { signed_url: signedUrl, source: 'envelope', partner_name: partner.nome };
+        }
+      }
+      // Return envelope URL as fallback
+      const envUrl = envRes?.data?.attributes?.url || null;
+      if (envUrl) {
+        return { signed_url: envUrl, source: 'envelope_url', partner_name: partner.nome };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch envelope:', e);
+    }
+  }
+
+  throw new HttpError(404, 'Não foi possível obter a URL do documento assinado. Verifique se o document_key está salvo no parceiro.');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -548,6 +592,10 @@ Deno.serve(async (req) => {
       case 'get_status':
         if (!envelope_id) throw new HttpError(400, 'envelope_id is required');
         result = await getEnvelopeStatus(envelope_id);
+        break;
+      case 'get_signed_url':
+        if (!partner_id) throw new HttpError(400, 'partner_id is required');
+        result = await getSignedDocumentUrl(partner_id);
         break;
       default:
         throw new HttpError(400, `Unknown action: ${action}`);
