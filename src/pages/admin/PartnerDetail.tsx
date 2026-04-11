@@ -615,6 +615,14 @@ export default function PartnerDetail() {
         onConfirmSend={() => generateContractMutation.mutate()}
         isSending={generateContractMutation.isPending}
       />
+
+      <ContractViewerDialog
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+        pdfBase64={viewerPdfBase64}
+        partnerName={form.nome}
+        filename={viewerFilename}
+      />
     </DashboardLayout>
   );
 }
