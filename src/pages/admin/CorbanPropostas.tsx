@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
