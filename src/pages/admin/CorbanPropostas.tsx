@@ -606,6 +606,8 @@ export default function CorbanPropostas() {
                     </a>
                   </>
                 )}
+                {/* Timeline de Status (snapshot_history) */}
+                <SnapshotTimeline propostaId={selectedProposta.proposta_id} resolveCachedLabel={(v: string) => resolveCachedLabel(cachedStatus, v)} />
               </div>
             )}
           </SheetContent>
