@@ -208,9 +208,18 @@ export default function SellerDashboard() {
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar mode="single" selected={dateTo} onSelect={d => d && setDateTo(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
-            </Popover>
-          </div>
-        </div>
+              </Popover>
+              {analytics && (
+                <SellerPdfExport
+                  sellerName={sellerName}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  analytics={analytics}
+                  snapshots={snapshots}
+                  resolveStatus={resolveStatus}
+                />
+              )}
+            </div>
 
         {analytics ? (
           <>
