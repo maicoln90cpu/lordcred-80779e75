@@ -114,6 +114,82 @@ function DetailSection({ title, items }: { title: string; items: { label: string
   );
 }
 
+interface HistoryEntry {
+  from: string | null;
+  to: string | null;
+  at: string;
+}
+
+function SnapshotTimeline({ propostaId, resolveCachedLabel }: { propostaId: string | null | undefined; resolveCachedLabel: (v: string) => string }) {
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!propostaId) return;
+    setLoading(true);
+    supabase
+      .from('corban_propostas_snapshot')
+      .select('snapshot_history')
+      .eq('proposta_id', propostaId)
+      .limit(1)
+      .then(({ data }) => {
+        setLoading(false);
+        if (data && data.length > 0) {
+          const raw = (data[0] as any).snapshot_history;
+          if (Array.isArray(raw) && raw.length > 0) {
+            setHistory(raw as HistoryEntry[]);
+          } else {
+            setHistory([]);
+          }
+        }
+      });
+  }, [propostaId]);
+
+  if (!propostaId) return null;
+  if (loading) return <div className="text-xs text-muted-foreground py-2">Carregando histórico...</div>;
+  if (history.length === 0) return null;
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold text-primary">📊 Histórico de Status</h4>
+        <div className="relative pl-4 space-y-3">
+          {/* Vertical line */}
+          <div className="absolute left-[7px] top-1 bottom-1 w-0.5 bg-border" />
+          {[...history].reverse().map((entry, i) => {
+            const date = entry.at ? new Date(entry.at) : null;
+            const isFirst = i === 0;
+            return (
+              <div key={i} className="relative flex items-start gap-3">
+                <div className={cn(
+                  "absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-background z-10",
+                  isFirst ? "bg-primary" : "bg-muted-foreground/40"
+                )} />
+                <div className="ml-2">
+                  <p className="text-xs font-medium">
+                    {resolveCachedLabel(entry.to || '')}
+                  </p>
+                  {entry.from && (
+                    <p className="text-[10px] text-muted-foreground">
+                      antes: {resolveCachedLabel(entry.from)}
+                    </p>
+                  )}
+                  {date && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {date.toLocaleDateString('pt-BR')} às {date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function CorbanPropostas() {
   const { user } = useAuth();
   const [searchCpf, setSearchCpf] = useState('');
@@ -606,6 +682,8 @@ export default function CorbanPropostas() {
                     </a>
                   </>
                 )}
+                {/* Timeline de Status (snapshot_history) */}
+                <SnapshotTimeline propostaId={selectedProposta.proposta_id} resolveCachedLabel={(v: string) => resolveCachedLabel(cachedStatus, v)} />
               </div>
             )}
           </SheetContent>
