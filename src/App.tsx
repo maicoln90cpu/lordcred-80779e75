@@ -45,6 +45,7 @@ import PartnerDetail from "./pages/admin/PartnerDetail";
 import ContractTemplate from "./pages/admin/ContractTemplate";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
+import SellerDashboard from "./pages/corban/SellerDashboard";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
@@ -100,6 +101,7 @@ const App = () => (
               <Route path="/admin/corban/config" element={<ProtectedRoute blockSellers><CorbanConfig /></ProtectedRoute>} />
               <Route path="/corban/propostas" element={<ProtectedRoute><SellerPropostas /></ProtectedRoute>} />
               <Route path="/corban/fgts" element={<ProtectedRoute><SellerFGTS /></ProtectedRoute>} />
+              <Route path="/corban/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
               <Route path="/admin/permissions" element={<ProtectedRoute blockSellers><Permissions /></ProtectedRoute>} />
               <Route path="/admin/bancos" element={<ProtectedRoute blockSellers><BankCredentials /></ProtectedRoute>} />
               <Route path="/admin/parceiros" element={<ProtectedRoute blockSellers><PartnersAdmin /></ProtectedRoute>} />
