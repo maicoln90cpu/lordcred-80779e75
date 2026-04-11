@@ -144,13 +144,15 @@ export default function PartnersAdmin() {
   const partners = statusFilter === 'all' ? allPartners : allPartners.filter(p => p.pipeline_status === statusFilter);
 
   // Duplicate detection
-  const checkDuplicate = (cpf: string, telefone: string) => {
-    if (!cpf && !telefone) { setDuplicateWarning(''); return; }
+  const checkDuplicate = (cpf: string, telefone: string, cnpj: string) => {
+    if (!cpf && !telefone && !cnpj) { setDuplicateWarning(''); return; }
     const cleanCpf = cpf.replace(/\D/g, '');
     const cleanTel = telefone.replace(/\D/g, '');
+    const cleanCnpj = cnpj.replace(/\D/g, '');
     const dup = allPartners.find(p => {
       if (cleanCpf && p.cpf?.replace(/\D/g, '') === cleanCpf) return true;
       if (cleanTel && p.telefone?.replace(/\D/g, '') === cleanTel) return true;
+      if (cleanCnpj && p.cnpj?.replace(/\D/g, '') === cleanCnpj) return true;
       return false;
     });
     setDuplicateWarning(dup ? `⚠️ Possível duplicado: "${dup.nome}" (${dup.pipeline_status})` : '');
@@ -168,6 +170,7 @@ export default function PartnersAdmin() {
         nome: form.nome,
         telefone: form.telefone || null,
         cpf: form.cpf || null,
+        cnpj: form.cnpj || null,
         email: form.email || null,
         captacao_tipo: form.captacao_tipo || null,
         indicado_por: form.indicado_por || null,
