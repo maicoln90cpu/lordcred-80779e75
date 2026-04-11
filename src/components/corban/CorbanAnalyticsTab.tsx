@@ -35,7 +35,7 @@ const CHART_COLORS = [
 export function CorbanAnalyticsTab() {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loadingSnapshots, setLoadingSnapshots] = useState(false);
-  const [snapDateFrom, setSnapDateFrom] = useState<Date>(() => subDays(new Date(), 30));
+  const [snapDateFrom, setSnapDateFrom] = useState<Date>(() => subDays(new Date(), 180));
   const [snapDateTo, setSnapDateTo] = useState<Date>(new Date());
   const [cachedStatusLabels, setCachedStatusLabels] = useState<Record<string, string>>({});
 
