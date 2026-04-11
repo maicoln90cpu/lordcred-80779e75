@@ -858,7 +858,7 @@ Deno.serve(async (req) => {
         break;
       case 'get_signed_url':
         if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await getSignedDocumentUrl(partner_id);
+        result = await getDocumentInfo(partner_id);
         break;
       case 'resend_notification': {
         if (!partner_id) throw new HttpError(400, 'partner_id is required');
