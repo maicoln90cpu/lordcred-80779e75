@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2, Columns3, ChevronDown, ExternalLink } from 'lucide-react';
+import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2, Columns3, ChevronDown, ExternalLink, Camera } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
