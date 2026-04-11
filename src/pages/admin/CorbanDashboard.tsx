@@ -1,17 +1,20 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Building2, ClipboardList, Landmark, TrendingUp, Clock, CheckCircle, AlertTriangle, Wifi, RefreshCw, DollarSign, FileText, Users, Activity, BarChart3, PieChart as PieChartIcon, Target } from 'lucide-react';
+import { Building2, ClipboardList, Landmark, TrendingUp, Clock, CheckCircle, AlertTriangle, Wifi, RefreshCw, DollarSign, FileText, Users, Activity, BarChart3, PieChart as PieChartIcon, Target, Calendar as CalendarIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { useNavigate } from 'react-router-dom';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface DashboardStats {
@@ -54,6 +57,8 @@ export default function CorbanDashboard() {
   const [cachedStatusLabels, setCachedStatusLabels] = useState<Record<string, string>>({});
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+  const [snapDateFrom, setSnapDateFrom] = useState<Date>(() => subDays(new Date(), 30));
+  const [snapDateTo, setSnapDateTo] = useState<Date>(new Date());
 
   useEffect(() => {
     (async () => {
@@ -70,10 +75,10 @@ export default function CorbanDashboard() {
     })();
   }, []);
 
-  // Load snapshots on mount
+  // Load snapshots on mount and when date changes
   useEffect(() => {
     loadSnapshots();
-  }, []);
+  }, [snapDateFrom, snapDateTo]);
 
   // Auto-test connection on mount
   useEffect(() => {
@@ -89,11 +94,11 @@ export default function CorbanDashboard() {
 
   const loadSnapshots = async () => {
     setLoadingSnapshots(true);
-    const since = subDays(new Date(), 30).toISOString();
     const { data, error } = await supabase
       .from('corban_propostas_snapshot' as any)
       .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date')
-      .gte('snapshot_date', since)
+      .gte('snapshot_date', snapDateFrom.toISOString())
+      .lte('snapshot_date', snapDateTo.toISOString())
       .order('snapshot_date', { ascending: false });
     setLoadingSnapshots(false);
     if (error) { console.error('Error loading snapshots:', error); return; }
@@ -317,16 +322,48 @@ export default function CorbanDashboard() {
         )}
 
         {/* ===== ANALYTICS FROM SNAPSHOTS ===== */}
-        {analytics && analytics.total > 0 && (
+        {(analytics && analytics.total > 0) || snapshots.length === 0 ? (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-primary" />
-                Analytics (Snapshots — {analytics.total} registros)
+                Analytics (Snapshots{analytics ? ` — ${analytics.total} registros` : ''})
               </h2>
-              <Button variant="ghost" size="sm" onClick={loadSnapshots} disabled={loadingSnapshots}>
-                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loadingSnapshots ? 'animate-spin' : ''}`} /> Atualizar
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex gap-1">
+                  {[7, 30, 60, 90].map(days => (
+                    <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setSnapDateFrom(subDays(new Date(), days)); setSnapDateTo(new Date()); }}>
+                      {days}d
+                    </Button>
+                  ))}
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                      <CalendarIcon className="w-3 h-3" />
+                      {format(snapDateFrom, 'dd/MM')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={snapDateFrom} onSelect={d => d && setSnapDateFrom(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-xs text-muted-foreground">até</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                      <CalendarIcon className="w-3 h-3" />
+                      {format(snapDateTo, 'dd/MM')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={snapDateTo} onSelect={d => d && setSnapDateTo(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Button variant="ghost" size="sm" className="h-7" onClick={loadSnapshots} disabled={loadingSnapshots}>
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSnapshots ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </div>
 
             {/* KPI advanced cards */}
@@ -438,14 +475,14 @@ export default function CorbanDashboard() {
               </CardContent>
             </Card>
           </>
-        )}
+        ) : null}
 
         {snapshots.length === 0 && !loadingSnapshots && (
           <Card>
             <CardContent className="p-6 text-center text-muted-foreground">
               <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nenhum snapshot salvo ainda.</p>
-              <p className="text-xs mt-1">Vá em <strong>Propostas</strong> e clique em <strong>"Salvar Snapshot"</strong> para gerar dados históricos.</p>
+              <p className="text-sm">Nenhum snapshot para o período selecionado.</p>
+              <p className="text-xs mt-1">Snapshots são salvos automaticamente todos os dias, ou vá em <strong>Propostas</strong> e clique em <strong>"Salvar Snapshot"</strong>.</p>
             </CardContent>
           </Card>
         )}

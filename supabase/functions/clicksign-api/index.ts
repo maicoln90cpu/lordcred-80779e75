@@ -242,16 +242,35 @@ function replacePlaceholders(template: string, partner: any, now: Date): string 
     ? `${rawCnpj.slice(0,2)}.${rawCnpj.slice(2,5)}.${rawCnpj.slice(5,8)}`
     : (partner.cnpj || '___');
 
+  // Build structured PJ address from individual fields, fallback to endereco_pj text
+  let enderecoPj = partner.endereco_pj || partner.endereco || '___';
+  const pjRua = (partner.endereco_pj_rua || '').trim();
+  const pjNum = (partner.endereco_pj_numero || '').trim();
+  const pjBairro = (partner.endereco_pj_bairro || '').trim();
+  const pjMunicipio = (partner.endereco_pj_municipio || '').trim();
+  const pjUf = (partner.endereco_pj_uf || '').trim();
+  const pjCep = (partner.endereco_pj_cep || '').trim();
+  if (pjRua && pjMunicipio) {
+    const parts = [
+      pjRua,
+      pjNum ? `n. ${pjNum}` : '',
+      pjBairro ? `bairro ${pjBairro}` : '',
+      `município ${pjMunicipio}${pjUf ? ' ' + pjUf : ''}`,
+      pjCep ? `CEP ${pjCep}` : '',
+    ].filter(Boolean);
+    enderecoPj = parts.join(', ');
+  }
+
   const map: Record<string, string> = {
     '{{RAZAO_SOCIAL}}': partner.razao_social || partner.nome || '___',
     '{{CNPJ}}': partner.cnpj || '___',
     '{{CNPJ_CURTO}}': cnpjCurto,
-    '{{ENDERECO_PJ}}': partner.endereco_pj || partner.endereco || '___',
+    '{{ENDERECO_PJ}}': enderecoPj,
     '{{REPRESENTANTE_NOME}}': partner.nome || '___',
     '{{REPRESENTANTE_NACIONALIDADE}}': partner.nacionalidade || '___',
     '{{REPRESENTANTE_ESTADO_CIVIL}}': partner.estado_civil || '___',
     '{{REPRESENTANTE_CPF}}': cpfFormatted,
-    '{{REPRESENTANTE_ENDERECO}}': partner.endereco || partner.endereco_pj || '___',
+    '{{REPRESENTANTE_ENDERECO}}': partner.endereco || enderecoPj || '___',
     '{{DIA_PAGAMENTO}}': diaPagamento,
     '{{VIGENCIA_MESES}}': vigencia,
     '{{AVISO_PREVIO_DIAS}}': avisoPrevio,
