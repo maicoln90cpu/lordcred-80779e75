@@ -75,10 +75,12 @@ function formatCpf(value: string): string {
 function getSignerDocumentation(cpf?: string | null): string | undefined {
   const rawCpf = (cpf || '').replace(/\D/g, '');
   if (!rawCpf) return undefined;
-  if (!isValidCpf(rawCpf)) {
-    throw new HttpError(400, 'O CPF do parceiro está inválido.');
+  if (rawCpf.length === 11 && !isValidCpf(rawCpf)) {
+    console.warn('CPF informado é inválido, será ignorado no contrato.');
+    return undefined;
   }
-  return formatCpf(rawCpf);
+  if (rawCpf.length === 11) return formatCpf(rawCpf);
+  return undefined;
 }
 
 async function clicksignFetch(path: string, method: string, body?: any) {
@@ -112,7 +114,7 @@ LORD CRED, pessoa jurídica de direito privado, inscrita no CNPJ nº 42.824.770/
 
 E, de outro lado:
 
-{{RAZAO_SOCIAL}}, pessoa jurídica de direito privado, inscrita no CNPJ nº {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, CPF n. {{REPRESENTANTE_CPF}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;
+{{RAZAO_SOCIAL}}, pessoa jurídica de direito privado, inscrita no CNPJ nº {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;
 
 Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTÔNOMA, mediante as cláusulas e condições seguintes:
 

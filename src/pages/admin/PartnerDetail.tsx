@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
@@ -59,13 +59,13 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   const errors: Record<string, string> = {};
   const nome = (form.nome || '').trim();
   const parts = nome.split(' ').filter(Boolean);
-  if (!nome) errors.nome = 'Nome é obrigatório';
-  else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome';
+  if (!nome) errors.nome = 'Nome do representante é obrigatório';
+  else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome do representante';
   else if (/\d/.test(nome)) errors.nome = 'Nome não pode conter números';
 
+  // CPF is optional — but if filled, must be valid
   const cpf = (form.cpf || '').replace(/\D/g, '');
-  if (!cpf) errors.cpf = 'CPF é obrigatório';
-  else if (!isValidCpf(cpf)) errors.cpf = 'CPF inválido';
+  if (cpf && !isValidCpf(cpf)) errors.cpf = 'CPF inválido (deixe vazio se não tiver)';
 
   if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
   if (!form.telefone) errors.telefone = 'Telefone é obrigatório';
@@ -73,8 +73,8 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   // PJ fields required for contract
   if (!form.cnpj || (form.cnpj || '').replace(/\D/g, '').length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
   if (!form.razao_social || (form.razao_social || '').trim().length < 3) errors.razao_social = 'Razão Social é obrigatória';
-  if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua PJ é obrigatória';
-  if (!form.endereco_pj_municipio || (form.endereco_pj_municipio || '').trim().length < 2) errors.endereco_pj_municipio = 'Município PJ é obrigatório';
+  if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua da empresa é obrigatória';
+  if (!form.endereco_pj_municipio || (form.endereco_pj_municipio || '').trim().length < 2) errors.endereco_pj_municipio = 'Município da empresa é obrigatório';
 
   return errors;
 }
@@ -301,29 +301,55 @@ export default function PartnerDetail() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="pessoal" className="space-y-4">
+        <Tabs defaultValue="empresa" className="space-y-4">
            <TabsList>
-            <TabsTrigger value="pessoal"><User className="w-4 h-4 mr-1" /> Dados Pessoais</TabsTrigger>
-            <TabsTrigger value="pj"><Building2 className="w-4 h-4 mr-1" /> Dados PJ</TabsTrigger>
+            <TabsTrigger value="empresa"><Building2 className="w-4 h-4 mr-1" /> Dados da Empresa</TabsTrigger>
             <TabsTrigger value="contrato"><FileText className="w-4 h-4 mr-1" /> Contrato</TabsTrigger>
             <TabsTrigger value="notas"><MessageSquare className="w-4 h-4 mr-1" /> Notas</TabsTrigger>
             <TabsTrigger value="historico"><History className="w-4 h-4 mr-1" /> Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pessoal">
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Dados Pessoais</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo" required error={contractErrors.nome} />
-                  <PartnerField label="CPF" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00" required error={contractErrors.cpf} />
-                  <PartnerField label="Telefone" field="telefone" value={form.telefone} onChange={updateField} placeholder="(00) 00000-0000" required error={contractErrors.telefone} />
-                  <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
-                  <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" />
-                  <PartnerField label="Estado Civil" field="estado_civil" value={form.estado_civil} onChange={updateField} placeholder="Solteiro(a)" />
-                  <PartnerField label="Idade" field="idade" value={form.idade} onChange={updateField} placeholder="30" type="number" />
-                  <PartnerField label="Endereço" field="endereco" value={form.endereco} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF" colSpan />
-                  <div className="col-span-2 grid grid-cols-2 gap-4">
+          <TabsContent value="empresa">
+            <div className="space-y-6">
+              {/* Seção: Empresa */}
+              <Card>
+                <CardHeader><CardTitle className="text-lg">🏢 Empresa</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" required error={contractErrors.razao_social} />
+                    <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" required error={contractErrors.cnpj} />
+                    <PartnerField label="Rua / Logradouro" field="endereco_pj_rua" value={form.endereco_pj_rua} onChange={updateField} placeholder="Rua Jacob Weingartner" required error={contractErrors.endereco_pj_rua} />
+                    <PartnerField label="Número" field="endereco_pj_numero" value={form.endereco_pj_numero} onChange={updateField} placeholder="4619" />
+                    <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" />
+                    <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
+                    <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" />
+                    <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="88131400" />
+                    <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Seção: Representante Legal */}
+              <Card>
+                <CardHeader><CardTitle className="text-lg">👤 Representante Legal</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo do representante" required error={contractErrors.nome} />
+                    <PartnerField label="CPF do Representante" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00 (opcional)" error={contractErrors.cpf} />
+                    <PartnerField label="Telefone" field="telefone" value={form.telefone} onChange={updateField} placeholder="(00) 00000-0000" required error={contractErrors.telefone} />
+                    <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
+                    <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" />
+                    <PartnerField label="Estado Civil" field="estado_civil" value={form.estado_civil} onChange={updateField} placeholder="Solteiro(a)" />
+                    <PartnerField label="Endereço Pessoal" field="endereco" value={form.endereco} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF" colSpan />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Seção: Captação */}
+              <Card>
+                <CardHeader><CardTitle className="text-lg">📋 Captação</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <PartnerSelectField
                       label="Tipo de Captação"
                       field="captacao_tipo"
@@ -339,34 +365,15 @@ export default function PartnerDetail() {
                       ]}
                     />
                     <PartnerField label="Indicado por" field="indicado_por" value={form.indicado_por} onChange={updateField} placeholder="Quem indicou" />
+                    <PartnerField label="Idade" field="idade" value={form.idade} onChange={updateField} placeholder="30" type="number" />
                   </div>
-                </div>
-                <div className="mt-4">
-                  <Label className="text-xs text-muted-foreground">Observações</Label>
-                  <Textarea value={form.obs ?? ''} onChange={e => updateField('obs', e.target.value || null)} placeholder="Notas internas..." rows={3} className="mt-1" />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="pj">
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Dados da Pessoa Jurídica</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" required error={contractErrors.cnpj} />
-                  <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" required error={contractErrors.razao_social} />
-                  <PartnerField label="Rua / Logradouro" field="endereco_pj_rua" value={form.endereco_pj_rua} onChange={updateField} placeholder="Rua Jacob Weingartner" required error={contractErrors.endereco_pj_rua} />
-                  <PartnerField label="Número" field="endereco_pj_numero" value={form.endereco_pj_numero} onChange={updateField} placeholder="4619" />
-                  <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" />
-                  <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
-                  <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" />
-                  <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="88131400" />
-                  <PartnerField label="Endereço PJ (texto livre)" field="endereco_pj" value={form.endereco_pj} onChange={updateField} placeholder="Preenchido automaticamente ao salvar" colSpan />
-                  <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="mt-4">
+                    <Label className="text-xs text-muted-foreground">Observações</Label>
+                    <Textarea value={form.obs ?? ''} onChange={e => updateField('obs', e.target.value || null)} placeholder="Notas internas..." rows={3} className="mt-1" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="contrato">
