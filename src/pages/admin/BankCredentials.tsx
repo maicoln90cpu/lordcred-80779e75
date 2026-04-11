@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface BankCredential {
@@ -116,8 +116,8 @@ export default function BankCredentials() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-              <Landmark className="h-8 w-8" /> Bancos
+           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Landmark className="w-6 h-6" /> Bancos
             </h1>
             <p className="text-muted-foreground mt-1">Credenciais de acesso aos bancos parceiros</p>
           </div>
@@ -132,9 +132,9 @@ export default function BankCredentials() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <p className="text-muted-foreground text-center py-8">Carregando...</p>
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
             ) : sorted.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">Nenhum banco cadastrado</p>
+              <div className="text-center py-12 text-muted-foreground"><Landmark className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum banco cadastrado</p></div>
             ) : (
               <Table>
                 <TableHeader>
