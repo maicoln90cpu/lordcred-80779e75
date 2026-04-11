@@ -370,6 +370,10 @@ export default function CorbanPropostas() {
               <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
                 <Settings2 className="w-4 h-4 mr-1" /> Payload
               </Button>
+              <Button variant="outline" size="sm" onClick={handleSaveSnapshot} disabled={savingSnapshot} title="Buscar e salvar snapshot dos últimos 30 dias">
+                {savingSnapshot ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Camera className="w-4 h-4 mr-1" />}
+                {savingSnapshot ? 'Salvando...' : 'Salvar Snapshot'}
+              </Button>
             </div>
           </CardContent>
         </Card>
