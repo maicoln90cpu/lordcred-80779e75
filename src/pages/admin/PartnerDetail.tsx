@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
