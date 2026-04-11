@@ -322,53 +322,50 @@ export default function CorbanDashboard() {
         )}
 
         {/* ===== ANALYTICS FROM SNAPSHOTS ===== */}
-        {(analytics && analytics.total > 0) || snapshots.length === 0 ? (
-          <>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Analytics (Snapshots{analytics ? ` — ${analytics.total} registros` : ''})
-              </h2>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex gap-1">
-                  {[7, 30, 60, 90].map(days => (
-                    <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setSnapDateFrom(subDays(new Date(), days)); setSnapDateTo(new Date()); }}>
-                      {days}d
-                    </Button>
-                  ))}
-                </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
-                      <CalendarIcon className="w-3 h-3" />
-                      {format(snapDateFrom, 'dd/MM')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={snapDateFrom} onSelect={d => d && setSnapDateFrom(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
-                  </PopoverContent>
-                </Popover>
-                <span className="text-xs text-muted-foreground">até</span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
-                      <CalendarIcon className="w-3 h-3" />
-                      {format(snapDateTo, 'dd/MM')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={snapDateTo} onSelect={d => d && setSnapDateTo(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
-                  </PopoverContent>
-                </Popover>
-                <Button variant="ghost" size="sm" className="h-7" onClick={loadSnapshots} disabled={loadingSnapshots}>
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSnapshots ? 'animate-spin' : ''}`} />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            Analytics (Snapshots{analytics ? ` — ${analytics.total} registros` : ''})
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1">
+              {[7, 30, 60, 90].map(days => (
+                <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setSnapDateFrom(subDays(new Date(), days)); setSnapDateTo(new Date()); }}>
+                  {days}d
                 </Button>
-              </div>
+              ))}
             </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <CalendarIcon className="w-3 h-3" />
+                  {format(snapDateFrom, 'dd/MM')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={snapDateFrom} onSelect={d => d && setSnapDateFrom(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <CalendarIcon className="w-3 h-3" />
+                  {format(snapDateTo, 'dd/MM')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={snapDateTo} onSelect={d => d && setSnapDateTo(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            <Button variant="ghost" size="sm" className="h-7" onClick={loadSnapshots} disabled={loadingSnapshots}>
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingSnapshots ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
 
         {analytics ? (
           <>
-            {/* KPI advanced cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-4 flex items-center gap-3">
@@ -399,7 +396,6 @@ export default function CorbanDashboard() {
               </Card>
             </div>
 
-            {/* Charts row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Distribuição por Status</CardTitle></CardHeader>
@@ -414,7 +410,6 @@ export default function CorbanDashboard() {
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><PieChartIcon className="w-4 h-4" /> Distribuição por Banco</CardTitle></CardHeader>
                 <CardContent>
