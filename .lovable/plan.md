@@ -1,110 +1,44 @@
 
 
-# Plano: Correção Contrato + Consolidação Corban
+# Correção: Snapshot salvando apenas 30 dias
 
-## Problema 1: Contrato Visualizar — Tela Cinza e PDF em Branco
+## Problema Encontrado
 
-### Diagnóstico
-A edge function `downloadPdfProxy` busca o PDF da ClickSign via URL construída (`/accounts/{id}/download/packs/direct/{docId}?kind=original|signed`). A resposta pode ser uma página HTML de redirecionamento (não o PDF real), resultando em base64 de um HTML — por isso o iframe mostra cinza e o download gera arquivo em branco.
-
-Além disso, o `ContractViewerDialog` cria o Blob URL **fora** de `useMemo`/`useEffect`, recriando-o a cada render e potencialmente causando leaks de memória.
-
-### Correção
-
-**Edge Function `clicksign-api/index.ts`:**
-- Na função `downloadPdfProxy`, após o fetch, validar que o `Content-Type` da resposta contém `application/pdf`. Se não for PDF (ex: HTML de redirect), seguir redirecionamentos manualmente ou extrair a URL real do HTML.
-- Adicionar `redirect: 'follow'` no fetch para garantir que redirecionamentos sejam seguidos automaticamente.
-- Validar os primeiros bytes do ArrayBuffer: um PDF válido começa com `%PDF`. Se não começar, logar erro e retornar mensagem clara.
-- Deploy automático da edge function.
-
-**Frontend `ContractViewerDialog.tsx`:**
-- Mover criação do Blob URL para `useMemo` com dependência em `pdfBase64`, evitando recriações.
-- Usar `useEffect` para revogar o URL quando o componente desmonta ou o base64 muda.
-- Adicionar tratamento de erro: se `pdfBase64` não gerar Blob válido, mostrar mensagem "Erro ao carregar PDF" em vez de tela cinza.
-
-### Como ficará
-Ao clicar "Visualizar Contrato", o PDF abrirá corretamente dentro do modal. Se houver erro na ClickSign, o sistema mostrará mensagem explicativa em vez de tela cinza.
-
----
-
-## Problema 2: Consolidação de Dados Corban
-
-### O que será feito
-
-**1. Migration — Tabela `corban_propostas_snapshot`**
+O botão **"Salvar Snapshot"** (linha 304-351 do `CorbanPropostas.tsx`) **ignora completamente os dados já carregados na tela**. Em vez de salvar os 3.672 registros que você já buscou, ele faz uma **nova consulta à API limitada aos últimos 30 dias** (linhas 307-308):
 
 ```text
-Colunas:
-  id (uuid PK)
-  snapshot_date (timestamptz, default now())
-  proposta_id (text)
-  cpf (text)
-  nome (text)
-  banco (text)
-  produto (text)
-  status (text)
-  valor_liberado (numeric)
-  valor_parcela (numeric)
-  prazo (text)
-  vendedor_nome (text)
-  data_cadastro (text)
-  convenio (text)
-  raw_data (jsonb)
-  created_by (uuid)
-
-RLS: Privileged can ALL, Authenticated can SELECT
-Índices: snapshot_date, status, banco
+const dateFromSnap = subDays(new Date(), 30)  ← sempre 30 dias
+const dateToSnap = new Date()
 ```
 
-**Cleanup automático:** Função SQL `cleanup_old_corban_snapshots()` que remove snapshots > 90 dias + cron job diário.
+Por isso só salva 794 — são apenas os registros de cadastro dos últimos 30 dias.
 
-**2. CorbanPropostas.tsx — Botão "Salvar Snapshot"**
+## Como Ficará
 
-Adicionar botão que:
-- Busca propostas padrão dos últimos 30 dias via API Corban
-- Normaliza os dados
-- Insere no banco `corban_propostas_snapshot` com o `user.id` como `created_by`
-- Mostra toast com quantidade salva
+O botão "Salvar Snapshot" passará a salvar **todos os registros já carregados na tela** (o array `propostas` que já está em memória), sem fazer uma nova chamada à API. Assim:
 
-**3. CorbanDashboard.tsx — Seção de Analytics**
+- Buscou 3.672 registros na tela? → Salva 3.672 no banco
+- Buscou 500 com filtro de CPF? → Salva 500
+- O texto do toast mostrará a contagem real: "Snapshot salvo com 3.672 propostas"
 
-Nova seção abaixo dos cards de navegação com:
+## Alteração
 
-- **Gráfico de evolução por status** (BarChart, últimos 30 dias de snapshots agrupados por semana + status)
-- **Ranking de vendedores** (BarChart horizontal, top 10 por valor_liberado somado)
-- **Distribuição por banco** (PieChart com cores do padrão COLORS)
-- **Top status com valores** (tabela simples com status, quantidade e valor agregado)
-- **KPIs avançados** em 3 cards:
-  - Taxa de aprovação (aprovadas/total × 100%)
-  - Ticket médio (valor total / quantidade)
-  - Prazo médio (média dos prazos numéricos)
+**Arquivo:** `src/pages/admin/CorbanPropostas.tsx`
 
-Todos os gráficos usam Recharts (já instalado e usado em Performance, ChipMonitor, etc.).
+**Antes:** `handleSaveSnapshot` faz nova chamada `invokeCorban('getPropostas', { últimos 30 dias })` e normaliza do zero.
 
-Os dados vêm da tabela `corban_propostas_snapshot` via query Supabase no frontend, filtrados pelos últimos 30 dias.
+**Depois:** `handleSaveSnapshot` usa o array `propostas` já carregado (state existente). Remove as linhas 307-314 (nova chamada API) e substitui por uma verificação simples: se `propostas.length === 0`, pede para buscar primeiro. O mapeamento para rows (linhas 317-331) permanece idêntico, apenas usando `propostas` em vez de `list`.
 
-### Arquivos alterados
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/clicksign-api/index.ts` | Corrigir `downloadPdfProxy` |
-| `src/components/partners/ContractViewerDialog.tsx` | Corrigir Blob URL lifecycle |
-| Migration SQL (nova) | Criar `corban_propostas_snapshot` + cleanup cron |
-| `src/pages/admin/CorbanPropostas.tsx` | Botão "Salvar Snapshot" |
-| `src/pages/admin/CorbanDashboard.tsx` | Seção de analytics com gráficos |
+## Vantagens
+- Salva exatamente o que o usuário vê na tela — sem surpresas
+- Mais rápido (não faz segunda chamada à API)
+- Sem risco de timeout/WORKER_LIMIT na segunda chamada
 
-### Vantagens
-- Contrato funcional: elimina tela cinza e downloads vazios
-- Histórico Corban persistido para comparação temporal
-- Dashboard executivo com métricas reais
-- Cleanup automático evita crescimento descontrolado do banco
+## Desvantagens
+- Nenhuma significativa. Se o usuário quiser salvar dados de um período diferente, basta buscar primeiro e depois salvar.
 
-### Desvantagens
-- Snapshots ocupam espaço (mitigado pelo cleanup de 90 dias)
-- KPIs dependem de snapshots salvos manualmente (não é automático)
-
-### Etapas de implementação
-1. Corrigir contrato (edge function + frontend)
-2. Migration da tabela snapshot + cron
-3. Botão "Salvar Snapshot" no CorbanPropostas
-4. Dashboard analytics no CorbanDashboard
+## Checklist Manual
+- [ ] Buscar propostas com período amplo (ex: 6 meses)
+- [ ] Clicar "Salvar Snapshot" e confirmar que o toast mostra a contagem total (ex: 3.672)
+- [ ] Verificar no Analytics/Relatório que os dados apareceram
 
