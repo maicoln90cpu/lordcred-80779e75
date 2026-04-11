@@ -1,44 +1,64 @@
 
 
-# Correção: Snapshot salvando apenas 30 dias
+# Correção: Analytics mostrando apenas 819 de 4.491 registros
 
-## Problema Encontrado
+## Diagnóstico
 
-O botão **"Salvar Snapshot"** (linha 304-351 do `CorbanPropostas.tsx`) **ignora completamente os dados já carregados na tela**. Em vez de salvar os 3.672 registros que você já buscou, ele faz uma **nova consulta à API limitada aos últimos 30 dias** (linhas 307-308):
+Dois problemas encontrados:
 
-```text
-const dateFromSnap = subDays(new Date(), 30)  ← sempre 30 dias
-const dateToSnap = new Date()
+### Problema 1 — Filtro de data excluindo outubro
+Os 3.672 registros importados tem `data_cadastro` de **outubro/2025**. O filtro no screenshot começa em 01/11, excluindo tudo de outubro. Distribuição real no banco:
+
+| Mês | Registros |
+|-----|-----------|
+| Out/2025 | 3.672 |
+| Mar/2026 | 653 |
+| Abr/2026 | 166 |
+| **Total** | **4.491** |
+
+### Problema 2 — Limite de 1.000 linhas do Supabase
+O Supabase JS retorna no máximo 1.000 linhas por padrão. Mesmo corrigindo o filtro de data, a query traria no máximo 1.000 dos 4.491 registros.
+
+## Solução
+
+**Arquivo:** `src/components/corban/CorbanAnalyticsTab.tsx`
+
+### 2.1 — Buscar TODOS os registros com paginação automática
+Criar uma função `fetchAllSnapshots` que busca em lotes de 1.000 registros até esgotar, usando `.range(from, to)`:
+
+```
+async function fetchAllSnapshots(fromStr, toStr) {
+  const PAGE = 1000;
+  let all = [], offset = 0, done = false;
+  while (!done) {
+    const { data } = await supabase
+      .from('corban_propostas_snapshot')
+      .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
+      .gte('data_cadastro', fromStr)
+      .lte('data_cadastro', toStr)
+      .order('data_cadastro', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+    all.push(...(data || []));
+    done = !data || data.length < PAGE;
+    offset += PAGE;
+  }
+  return all;
+}
 ```
 
-Por isso só salva 794 — são apenas os registros de cadastro dos últimos 30 dias.
+### 2.2 — Ajustar data inicial padrão
+Mudar o `snapDateFrom` inicial de `subDays(new Date(), 30)` para `subDays(new Date(), 180)` (6 meses), garantindo que registros mais antigos apareçam por padrão.
 
-## Como Ficará
+### 2.3 — Adicionar botão "Todos"
+Adicionar um botão `180d` nos atalhos de período (ao lado de 7d, 30d, 60d, 90d) para facilitar a visualização completa.
 
-O botão "Salvar Snapshot" passará a salvar **todos os registros já carregados na tela** (o array `propostas` que já está em memória), sem fazer uma nova chamada à API. Assim:
+## Resultado esperado
+- Analytics mostrará os 4.491 registros (ou quantos estiverem no período selecionado)
+- Sem limite de 1.000 linhas
+- Período padrão mais abrangente
 
-- Buscou 3.672 registros na tela? → Salva 3.672 no banco
-- Buscou 500 com filtro de CPF? → Salva 500
-- O texto do toast mostrará a contagem real: "Snapshot salvo com 3.672 propostas"
-
-## Alteração
-
-**Arquivo:** `src/pages/admin/CorbanPropostas.tsx`
-
-**Antes:** `handleSaveSnapshot` faz nova chamada `invokeCorban('getPropostas', { últimos 30 dias })` e normaliza do zero.
-
-**Depois:** `handleSaveSnapshot` usa o array `propostas` já carregado (state existente). Remove as linhas 307-314 (nova chamada API) e substitui por uma verificação simples: se `propostas.length === 0`, pede para buscar primeiro. O mapeamento para rows (linhas 317-331) permanece idêntico, apenas usando `propostas` em vez de `list`.
-
-## Vantagens
-- Salva exatamente o que o usuário vê na tela — sem surpresas
-- Mais rápido (não faz segunda chamada à API)
-- Sem risco de timeout/WORKER_LIMIT na segunda chamada
-
-## Desvantagens
-- Nenhuma significativa. Se o usuário quiser salvar dados de um período diferente, basta buscar primeiro e depois salvar.
-
-## Checklist Manual
-- [ ] Buscar propostas com período amplo (ex: 6 meses)
-- [ ] Clicar "Salvar Snapshot" e confirmar que o toast mostra a contagem total (ex: 3.672)
-- [ ] Verificar no Analytics/Relatório que os dados apareceram
+## Checklist manual
+- [ ] Abrir Analytics e verificar se mostra ~4.491 registros com o filtro padrão
+- [ ] Testar botão 180d
+- [ ] Verificar que os gráficos e KPIs refletem todos os dados
 
