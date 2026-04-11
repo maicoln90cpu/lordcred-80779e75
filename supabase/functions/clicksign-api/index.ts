@@ -699,98 +699,104 @@ async function downloadPdfProxy(partnerId: string) {
   const docInfo = await getDocumentInfo(partnerId);
   const { envelope_id, document_id, envelope_status, partner_name } = docInfo;
 
-  // Strategy 1: Use ClickSign API v3 download endpoint
-  const downloadPath = `/api/v3/envelopes/${envelope_id}/documents/${document_id}/download`;
-  console.log('downloadPdfProxy: trying API download:', downloadPath, 'envelope status:', envelope_status);
+  // Extract raw token from Authorization header format (e.g. "Token token=XXX" → "XXX")
+  const rawToken = CLICKSIGN_TOKEN.replace(/^Token\s+token=/i, '').replace(/^Bearer\s+/i, '').trim();
 
-  try {
-    const url = `${CLICKSIGN_BASE_URL}${downloadPath}`;
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': CLICKSIGN_TOKEN,
-        'Accept': 'application/pdf, application/octet-stream, */*',
-      },
-      redirect: 'follow',
-    });
-
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-
-      if (uint8.length > 4) {
-        const header = String.fromCharCode(uint8[0], uint8[1], uint8[2], uint8[3], uint8[4]);
-        if (header.startsWith('%PDF')) {
-          console.log('downloadPdfProxy: got PDF via API download, size:', uint8.length);
-          const base64 = encodeBase64(uint8);
-          return { pdf_base64: base64, filename: `contrato_${partner_name || 'parceiro'}.pdf` };
-        }
-        console.warn('downloadPdfProxy: API download returned non-PDF, trying alternatives...');
+  // Helper: fetch and validate PDF
+  async function tryFetchPdf(url: string, label: string, opts?: RequestInit): Promise<Uint8Array | null> {
+    try {
+      console.log(`downloadPdfProxy [${label}]: trying ${url}`);
+      const res = await fetch(url, { redirect: 'follow', ...opts });
+      if (!res.ok) {
+        const t = await res.text();
+        console.warn(`downloadPdfProxy [${label}]: ${res.status}`, t.substring(0, 200));
+        return null;
       }
-    } else {
-      const errText = await res.text();
-      console.warn('downloadPdfProxy: API download returned', res.status, errText.substring(0, 200));
-    }
-  } catch (e) {
-    console.warn('downloadPdfProxy: API download failed:', e);
-  }
-
-  // Strategy 2: Try direct download URL with account ID
-  if (CLICKSIGN_ACCOUNT_ID) {
-    const kind = envelope_status === 'closed' ? 'signed' : 'original';
-    const directUrl = `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${document_id}?kind=${kind}`;
-    console.log('downloadPdfProxy: trying direct URL:', directUrl);
-
-    const res2 = await fetch(directUrl, {
-      headers: { 'Authorization': CLICKSIGN_TOKEN },
-      redirect: 'follow',
-    });
-
-    if (res2.ok) {
-      const ab = await res2.arrayBuffer();
+      const ab = await res.arrayBuffer();
       const u8 = new Uint8Array(ab);
       if (u8.length > 4) {
         const h = String.fromCharCode(u8[0], u8[1], u8[2], u8[3], u8[4]);
         if (h.startsWith('%PDF')) {
-          console.log('downloadPdfProxy: got PDF via direct URL, size:', u8.length);
-          const base64 = encodeBase64(u8);
-          return { pdf_base64: base64, filename: `contrato_${partner_name || 'parceiro'}.pdf` };
+          console.log(`downloadPdfProxy [${label}]: got valid PDF, size: ${u8.length}`);
+          return u8;
         }
       }
-      // If HTML, try extract redirect
-      const textContent = new TextDecoder().decode(new Uint8Array(ab).slice(0, 2000));
-      console.warn('downloadPdfProxy: direct URL returned non-PDF:', textContent.substring(0, 200));
-    } else {
-      const t = await res2.text();
-      console.warn('downloadPdfProxy: direct URL returned', res2.status, t.substring(0, 200));
+      const text = new TextDecoder().decode(u8.slice(0, 200));
+      console.warn(`downloadPdfProxy [${label}]: non-PDF content:`, text.substring(0, 150));
+      return null;
+    } catch (e) {
+      console.warn(`downloadPdfProxy [${label}]: error:`, e);
+      return null;
     }
   }
 
-  // Strategy 3: Get download_url from document attributes
-  try {
-    const docRes = await clicksignFetch(`/api/v3/envelopes/${envelope_id}/documents/${document_id}`, 'GET');
-    const attrs = docRes?.data?.attributes || {};
-    const downloadUrl = attrs.download_url || attrs.file_url || attrs.url;
-    if (downloadUrl) {
-      console.log('downloadPdfProxy: trying download_url from attributes:', downloadUrl);
-      const res3 = await fetch(downloadUrl, { redirect: 'follow' });
-      if (res3.ok) {
-        const ab = await res3.arrayBuffer();
-        const u8 = new Uint8Array(ab);
-        if (u8.length > 4) {
-          const h = String.fromCharCode(u8[0], u8[1], u8[2], u8[3], u8[4]);
-          if (h.startsWith('%PDF')) {
-            console.log('downloadPdfProxy: got PDF via attribute URL, size:', u8.length);
-            const base64 = encodeBase64(u8);
-            return { pdf_base64: base64, filename: `contrato_${partner_name || 'parceiro'}.pdf` };
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('downloadPdfProxy: document attributes fetch failed:', e);
+  // Strategy 1: API v3 download endpoint
+  let pdf = await tryFetchPdf(
+    `${CLICKSIGN_BASE_URL}/api/v3/envelopes/${envelope_id}/documents/${document_id}/download`,
+    'api-v3-download',
+    { headers: { 'Authorization': CLICKSIGN_TOKEN, 'Accept': 'application/pdf, application/octet-stream, */*' } }
+  );
+
+  // Strategy 2: Direct URL with access_token as query parameter
+  if (!pdf) {
+    const kind = envelope_status === 'closed' ? 'signed' : 'original';
+    pdf = await tryFetchPdf(
+      `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${document_id}?kind=${kind}&access_token=${rawToken}`,
+      'direct-with-token-param'
+    );
   }
 
-  throw new HttpError(502, 'Não foi possível baixar o PDF do contrato. O documento pode ainda estar sendo processado pela ClickSign. Tente novamente em alguns minutos.');
+  // Strategy 3: ClickSign v1-style download with document key
+  if (!pdf) {
+    // Get document key from attributes
+    try {
+      const docRes = await clicksignFetch(`/api/v3/envelopes/${envelope_id}/documents/${document_id}`, 'GET');
+      const attrs = docRes?.data?.attributes || {};
+      const docKey = attrs.key || attrs.document_key;
+      console.log('downloadPdfProxy: document attributes:', JSON.stringify(Object.keys(attrs)), 'key:', docKey);
+
+      if (docKey) {
+        // Try v1 download with key
+        pdf = await tryFetchPdf(
+          `${CLICKSIGN_BASE_URL}/api/v1/documents/${docKey}/download?access_token=${rawToken}`,
+          'v1-download-key'
+        );
+      }
+
+      // Try download_url from attributes
+      const downloadUrl = attrs.download_url || attrs.file_url || attrs.url || attrs.original_file_url;
+      if (!pdf && downloadUrl) {
+        pdf = await tryFetchPdf(downloadUrl, 'attr-download-url');
+      }
+    } catch (e) {
+      console.warn('downloadPdfProxy: document attributes fetch failed:', e);
+    }
+  }
+
+  // Strategy 4: Try v1 documents list to find download
+  if (!pdf) {
+    try {
+      const v1Url = `${CLICKSIGN_BASE_URL}/api/v1/documents?access_token=${rawToken}`;
+      console.log('downloadPdfProxy [v1-list]: checking v1 API availability');
+      const v1Res = await fetch(v1Url, { redirect: 'follow' });
+      if (v1Res.ok) {
+        const v1Data = await v1Res.json();
+        console.log('downloadPdfProxy [v1-list]: got', Array.isArray(v1Data) ? v1Data.length : 'non-array', 'documents');
+      } else {
+        const t = await v1Res.text();
+        console.warn('downloadPdfProxy [v1-list]: v1 API returned', v1Res.status, t.substring(0, 100));
+      }
+    } catch (e) {
+      console.warn('downloadPdfProxy [v1-list]: failed:', e);
+    }
+  }
+
+  if (pdf) {
+    const base64 = encodeBase64(pdf);
+    return { pdf_base64: base64, filename: `contrato_${partner_name || 'parceiro'}.pdf` };
+  }
+
+  throw new HttpError(502, 'Não foi possível baixar o PDF do contrato. Todas as estratégias de download falharam. Verifique os logs para detalhes.');
 }
 
 function encodeBase64(uint8: Uint8Array): string {
@@ -852,7 +858,7 @@ Deno.serve(async (req) => {
         break;
       case 'get_signed_url':
         if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await getSignedDocumentUrl(partner_id);
+        result = await getDocumentInfo(partner_id);
         break;
       case 'resend_notification': {
         if (!partner_id) throw new HttpError(400, 'partner_id is required');
