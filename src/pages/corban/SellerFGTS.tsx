@@ -90,6 +90,7 @@ export default function SellerFGTS() {
     if (!insertCpf.trim()) { toast.error('Informe um CPF'); return; }
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
+      tabela: 'fgts',
       content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, login_banco: selectedLogin }
     });
     setInserting(false);

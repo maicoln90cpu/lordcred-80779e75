@@ -396,6 +396,7 @@ Deno.serve(async (req) => {
       }
       case 'insertQueueFGTS': {
         corbanBody.requestType = 'insertQueueFGTS'
+        corbanBody.tabela = params?.tabela || 'fgts'
         corbanBody.content = params?.content || {}
         break
       }
