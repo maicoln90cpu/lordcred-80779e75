@@ -54,18 +54,27 @@ export function CorbanAnalyticsTab() {
 
   const loadSnapshots = async () => {
     setLoadingSnapshots(true);
-    // data_cadastro is text 'YYYY-MM-DD HH:mm:ss', filter using it for real temporal data
     const fromStr = format(snapDateFrom, 'yyyy-MM-dd');
     const toStr = format(snapDateTo, 'yyyy-MM-dd') + ' 23:59:59';
-    const { data, error } = await supabase
-      .from('corban_propostas_snapshot')
-      .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
-      .gte('data_cadastro', fromStr)
-      .lte('data_cadastro', toStr)
-      .order('data_cadastro', { ascending: false });
+    const PAGE = 1000;
+    let all: SnapshotRow[] = [];
+    let offset = 0;
+    let done = false;
+    while (!done) {
+      const { data, error } = await supabase
+        .from('corban_propostas_snapshot')
+        .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
+        .gte('data_cadastro', fromStr)
+        .lte('data_cadastro', toStr)
+        .order('data_cadastro', { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (error) { console.error('Error loading snapshots:', error); break; }
+      all = all.concat((data || []) as SnapshotRow[]);
+      done = !data || data.length < PAGE;
+      offset += PAGE;
+    }
     setLoadingSnapshots(false);
-    if (error) { console.error('Error loading snapshots:', error); return; }
-    setSnapshots((data || []) as SnapshotRow[]);
+    setSnapshots(all);
   };
 
   const resolveStatusLabel = (key: string) => cachedStatusLabels[key] || key;
