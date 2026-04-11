@@ -359,16 +359,19 @@ export default function Users() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Chips</TableHead>
-                    <TableHead>Status</TableHead>
-                    {!isSupport && <TableHead className="text-right">Ações</TableHead>}
-                  </TableRow>
+                  <tr>
+                    <TSHead label="Usuário" sortKey="name" sort={sort} toggle={toggle} />
+                    <TSHead label="Role" sortKey="role" sort={sort} toggle={toggle} />
+                    <TSHead label="Chips" sortKey="chip_count" sort={sort} toggle={toggle} />
+                    <TSHead label="Status" sortKey="is_blocked" sort={sort} toggle={toggle} />
+                    {!isSupport && <th className="text-right px-4 py-2 text-sm font-medium">Ações</th>}
+                  </tr>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {applySortToData(users, sort, (item, key) => {
+                    if (key === 'name') return item.name || item.email;
+                    return (item as any)[key];
+                  }).map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
