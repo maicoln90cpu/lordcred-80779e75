@@ -35,7 +35,7 @@ const CHART_COLORS = [
 export function CorbanAnalyticsTab() {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loadingSnapshots, setLoadingSnapshots] = useState(false);
-  const [snapDateFrom, setSnapDateFrom] = useState<Date>(() => subDays(new Date(), 30));
+  const [snapDateFrom, setSnapDateFrom] = useState<Date>(() => subDays(new Date(), 180));
   const [snapDateTo, setSnapDateTo] = useState<Date>(new Date());
   const [cachedStatusLabels, setCachedStatusLabels] = useState<Record<string, string>>({});
 
@@ -54,18 +54,27 @@ export function CorbanAnalyticsTab() {
 
   const loadSnapshots = async () => {
     setLoadingSnapshots(true);
-    // data_cadastro is text 'YYYY-MM-DD HH:mm:ss', filter using it for real temporal data
     const fromStr = format(snapDateFrom, 'yyyy-MM-dd');
     const toStr = format(snapDateTo, 'yyyy-MM-dd') + ' 23:59:59';
-    const { data, error } = await supabase
-      .from('corban_propostas_snapshot')
-      .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
-      .gte('data_cadastro', fromStr)
-      .lte('data_cadastro', toStr)
-      .order('data_cadastro', { ascending: false });
+    const PAGE = 1000;
+    let all: SnapshotRow[] = [];
+    let offset = 0;
+    let done = false;
+    while (!done) {
+      const { data, error } = await supabase
+        .from('corban_propostas_snapshot')
+        .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
+        .gte('data_cadastro', fromStr)
+        .lte('data_cadastro', toStr)
+        .order('data_cadastro', { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (error) { console.error('Error loading snapshots:', error); break; }
+      all = all.concat((data || []) as SnapshotRow[]);
+      done = !data || data.length < PAGE;
+      offset += PAGE;
+    }
     setLoadingSnapshots(false);
-    if (error) { console.error('Error loading snapshots:', error); return; }
-    setSnapshots((data || []) as SnapshotRow[]);
+    setSnapshots(all);
   };
 
   const resolveStatusLabel = (key: string) => cachedStatusLabels[key] || key;
@@ -113,7 +122,7 @@ export function CorbanAnalyticsTab() {
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1">
-            {[7, 30, 60, 90].map(days => (
+            {[7, 30, 60, 90, 180].map(days => (
               <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setSnapDateFrom(subDays(new Date(), days)); setSnapDateTo(new Date()); }}>
                 {days}d
               </Button>
