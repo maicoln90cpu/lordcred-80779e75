@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import MyProfilePanel from '@/components/profile/MyProfilePanel';
+import { CorbanNotificationBell } from '@/components/corban/CorbanNotificationBell';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -302,6 +303,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-2">
+          <div className={cn("flex items-center", sidebarOpen ? "justify-end" : "justify-center")}>
+            <CorbanNotificationBell />
+          </div>
           <Button
             variant="outline"
             size="sm"
