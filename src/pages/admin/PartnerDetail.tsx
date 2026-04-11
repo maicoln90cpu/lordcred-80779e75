@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
@@ -53,6 +53,51 @@ function isValidCpf(value: string): boolean {
   sum = 0;
   for (let i = 0; i < 10; i++) sum += Number(raw[i]) * (11 - i);
   return ((sum * 10) % 11) % 10 === Number(raw[10]);
+}
+
+function isValidCnpj(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 14 || /^(\d)\1{13}$/.test(raw)) return false;
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let s = 0;
+  for (let i = 0; i < 12; i++) s += Number(raw[i]) * w1[i];
+  const d1 = s % 11 < 2 ? 0 : 11 - (s % 11);
+  if (d1 !== Number(raw[12])) return false;
+  s = 0;
+  for (let i = 0; i < 13; i++) s += Number(raw[i]) * w2[i];
+  const d2 = s % 11 < 2 ? 0 : 11 - (s % 11);
+  return d2 === Number(raw[13]);
+}
+
+function formatCnpj(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 14);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
+}
+
+function formatCpf(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 3) return raw;
+  if (raw.length <= 6) return `${raw.slice(0, 3)}.${raw.slice(3)}`;
+  if (raw.length <= 9) return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+  return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+}
+
+function formatPhone(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+  return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+}
+
+function formatCep(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 8);
+  if (raw.length <= 5) return raw;
+  return `${raw.slice(0, 5)}-${raw.slice(5)}`;
 }
 
 function validateForContract(form: Record<string, any>): Record<string, string> {
