@@ -13,6 +13,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
@@ -114,8 +115,10 @@ function DetailSection({ title, items }: { title: string; items: { label: string
 }
 
 export default function CorbanPropostas() {
+  const { user } = useAuth();
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
