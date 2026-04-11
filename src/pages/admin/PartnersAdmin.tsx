@@ -49,6 +49,32 @@ const CRM_COLUMNS: { key: string; label: string; options: string[] }[] = [
 
 const INACTIVITY_DAYS = 7;
 
+function isValidCpf(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 11 || /^(\d)\1{10}$/.test(raw)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(raw[i]) * (10 - i);
+  if (((sum * 10) % 11) % 10 !== Number(raw[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(raw[i]) * (11 - i);
+  return ((sum * 10) % 11) % 10 === Number(raw[10]);
+}
+
+function formatCpf(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 3) return raw;
+  if (raw.length <= 6) return `${raw.slice(0, 3)}.${raw.slice(3)}`;
+  if (raw.length <= 9) return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+  return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+}
+
+function formatPhone(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+  return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+}
+
 const getStatusBadge = (status: string) => {
   const s = PIPELINE_STATUSES.find(p => p.value === status);
   return s ? <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.color}`}>{s.label}</span> : <Badge variant="outline">{status}</Badge>;
