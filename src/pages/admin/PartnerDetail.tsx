@@ -106,6 +106,9 @@ export default function PartnerDetail() {
   const [newNote, setNewNote] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [resending, setResending] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerPdfBase64, setViewerPdfBase64] = useState('');
+  const [viewerFilename, setViewerFilename] = useState('');
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
