@@ -45,6 +45,7 @@ import PartnerDetail from "./pages/admin/PartnerDetail";
 import ContractTemplate from "./pages/admin/ContractTemplate";
 import SellerPropostas from "./pages/corban/SellerPropostas";
 import SellerFGTS from "./pages/corban/SellerFGTS";
+import SellerDashboard from "./pages/corban/SellerDashboard";
 import WhatsApp from "./pages/WhatsApp";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";

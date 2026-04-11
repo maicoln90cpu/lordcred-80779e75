@@ -106,6 +106,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Consulta FGTS', icon: Landmark, href: '/corban/fgts', supportHidden: true },
       { label: 'Dashboard Corban', icon: Building2, href: '/admin/corban', sellerHidden: true },
       { label: 'FGTS', icon: Landmark, href: '/admin/corban/fgts', sellerHidden: true },
+      { label: 'Meu Dashboard', icon: BarChart3, href: '/corban/dashboard', supportHidden: true },
       { label: 'Minhas Propostas', icon: ClipboardList, href: '/corban/propostas', supportHidden: true },
       { label: 'Propostas', icon: ClipboardList, href: '/admin/corban/propostas', sellerHidden: true },
     ],
