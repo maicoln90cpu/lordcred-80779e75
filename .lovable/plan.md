@@ -1,134 +1,110 @@
 
 
-# Plano: Inserir Novas Taxas CLT do Banco C6 (Vigência 07/04/2026)
+# Plano: Correção Contrato + Consolidação Corban
 
-## Análise da Planilha vs Sistema Atual
+## Problema 1: Contrato Visualizar — Tela Cinza e PDF em Branco
 
-### O que a planilha traz (22 registros)
+### Diagnóstico
+A edge function `downloadPdfProxy` busca o PDF da ClickSign via URL construída (`/accounts/{id}/download/packs/direct/{docId}?kind=original|signed`). A resposta pode ser uma página HTML de redirecionamento (não o PDF real), resultando em base64 de um HTML — por isso o iframe mostra cinza e o download gera arquivo em branco.
 
-A planilha contém exclusivamente taxas do **Banco C6 (CLT)** com uma nova estrutura de seguro mais granular:
+Além disso, o `ContractViewerDialog` cria o Blob URL **fora** de `useMemo`/`useEffect`, recriando-o a cada render e potencialmente causando leaks de memória.
 
-```text
-PLANILHA NOVA (vigência 07/04/2026)
-═══════════════════════════════════════════════════════════════
-Prazo  | Normal (s/seg) | SEG 4P  | SEG 6P (NOVO) | SEG 9P (NOVO)
-───────┼────────────────┼─────────┼───────────────┼──────────────
-6      | 1.50% (Todos)  |   —     |      —        |     —
-9      | 1.50% (Todos)  |   —     |      —        |     —
-12     | 2.00%          | 2.20%   | 2.20%         | 2.40%
-18     | 2.20%          | 2.60%   | 2.70%         | 2.90%
-24     | 2.50%          | 2.90%   | 3.00%         | 3.20%
-36     | 2.70%          | 3.10%   | 3.20%         | 3.40%
-48     | 2.70%          | 3.40%   | 3.50%         | 3.60%
-```
+### Correção
 
-### Comparação com Sistema Atual (vigência 2026-03-24)
+**Edge Function `clicksign-api/index.ts`:**
+- Na função `downloadPdfProxy`, após o fetch, validar que o `Content-Type` da resposta contém `application/pdf`. Se não for PDF (ex: HTML de redirect), seguir redirecionamentos manualmente ou extrair a URL real do HTML.
+- Adicionar `redirect: 'follow'` no fetch para garantir que redirecionamentos sejam seguidos automaticamente.
+- Validar os primeiros bytes do ArrayBuffer: um PDF válido começa com `%PDF`. Se não começar, logar erro e retornar mensagem clara.
+- Deploy automático da edge function.
 
-```text
-SISTEMA ATUAL → NOVO
-═══════════════════════════════════════════════════════
-NORMAL (sem seguro):
-  6m:  1.50% → 1.50% (igual)
-  9m:  NÃO EXISTIA → 1.50% (NOVO prazo)
-  12m: 2.00% → 2.00% (igual)
-  18m: 2.25% → 2.20% (REDUZIU 0.05pp)
-  24m: 2.50% → 2.50% (igual)
-  36m: 2.75% → 2.70% (REDUZIU 0.05pp)
-  48m: 2.75% → 2.70% (REDUZIU 0.05pp)
+**Frontend `ContractViewerDialog.tsx`:**
+- Mover criação do Blob URL para `useMemo` com dependência em `pdfBase64`, evitando recriações.
+- Usar `useEffect` para revogar o URL quando o componente desmonta ou o base64 muda.
+- Adicionar tratamento de erro: se `pdfBase64` não gerar Blob válido, mostrar mensagem "Erro ao carregar PDF" em vez de tela cinza.
 
-SEGURO 4 Parcelas:
-  12m: 2.15% → 2.20% (AUMENTOU 0.05pp)
-  18m: 2.65% → 2.60% (REDUZIU 0.05pp)
-  24m: 2.90% → 2.90% (igual)
-  36m: 3.15% → 3.10% (REDUZIU 0.05pp)
-  48m: 3.40% → 3.40% (igual)
+### Como ficará
+Ao clicar "Visualizar Contrato", o PDF abrirá corretamente dentro do modal. Se houver erro na ClickSign, o sistema mostrará mensagem explicativa em vez de tela cinza.
 
-SEGURO 6 Parcelas: INTEIRAMENTE NOVO (5 registros)
-SEGURO 9 Parcelas: INTEIRAMENTE NOVO (5 registros)
+---
 
-SEGURO 2 Parcelas: EXISTIA, NÃO ESTÁ NA PLANILHA (mantido como está)
-```
+## Problema 2: Consolidação de Dados Corban
 
-### Resumo de mudanças:
-- **7 registros "Normal"** (sem seguro) — 2 iguais, 3 reduziram, 1 novo prazo (9m), 1 novo prazo equivalente
-- **5 registros "4 Parcela"** — 1 aumentou, 2 reduziram, 2 iguais
-- **5 registros "6 Parcela"** — todos novos
-- **5 registros "9 Parcela"** — todos novos
-- **"2 Parcela"** — NÃO mencionado na planilha (serão mantidos como estão)
-- **Total de novos registros a inserir: 22**
+### O que será feito
 
-## Mapeamento para o Banco de Dados
-
-Tabela `commission_rates_clt`:
-- `bank`: "Banco C6"
-- `effective_date`: "2026-04-07" (hoje)
-- `has_insurance`: false para Normal/Todos, true para SEG 4P/6P/9P
-- `table_key`: NULL para Normal, "4 Parcela"/"6 Parcela"/"9 Parcela" para os com seguro
-- `term_min`/`term_max`: prazo exato (6,9,12,18,24,36,48)
-- `rate`: taxa em %
-- `obs`: "Normal" / "4 parcelas" / "6 parcelas" / "9 parcelas" / "Todos"
-
-Para prazo "36 ao 48 Normal" da planilha: criar 2 registros (term_min=36 term_max=36 e term_min=48 term_max=48, ambos 2.70%) OU um registro com term_min=36 term_max=48.
-
-## Dados Exatos para Inserção (22 registros)
+**1. Migration — Tabela `corban_propostas_snapshot`**
 
 ```text
-# NORMAL (sem seguro) — has_insurance=false, table_key=NULL
-1.  6,  6,  1.50%, obs="Todos"
-2.  9,  9,  1.50%, obs="Todos"
-3. 12, 12,  2.00%, obs="Normal"
-4. 18, 18,  2.20%, obs="Normal"
-5. 24, 24,  2.50%, obs="Normal"
-6. 36, 48,  2.70%, obs="Normal 36-48"
+Colunas:
+  id (uuid PK)
+  snapshot_date (timestamptz, default now())
+  proposta_id (text)
+  cpf (text)
+  nome (text)
+  banco (text)
+  produto (text)
+  status (text)
+  valor_liberado (numeric)
+  valor_parcela (numeric)
+  prazo (text)
+  vendedor_nome (text)
+  data_cadastro (text)
+  convenio (text)
+  raw_data (jsonb)
+  created_by (uuid)
 
-# SEGURO 4 PARCELAS — has_insurance=true, table_key="4 Parcela"
-7.  12, 12, 2.20%, obs="4 parcelas"
-8.  18, 18, 2.60%, obs="4 parcelas"
-9.  24, 24, 2.90%, obs="4 parcelas"
-10. 36, 36, 3.10%, obs="4 parcelas"
-11. 48, 48, 3.40%, obs="4 parcelas"
-
-# SEGURO 6 PARCELAS — has_insurance=true, table_key="6 Parcela"
-12. 12, 12, 2.20%, obs="6 parcelas"
-13. 18, 18, 2.70%, obs="6 parcelas"
-14. 24, 24, 3.00%, obs="6 parcelas"
-15. 36, 36, 3.20%, obs="6 parcelas"
-16. 48, 48, 3.50%, obs="6 parcelas"
-
-# SEGURO 9 PARCELAS — has_insurance=true, table_key="9 Parcela"
-17. 12, 12, 2.40%, obs="9 parcelas"
-18. 18, 18, 2.90%, obs="9 parcelas"
-19. 24, 24, 3.20%, obs="9 parcelas"
-20. 36, 36, 3.40%, obs="9 parcelas"
-21. 48, 48, 3.60%, obs="9 parcelas"
+RLS: Privileged can ALL, Authenticated can SELECT
+Índices: snapshot_date, status, banco
 ```
 
-Total: **21 registros** (36-48 Normal agrupado em 1).
+**Cleanup automático:** Função SQL `cleanup_old_corban_snapshots()` que remove snapshots > 90 dias + cron job diário.
 
-## Impacto no Trigger `calculate_commission`
+**2. CorbanPropostas.tsx — Botão "Salvar Snapshot"**
 
-O trigger já reconhece `table_key` "4 Parcela" via pattern matching `%4 PARCELA%`. Precisamos garantir que "6 Parcela" e "9 Parcela" também sejam reconhecidos. Atualmente o trigger tem:
+Adicionar botão que:
+- Busca propostas padrão dos últimos 30 dias via API Corban
+- Normaliza os dados
+- Insere no banco `corban_propostas_snapshot` com o `user.id` como `created_by`
+- Mostra toast com quantidade salva
 
-```sql
-ELSIF _table_name_upper LIKE '%4 PARCELA%' ... THEN _table_key := '4 Parcela';
-ELSIF _table_name_upper LIKE '%2 PARCELA%' ... THEN _table_key := '2 Parcela';
-```
+**3. CorbanDashboard.tsx — Seção de Analytics**
 
-Precisamos adicionar:
-```sql
-ELSIF _table_name_upper LIKE '%6 PARCELA%' ... THEN _table_key := '6 Parcela';
-ELSIF _table_name_upper LIKE '%9 PARCELA%' ... THEN _table_key := '9 Parcela';
-```
+Nova seção abaixo dos cards de navegação com:
 
-## Plano de Execução
+- **Gráfico de evolução por status** (BarChart, últimos 30 dias de snapshots agrupados por semana + status)
+- **Ranking de vendedores** (BarChart horizontal, top 10 por valor_liberado somado)
+- **Distribuição por banco** (PieChart com cores do padrão COLORS)
+- **Top status com valores** (tabela simples com status, quantidade e valor agregado)
+- **KPIs avançados** em 3 cards:
+  - Taxa de aprovação (aprovadas/total × 100%)
+  - Ticket médio (valor total / quantidade)
+  - Prazo médio (média dos prazos numéricos)
 
-### Etapa 1 — Inserir os 21 registros via INSERT
-- Inserir na tabela `commission_rates_clt` com `effective_date = '2026-04-07'`
-- As taxas antigas (vigência 2026-03-24) ficam preservadas para auditoria histórica
+Todos os gráficos usam Recharts (já instalado e usado em Performance, ChipMonitor, etc.).
 
-### Etapa 2 — Atualizar Trigger
-- Migration para recriar o trigger `calculate_commission` com suporte a "6 Parcela" e "9 Parcela"
+Os dados vêm da tabela `corban_propostas_snapshot` via query Supabase no frontend, filtrados pelos últimos 30 dias.
 
-### Etapa 3 — Relatório final
-- Consultar todos os registros inseridos e apresentar tabela comparativa confirmando os valores
+### Arquivos alterados
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/clicksign-api/index.ts` | Corrigir `downloadPdfProxy` |
+| `src/components/partners/ContractViewerDialog.tsx` | Corrigir Blob URL lifecycle |
+| Migration SQL (nova) | Criar `corban_propostas_snapshot` + cleanup cron |
+| `src/pages/admin/CorbanPropostas.tsx` | Botão "Salvar Snapshot" |
+| `src/pages/admin/CorbanDashboard.tsx` | Seção de analytics com gráficos |
+
+### Vantagens
+- Contrato funcional: elimina tela cinza e downloads vazios
+- Histórico Corban persistido para comparação temporal
+- Dashboard executivo com métricas reais
+- Cleanup automático evita crescimento descontrolado do banco
+
+### Desvantagens
+- Snapshots ocupam espaço (mitigado pelo cleanup de 90 dias)
+- KPIs dependem de snapshots salvos manualmente (não é automático)
+
+### Etapas de implementação
+1. Corrigir contrato (edge function + frontend)
+2. Migration da tabela snapshot + cron
+3. Botão "Salvar Snapshot" no CorbanPropostas
+4. Dashboard analytics no CorbanDashboard
 
