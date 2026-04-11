@@ -712,21 +712,69 @@ async function downloadPdfProxy(partnerId: string) {
   const urlResult = await getSignedDocumentUrl(partnerId);
   const pdfUrl = urlResult.signed_url;
 
-  // Fetch PDF via server-side to bypass CORS
+  console.log('downloadPdfProxy: fetching URL:', pdfUrl, 'source:', urlResult.source);
+
+  // Fetch PDF via server-side to bypass CORS, follow redirects
   const res = await fetch(pdfUrl, {
     headers: { 'Authorization': CLICKSIGN_TOKEN },
+    redirect: 'follow',
   });
 
   if (!res.ok) {
     const text = await res.text();
-    console.error('PDF download failed:', res.status, text);
+    console.error('PDF download failed:', res.status, text.substring(0, 500));
     throw new HttpError(res.status, `Falha ao baixar PDF: ${res.status}`);
   }
 
   const arrayBuffer = await res.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const uint8 = new Uint8Array(arrayBuffer);
 
+  // Validate PDF magic bytes (%PDF)
+  const header = String.fromCharCode(uint8[0], uint8[1], uint8[2], uint8[3], uint8[4]);
+  if (!header.startsWith('%PDF')) {
+    const textContent = new TextDecoder().decode(uint8.slice(0, 1000));
+    console.error('downloadPdfProxy: received non-PDF content:', textContent.substring(0, 300));
+    
+    // Try to extract redirect URL from HTML
+    const metaMatch = textContent.match(/url=([^"'\s>]+)/i);
+    const hrefMatch = textContent.match(/href="([^"]+)"/i);
+    const redirectUrl = metaMatch?.[1] || hrefMatch?.[1];
+    
+    if (redirectUrl) {
+      console.log('downloadPdfProxy: following HTML redirect to:', redirectUrl);
+      const res2 = await fetch(redirectUrl, { redirect: 'follow' });
+      if (!res2.ok) {
+        const t2 = await res2.text();
+        console.error('PDF redirect download failed:', res2.status, t2.substring(0, 300));
+        throw new HttpError(res2.status, `Falha ao baixar PDF após redirecionamento: ${res2.status}`);
+      }
+      const ab2 = await res2.arrayBuffer();
+      const u2 = new Uint8Array(ab2);
+      const h2 = String.fromCharCode(u2[0], u2[1], u2[2], u2[3], u2[4]);
+      if (!h2.startsWith('%PDF')) {
+        throw new HttpError(502, 'O arquivo retornado pela ClickSign não é um PDF válido mesmo após redirecionamento.');
+      }
+      // Encode in chunks to avoid stack overflow for large files
+      const base64 = encodeBase64(u2);
+      return { pdf_base64: base64, filename: `contrato_${urlResult.partner_name || 'parceiro'}.pdf` };
+    }
+
+    throw new HttpError(502, 'O arquivo retornado pela ClickSign não é um PDF válido. Verifique o status do contrato.');
+  }
+
+  // Encode in chunks to avoid stack overflow for large files
+  const base64 = encodeBase64(uint8);
   return { pdf_base64: base64, filename: `contrato_${urlResult.partner_name || 'parceiro'}.pdf` };
+}
+
+function encodeBase64(uint8: Uint8Array): string {
+  const CHUNK = 8192;
+  let result = '';
+  for (let i = 0; i < uint8.length; i += CHUNK) {
+    const chunk = uint8.subarray(i, Math.min(i + CHUNK, uint8.length));
+    result += String.fromCharCode(...chunk);
+  }
+  return btoa(result);
 }
 
 Deno.serve(async (req) => {
