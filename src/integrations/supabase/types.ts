@@ -694,6 +694,36 @@ export type Database = {
         }
         Relationships: []
       }
+      corban_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string
+          proposta_id: string | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          proposta_id?: string | null
+          tipo?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          proposta_id?: string | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       corban_propostas_snapshot: {
         Row: {
           banco: string | null
@@ -708,6 +738,7 @@ export type Database = {
           proposta_id: string | null
           raw_data: Json | null
           snapshot_date: string
+          snapshot_history: Json | null
           status: string | null
           updated_at: string | null
           valor_liberado: number | null
@@ -727,6 +758,7 @@ export type Database = {
           proposta_id?: string | null
           raw_data?: Json | null
           snapshot_date?: string
+          snapshot_history?: Json | null
           status?: string | null
           updated_at?: string | null
           valor_liberado?: number | null
@@ -746,6 +778,7 @@ export type Database = {
           proposta_id?: string | null
           raw_data?: Json | null
           snapshot_date?: string
+          snapshot_history?: Json | null
           status?: string | null
           updated_at?: string | null
           valor_liberado?: number | null
