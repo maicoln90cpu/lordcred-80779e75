@@ -15,6 +15,7 @@ import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Se
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
+import { ContractViewerDialog } from '@/components/partners/ContractViewerDialog';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial' },
@@ -105,6 +106,9 @@ export default function PartnerDetail() {
   const [newNote, setNewNote] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [resending, setResending] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerPdfBase64, setViewerPdfBase64] = useState('');
+  const [viewerFilename, setViewerFilename] = useState('');
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -374,12 +378,9 @@ export default function PartnerDetail() {
                               });
                               if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
                               if (data?.pdf_base64) {
-                                const byteChars = atob(data.pdf_base64);
-                                const byteArray = new Uint8Array(byteChars.length);
-                                for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
-                                const blob = new Blob([byteArray], { type: 'application/pdf' });
-                                const url = URL.createObjectURL(blob);
-                                window.open(url, '_blank');
+                                setViewerPdfBase64(data.pdf_base64);
+                                setViewerFilename(data.filename || 'contrato.pdf');
+                                setViewerOpen(true);
                               }
                             } catch (e: any) {
                               toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -446,12 +447,9 @@ export default function PartnerDetail() {
                             });
                             if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
                             if (data?.pdf_base64) {
-                              const byteChars = atob(data.pdf_base64);
-                              const byteArray = new Uint8Array(byteChars.length);
-                              for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
-                              const blob = new Blob([byteArray], { type: 'application/pdf' });
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
+                              setViewerPdfBase64(data.pdf_base64);
+                              setViewerFilename(data.filename || 'contrato.pdf');
+                              setViewerOpen(true);
                             }
                           } catch (e: any) {
                             toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -616,6 +614,14 @@ export default function PartnerDetail() {
         partnerName={form.nome}
         onConfirmSend={() => generateContractMutation.mutate()}
         isSending={generateContractMutation.isPending}
+      />
+
+      <ContractViewerDialog
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+        pdfBase64={viewerPdfBase64}
+        partnerName={form.nome}
+        filename={viewerFilename}
       />
     </DashboardLayout>
   );
