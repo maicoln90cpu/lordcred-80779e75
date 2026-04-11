@@ -516,6 +516,39 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_templates: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversation_notes: {
         Row: {
           chip_id: string
