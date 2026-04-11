@@ -331,7 +331,18 @@ export default function CorbanPropostas() {
         created_by: user?.id || null,
       }));
 
-      const { error: insertErr } = await supabase.from('corban_propostas_snapshot' as any).insert(rows as any);
+      // Separate rows with and without proposta_id
+      const withId = rows.filter(r => r.proposta_id);
+      const withoutId = rows.filter(r => !r.proposta_id);
+      let insertErr: any = null;
+      if (withId.length > 0) {
+        const { error } = await supabase.from('corban_propostas_snapshot' as any).upsert(withId as any, { onConflict: 'proposta_id' });
+        if (error) insertErr = error;
+      }
+      if (!insertErr && withoutId.length > 0) {
+        const { error } = await supabase.from('corban_propostas_snapshot' as any).insert(withoutId as any);
+        if (error) insertErr = error;
+      }
       if (insertErr) { toast.error('Erro ao salvar snapshot', { description: insertErr.message }); return; }
       toast.success(`Snapshot salvo com ${rows.length} propostas (últimos 30 dias)`);
     } finally {
