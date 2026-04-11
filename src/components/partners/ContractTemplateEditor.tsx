@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Save, Loader2, RotateCcw, Info } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Save, Loader2, RotateCcw, Info, Plus, Trash2, Star, Pencil, Copy, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const PLACEHOLDERS = [
   { key: '{{RAZAO_SOCIAL}}', desc: 'Razão social ou nome do parceiro' },
@@ -40,90 +43,20 @@ Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTÔNOMA, mediante as
 
 CLÁUSULA 1 – DO OBJETO
 O presente contrato tem por objeto comercialização, pela EMPRESA PARCEIRA, dos produtos e/ou serviços oferecidos pela CONTRATANTE, mediante as condições estabelecidas neste instrumento.
-§1º As atividades não descritas no objeto deste contrato não estarão sujeitas ao regime de parceria empresarial descrito neste instrumento.
 
 CLÁUSULA 2 – DA NATUREZA JURÍDICA DA RELAÇÃO
 O presente contrato possui natureza estritamente civil e comercial, não gerando qualquer vínculo empregatício, societário, associativo ou de representação comercial exclusiva entre as partes.
-§1º A EMPRESA PARCEIRA atuará com total autonomia, assumindo os riscos de sua atividade, inexistindo subordinação jurídica, pessoalidade, habitualidade compulsória ou contraprestação financeira fixa, razão pela qual inexistem, na presente relação comercial, os requisitos caracterizadores de relação de emprego (conforme arts 2º e 3º da CLT).
-§2º A EMPRESA PARCEIRA não estará sujeita a controle de jornada, exclusividade, fiscalização hierárquica ou qualquer forma de subordinação estrutural.
-§3º A EMPRESA PARCEIRA poderá prestar serviços a terceiros, salvo nas hipóteses previstas na cláusula de não concorrência deste contrato e desde que não conflite e/ou prejudique os interesses da CONTRATANTE.
-§4º A EMPRESA PARCEIRA é integralmente responsável pelo recolhimento de seus tributos, contribuições previdenciárias e demais encargos decorrentes dos valores recebidos.
-§5º A inexistência de resultados ou a ausência de intermediações não gera qualquer obrigação de pagamento mínimo por parte da CONTRATANTE.
-§6º A EMPRESA PARCEIRA não possui poderes para representar juridicamente a CONTRATANTE (tanto na esfera administrativa quanto judicial), salvo autorização expressa e escrita.
 
 CLÁUSULA 3 – DA REMUNERAÇÃO
-O PARCEIRO fará jus à comissão de no mínimo 0,50% (zero vírgula cinquenta por cento) sobre o valor dos produtos e/ou serviços que forem vendidos por sua intermediação.
-§1º O percentual de comissão poderá ser aumentado de acordo com o desempenho individual da EMPRESA PARCEIRA e o atingimento de metas comerciais estabelecidas pela CONTRATANTE, podendo haver majoração progressiva conforme critérios internos da empresa.
-§2º A comissão somente será devida após a efetiva venda e o pagamento pelo cliente.
-§3º Em caso de inadimplemento, cancelamento, distrato ou devolução de valores pelo cliente, a comissão não será devida ou poderá ser estornada proporcionalmente.
-§4º O pagamento será realizado até o dia {{DIA_PAGAMENTO}} do mês subsequente ao recebimento dos valores pela CONTRATANTE.
-§5º Não haverá pagamento de qualquer valor fixo, ajuda de custo, verba de representação ou remuneração mínima garantida.
-§6º Nos casos em que a EMPRESA PARCEIRA realizar indicação de novos clientes ou parceiros comerciais que venham a efetivamente contratar produtos ou serviços da CONTRATANTE, será devida bonificação adicional inicial de 0,10% (zero vírgula dez por cento) sobre o valor da negociação realizada, a qual também poderá ser aumentada, conforme critérios, interesse e disponibilidade da CONTRATANTE.
-§7º A bonificação por indicação poderá ser aumentada progressivamente conforme critérios de desempenho, volume de negócios gerados ou políticas comerciais internas da CONTRATANTE.
-
-CLÁUSULA 4 – DA NÃO CONCORRÊNCIA
-A EMPRESA PARCEIRA compromete-se, durante a vigência deste contrato e pelo prazo de 12 (doze) meses após sua rescisão, a não:
-a) Comercializar produtos ou serviços idênticos ou diretamente concorrentes aos da CONTRATANTE para clientes por ele prospectados durante a vigência deste contrato;
-b) Utilizar informações estratégicas, listas de clientes ou dados comerciais da CONTRATANTE para benefício próprio ou de terceiros;
-c) Desviar clientela vinculada aos negócios intermediados.
-§1º A restrição limita-se à área de atuação correspondente aos produtos/serviços objeto desta parceria, isto é, aqueles oferecidos pela CONTRATANTE.
-§2º A presente cláusula não impede a EMPRESA PARCEIRA de exercer sua atividade profissional de forma ampla, desde que não haja concorrência direta ou indireta nos termos acima definidos.
-
-CLÁUSULA 5 – DA CONFIDENCIALIDADE
-A EMPRESA PARCEIRA obriga-se a manter sigilo absoluto sobre todas as informações comerciais, estratégicas, financeiras e operacionais da CONTRATANTE a que tiver acesso em razão do presente contrato, obrigação essa que permanecerá por 5 (cinco) anos após o término deste contrato.
-§1º A EMPRESA PARCEIRA compromete-se a não divulgar, compartilhar, reproduzir ou utilizar para benefício próprio ou de terceiros quaisquer informações confidenciais a que tiver acesso em razão deste contrato.
-§2º A EMPRESA PARCEIRA responderá civil, administrativa e criminalmente pelo uso indevido, divulgação ou vazamento de quaisquer informações obtidas em razão desta relação contratual, ainda que tal utilização indevida seja praticada por terceiros que tenham tido acesso às informações por sua responsabilidade.
-§3º Consideram-se informações confidenciais, entre outras: dados de clientes, estratégias comerciais, listas de contatos, políticas internas, condições comerciais, documentos internos, informações financeiras e quaisquer outros dados não públicos da CONTRATANTE.
-§4º Durante o contrato a CONTRATANTE terá a liberdade de acrescentar novas informações confidenciais, sobre as quais a EMPRESA PARCEIRA terá o mesmo dever de confidencialidade exposto nesta cláusula.
-
-CLÁUSULA 6 – DO REGIME DE TRABALHO REMOTO (HOME OFFICE)
-As atividades desempenhadas pela EMPRESA PARCEIRA serão realizadas em regime de trabalho remoto (home office), sendo executadas integralmente fora das dependências físicas da CONTRATANTE.
-§1º Em razão da natureza autônoma da parceria e da realização das atividades em regime remoto, não haverá controle de jornada, fiscalização de horário, exigência de presença física nas dependências da CONTRATANTE ou imposição de rotina laboral pela CONTRATANTE.
-§2º A EMPRESA PARCEIRA será integralmente responsável pela estrutura necessária para execução de suas atividades, incluindo equipamentos, internet, local de trabalho, energia elétrica e demais recursos necessários.
-§3º A EMPRESA PARCEIRA declara estar ciente de que não possui horários e dias fixos de trabalho, podendo organizar livremente sua agenda e a forma de execução das atividades comerciais.
-
-CLÁUSULA 7 - DA PROTEÇÃO DE DADOS PESSOAIS (LGPD)
-A EMPRESA PARCEIRA declara estar ciente das disposições da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados – LGPD) e compromete-se a cumprir integralmente todos os seus dispositivos, especialmente no que se refere ao tratamento de dados pessoais a que tiver acesso em razão deste contrato.
-§1º Para os fins da LGPD, a EMPRESA PARCEIRA atuará na qualidade de OPERADOR, realizando o tratamento de dados pessoais exclusivamente em nome da CONTRATANTE, que figura como CONTROLADORA, limitando-se às finalidades estritamente necessárias à execução da parceria comercial.
-§2º A EMPRESA PARCEIRA compromete-se a:
-I – Tratar os dados pessoais apenas mediante instruções da CONTRATANTE;
-II – Utilizar os dados exclusivamente para fins relacionados à execução deste contrato, vedado qualquer uso diverso;
-III – Não compartilhar, ceder, divulgar ou disponibilizar dados pessoais a terceiros sem autorização prévia e expressa da CONTRATANTE;
-IV – Adotar medidas técnicas e administrativas aptas a proteger os dados pessoais contra acessos não autorizados, destruição, perda, alteração, comunicação ou qualquer forma de tratamento inadequado ou ilícito;
-V – Manter registro das operações de tratamento realizadas quando solicitado;
-VI – Assegurar que quaisquer pessoas eventualmente envolvidos no tratamento de dados estejam igualmente vinculadas a dever de confidencialidade.
-§3º A EMPRESA PARCEIRA compromete-se a comunicar imediatamente à CONTRATANTE a ocorrência de qualquer incidente de segurança que possa acarretar risco ou dano relevante aos titulares dos dados, fornecendo todas as informações necessárias para a adoção das medidas cabíveis.
-§4º Encerrado o presente contrato, a EMPRESA PARCEIRA deverá, a critério da CONTRATANTE, eliminar ou devolver todos os dados pessoais a que tiver tido acesso, ressalvadas hipóteses legais de conservação obrigatória.
-§5º O descumprimento das obrigações previstas nesta cláusula sujeitará a EMPRESA PARCEIRA à responsabilidade integral por eventuais danos causados à CONTRATANTE ou a terceiros, sem prejuízo da aplicação da multa contratual prevista neste instrumento.
-§6º As obrigações previstas nesta cláusula subsistirão mesmo após o término da relação contratual, pelo prazo legal aplicável.
-
-CLÁUSULA 8 – DA MULTA CONTRATUAL
-O descumprimento de qualquer cláusula ou obrigação prevista neste contrato sujeitará a parte infratora ao pagamento de multa contratual, sem prejuízo das demais medidas cabíveis.
-§1º Caso o descumprimento seja praticado pela EMPRESA PARCEIRA, esta ficará sujeita ao pagamento de multa equivalente a 30% (trinta por cento) do valor estimado das comissões percebidas nos últimos 12 (doze) meses, ou o valor mínimo de R$ 5.000,00 (cinco mil reais), prevalecendo o maior.
-§2º Caso o descumprimento seja praticado pela CONTRATANTE, esta ficará sujeita ao pagamento de multa equivalente a 10% (dez por cento) do valor estimado das comissões percebidas pela CONTRATADA nos últimos 12 (doze) meses.
-§3º No caso específico de violação da cláusula de confidencialidade, não concorrência, uso indevido de marca, carteira de clientes ou informações comerciais da CONTRATANTE, a multa aplicável à EMPRESA PARCEIRA será equivalente a R$ 5.000,00 (cinco mil reais) ou 40% (quarenta por cento) do valor do negócio envolvido, prevalecendo o maior valor.
-§4º A aplicação da multa contratual não exclui o direito da parte prejudicada de pleitear indenização suplementar por perdas e danos caso o prejuízo efetivamente sofrido seja superior ao valor da penalidade estipulada.
+O PARCEIRO fará jus à comissão de no mínimo 0,50% sobre o valor dos produtos e/ou serviços que forem vendidos por sua intermediação.
+§1º O pagamento será realizado até o dia {{DIA_PAGAMENTO}} do mês subsequente ao recebimento dos valores pela CONTRATANTE.
 
 CLÁUSULA 9 – DA VIGÊNCIA E RESCISÃO
 O presente contrato vigorará por prazo determinado de {{VIGENCIA_MESES}} meses.
 §1º Este contrato poderá ser rescindido por qualquer das partes mediante aviso prévio por escrito com antecedência mínima de {{AVISO_PREVIO_DIAS}} dias.
-§2º Poderá haver rescisão imediata em caso de:
-a) Descumprimento/violação de quaisquer cláusulas;
-b) Ato que prejudique a CONTRATANTE em qualquer esfera (civil, administrativa e/ou criminal);
-c) Utilização indevida da marca, nome empresarial, logotipo ou quaisquer sinais distintivos da CONTRATANTE;
-d) Prática de conduta que cause ou possa causar dano à imagem, reputação ou credibilidade da CONTRATANTE perante clientes, parceiros ou o mercado;
-e) Comercialização de produtos ou serviços da CONTRATANTE em desacordo com as condições, valores ou políticas previamente estabelecidas;
-f) Prestação de informações falsas, incompletas ou enganosas a clientes, parceiros ou à própria CONTRATANTE;
-g) Transferência, cessão ou delegação das atividades previstas neste contrato a terceiros sem prévia e expressa autorização da CONTRATANTE;
-h) Envolvimento da EMPRESA PARCEIRA em práticas ilícitas, fraudulentas ou contrárias à legislação vigente;
-i) Decretação de falência, recuperação judicial, dissolução ou encerramento das atividades da EMPRESA PARCEIRA, quando aplicável;
-j) Prática de concorrência desleal ou comercialização de produtos ou serviços concorrentes em desacordo com as condições estabelecidas neste contrato;
-k) Qualquer conduta da EMPRESA PARCEIRA que comprometa a execução regular do objeto contratual.
 
 CLÁUSULA 10 – DO FORO
-Fica eleito o foro da Comarca de Palhoça/SC, com renúncia a qualquer outro, por mais privilegiado que seja, para dirimir eventuais controvérsias.
-
-E por estarem justas e contratadas, firmam o presente instrumento em duas vias de igual teor.
+Fica eleito o foro da Comarca de Palhoça/SC para dirimir eventuais controvérsias.
 
 Palhoça/SC, {{DIA}} de {{MES}} de {{ANO}}.
 
@@ -133,75 +66,256 @@ LORD CRED (CONTRATANTE)
 ___________________________________
 {{CNPJ_CURTO}} {{REPRESENTANTE_NOME}} (EMPRESA PARCEIRA)`;
 
+interface TemplateRow {
+  id: string;
+  name: string;
+  content: string;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
 export function ContractTemplateEditor() {
-  const [template, setTemplate] = useState('');
-  const [original, setOriginal] = useState('');
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editName, setEditName] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [originalName, setOriginalName] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameName, setRenameName] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
+  const loadTemplates = useCallback(async () => {
+    const { data } = await supabase
+      .from('contract_templates')
+      .select('*')
+      .eq('is_active', true)
+      .order('is_default', { ascending: false })
+      .order('created_at');
+    
+    let list = (data || []) as TemplateRow[];
+
+    // If no templates exist, seed with the legacy one from system_settings or the default
+    if (list.length === 0) {
+      const { data: settings } = await supabase
         .from('system_settings')
         .select('contract_template')
         .limit(1)
         .single();
-      const text = data?.contract_template || '';
-      if (text.length > 500) {
-        setTemplate(text);
-        setOriginal(text);
-      } else {
-        setTemplate(DEFAULT_TEMPLATE);
-        setOriginal(DEFAULT_TEMPLATE);
-        await supabase
-          .from('system_settings')
-          .update({ contract_template: DEFAULT_TEMPLATE })
-          .not('id', 'is', null);
-        console.log('Auto-saved default contract template to DB');
+      
+      const content = (settings?.contract_template && (settings.contract_template as string).length > 500)
+        ? settings.contract_template as string
+        : DEFAULT_TEMPLATE;
+
+      const { data: user } = await supabase.auth.getUser();
+      const { data: inserted } = await supabase
+        .from('contract_templates')
+        .insert({ name: 'Parceria Padrão', content, is_default: true, created_by: user.user?.id })
+        .select()
+        .single();
+      
+      if (inserted) list = [inserted as TemplateRow];
+    }
+
+    setTemplates(list);
+    return list;
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const list = await loadTemplates();
+      if (list.length > 0) {
+        selectTemplate(list[0]);
       }
       setLoading(false);
     })();
   }, []);
 
+  const selectTemplate = (t: TemplateRow) => {
+    setSelectedId(t.id);
+    setEditContent(t.content);
+    setEditName(t.name);
+    setOriginalContent(t.content);
+    setOriginalName(t.name);
+  };
+
+  const isDirty = editContent !== originalContent || editName !== originalName;
+
   const handleSave = async () => {
+    if (!selectedId) return;
     setSaving(true);
+
     const { error } = await supabase
-      .from('system_settings')
-      .update({ contract_template: template })
-      .not('id', 'is', null);
-    setSaving(false);
+      .from('contract_templates')
+      .update({ content: editContent, name: editName })
+      .eq('id', selectedId);
+
     if (error) {
-      toast.error('Erro ao salvar template', { description: error.message });
+      toast.error('Erro ao salvar', { description: error.message });
     } else {
-      setOriginal(template);
-      toast.success('Template do contrato salvo com sucesso!');
+      setOriginalContent(editContent);
+      setOriginalName(editName);
+      toast.success('Template salvo com sucesso!');
+
+      // Sync default template to system_settings for backward compatibility
+      const selected = templates.find(t => t.id === selectedId);
+      if (selected?.is_default) {
+        await supabase
+          .from('system_settings')
+          .update({ contract_template: editContent })
+          .not('id', 'is', null);
+      }
+      await loadTemplates();
     }
+    setSaving(false);
   };
 
-  const handleReset = async () => {
-    setTemplate(DEFAULT_TEMPLATE);
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('system_settings')
-      .update({ contract_template: DEFAULT_TEMPLATE })
-      .not('id', 'is', null);
-    setSaving(false);
+    const { data: user } = await supabase.auth.getUser();
+    const { data: inserted, error } = await supabase
+      .from('contract_templates')
+      .insert({ name: newName.trim(), content: DEFAULT_TEMPLATE, is_default: false, created_by: user.user?.id })
+      .select()
+      .single();
+
     if (error) {
-      toast.error('Erro ao restaurar template', { description: error.message });
-    } else {
-      setOriginal(DEFAULT_TEMPLATE);
-      toast.success('Template restaurado ao padrão com sucesso!');
+      toast.error('Erro ao criar template', { description: error.message });
+    } else if (inserted) {
+      const list = await loadTemplates();
+      selectTemplate(inserted as TemplateRow);
+      toast.success(`Template "${newName.trim()}" criado!`);
     }
+    setShowNewDialog(false);
+    setNewName('');
+    setSaving(false);
   };
 
-  const dirty = template !== original;
+  const handleDuplicate = async () => {
+    if (!selectedId) return;
+    setSaving(true);
+    const { data: user } = await supabase.auth.getUser();
+    const { data: dup, error } = await supabase
+      .from('contract_templates')
+      .insert({ name: `${editName} (cópia)`, content: editContent, is_default: false, created_by: user.user?.id })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error('Erro ao duplicar', { description: error.message });
+    } else if (dup) {
+      const list = await loadTemplates();
+      selectTemplate(dup as TemplateRow);
+      toast.success('Template duplicado!');
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    const selected = templates.find(t => t.id === selectedId);
+    if (selected?.is_default) {
+      toast.error('Não é possível excluir o template padrão');
+      setShowDeleteDialog(false);
+      return;
+    }
+    setSaving(true);
+    await supabase.from('contract_templates').update({ is_active: false }).eq('id', selectedId);
+    const list = await loadTemplates();
+    if (list.length > 0) selectTemplate(list[0]);
+    else { setSelectedId(null); setEditContent(''); setEditName(''); }
+    toast.success('Template excluído!');
+    setShowDeleteDialog(false);
+    setSaving(false);
+  };
+
+  const handleSetDefault = async () => {
+    if (!selectedId) return;
+    setSaving(true);
+    // Remove default from all
+    await supabase.from('contract_templates').update({ is_default: false }).eq('is_default', true);
+    // Set this as default
+    await supabase.from('contract_templates').update({ is_default: true }).eq('id', selectedId);
+    // Sync to system_settings
+    await supabase.from('system_settings').update({ contract_template: editContent }).not('id', 'is', null);
+    
+    const list = await loadTemplates();
+    toast.success('Template definido como padrão!');
+    setSaving(false);
+  };
+
+  const handleRename = async () => {
+    if (!renameName.trim() || !selectedId) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('contract_templates')
+      .update({ name: renameName.trim() })
+      .eq('id', selectedId);
+    if (error) {
+      toast.error('Erro ao renomear', { description: error.message });
+    } else {
+      setEditName(renameName.trim());
+      setOriginalName(renameName.trim());
+      await loadTemplates();
+      toast.success('Template renomeado!');
+    }
+    setShowRenameDialog(false);
+    setSaving(false);
+  };
+
+  const handleResetContent = () => {
+    setEditContent(DEFAULT_TEMPLATE);
+  };
+
+  const selected = templates.find(t => t.id === selectedId);
 
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
   return (
     <div className="space-y-4">
+      {/* Template selector bar */}
       <Card>
-        <CardHeader>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground shrink-0">Templates:</span>
+            <div className="flex gap-2 flex-wrap flex-1">
+              {templates.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    if (isDirty) {
+                      if (!confirm('Você tem alterações não salvas. Deseja trocar de template mesmo assim?')) return;
+                    }
+                    selectTemplate(t);
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border',
+                    t.id === selectedId
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
+                  )}
+                >
+                  {t.is_default && <Star className="w-3 h-3 fill-current" />}
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setShowNewDialog(true)}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Placeholders */}
+      <Card>
+        <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Info className="w-4 h-4 text-primary" />
             Placeholders Disponíveis
@@ -212,10 +326,7 @@ export function ContractTemplateEditor() {
             {PLACEHOLDERS.map(p => (
               <button
                 key={p.key}
-                onClick={() => {
-                  navigator.clipboard.writeText(p.key);
-                  toast.success(`"${p.key}" copiado!`);
-                }}
+                onClick={() => { navigator.clipboard.writeText(p.key); toast.success(`"${p.key}" copiado!`); }}
                 className="inline-flex items-center gap-1.5 group"
                 title={`${p.desc} — clique para copiar`}
               >
@@ -229,32 +340,100 @@ export function ContractTemplateEditor() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center justify-between">
-            <span>Texto Base do Contrato</span>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={handleReset}>
-                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Restaurar Padrão
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
-                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-                {saving ? 'Salvando...' : 'Salvar Template'}
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[60vh]">
-            <Textarea
-              value={template}
-              onChange={e => setTemplate(e.target.value)}
-              className="min-h-[55vh] font-mono text-xs resize-none leading-relaxed"
-              spellCheck={false}
-            />
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      {/* Editor */}
+      {selected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span>{editName}</span>
+                {selected.is_default && <Badge variant="default" className="text-xs">Padrão</Badge>}
+                {isDirty && <Badge variant="outline" className="text-xs text-destructive border-destructive/50">Não salvo</Badge>}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="ghost" size="sm" onClick={() => { setRenameName(editName); setShowRenameDialog(true); }}>
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> Renomear
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleDuplicate}>
+                  <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                </Button>
+                {!selected.is_default && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={handleSetDefault}>
+                      <Star className="w-3.5 h-3.5 mr-1" /> Definir Padrão
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteDialog(true)}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleResetContent}>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Restaurar Padrão
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={!isDirty || saving}>
+                  {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[55vh]">
+              <Textarea
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                className="min-h-[50vh] font-mono text-xs resize-none leading-relaxed"
+                spellCheck={false}
+              />
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* New template dialog */}
+      <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Novo Template</DialogTitle></DialogHeader>
+          <Input placeholder="Nome do template" value={newName} onChange={e => setNewName(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewDialog(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={!newName.trim() || saving}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Renomear Template</DialogTitle></DialogHeader>
+          <Input value={renameName} onChange={e => setRenameName(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRenameDialog(false)}>Cancelar</Button>
+            <Button onClick={handleRename} disabled={!renameName.trim() || saving}>
+              <Check className="w-3.5 h-3.5 mr-1" /> Renomear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Excluir Template</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir o template "{selected?.name}"? Esta ação não pode ser desfeita.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+              <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
