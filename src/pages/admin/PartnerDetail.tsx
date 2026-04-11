@@ -447,12 +447,9 @@ export default function PartnerDetail() {
                             });
                             if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
                             if (data?.pdf_base64) {
-                              const byteChars = atob(data.pdf_base64);
-                              const byteArray = new Uint8Array(byteChars.length);
-                              for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
-                              const blob = new Blob([byteArray], { type: 'application/pdf' });
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
+                              setViewerPdfBase64(data.pdf_base64);
+                              setViewerFilename(data.filename || 'contrato.pdf');
+                              setViewerOpen(true);
                             }
                           } catch (e: any) {
                             toast({ title: 'Erro', description: e.message, variant: 'destructive' });
