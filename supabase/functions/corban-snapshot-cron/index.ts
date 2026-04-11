@@ -105,8 +105,6 @@ Deno.serve(async (req) => {
     console.log(`[corban-snapshot-cron] Got ${items.length} proposals`);
 
     if (items.length === 0) {
-      // Cleanup old snapshots even if no new data
-      await supabaseAdmin.rpc('cleanup_old_corban_snapshots');
       return new Response(JSON.stringify({ success: true, count: 0, message: 'No proposals found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -127,28 +125,42 @@ Deno.serve(async (req) => {
       data_cadastro: extractField(item, 'data_cadastro', 'dataCadastro', 'created_at') as string | null,
       convenio: extractField(item, 'convenio', 'convenio_nome') as string | null,
       raw_data: item,
-      created_by: null, // cron job - no user
+      created_by: null,
+      updated_at: new Date().toISOString(),
     }));
 
-    // Insert in batches of 500
+    // Upsert in batches of 500 (deduplicate by proposta_id)
     const BATCH_SIZE = 500;
-    let insertedTotal = 0;
+    let upsertedTotal = 0;
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      const { error } = await supabaseAdmin.from('corban_propostas_snapshot').insert(batch);
-      if (error) {
-        console.error(`[corban-snapshot-cron] Insert batch error:`, error);
-        throw new Error(`Insert error: ${error.message}`);
+      // Filter out rows without proposta_id (can't upsert without unique key)
+      const withId = batch.filter((r: any) => r.proposta_id);
+      const withoutId = batch.filter((r: any) => !r.proposta_id);
+
+      if (withId.length > 0) {
+        const { error } = await supabaseAdmin
+          .from('corban_propostas_snapshot')
+          .upsert(withId, { onConflict: 'proposta_id' });
+        if (error) {
+          console.error(`[corban-snapshot-cron] Upsert batch error:`, error);
+          throw new Error(`Upsert error: ${error.message}`);
+        }
       }
-      insertedTotal += batch.length;
+      if (withoutId.length > 0) {
+        const { error } = await supabaseAdmin
+          .from('corban_propostas_snapshot')
+          .insert(withoutId);
+        if (error) {
+          console.error(`[corban-snapshot-cron] Insert batch error:`, error);
+        }
+      }
+      upsertedTotal += batch.length;
     }
 
-    // Cleanup old snapshots (>90 days)
-    await supabaseAdmin.rpc('cleanup_old_corban_snapshots');
+    console.log(`[corban-snapshot-cron] Snapshot saved: ${upsertedTotal} proposals (upsert, no cleanup).`);
 
-    console.log(`[corban-snapshot-cron] Snapshot saved: ${insertedTotal} proposals. Cleanup executed.`);
-
-    return new Response(JSON.stringify({ success: true, count: insertedTotal }), {
+    return new Response(JSON.stringify({ success: true, count: upsertedTotal }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
