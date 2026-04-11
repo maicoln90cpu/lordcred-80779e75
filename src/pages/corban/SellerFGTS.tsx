@@ -32,6 +32,7 @@ export default function SellerFGTS() {
   const [inserting, setInserting] = useState(false);
   const [instituicao, setInstituicao] = useState('facta');
   const [logins, setLogins] = useState<Login[]>([]);
+  const [loadingLogins, setLoadingLogins] = useState(false);
   const [selectedLogin, setSelectedLogin] = useState('');
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -51,13 +52,36 @@ export default function SellerFGTS() {
 
   useEffect(() => {
     if (!canInsert) return;
+    setLoadingLogins(true);
+    setLogins([]);
+    setSelectedLogin('');
     (async () => {
-      const { data } = await invokeCorban('listLogins', { instituicao });
+      const { data, error } = await invokeCorban('listLogins', { instituicao });
+      setLoadingLogins(false);
+      if (error) {
+        toast.error('Erro ao carregar logins', { description: error });
+        return;
+      }
       if (data) {
-        const raw = Array.isArray(data) ? data : (data?.logins || data?.data || []);
-        const list = Array.isArray(raw) ? raw.map((l: any) => typeof l === 'string' ? { id: l, nome: l } : l) : [];
+        // Normalize: API may return array, { logins: [] }, { data: [] }, or object with keys
+        let raw: any[] = [];
+        if (Array.isArray(data)) {
+          raw = data;
+        } else if (Array.isArray(data?.logins)) {
+          raw = data.logins;
+        } else if (Array.isArray(data?.data)) {
+          raw = data.data;
+        } else if (typeof data === 'object') {
+          // Some APIs return { "login1": {...}, "login2": {...} }
+          raw = Object.entries(data).map(([key, val]) => 
+            typeof val === 'object' ? { id: key, ...(val as any) } : { id: key, nome: String(val) }
+          );
+        }
+        const list = raw.map((l: any) => 
+          typeof l === 'string' ? { id: l, nome: l } : { id: String(l.id || l.login || l.nome || ''), nome: l.nome || l.label || l.login || String(l.id || '') }
+        ).filter(l => l.id);
         setLogins(list);
-        if (list.length > 0) setSelectedLogin(String(list[0].id || ''));
+        if (list.length > 0) setSelectedLogin(list[0].id);
       }
     })();
   }, [instituicao, canInsert]);
