@@ -35,6 +35,8 @@ export default function Users() {
   const { user: currentUser, isAdmin, isSupport, userRole } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const { sort, toggle } = useSortState();
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -368,10 +370,16 @@ export default function Users() {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {applySortToData(users, sort, (item, key) => {
-                    if (key === 'name') return item.name || item.email;
-                    return (item as any)[key];
-                  }).map((user) => (
+                  {(() => {
+                    const sorted = applySortToData(users, sort, (item, key) => {
+                      if (key === 'name') return item.name || item.email;
+                      return (item as any)[key];
+                    });
+                    const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+                    const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+                    return (
+                      <>
+                        {paged.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
@@ -469,6 +477,20 @@ export default function Users() {
                       )}
                     </TableRow>
                   ))}
+                  {totalPages > 1 && (
+                    <TableRow>
+                      <TableCell colSpan={isSupport ? 4 : 5}>
+                        <div className="flex items-center justify-center gap-2 py-1">
+                          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                          <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({sorted.length} usuários)</span>
+                          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                      </>
+                    );
+                  })()}
                 </TableBody>
               </Table>
             )}

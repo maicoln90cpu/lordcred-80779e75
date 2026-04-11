@@ -262,6 +262,8 @@ export default function CorbanPropostas() {
     return { exactPayload: true, filters };
   };
 
+  const [totalFetched, setTotalFetched] = useState(0);
+
   const executeSearch = async (payload: Record<string, unknown>) => {
     setLoading(true);
     const { data, error } = await invokeCorban('getPropostas', payload);
@@ -271,7 +273,16 @@ export default function CorbanPropostas() {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = normalizeCorbanPropostasInput(data);
+    let list = normalizeCorbanPropostasInput(data);
+    setTotalFetched(list.length);
+    // Client-side CPF filtering (API may ignore searchString)
+    const cpfSearch = searchCpf.replace(/\D/g, '').trim();
+    if (cpfSearch.length >= 3) {
+      list = list.filter(p => {
+        const pCpf = (p.cpf || '').replace(/\D/g, '');
+        return pCpf.includes(cpfSearch);
+      });
+    }
     setPropostas(list);
     if (list.length === 0) {
       toast.info('Nenhuma proposta encontrada para os filtros informados');
@@ -501,7 +512,12 @@ export default function CorbanPropostas() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{propostas.length} proposta(s) encontrada(s)</CardTitle>
+                  <CardTitle className="text-base">
+                    {propostas.length} proposta(s) encontrada(s)
+                    {totalFetched > propostas.length && (
+                      <span className="text-xs text-muted-foreground font-normal ml-2">(filtrado de {totalFetched} total)</span>
+                    )}
+                  </CardTitle>
                   {/* Column selector */}
                   <Popover>
                     <PopoverTrigger asChild>
