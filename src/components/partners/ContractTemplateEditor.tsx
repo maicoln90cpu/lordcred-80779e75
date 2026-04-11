@@ -34,7 +34,7 @@ LORD CRED, pessoa jurídica de direito privado, inscrita no CNPJ nº 42.824.770/
 
 E, de outro lado:
 
-{{RAZAO_SOCIAL}}, pessoa jurídica de direito privado, inscrita no CNPJ nº {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, CPF n. {{REPRESENTANTE_CPF}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;
+{{RAZAO_SOCIAL}}, pessoa jurídica de direito privado, inscrita no CNPJ nº {{CNPJ}}, com sede na {{ENDERECO_PJ}}, neste ato representada por {{REPRESENTANTE_NOME}}, nacionalidade {{REPRESENTANTE_NACIONALIDADE}}, estado civil {{REPRESENTANTE_ESTADO_CIVIL}}, residente e domiciliado na {{REPRESENTANTE_ENDERECO}}, doravante denominada EMPRESA PARCEIRA;
 
 Resolvem firmar o presente CONTRATO DE PARCERIA COMERCIAL AUTÔNOMA, mediante as cláusulas e condições seguintes:
 
@@ -178,8 +178,20 @@ export function ContractTemplateEditor() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setTemplate(DEFAULT_TEMPLATE);
+    setSaving(true);
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ contract_template: DEFAULT_TEMPLATE })
+      .not('id', 'is', null);
+    setSaving(false);
+    if (error) {
+      toast.error('Erro ao restaurar template', { description: error.message });
+    } else {
+      setOriginal(DEFAULT_TEMPLATE);
+      toast.success('Template restaurado ao padrão com sucesso!');
+    }
   };
 
   const dirty = template !== original;
