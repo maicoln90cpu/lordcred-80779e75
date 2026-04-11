@@ -122,7 +122,7 @@ export function CorbanAnalyticsTab() {
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1">
-            {[7, 30, 60, 90].map(days => (
+            {[7, 30, 60, 90, 180].map(days => (
               <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setSnapDateFrom(subDays(new Date(), days)); setSnapDateTo(new Date()); }}>
                 {days}d
               </Button>
