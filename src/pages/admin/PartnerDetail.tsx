@@ -346,7 +346,7 @@ export default function PartnerDetail() {
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo do representante" required error={contractErrors.nome} />
-                    <PartnerField label="CPF do Representante" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00 (opcional)" error={contractErrors.cpf} />
+                    <PartnerField label="CPF do Representante" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00" required error={contractErrors.cpf} />
                     <PartnerField label="Telefone" field="telefone" value={form.telefone} onChange={updateField} placeholder="(00) 00000-0000" required error={contractErrors.telefone} />
                     <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
                     <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" required error={contractErrors.nacionalidade} />
