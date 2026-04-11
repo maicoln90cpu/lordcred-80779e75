@@ -205,10 +205,41 @@ export default function PartnerDetail() {
     }
   }, [partner]);
 
-  const updateField = (field: string, value: any) => {
+  const [cepLoading, setCepLoading] = useState(false);
+
+  const updateField = useCallback((field: string, value: any) => {
+    // Apply masks for specific fields
+    if (field === 'cnpj') value = formatCnpj(value || '');
+    else if (field === 'cpf') value = formatCpf(value || '');
+    else if (field === 'telefone') value = formatPhone(value || '');
+    else if (field === 'endereco_pj_cep') value = formatCep(value || '');
     setForm(prev => ({ ...prev, [field]: value }));
     setDirty(true);
-  };
+  }, []);
+
+  // CEP auto-fill via ViaCEP
+  useEffect(() => {
+    const cepRaw = (form.endereco_pj_cep || '').replace(/\D/g, '');
+    if (cepRaw.length !== 8) return;
+    let cancelled = false;
+    setCepLoading(true);
+    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || data.erro) return;
+        setForm(prev => ({
+          ...prev,
+          endereco_pj_rua: data.logradouro || prev.endereco_pj_rua,
+          endereco_pj_bairro: data.bairro || prev.endereco_pj_bairro,
+          endereco_pj_municipio: data.localidade || prev.endereco_pj_municipio,
+          endereco_pj_uf: data.uf || prev.endereco_pj_uf,
+        }));
+        setDirty(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCepLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.endereco_pj_cep]);
 
   const contractErrors = useMemo(() => validateForContract(form), [form]);
   const canGenerateContract = Object.keys(contractErrors).length === 0;
