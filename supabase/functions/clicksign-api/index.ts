@@ -617,44 +617,31 @@ async function getEnvelopeStatus(envelopeId: string) {
   return await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'GET');
 }
 
-async function getSignedDocumentUrl(partnerId: string) {
+async function getDocumentInfo(partnerId: string) {
   const { data: partner, error } = await supabaseAdmin
     .from('partners').select('document_key, envelope_id, nome, contrato_url').eq('id', partnerId).single();
   if (error || !partner) throw new HttpError(404, 'Parceiro não encontrado');
 
-  // Strategy 1: Build direct download URL using account ID + document ID from envelope
-  if (partner.envelope_id && CLICKSIGN_ACCOUNT_ID) {
-    try {
-      const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
-      const docs = docsRes?.data || [];
-      console.log('Envelope documents for download:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
-
-      if (docs.length > 0) {
-        const docId = docs[0].id;
-        // Check envelope status to determine kind
-        const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
-        const envStatus = envRes?.data?.attributes?.status || '';
-        const kind = envStatus === 'closed' ? 'signed' : 'original';
-        const downloadUrl = `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${docId}?kind=${kind}`;
-        console.log('Built download URL:', downloadUrl, 'envelope status:', envStatus);
-        return { signed_url: downloadUrl, source: 'direct_download', partner_name: partner.nome };
-      }
-    } catch (e) {
-      console.warn('Failed to build direct download URL:', e);
-    }
+  if (!partner.envelope_id) {
+    throw new HttpError(404, 'Não foi possível obter a URL do documento. Verifique se o contrato foi gerado.');
   }
 
-  // Strategy 2: Use contrato_url from DB if it looks like a download URL
-  if (partner.contrato_url && partner.contrato_url.includes('/download/packs/direct/')) {
-    return { signed_url: partner.contrato_url, source: 'db_url', partner_name: partner.nome };
+  // Get documents from envelope via API
+  const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
+  const docs = docsRes?.data || [];
+  console.log('Envelope documents for download:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
+
+  if (docs.length === 0) {
+    throw new HttpError(404, 'Nenhum documento encontrado no envelope.');
   }
 
-  // Strategy 3: Fallback to envelope page
-  if (partner.envelope_id) {
-    return { signed_url: `${CLICKSIGN_BASE_URL}/envelopes/${partner.envelope_id}`, source: 'envelope_fallback', partner_name: partner.nome };
-  }
+  const docId = docs[0].id;
 
-  throw new HttpError(404, 'Não foi possível obter a URL do documento. Verifique se o contrato foi gerado.');
+  // Check envelope status to determine kind
+  const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
+  const envStatus = envRes?.data?.attributes?.status || '';
+
+  return { envelope_id: partner.envelope_id, document_id: docId, envelope_status: envStatus, partner_name: partner.nome };
 }
 
 async function resendNotification(partnerId: string, userId: string) {
