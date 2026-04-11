@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Webhook, RefreshCw, Clock, Flame, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface WebhookLog {
   id: string;
@@ -33,6 +34,7 @@ const eventColors: Record<string, string> = {
 
 export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
+  const { sort, toggle } = useSortState();
   const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,18 +147,18 @@ export default function WebhookDiagnostics() {
             <ScrollArea className="h-[calc(100vh-280px)]">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Data/Hora</TableHead>
-                    <TableHead>Instância</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Evento</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Resultado</TableHead>
-                    <TableHead className="w-16">Payload</TableHead>
-                  </TableRow>
+                  <tr>
+                    <TSHead label="Data/Hora" sortKey="created_at" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Instância" sortKey="instance_name" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Origem" sortKey="chip_id" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Evento" sortKey="event_type" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Status" sortKey="status_code" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Resultado" sortKey="processing_result" sort={sort} toggle={toggle} className="text-xs" />
+                    <th className="w-16 px-4 py-2 text-sm font-medium">Payload</th>
+                  </tr>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map(log => {
+                  {applySortToData(filteredLogs, sort).map(log => {
                     const source = getSource(log.chip_id);
                     return (
                       <TableRow key={log.id}>

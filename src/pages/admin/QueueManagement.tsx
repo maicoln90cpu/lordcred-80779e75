@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, Pause, Play, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface QueueItem {
   id: string;
@@ -41,6 +42,7 @@ const statusConfig: Record<string, { label: string; className: string; icon: typ
 export default function QueueManagement() {
   const { toast } = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
+  const { sort, toggle } = useSortState();
   const [chips, setChips] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -215,21 +217,21 @@ export default function QueueManagement() {
             <ScrollArea className="h-[calc(100vh-380px)]">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">
+                  <tr>
+                    <th className="w-10 px-4 py-2">
                       <input type="checkbox" checked={selectedItems.size === filteredItems.length && filteredItems.length > 0} onChange={toggleSelectAll} className="rounded" />
-                    </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Chip</TableHead>
-                    <TableHead>Destinatário</TableHead>
-                    <TableHead>Mensagem</TableHead>
-                    <TableHead>Tentativas</TableHead>
-                    <TableHead>Agendado</TableHead>
-                    <TableHead>Erro</TableHead>
-                  </TableRow>
+                    </th>
+                    <TSHead label="Status" sortKey="status" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Chip" sortKey="chip_id" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Destinatário" sortKey="recipient_phone" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Mensagem" sortKey="message_content" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Tentativas" sortKey="attempts" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Agendado" sortKey="scheduled_at" sort={sort} toggle={toggle} className="text-xs" />
+                    <TSHead label="Erro" sortKey="error_message" sort={sort} toggle={toggle} className="text-xs" />
+                  </tr>
                 </TableHeader>
                 <TableBody>
-                  {filteredItems.map(item => {
+                  {applySortToData(filteredItems, sort).map(item => {
                     const st = statusConfig[item.status] || statusConfig.pending;
                     const StIcon = st.icon;
                     return (

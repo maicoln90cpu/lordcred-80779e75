@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Plus, Users as UsersIcon, Shield, ShieldOff, Smartphone, Loader2, Trash2, Pencil, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface UserProfile {
   id: string;
@@ -33,6 +34,7 @@ export default function Users() {
   const { toast } = useToast();
   const { user: currentUser, isAdmin, isSupport, userRole } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const { sort, toggle } = useSortState();
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -357,16 +359,19 @@ export default function Users() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Chips</TableHead>
-                    <TableHead>Status</TableHead>
-                    {!isSupport && <TableHead className="text-right">Ações</TableHead>}
-                  </TableRow>
+                  <tr>
+                    <TSHead label="Usuário" sortKey="name" sort={sort} toggle={toggle} />
+                    <TSHead label="Role" sortKey="role" sort={sort} toggle={toggle} />
+                    <TSHead label="Chips" sortKey="chip_count" sort={sort} toggle={toggle} />
+                    <TSHead label="Status" sortKey="is_blocked" sort={sort} toggle={toggle} />
+                    {!isSupport && <th className="text-right px-4 py-2 text-sm font-medium">Ações</th>}
+                  </tr>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {applySortToData(users, sort, (item, key) => {
+                    if (key === 'name') return item.name || item.email;
+                    return (item as any)[key];
+                  }).map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>

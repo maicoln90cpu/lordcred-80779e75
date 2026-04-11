@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark } from 'lucide-react';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface BankCredential {
   id: string;
@@ -30,6 +31,7 @@ export default function BankCredentials() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const { sort, toggle } = useSortState();
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['bank-credentials'],
@@ -42,6 +44,8 @@ export default function BankCredentials() {
       return data as BankCredential[];
     },
   });
+
+  const sorted = useMemo(() => applySortToData(banks, sort), [banks, sort]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: typeof emptyForm & { id?: string }) => {
@@ -129,21 +133,21 @@ export default function BankCredentials() {
           <CardContent>
             {isLoading ? (
               <p className="text-muted-foreground text-center py-8">Carregando...</p>
-            ) : banks.length === 0 ? (
+            ) : sorted.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">Nenhum banco cadastrado</p>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Banco</TableHead>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Senha</TableHead>
-                    <TableHead>Link</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
+                  <tr>
+                    <TSHead label="Banco" sortKey="bank_name" sort={sort} toggle={toggle} />
+                    <TSHead label="Usuário" sortKey="username" sort={sort} toggle={toggle} />
+                    <TSHead label="Senha" sortKey="password" sort={sort} toggle={toggle} />
+                    <TSHead label="Link" sortKey="link" sort={sort} toggle={toggle} />
+                    <th className="text-right px-4 py-2 text-sm font-medium">Ações</th>
+                  </tr>
                 </TableHeader>
                 <TableBody>
-                  {banks.map(b => (
+                  {sorted.map(b => (
                     <TableRow key={b.id}>
                       <TableCell className="font-medium">{b.bank_name}</TableCell>
                       <TableCell>{b.username}</TableCell>
@@ -185,7 +189,6 @@ export default function BankCredentials() {
         </Card>
       </div>
 
-      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={v => { if (!v) closeDialog(); }}>
         <DialogContent>
           <DialogHeader>
@@ -218,7 +221,6 @@ export default function BankCredentials() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <Dialog open={!!deleteId} onOpenChange={v => { if (!v) setDeleteId(null); }}>
         <DialogContent>
           <DialogHeader>
