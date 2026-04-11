@@ -255,7 +255,7 @@ export default function QueueManagement() {
                   })}
                   {filteredItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum item na fila</TableCell>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12"><Clock className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum item na fila</p></TableCell>
                     </TableRow>
                   )}
                 </TableBody>

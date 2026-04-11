@@ -320,9 +320,9 @@ export default function PartnersAdmin() {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" /></TableCell></TableRow>
                     ) : filtered.length === 0 ? (
-                      <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-8 text-muted-foreground">Nenhum parceiro encontrado</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-12 text-muted-foreground"><User className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum parceiro encontrado</p></TableCell></TableRow>
                     ) : filtered.map(p => (
                       <TableRow key={p.id} className="hover:bg-muted/50">
                         <TableCell className="sticky left-0 bg-background z-10 font-medium cursor-pointer" onClick={() => navigate(`/admin/parceiros/${p.id}`)}>

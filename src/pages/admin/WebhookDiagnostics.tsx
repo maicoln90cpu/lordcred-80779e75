@@ -198,7 +198,7 @@ export default function WebhookDiagnostics() {
                   })}
                   {filteredLogs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum log de webhook</TableCell>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12"><Webhook className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum log de webhook encontrado</p></TableCell>
                     </TableRow>
                   )}
                 </TableBody>

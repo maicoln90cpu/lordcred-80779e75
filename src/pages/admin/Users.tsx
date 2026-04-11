@@ -353,9 +353,9 @@ export default function Users() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
             ) : users.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">Nenhum usuário cadastrado</div>
+              <div className="text-center py-12 text-muted-foreground"><UsersIcon className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum usuário cadastrado</p></div>
             ) : (
               <Table>
                 <TableHeader>
