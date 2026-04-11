@@ -113,6 +113,7 @@ export default function AuditLogs() {
   const [hasMore, setHasMore] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | LogStatus>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
@@ -153,7 +154,8 @@ export default function AuditLogs() {
       log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (log.target_table?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesAction = filterAction === 'all' || log.action === filterAction;
-    return matchesSearch && matchesAction;
+    const matchesStatus = filterStatus === 'all' || getLogStatus(log) === filterStatus;
+    return matchesSearch && matchesAction && matchesStatus;
   });
   const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
@@ -269,6 +271,23 @@ export default function AuditLogs() {
                       {actionLabels[a]?.label || a}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'all' | LogStatus)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filtrar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="success">
+                    <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-400" /> Sucesso</span>
+                  </SelectItem>
+                  <SelectItem value="error">
+                    <span className="flex items-center gap-1.5"><XCircle className="w-3 h-3 text-destructive" /> Erro</span>
+                  </SelectItem>
+                  <SelectItem value="info">
+                    <span className="flex items-center gap-1.5"><Info className="w-3 h-3 text-muted-foreground" /> Info</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <Badge variant="outline" className="gap-1">
