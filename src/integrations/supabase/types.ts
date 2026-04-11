@@ -754,6 +754,41 @@ export type Database = {
         }
         Relationships: []
       }
+      corban_seller_mapping: {
+        Row: {
+          corban_name: string
+          created_at: string
+          id: string
+          similarity_score: number | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          corban_name: string
+          created_at?: string
+          id?: string
+          similarity_score?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          corban_name?: string
+          created_at?: string
+          id?: string
+          similarity_score?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corban_seller_mapping_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       cr_geral: {
         Row: {
           ade: string | null
@@ -2465,6 +2500,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_match_corban_sellers: { Args: never; Returns: Json }
       calculate_commission_audit: {
         Args: { _date_from?: string; _date_to?: string }
         Returns: {
@@ -2552,6 +2588,8 @@ export type Database = {
       is_privileged: { Args: { _user_id?: string }; Returns: boolean }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       reset_daily_message_count: { Args: never; Returns: undefined }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       update_channel_info: {
         Args: {
           _admin_only?: boolean
