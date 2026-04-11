@@ -114,7 +114,6 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   if (!form.endereco_pj_municipio || (form.endereco_pj_municipio || '').trim().length < 2) errors.endereco_pj_municipio = 'Município é obrigatório';
   if (!form.endereco_pj_uf || (form.endereco_pj_uf || '').trim().length < 2) errors.endereco_pj_uf = 'UF é obrigatória';
   if (!form.endereco_pj_cep || (form.endereco_pj_cep || '').trim().length < 5) errors.endereco_pj_cep = 'CEP é obrigatório';
-  // PIX PJ optional
 
   // === Representante Legal ===
   const nome = (form.nome || '').trim();
@@ -123,7 +122,6 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome do representante';
   else if (/\d/.test(nome)) errors.nome = 'Nome não pode conter números';
 
-  // CPF obrigatório e válido
   const cpf = (form.cpf || '').replace(/\D/g, '');
   if (!cpf) errors.cpf = 'CPF do representante é obrigatório';
   else if (!isValidCpf(cpf)) errors.cpf = 'CPF inválido';
@@ -132,7 +130,14 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
   if (!form.nacionalidade || (form.nacionalidade || '').trim().length < 3) errors.nacionalidade = 'Nacionalidade é obrigatória';
   if (!form.estado_civil || (form.estado_civil || '').trim().length < 3) errors.estado_civil = 'Estado civil é obrigatório';
-  if (!form.endereco || (form.endereco || '').trim().length < 5) errors.endereco = 'Endereço pessoal é obrigatório';
+  
+  // Endereço pessoal — campos estruturados
+  if (!form.endereco_rep_cep || (form.endereco_rep_cep || '').replace(/\D/g, '').length < 8) errors.endereco_rep_cep = 'CEP pessoal é obrigatório';
+  if (!form.endereco_rep_rua || (form.endereco_rep_rua || '').trim().length < 3) errors.endereco_rep_rua = 'Rua é obrigatória';
+  if (!form.endereco_rep_numero || (form.endereco_rep_numero || '').trim().length < 1) errors.endereco_rep_numero = 'Número é obrigatório';
+  if (!form.endereco_rep_bairro || (form.endereco_rep_bairro || '').trim().length < 2) errors.endereco_rep_bairro = 'Bairro é obrigatório';
+  if (!form.endereco_rep_municipio || (form.endereco_rep_municipio || '').trim().length < 2) errors.endereco_rep_municipio = 'Município é obrigatório';
+  if (!form.endereco_rep_uf || (form.endereco_rep_uf || '').trim().length < 2) errors.endereco_rep_uf = 'UF é obrigatória';
 
   return errors;
 }
@@ -206,6 +211,7 @@ export default function PartnerDetail() {
   }, [partner]);
 
   const [cepLoading, setCepLoading] = useState(false);
+  const [cepRepLoading, setCepRepLoading] = useState(false);
 
   const updateField = useCallback((field: string, value: any) => {
     // Apply masks for specific fields
@@ -213,6 +219,7 @@ export default function PartnerDetail() {
     else if (field === 'cpf') value = formatCpf(value || '');
     else if (field === 'telefone') value = formatPhone(value || '');
     else if (field === 'endereco_pj_cep') value = formatCep(value || '');
+    else if (field === 'endereco_rep_cep') value = formatCep(value || '');
     setForm(prev => ({ ...prev, [field]: value }));
     setDirty(true);
   }, []);
@@ -241,6 +248,30 @@ export default function PartnerDetail() {
     return () => { cancelled = true; };
   }, [form.endereco_pj_cep]);
 
+  // CEP auto-fill for representative address
+  useEffect(() => {
+    const cepRaw = (form.endereco_rep_cep || '').replace(/\D/g, '');
+    if (cepRaw.length !== 8) return;
+    let cancelled = false;
+    setCepRepLoading(true);
+    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || data.erro) return;
+        setForm(prev => ({
+          ...prev,
+          endereco_rep_rua: data.logradouro || prev.endereco_rep_rua,
+          endereco_rep_bairro: data.bairro || prev.endereco_rep_bairro,
+          endereco_rep_municipio: data.localidade || prev.endereco_rep_municipio,
+          endereco_rep_uf: data.uf || prev.endereco_rep_uf,
+        }));
+        setDirty(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCepRepLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.endereco_rep_cep]);
+
   const contractErrors = useMemo(() => validateForContract(form), [form]);
   const canGenerateContract = Object.keys(contractErrors).length === 0;
 
@@ -257,6 +288,17 @@ export default function PartnerDetail() {
       if (rua && mun) {
         const parts = [rua, num ? `n. ${num}` : '', bairro ? `bairro ${bairro}` : '', `${mun}${uf ? ' ' + uf : ''}`, cep ? `CEP ${cep}` : ''].filter(Boolean);
         updates.endereco_pj = parts.join(', ');
+      }
+      // Auto-fill endereco from representative structured fields
+      const repRua = (updates.endereco_rep_rua || '').trim();
+      const repNum = (updates.endereco_rep_numero || '').trim();
+      const repBairro = (updates.endereco_rep_bairro || '').trim();
+      const repMun = (updates.endereco_rep_municipio || '').trim();
+      const repUf = (updates.endereco_rep_uf || '').trim();
+      const repCep = (updates.endereco_rep_cep || '').trim();
+      if (repRua && repMun) {
+        const parts = [repRua, repNum ? `n. ${repNum}` : '', repBairro ? `bairro ${repBairro}` : '', `${repMun}${repUf ? ' ' + repUf : ''}`, repCep ? `CEP ${repCep}` : ''].filter(Boolean);
+        updates.endereco = parts.join(', ');
       }
       const { error } = await supabase.from('partners').update(updates).eq('id', id!);
       if (error) throw error;
@@ -436,7 +478,23 @@ export default function PartnerDetail() {
                     <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
                     <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" required error={contractErrors.nacionalidade} />
                     <PartnerField label="Estado Civil" field="estado_civil" value={form.estado_civil} onChange={updateField} placeholder="Solteiro(a)" required error={contractErrors.estado_civil} />
-                    <PartnerField label="Endereço Pessoal" field="endereco" value={form.endereco} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF" colSpan required error={contractErrors.endereco} />
+                    <div className="col-span-1 sm:col-span-2">
+                      <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1 mb-3 mt-2"><MapPin className="w-3.5 h-3.5" /> Endereço Pessoal</h3>
+                    </div>
+                    <div className="relative">
+                      <PartnerField label="CEP" field="endereco_rep_cep" value={form.endereco_rep_cep} onChange={updateField} placeholder="00000-000" required error={contractErrors.endereco_rep_cep} />
+                      {cepRepLoading && (
+                        <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
+                        </div>
+                      )}
+                    </div>
+                    <PartnerField label="Rua / Logradouro" field="endereco_rep_rua" value={form.endereco_rep_rua} onChange={updateField} placeholder="Rua..." required error={contractErrors.endereco_rep_rua} />
+                    <PartnerField label="Número" field="endereco_rep_numero" value={form.endereco_rep_numero} onChange={updateField} placeholder="123" required error={contractErrors.endereco_rep_numero} />
+                    <PartnerField label="Complemento" field="endereco_rep_complemento" value={form.endereco_rep_complemento} onChange={updateField} placeholder="Apto, Sala..." />
+                    <PartnerField label="Bairro" field="endereco_rep_bairro" value={form.endereco_rep_bairro} onChange={updateField} placeholder="Centro" required error={contractErrors.endereco_rep_bairro} />
+                    <PartnerField label="Município" field="endereco_rep_municipio" value={form.endereco_rep_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_rep_municipio} />
+                    <PartnerField label="UF" field="endereco_rep_uf" value={form.endereco_rep_uf} onChange={updateField} placeholder="SC" required error={contractErrors.endereco_rep_uf} />
                   </div>
                 </CardContent>
               </Card>
