@@ -617,6 +617,30 @@ async function getEnvelopeStatus(envelopeId: string) {
   return await clicksignFetch(`/api/v3/envelopes/${envelopeId}`, 'GET');
 }
 
+function getPreferredDocumentFileUrl(document: any, envelopeStatus?: string): string | null {
+  const files = document?.links?.files;
+  if (!files || typeof files !== 'object') return null;
+
+  const preferredOrder = envelopeStatus === 'closed'
+    ? ['signed', 'original']
+    : ['original', 'signed'];
+
+  for (const key of preferredOrder) {
+    const candidate = files[key];
+    if (typeof candidate === 'string' && /^https?:\/\//i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of Object.values(files)) {
+    if (typeof candidate === 'string' && /^https?:\/\//i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 async function getDocumentInfo(partnerId: string) {
   const { data: partner, error } = await supabaseAdmin
     .from('partners').select('document_key, envelope_id, nome, contrato_url').eq('id', partnerId).single();
@@ -629,19 +653,27 @@ async function getDocumentInfo(partnerId: string) {
   // Get documents from envelope via API
   const docsRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}/documents`, 'GET');
   const docs = docsRes?.data || [];
-  console.log('Envelope documents for download:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key }))));
+  console.log('Envelope documents for download:', JSON.stringify(docs.map((d: any) => ({ id: d.id, key: d.attributes?.key, fileKeys: Object.keys(d?.links?.files || {}) }))));
 
   if (docs.length === 0) {
     throw new HttpError(404, 'Nenhum documento encontrado no envelope.');
   }
 
-  const docId = docs[0].id;
+  const doc = docs[0];
+  const docId = doc.id;
 
   // Check envelope status to determine kind
   const envRes = await clicksignFetch(`/api/v3/envelopes/${partner.envelope_id}`, 'GET');
   const envStatus = envRes?.data?.attributes?.status || '';
+  const fileUrl = getPreferredDocumentFileUrl(doc, envStatus);
 
-  return { envelope_id: partner.envelope_id, document_id: docId, envelope_status: envStatus, partner_name: partner.nome };
+  return {
+    envelope_id: partner.envelope_id,
+    document_id: docId,
+    envelope_status: envStatus,
+    partner_name: partner.nome,
+    file_url: fileUrl,
+  };
 }
 
 async function resendNotification(partnerId: string, userId: string) {
@@ -697,7 +729,7 @@ async function resendNotification(partnerId: string, userId: string) {
 
 async function downloadPdfProxy(partnerId: string) {
   const docInfo = await getDocumentInfo(partnerId);
-  const { envelope_id, document_id, envelope_status, partner_name } = docInfo;
+  const { envelope_id, document_id, envelope_status, partner_name, file_url } = docInfo;
 
   // Extract raw token from Authorization header format (e.g. "Token token=XXX" → "XXX")
   const rawToken = CLICKSIGN_TOKEN.replace(/^Token\s+token=/i, '').replace(/^Bearer\s+/i, '').trim();
@@ -730,40 +762,34 @@ async function downloadPdfProxy(partnerId: string) {
     }
   }
 
-  // Strategy 1: API v3 download endpoint
-  let pdf = await tryFetchPdf(
-    `${CLICKSIGN_BASE_URL}/api/v3/envelopes/${envelope_id}/documents/${document_id}/download`,
-    'api-v3-download',
-    { headers: { 'Authorization': CLICKSIGN_TOKEN, 'Accept': 'application/pdf, application/octet-stream, */*' } }
-  );
+  // Strategy 1: use the fresh file URL returned by ClickSign's document payload
+  let pdf = file_url
+    ? await tryFetchPdf(file_url, 'v3-links-files')
+    : null;
 
-  // Strategy 2: Direct URL with access_token as query parameter
+  // Strategy 2: refresh document details and use links.files again
   if (!pdf) {
-    const kind = envelope_status === 'closed' ? 'signed' : 'original';
-    pdf = await tryFetchPdf(
-      `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${document_id}?kind=${kind}&access_token=${rawToken}`,
-      'direct-with-token-param'
-    );
-  }
-
-  // Strategy 3: ClickSign v1-style download with document key
-  if (!pdf) {
-    // Get document key from attributes
     try {
       const docRes = await clicksignFetch(`/api/v3/envelopes/${envelope_id}/documents/${document_id}`, 'GET');
       const attrs = docRes?.data?.attributes || {};
-      const docKey = attrs.key || attrs.document_key;
-      console.log('downloadPdfProxy: document attributes:', JSON.stringify(Object.keys(attrs)), 'key:', docKey);
+      const fileKeys = Object.keys(docRes?.data?.links?.files || {});
+      const detailedFileUrl = getPreferredDocumentFileUrl(docRes?.data, envelope_status);
+      console.log('downloadPdfProxy: document attributes:', JSON.stringify(Object.keys(attrs)), 'file keys:', JSON.stringify(fileKeys), 'key:', attrs.key || attrs.document_key);
 
-      if (docKey) {
-        // Try v1 download with key
-        pdf = await tryFetchPdf(
-          `${CLICKSIGN_BASE_URL}/api/v1/documents/${docKey}/download?access_token=${rawToken}`,
-          'v1-download-key'
-        );
+      if (detailedFileUrl) {
+        pdf = await tryFetchPdf(detailedFileUrl, 'v3-links-files-detail');
       }
 
-      // Try download_url from attributes
+      if (!pdf) {
+        const docKey = attrs.key || attrs.document_key;
+        if (docKey) {
+          pdf = await tryFetchPdf(
+            `${CLICKSIGN_BASE_URL}/api/v1/documents/${docKey}/download?access_token=${rawToken}`,
+            'v1-download-key'
+          );
+        }
+      }
+
       const downloadUrl = attrs.download_url || attrs.file_url || attrs.url || attrs.original_file_url;
       if (!pdf && downloadUrl) {
         pdf = await tryFetchPdf(downloadUrl, 'attr-download-url');
@@ -773,7 +799,25 @@ async function downloadPdfProxy(partnerId: string) {
     }
   }
 
-  // Strategy 4: Try v1 documents list to find download
+  // Strategy 3: API v3 download endpoint
+  if (!pdf) {
+    pdf = await tryFetchPdf(
+      `${CLICKSIGN_BASE_URL}/api/v3/envelopes/${envelope_id}/documents/${document_id}/download`,
+      'api-v3-download',
+      { headers: { 'Authorization': CLICKSIGN_TOKEN, 'Accept': 'application/pdf, application/octet-stream, */*' } }
+    );
+  }
+
+  // Strategy 4: Direct URL with access_token as query parameter
+  if (!pdf) {
+    const kind = envelope_status === 'closed' ? 'signed' : 'original';
+    pdf = await tryFetchPdf(
+      `${CLICKSIGN_BASE_URL}/accounts/${CLICKSIGN_ACCOUNT_ID}/download/packs/direct/${document_id}?kind=${kind}&access_token=${rawToken}`,
+      'direct-with-token-param'
+    );
+  }
+
+  // Strategy 5: Try v1 documents list to find download
   if (!pdf) {
     try {
       const v1Url = `${CLICKSIGN_BASE_URL}/api/v1/documents?access_token=${rawToken}`;
