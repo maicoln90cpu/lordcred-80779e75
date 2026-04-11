@@ -190,8 +190,7 @@ function SnapshotTimeline({ propostaId, resolveCachedLabel }: { propostaId: stri
   );
 }
 
-
-  const { user } = useAuth();
+export default function CorbanPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
