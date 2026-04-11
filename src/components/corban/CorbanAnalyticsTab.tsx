@@ -54,12 +54,15 @@ export function CorbanAnalyticsTab() {
 
   const loadSnapshots = async () => {
     setLoadingSnapshots(true);
+    // data_cadastro is text 'YYYY-MM-DD HH:mm:ss', filter using it for real temporal data
+    const fromStr = format(snapDateFrom, 'yyyy-MM-dd');
+    const toStr = format(snapDateTo, 'yyyy-MM-dd') + ' 23:59:59';
     const { data, error } = await supabase
       .from('corban_propostas_snapshot')
-      .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date')
-      .gte('snapshot_date', snapDateFrom.toISOString())
-      .lte('snapshot_date', snapDateTo.toISOString())
-      .order('snapshot_date', { ascending: false });
+      .select('status, banco, valor_liberado, prazo, vendedor_nome, snapshot_date, data_cadastro')
+      .gte('data_cadastro', fromStr)
+      .lte('data_cadastro', toStr)
+      .order('data_cadastro', { ascending: false });
     setLoadingSnapshots(false);
     if (error) { console.error('Error loading snapshots:', error); return; }
     setSnapshots((data || []) as SnapshotRow[]);
