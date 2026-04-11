@@ -32,6 +32,166 @@ interface SellerPdfExportProps {
 
 const fmtBRL = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
+const CHART_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
+];
+
+function drawBarChart(
+  data: { name: string; value: number }[],
+  title: string,
+  width: number,
+  height: number,
+): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = width * 2; // 2x for retina
+  canvas.height = height * 2;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(2, 2);
+
+  const padding = { top: 40, right: 20, bottom: 60, left: 60 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+
+  // Title
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, width / 2, 24);
+
+  if (data.length === 0) return canvas.toDataURL('image/png');
+
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+  const barWidth = Math.min(40, (chartW / data.length) * 0.6);
+  const gap = (chartW - barWidth * data.length) / (data.length + 1);
+
+  // Y-axis grid lines
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 0.5;
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const yVal = (maxVal / 4) * i;
+    const yPos = padding.top + chartH - (chartH * (yVal / maxVal));
+    ctx.beginPath();
+    ctx.moveTo(padding.left, yPos);
+    ctx.lineTo(width - padding.right, yPos);
+    ctx.stroke();
+    ctx.fillText(String(Math.round(yVal)), padding.left - 6, yPos + 3);
+  }
+
+  // Bars
+  data.forEach((d, i) => {
+    const barH = (d.value / maxVal) * chartH;
+    const x = padding.left + gap + i * (barWidth + gap);
+    const y = padding.top + chartH - barH;
+
+    // Bar
+    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
+    ctx.fill();
+
+    // Value on top
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(d.value), x + barWidth / 2, y - 4);
+
+    // Label below
+    ctx.fillStyle = '#64748b';
+    ctx.font = '8px sans-serif';
+    ctx.save();
+    ctx.translate(x + barWidth / 2, padding.top + chartH + 8);
+    ctx.rotate(-Math.PI / 6);
+    ctx.textAlign = 'right';
+    const label = d.name.length > 18 ? d.name.substring(0, 16) + '…' : d.name;
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  });
+
+  return canvas.toDataURL('image/png');
+}
+
+function drawPieChart(
+  data: { name: string; value: number }[],
+  title: string,
+  width: number,
+  height: number,
+): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = width * 2;
+  canvas.height = height * 2;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(2, 2);
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+
+  // Title
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, width / 2, 24);
+
+  if (data.length === 0) return canvas.toDataURL('image/png');
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const centerX = width * 0.35;
+  const centerY = height / 2 + 10;
+  const radius = Math.min(centerX - 20, centerY - 40);
+
+  let startAngle = -Math.PI / 2;
+
+  data.forEach((d, i) => {
+    const sliceAngle = (d.value / total) * Math.PI * 2;
+
+    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+    ctx.closePath();
+    ctx.fill();
+
+    // Thin white border between slices
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    startAngle += sliceAngle;
+  });
+
+  // Legend on the right
+  const legendX = width * 0.62;
+  let legendY = 44;
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'left';
+
+  data.forEach((d, i) => {
+    if (legendY > height - 10) return;
+    const pct = ((d.value / total) * 100).toFixed(1);
+
+    // Color box
+    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.fillRect(legendX, legendY - 7, 10, 10);
+
+    // Label
+    ctx.fillStyle = '#1e293b';
+    const label = d.name.length > 16 ? d.name.substring(0, 14) + '…' : d.name;
+    ctx.fillText(`${label} (${pct}%)`, legendX + 14, legendY + 2);
+
+    legendY += 16;
+  });
+
+  return canvas.toDataURL('image/png');
+}
+
 export function SellerPdfExport({ sellerName, dateFrom, dateTo, analytics, snapshots, resolveStatus }: SellerPdfExportProps) {
   const [generating, setGenerating] = useState(false);
 
@@ -100,11 +260,47 @@ export function SellerPdfExport({ sellerName, dateFrom, dateTo, analytics, snaps
 
       y = (doc as any).lastAutoTable.finalY + 10;
 
-      // Status breakdown
+      // ===== CHARTS SECTION =====
+      const chartWidth = 360;
+      const chartHeight = 200;
+      const chartMmWidth = pageWidth - margin * 2;
+      const chartMmHeight = (chartMmWidth / chartWidth) * chartHeight;
+
+      // Bar chart — Status distribution
       if (analytics.statusData.length > 0) {
+        if (y + chartMmHeight + 10 > 270) { doc.addPage(); y = 20; }
+
+        const barImg = drawBarChart(
+          analytics.statusData.slice(0, 10),
+          'Distribuição por Status',
+          chartWidth,
+          chartHeight,
+        );
+        doc.addImage(barImg, 'PNG', margin, y, chartMmWidth, chartMmHeight);
+        y += chartMmHeight + 8;
+      }
+
+      // Pie chart — Bank distribution
+      if (analytics.bancoData.length > 0) {
+        if (y + chartMmHeight + 10 > 270) { doc.addPage(); y = 20; }
+
+        const pieImg = drawPieChart(
+          analytics.bancoData.slice(0, 10),
+          'Distribuição por Banco',
+          chartWidth,
+          chartHeight,
+        );
+        doc.addImage(pieImg, 'PNG', margin, y, chartMmWidth, chartMmHeight);
+        y += chartMmHeight + 8;
+      }
+
+      // Status breakdown table
+      if (analytics.statusData.length > 0) {
+        if (y + 30 > 270) { doc.addPage(); y = 20; }
+
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
-        doc.text('Distribuição por Status', margin, y);
+        doc.text('Detalhamento por Status', margin, y);
         y += 6;
 
         (doc as any).autoTable({
@@ -124,13 +320,13 @@ export function SellerPdfExport({ sellerName, dateFrom, dateTo, analytics, snaps
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
-      // Bank breakdown
+      // Bank breakdown table
       if (analytics.bancoData.length > 0) {
-        if (y > 230) { doc.addPage(); y = 20; }
+        if (y + 30 > 270) { doc.addPage(); y = 20; }
 
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
-        doc.text('Distribuição por Banco', margin, y);
+        doc.text('Detalhamento por Banco', margin, y);
         y += 6;
 
         (doc as any).autoTable({
