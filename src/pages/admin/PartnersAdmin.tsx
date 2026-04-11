@@ -49,6 +49,32 @@ const CRM_COLUMNS: { key: string; label: string; options: string[] }[] = [
 
 const INACTIVITY_DAYS = 7;
 
+function isValidCpf(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 11 || /^(\d)\1{10}$/.test(raw)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(raw[i]) * (10 - i);
+  if (((sum * 10) % 11) % 10 !== Number(raw[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(raw[i]) * (11 - i);
+  return ((sum * 10) % 11) % 10 === Number(raw[10]);
+}
+
+function formatCpf(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 3) return raw;
+  if (raw.length <= 6) return `${raw.slice(0, 3)}.${raw.slice(3)}`;
+  if (raw.length <= 9) return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+  return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+}
+
+function formatPhone(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+  return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+}
+
 const getStatusBadge = (status: string) => {
   const s = PIPELINE_STATUSES.find(p => p.value === status);
   return s ? <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.color}`}>{s.label}</span> : <Badge variant="outline">{status}</Badge>;
@@ -71,6 +97,7 @@ export default function PartnersAdmin() {
     captacao_tipo: '', indicado_por: '',
     pipeline_status: 'contato_inicial', obs: '',
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const { data: allPartners = [], isLoading } = useQuery({
     queryKey: ['partners'],
@@ -131,6 +158,7 @@ export default function PartnersAdmin() {
       setDialogOpen(false);
       setForm({ nome: '', telefone: '', cpf: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
       setDuplicateWarning('');
+      setFormErrors({});
       toast({ title: 'Parceiro criado com sucesso' });
     },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
@@ -390,32 +418,35 @@ export default function PartnersAdmin() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setDuplicateWarning(''); }}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setDuplicateWarning(''); setFormErrors({}); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Novo Parceiro</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label>Nome *</Label>
-              <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome completo" />
+              <Label>Nome <span className="text-destructive">*</span></Label>
+              <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome completo" className={formErrors.nome ? 'border-destructive' : ''} />
+              {formErrors.nome && <p className="text-xs text-destructive">{formErrors.nome}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Telefone</Label>
                 <Input value={form.telefone} onChange={e => {
-                  const v = e.target.value;
+                  const v = formatPhone(e.target.value);
                   setForm(f => ({ ...f, telefone: v }));
                   checkDuplicate(form.cpf, v);
                 }} placeholder="(00) 00000-0000" />
               </div>
               <div className="grid gap-2">
-                <Label>CPF</Label>
+                <Label>CPF do Representante <span className="text-destructive">*</span></Label>
                 <Input value={form.cpf} onChange={e => {
-                  const v = e.target.value;
+                  const v = formatCpf(e.target.value);
                   setForm(f => ({ ...f, cpf: v }));
                   checkDuplicate(v, form.telefone);
-                }} placeholder="000.000.000-00" />
+                  if (formErrors.cpf) setFormErrors(prev => { const n = { ...prev }; delete n.cpf; return n; });
+                }} placeholder="000.000.000-00" className={formErrors.cpf ? 'border-destructive' : ''} />
+                {formErrors.cpf && <p className="text-xs text-destructive">{formErrors.cpf}</p>}
               </div>
             </div>
 
@@ -468,7 +499,16 @@ export default function PartnersAdmin() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => createMutation.mutate()} disabled={!form.nome || createMutation.isPending}>
+            <Button onClick={() => {
+              const errors: Record<string, string> = {};
+              if (!form.nome.trim()) errors.nome = 'Nome é obrigatório';
+              const cpfRaw = form.cpf.replace(/\D/g, '');
+              if (!cpfRaw) errors.cpf = 'CPF do representante é obrigatório';
+              else if (!isValidCpf(cpfRaw)) errors.cpf = 'CPF inválido — verifique os dígitos';
+              setFormErrors(errors);
+              if (Object.keys(errors).length > 0) return;
+              createMutation.mutate();
+            }} disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Salvando...' : 'Criar Parceiro'}
             </Button>
           </DialogFooter>
