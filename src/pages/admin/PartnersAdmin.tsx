@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User, Download, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User, Download, AlertTriangle, Loader2 } from 'lucide-react';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
