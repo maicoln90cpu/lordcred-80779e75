@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,6 +71,7 @@ export default function PartnersAdmin() {
     captacao_tipo: '', indicado_por: '',
     pipeline_status: 'contato_inicial', obs: '',
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const { data: allPartners = [], isLoading } = useQuery({
     queryKey: ['partners'],
