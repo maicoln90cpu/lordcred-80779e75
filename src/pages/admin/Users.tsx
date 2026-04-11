@@ -34,6 +34,7 @@ export default function Users() {
   const { toast } = useToast();
   const { user: currentUser, isAdmin, isSupport, userRole } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const { sort, toggle } = useSortState();
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
