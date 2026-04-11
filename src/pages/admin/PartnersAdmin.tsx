@@ -115,6 +115,8 @@ export default function PartnersAdmin() {
   const [viewMode, setViewMode] = useState<'tabela' | 'kanban'>('tabela');
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const { sort, toggle: toggleSort } = useSortState();
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
   const [form, setForm] = useState({
     nome: '', telefone: '', cpf: '', cnpj: '', email: '',
@@ -237,6 +239,11 @@ export default function PartnersAdmin() {
       (p.cnpj?.toLowerCase().includes(s));
   });
   const filtered = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const pagedFiltered = useMemo(() => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [filtered, page]);
+
+  // Reset page when filters change
+  useMemo(() => { setPage(0); }, [search, statusFilter]);
 
   const statusCounts = allPartners.reduce<Record<string, number>>((acc, p) => {
     acc[p.pipeline_status] = (acc[p.pipeline_status] || 0) + 1;
@@ -378,7 +385,7 @@ export default function PartnersAdmin() {
                       <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" /></TableCell></TableRow>
                     ) : filtered.length === 0 ? (
                       <TableRow><TableCell colSpan={4 + CRM_COLUMNS.length} className="text-center py-12 text-muted-foreground"><User className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum parceiro encontrado</p></TableCell></TableRow>
-                    ) : filtered.map(p => (
+                    ) : pagedFiltered.map(p => (
                       <TableRow key={p.id} className="hover:bg-muted/50">
                         <TableCell className="sticky left-0 bg-background z-10 font-medium cursor-pointer" onClick={() => navigate(`/admin/parceiros/${p.id}`)}>
                           <div className="flex items-center gap-2">
@@ -430,6 +437,13 @@ export default function PartnersAdmin() {
                 </Table>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 py-3 border-t px-4">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({filtered.length} registros)</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -453,7 +467,10 @@ export default function PartnersAdmin() {
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
               <Label>Nome <span className="text-destructive">*</span></Label>
-              <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome completo" className={formErrors.nome ? 'border-destructive' : ''} />
+              <Input value={form.nome} onChange={e => {
+                setForm(f => ({ ...f, nome: e.target.value }));
+                if (formErrors.nome) setFormErrors(prev => { const n = { ...prev }; delete n.nome; return n; });
+              }} placeholder="Nome completo" className={formErrors.nome ? 'border-destructive' : ''} />
               {formErrors.nome && <p className="text-xs text-destructive">{formErrors.nome}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
