@@ -412,7 +412,14 @@ export default function PartnerDetail() {
                     <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" required error={contractErrors.endereco_pj_bairro} />
                     <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
                     <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" required error={contractErrors.endereco_pj_uf} />
-                    <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="88131400" required error={contractErrors.endereco_pj_cep} />
+                    <div className="relative">
+                      <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="00000-000" required error={contractErrors.endereco_pj_cep} />
+                      {cepLoading && (
+                        <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
+                        </div>
+                      )}
+                    </div>
                     <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
                   </div>
                 </CardContent>
