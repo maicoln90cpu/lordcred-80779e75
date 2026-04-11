@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2, Columns3, ChevronDown, ExternalLink } from 'lucide-react';
+import { ClipboardList, Search, Calendar as CalendarIcon, Loader2, Settings2, Columns3, ChevronDown, ExternalLink, Camera } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,10 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
 import { invokeCorban } from '@/lib/invokeCorban';
 import { supabase } from '@/integrations/supabase/client';
@@ -114,8 +115,10 @@ function DetailSection({ title, items }: { title: string; items: { label: string
 }
 
 export default function CorbanPropostas() {
+  const { user } = useAuth();
   const [searchCpf, setSearchCpf] = useState('');
   const [loading, setLoading] = useState(false);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
@@ -209,6 +212,44 @@ export default function CorbanPropostas() {
       return;
     }
     await executeSearch(buildPayload());
+  };
+
+  const handleSaveSnapshot = async () => {
+    setSavingSnapshot(true);
+    try {
+      const dateFromSnap = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+      const dateToSnap = format(new Date(), 'yyyy-MM-dd');
+      const { data, error } = await invokeCorban('getPropostas', {
+        exactPayload: true,
+        filters: { status: [], data: { tipo: 'cadastro', startDate: dateFromSnap, endDate: dateToSnap } },
+      });
+      if (error) { toast.error('Erro ao buscar propostas para snapshot', { description: error }); return; }
+      const list = normalizeCorbanPropostasInput(data);
+      if (list.length === 0) { toast.info('Nenhuma proposta para salvar'); return; }
+
+      const rows = list.map(p => ({
+        proposta_id: p.proposta_id || null,
+        cpf: p.cpf || null,
+        nome: p.nome || null,
+        banco: p.banco || null,
+        produto: p.produto || null,
+        status: p.status || null,
+        valor_liberado: p.valor_liberado || null,
+        valor_parcela: p.valor_parcela || null,
+        prazo: p.prazo || null,
+        vendedor_nome: p.vendedor_nome || null,
+        data_cadastro: p.data_cadastro || null,
+        convenio: p.convenio || null,
+        raw_data: p as any,
+        created_by: user?.id || null,
+      }));
+
+      const { error: insertErr } = await supabase.from('corban_propostas_snapshot' as any).insert(rows as any);
+      if (insertErr) { toast.error('Erro ao salvar snapshot', { description: insertErr.message }); return; }
+      toast.success(`Snapshot salvo com ${rows.length} propostas (últimos 30 dias)`);
+    } finally {
+      setSavingSnapshot(false);
+    }
   };
 
   const formatCellValue = (col: typeof ALL_COLUMNS[0], p: NormalizedCorbanProposta) => {
@@ -328,6 +369,10 @@ export default function CorbanPropostas() {
               </Button>
               <Button variant="outline" size="sm" onClick={() => setPayloadEditorOpen(true)} title="Editar payload manualmente">
                 <Settings2 className="w-4 h-4 mr-1" /> Payload
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleSaveSnapshot} disabled={savingSnapshot} title="Buscar e salvar snapshot dos últimos 30 dias">
+                {savingSnapshot ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Camera className="w-4 h-4 mr-1" />}
+                {savingSnapshot ? 'Salvando...' : 'Salvar Snapshot'}
               </Button>
             </div>
           </CardContent>

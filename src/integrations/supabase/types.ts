@@ -694,6 +694,63 @@ export type Database = {
         }
         Relationships: []
       }
+      corban_propostas_snapshot: {
+        Row: {
+          banco: string | null
+          convenio: string | null
+          cpf: string | null
+          created_by: string | null
+          data_cadastro: string | null
+          id: string
+          nome: string | null
+          prazo: string | null
+          produto: string | null
+          proposta_id: string | null
+          raw_data: Json | null
+          snapshot_date: string
+          status: string | null
+          valor_liberado: number | null
+          valor_parcela: number | null
+          vendedor_nome: string | null
+        }
+        Insert: {
+          banco?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_by?: string | null
+          data_cadastro?: string | null
+          id?: string
+          nome?: string | null
+          prazo?: string | null
+          produto?: string | null
+          proposta_id?: string | null
+          raw_data?: Json | null
+          snapshot_date?: string
+          status?: string | null
+          valor_liberado?: number | null
+          valor_parcela?: number | null
+          vendedor_nome?: string | null
+        }
+        Update: {
+          banco?: string | null
+          convenio?: string | null
+          cpf?: string | null
+          created_by?: string | null
+          data_cadastro?: string | null
+          id?: string
+          nome?: string | null
+          prazo?: string | null
+          produto?: string | null
+          proposta_id?: string | null
+          raw_data?: Json | null
+          snapshot_date?: string
+          status?: string | null
+          valor_liberado?: number | null
+          valor_parcela?: number | null
+          vendedor_nome?: string | null
+        }
+        Relationships: []
+      }
       cr_geral: {
         Row: {
           ade: string | null
@@ -2406,6 +2463,7 @@ export type Database = {
           vendedor: string
         }[]
       }
+      cleanup_old_corban_snapshots: { Args: never; Returns: undefined }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       create_direct_channel: {
         Args: { _channel_name: string; _target_user_id: string }

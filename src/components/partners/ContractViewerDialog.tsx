@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, AlertTriangle } from 'lucide-react';
+import { useMemo, useEffect, useState } from 'react';
 
 interface ContractViewerDialogProps {
   open: boolean;
@@ -11,12 +12,41 @@ interface ContractViewerDialogProps {
 }
 
 export function ContractViewerDialog({ open, onOpenChange, pdfBase64, partnerName, filename }: ContractViewerDialogProps) {
-  const blobUrl = pdfBase64 ? URL.createObjectURL(
-    new Blob(
-      [Uint8Array.from(atob(pdfBase64), c => c.charCodeAt(0))],
-      { type: 'application/pdf' }
-    )
-  ) : '';
+  const [error, setError] = useState<string | null>(null);
+
+  const blobUrl = useMemo(() => {
+    if (!pdfBase64) return '';
+    setError(null);
+    try {
+      const binaryStr = atob(pdfBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      // Validate PDF magic bytes
+      const header = String.fromCharCode(...bytes.slice(0, 5));
+      if (!header.startsWith('%PDF')) {
+        // Could be HTML redirect page
+        const text = new TextDecoder().decode(bytes.slice(0, 500));
+        console.error('ContractViewer: received non-PDF content:', text.substring(0, 200));
+        setError('O arquivo recebido não é um PDF válido. Possível redirecionamento da ClickSign.');
+        return '';
+      }
+
+      return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    } catch (e) {
+      console.error('ContractViewer: error creating blob:', e);
+      setError('Erro ao processar o PDF. Tente novamente.');
+      return '';
+    }
+  }, [pdfBase64]);
+
+  useEffect(() => {
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [blobUrl]);
 
   const handleDownload = () => {
     if (!blobUrl) return;
@@ -27,10 +57,7 @@ export function ContractViewerDialog({ open, onOpenChange, pdfBase64, partnerNam
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      if (!v && blobUrl) URL.revokeObjectURL(blobUrl);
-      onOpenChange(v);
-    }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -38,7 +65,12 @@ export function ContractViewerDialog({ open, onOpenChange, pdfBase64, partnerNam
             Contrato {partnerName ? `— ${partnerName}` : ''}
           </DialogTitle>
         </DialogHeader>
-        {blobUrl ? (
+        {error ? (
+          <div className="flex flex-col items-center justify-center min-h-[65vh] text-muted-foreground gap-3">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+            <p className="text-sm text-center max-w-md">{error}</p>
+          </div>
+        ) : blobUrl ? (
           <iframe
             src={blobUrl}
             className="flex-1 w-full min-h-[65vh] rounded-md border"
