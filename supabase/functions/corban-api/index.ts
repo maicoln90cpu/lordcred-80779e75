@@ -503,9 +503,9 @@ Deno.serve(async (req) => {
 
     let finalData = result
     if (action === 'getPropostas') {
-      const extracted = extractPropostasList(result)
-      finalData = extracted.map((item) => normalizePropostaRecord(item))
-      console.log(`[corban-api] Normalized ${(finalData as any[]).length} propostas for frontend`)
+      // Return raw data — normalization is done on the frontend (normalizeCorbanPropostasInput)
+      // to avoid CPU timeout on large datasets (3000+ propostas)
+      console.log(`[corban-api] Returning raw propostas data to frontend for client-side normalization`)
     } else if (action === 'getAssets') {
       // Normalize getAssets: API returns {"lista": {"0": {...}, "1": {...}}} or similar keyed objects
       finalData = normalizeAssetsResponse(result, params?.asset || 'status')
