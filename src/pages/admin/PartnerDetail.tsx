@@ -15,6 +15,7 @@ import { ArrowLeft, Save, Clock, User, Building2, FileText, History, Loader2, Se
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
+import { ContractViewerDialog } from '@/components/partners/ContractViewerDialog';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial' },
