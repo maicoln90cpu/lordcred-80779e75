@@ -180,7 +180,7 @@ export default function PartnersAdmin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['partners'] });
       setDialogOpen(false);
-      setForm({ nome: '', telefone: '', cpf: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
+      setForm({ nome: '', telefone: '', cpf: '', cnpj: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
       setDuplicateWarning('');
       setFormErrors({});
       toast({ title: 'Parceiro criado com sucesso' });
