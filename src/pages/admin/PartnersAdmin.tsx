@@ -462,7 +462,7 @@ export default function PartnersAdmin() {
                 <Input value={form.telefone} onChange={e => {
                   const v = formatPhone(e.target.value);
                   setForm(f => ({ ...f, telefone: v }));
-                  checkDuplicate(form.cpf, v);
+                  checkDuplicate(form.cpf, v, form.cnpj);
                 }} placeholder="(00) 00000-0000" />
               </div>
               <div className="grid gap-2">
@@ -470,11 +470,21 @@ export default function PartnersAdmin() {
                 <Input value={form.cpf} onChange={e => {
                   const v = formatCpf(e.target.value);
                   setForm(f => ({ ...f, cpf: v }));
-                  checkDuplicate(v, form.telefone);
+                  checkDuplicate(v, form.telefone, form.cnpj);
                   if (formErrors.cpf) setFormErrors(prev => { const n = { ...prev }; delete n.cpf; return n; });
                 }} placeholder="000.000.000-00" className={formErrors.cpf ? 'border-destructive' : ''} />
                 {formErrors.cpf && <p className="text-xs text-destructive">{formErrors.cpf}</p>}
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>CNPJ</Label>
+              <Input value={form.cnpj} onChange={e => {
+                const v = formatCnpj(e.target.value);
+                setForm(f => ({ ...f, cnpj: v }));
+                checkDuplicate(form.cpf, form.telefone, v);
+                if (formErrors.cnpj) setFormErrors(prev => { const n = { ...prev }; delete n.cnpj; return n; });
+              }} placeholder="00.000.000/0000-00" className={formErrors.cnpj ? 'border-destructive' : ''} />
+              {formErrors.cnpj && <p className="text-xs text-destructive">{formErrors.cnpj}</p>}
             </div>
 
             {duplicateWarning && (
