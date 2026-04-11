@@ -220,6 +220,7 @@ export default function SellerDashboard() {
                 />
               )}
             </div>
+          </div>
 
         {analytics ? (
           <>
