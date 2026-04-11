@@ -29,6 +29,9 @@ export default function SellerPropostas() {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<any>(null);
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalFetched, setTotalFetched] = useState(0);
+  const PAGE_SIZE = 30;
 
   const allColumns = useMemo(() => {
     const keys = new Set<string>();
@@ -58,22 +61,31 @@ export default function SellerPropostas() {
     setLoading(true);
     const { data, error } = await invokeCorban('getPropostas', payload);
     setLoading(false);
+    setPage(0);
     if (error) {
       toast.error('Erro ao buscar propostas', { description: error });
       return;
     }
-    const list = normalizeCorbanPropostasInput(data);
+    let list = normalizeCorbanPropostasInput(data);
+    setTotalFetched(list.length);
+    // Client-side CPF filtering (API may ignore searchString)
+    const cpfSearch = searchCpf.replace(/\D/g, '').trim();
+    if (cpfSearch.length >= 3) {
+      list = list.filter(p => {
+        const pCpf = (p.cpf || '').replace(/\D/g, '');
+        return pCpf.includes(cpfSearch);
+      });
+    }
     setPropostas(list);
     if (list.length === 0) toast.info('Nenhuma proposta encontrada');
   };
 
   const handleSearch = async () => {
-    if (!searchCpf.trim()) {
-      toast.error('Informe um CPF para buscar');
-      return;
-    }
     await executeSearch(buildPayload());
   };
+
+  const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
+  const pagedPropostas = propostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const renderCellValue = (value: unknown): string => {
     if (value === null || value === undefined) return '—';
@@ -165,7 +177,12 @@ export default function SellerPropostas() {
         {propostas.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{propostas.length} proposta(s)</CardTitle>
+              <CardTitle className="text-base">
+                {propostas.length} proposta(s)
+                {totalFetched > propostas.length && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">(filtrado de {totalFetched} total)</span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -179,7 +196,7 @@ export default function SellerPropostas() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {propostas.map((p, i) => (
+                    {pagedPropostas.map((p, i) => (
                       <TableRow key={`${(p as any).proposta_id || i}`} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(p)}>
                         {visibleColumns.map(col => (
                           <TableCell key={col} className="text-xs max-w-[200px] truncate">
@@ -194,6 +211,13 @@ export default function SellerPropostas() {
                   </TableBody>
                 </Table>
               </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 py-3 border-t">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({propostas.length} registros)</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
