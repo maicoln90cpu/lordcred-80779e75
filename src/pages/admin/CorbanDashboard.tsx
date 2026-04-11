@@ -97,7 +97,7 @@ export default function CorbanDashboard() {
       .order('snapshot_date', { ascending: false });
     setLoadingSnapshots(false);
     if (error) { console.error('Error loading snapshots:', error); return; }
-    setSnapshots((data || []) as SnapshotRow[]);
+    setSnapshots((data || []) as unknown as SnapshotRow[]);
   };
 
   const loadRecentStats = useCallback(async () => {
