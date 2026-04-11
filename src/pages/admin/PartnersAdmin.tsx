@@ -60,6 +60,30 @@ function isValidCpf(value: string): boolean {
   return ((sum * 10) % 11) % 10 === Number(raw[10]);
 }
 
+function isValidCnpj(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 14 || /^(\d)\1{13}$/.test(raw)) return false;
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(raw[i]) * weights1[i];
+  const d1 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (d1 !== Number(raw[12])) return false;
+  sum = 0;
+  for (let i = 0; i < 13; i++) sum += Number(raw[i]) * weights2[i];
+  const d2 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  return d2 === Number(raw[13]);
+}
+
+function formatCnpj(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 14);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
+}
+
 function formatCpf(value: string): string {
   const raw = value.replace(/\D/g, '').slice(0, 11);
   if (raw.length <= 3) return raw;
@@ -93,7 +117,7 @@ export default function PartnersAdmin() {
   const { sort, toggle: toggleSort } = useSortState();
 
   const [form, setForm] = useState({
-    nome: '', telefone: '', cpf: '', email: '',
+    nome: '', telefone: '', cpf: '', cnpj: '', email: '',
     captacao_tipo: '', indicado_por: '',
     pipeline_status: 'contato_inicial', obs: '',
   });
