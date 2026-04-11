@@ -542,6 +542,8 @@ export default function PartnersAdmin() {
               const cpfRaw = form.cpf.replace(/\D/g, '');
               if (!cpfRaw) errors.cpf = 'CPF do representante é obrigatório';
               else if (!isValidCpf(cpfRaw)) errors.cpf = 'CPF inválido — verifique os dígitos';
+              const cnpjRaw = form.cnpj.replace(/\D/g, '');
+              if (cnpjRaw && !isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
               setFormErrors(errors);
               if (Object.keys(errors).length > 0) return;
               createMutation.mutate();
