@@ -1,9 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Building2, DollarSign, FileText, Target, Clock, BarChart3, Loader2, PieChart as PieChartIcon } from 'lucide-react';
+import { Building2, DollarSign, FileText, Target, Clock, BarChart3, Loader2, PieChart as PieChartIcon, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { format, subDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const fmtBRL = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -25,6 +30,7 @@ interface SnapshotRow {
   valor_liberado: number | null;
   prazo: string | null;
   snapshot_date: string;
+  data_cadastro: string | null;
   nome: string | null;
   cpf: string | null;
 }
@@ -33,13 +39,14 @@ export default function SellerDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [sellerName, setSellerName] = useState<string | null>(null);
-  const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
+  const [allSnapshots, setAllSnapshots] = useState<SnapshotRow[]>([]);
   const [statusLabels, setStatusLabels] = useState<Record<string, string>>({});
+  const [dateFrom, setDateFrom] = useState<Date>(() => subDays(new Date(), 30));
+  const [dateTo, setDateTo] = useState<Date>(new Date());
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      // 1. Find seller's corban name via mapping
       const { data: mapping } = await supabase
         .from('corban_seller_mapping')
         .select('corban_name')
@@ -53,20 +60,19 @@ export default function SellerDashboard() {
 
       setSellerName(mapping.corban_name);
 
-      // 2. Load snapshots for this seller + status labels in parallel
       const [{ data: snaps }, { data: statusData }] = await Promise.all([
         supabase
           .from('corban_propostas_snapshot')
-          .select('status, banco, valor_liberado, prazo, snapshot_date, nome, cpf')
+          .select('status, banco, valor_liberado, prazo, snapshot_date, data_cadastro, nome, cpf')
           .eq('vendedor_nome', mapping.corban_name)
-          .order('snapshot_date', { ascending: false }),
+          .order('data_cadastro', { ascending: false }),
         supabase
           .from('corban_assets_cache')
           .select('asset_id, asset_label')
           .eq('asset_type', 'status'),
       ]);
 
-      setSnapshots((snaps || []) as SnapshotRow[]);
+      setAllSnapshots((snaps || []) as SnapshotRow[]);
       if (statusData) {
         const map: Record<string, string> = {};
         statusData.forEach(s => { map[s.asset_id] = s.asset_label; });
@@ -77,6 +83,16 @@ export default function SellerDashboard() {
   }, [user]);
 
   const resolveStatus = (key: string) => statusLabels[key] || key;
+
+  // Filter snapshots by data_cadastro date range
+  const snapshots = useMemo(() => {
+    const fromStr = format(dateFrom, 'yyyy-MM-dd');
+    const toStr = format(dateTo, 'yyyy-MM-dd') + ' 23:59:59';
+    return allSnapshots.filter(s => {
+      const dc = s.data_cadastro || '';
+      return dc >= fromStr && dc <= toStr;
+    });
+  }, [allSnapshots, dateFrom, dateTo]);
 
   const analytics = useMemo(() => {
     if (snapshots.length === 0) return null;
@@ -153,12 +169,46 @@ export default function SellerDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-primary" />
-            Meu Dashboard Corban
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Vendedor: <strong>{sellerName}</strong></p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-primary" />
+              Meu Dashboard Corban
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Vendedor: <strong>{sellerName}</strong>{analytics ? ` — ${analytics.total} propostas` : ''}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1">
+              {[7, 30, 60, 90].map(days => (
+                <Button key={days} variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => { setDateFrom(subDays(new Date(), days)); setDateTo(new Date()); }}>
+                  {days}d
+                </Button>
+              ))}
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <CalendarIcon className="w-3 h-3" />
+                  {format(dateFrom, 'dd/MM')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={d => d && setDateFrom(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+                  <CalendarIcon className="w-3 h-3" />
+                  {format(dateTo, 'dd/MM')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={d => d && setDateTo(d)} disabled={d => d > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         {analytics ? (
@@ -256,8 +306,8 @@ export default function SellerDashboard() {
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
               <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma proposta encontrada nos snapshots.</p>
-              <p className="text-xs mt-1">Os dados aparecem após o administrador salvar snapshots.</p>
+              <p className="text-sm">Nenhuma proposta encontrada no período selecionado.</p>
+              <p className="text-xs mt-1">Tente selecionar um período maior usando os botões acima.</p>
             </CardContent>
           </Card>
         )}

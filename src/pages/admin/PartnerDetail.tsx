@@ -76,9 +76,10 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome do representante';
   else if (/\d/.test(nome)) errors.nome = 'Nome não pode conter números';
 
-  // CPF optional — but if filled, must be valid
+  // CPF obrigatório e válido
   const cpf = (form.cpf || '').replace(/\D/g, '');
-  if (cpf && !isValidCpf(cpf)) errors.cpf = 'CPF inválido (deixe vazio se não tiver)';
+  if (!cpf) errors.cpf = 'CPF do representante é obrigatório';
+  else if (!isValidCpf(cpf)) errors.cpf = 'CPF inválido';
 
   if (!form.telefone || (form.telefone || '').trim().length < 8) errors.telefone = 'Telefone é obrigatório';
   if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
