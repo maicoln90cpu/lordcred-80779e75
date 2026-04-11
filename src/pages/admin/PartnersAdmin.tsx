@@ -60,6 +60,30 @@ function isValidCpf(value: string): boolean {
   return ((sum * 10) % 11) % 10 === Number(raw[10]);
 }
 
+function isValidCnpj(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 14 || /^(\d)\1{13}$/.test(raw)) return false;
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(raw[i]) * weights1[i];
+  const d1 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (d1 !== Number(raw[12])) return false;
+  sum = 0;
+  for (let i = 0; i < 13; i++) sum += Number(raw[i]) * weights2[i];
+  const d2 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  return d2 === Number(raw[13]);
+}
+
+function formatCnpj(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 14);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
+}
+
 function formatCpf(value: string): string {
   const raw = value.replace(/\D/g, '').slice(0, 11);
   if (raw.length <= 3) return raw;
@@ -93,7 +117,7 @@ export default function PartnersAdmin() {
   const { sort, toggle: toggleSort } = useSortState();
 
   const [form, setForm] = useState({
-    nome: '', telefone: '', cpf: '', email: '',
+    nome: '', telefone: '', cpf: '', cnpj: '', email: '',
     captacao_tipo: '', indicado_por: '',
     pipeline_status: 'contato_inicial', obs: '',
   });
@@ -120,13 +144,15 @@ export default function PartnersAdmin() {
   const partners = statusFilter === 'all' ? allPartners : allPartners.filter(p => p.pipeline_status === statusFilter);
 
   // Duplicate detection
-  const checkDuplicate = (cpf: string, telefone: string) => {
-    if (!cpf && !telefone) { setDuplicateWarning(''); return; }
+  const checkDuplicate = (cpf: string, telefone: string, cnpj: string) => {
+    if (!cpf && !telefone && !cnpj) { setDuplicateWarning(''); return; }
     const cleanCpf = cpf.replace(/\D/g, '');
     const cleanTel = telefone.replace(/\D/g, '');
+    const cleanCnpj = cnpj.replace(/\D/g, '');
     const dup = allPartners.find(p => {
       if (cleanCpf && p.cpf?.replace(/\D/g, '') === cleanCpf) return true;
       if (cleanTel && p.telefone?.replace(/\D/g, '') === cleanTel) return true;
+      if (cleanCnpj && p.cnpj?.replace(/\D/g, '') === cleanCnpj) return true;
       return false;
     });
     setDuplicateWarning(dup ? `⚠️ Possível duplicado: "${dup.nome}" (${dup.pipeline_status})` : '');
@@ -144,6 +170,7 @@ export default function PartnersAdmin() {
         nome: form.nome,
         telefone: form.telefone || null,
         cpf: form.cpf || null,
+        cnpj: form.cnpj || null,
         email: form.email || null,
         captacao_tipo: form.captacao_tipo || null,
         indicado_por: form.indicado_por || null,
@@ -156,7 +183,7 @@ export default function PartnersAdmin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['partners'] });
       setDialogOpen(false);
-      setForm({ nome: '', telefone: '', cpf: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
+      setForm({ nome: '', telefone: '', cpf: '', cnpj: '', email: '', captacao_tipo: '', indicado_por: '', pipeline_status: 'contato_inicial', obs: '' });
       setDuplicateWarning('');
       setFormErrors({});
       toast({ title: 'Parceiro criado com sucesso' });
@@ -435,7 +462,7 @@ export default function PartnersAdmin() {
                 <Input value={form.telefone} onChange={e => {
                   const v = formatPhone(e.target.value);
                   setForm(f => ({ ...f, telefone: v }));
-                  checkDuplicate(form.cpf, v);
+                  checkDuplicate(form.cpf, v, form.cnpj);
                 }} placeholder="(00) 00000-0000" />
               </div>
               <div className="grid gap-2">
@@ -443,11 +470,21 @@ export default function PartnersAdmin() {
                 <Input value={form.cpf} onChange={e => {
                   const v = formatCpf(e.target.value);
                   setForm(f => ({ ...f, cpf: v }));
-                  checkDuplicate(v, form.telefone);
+                  checkDuplicate(v, form.telefone, form.cnpj);
                   if (formErrors.cpf) setFormErrors(prev => { const n = { ...prev }; delete n.cpf; return n; });
                 }} placeholder="000.000.000-00" className={formErrors.cpf ? 'border-destructive' : ''} />
                 {formErrors.cpf && <p className="text-xs text-destructive">{formErrors.cpf}</p>}
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>CNPJ</Label>
+              <Input value={form.cnpj} onChange={e => {
+                const v = formatCnpj(e.target.value);
+                setForm(f => ({ ...f, cnpj: v }));
+                checkDuplicate(form.cpf, form.telefone, v);
+                if (formErrors.cnpj) setFormErrors(prev => { const n = { ...prev }; delete n.cnpj; return n; });
+              }} placeholder="00.000.000/0000-00" className={formErrors.cnpj ? 'border-destructive' : ''} />
+              {formErrors.cnpj && <p className="text-xs text-destructive">{formErrors.cnpj}</p>}
             </div>
 
             {duplicateWarning && (
@@ -505,6 +542,8 @@ export default function PartnersAdmin() {
               const cpfRaw = form.cpf.replace(/\D/g, '');
               if (!cpfRaw) errors.cpf = 'CPF do representante é obrigatório';
               else if (!isValidCpf(cpfRaw)) errors.cpf = 'CPF inválido — verifique os dígitos';
+              const cnpjRaw = form.cnpj.replace(/\D/g, '');
+              if (cnpjRaw && !isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
               setFormErrors(errors);
               if (Object.keys(errors).length > 0) return;
               createMutation.mutate();

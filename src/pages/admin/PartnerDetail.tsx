@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
@@ -55,12 +55,59 @@ function isValidCpf(value: string): boolean {
   return ((sum * 10) % 11) % 10 === Number(raw[10]);
 }
 
+function isValidCnpj(value: string): boolean {
+  const raw = value.replace(/\D/g, '');
+  if (raw.length !== 14 || /^(\d)\1{13}$/.test(raw)) return false;
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let s = 0;
+  for (let i = 0; i < 12; i++) s += Number(raw[i]) * w1[i];
+  const d1 = s % 11 < 2 ? 0 : 11 - (s % 11);
+  if (d1 !== Number(raw[12])) return false;
+  s = 0;
+  for (let i = 0; i < 13; i++) s += Number(raw[i]) * w2[i];
+  const d2 = s % 11 < 2 ? 0 : 11 - (s % 11);
+  return d2 === Number(raw[13]);
+}
+
+function formatCnpj(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 14);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
+  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
+}
+
+function formatCpf(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 3) return raw;
+  if (raw.length <= 6) return `${raw.slice(0, 3)}.${raw.slice(3)}`;
+  if (raw.length <= 9) return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+  return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
+}
+
+function formatPhone(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 11);
+  if (raw.length <= 2) return raw;
+  if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+  return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+}
+
+function formatCep(value: string): string {
+  const raw = value.replace(/\D/g, '').slice(0, 8);
+  if (raw.length <= 5) return raw;
+  return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+}
+
 function validateForContract(form: Record<string, any>): Record<string, string> {
   const errors: Record<string, string> = {};
 
   // === Empresa ===
   if (!form.razao_social || (form.razao_social || '').trim().length < 3) errors.razao_social = 'Razão Social é obrigatória';
-  if (!form.cnpj || (form.cnpj || '').replace(/\D/g, '').length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
+  const cnpjRaw = (form.cnpj || '').replace(/\D/g, '');
+  if (!cnpjRaw || cnpjRaw.length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
+  else if (!isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
   if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua da empresa é obrigatória';
   if (!form.endereco_pj_numero || (form.endereco_pj_numero || '').trim().length < 1) errors.endereco_pj_numero = 'Número é obrigatório';
   if (!form.endereco_pj_bairro || (form.endereco_pj_bairro || '').trim().length < 2) errors.endereco_pj_bairro = 'Bairro é obrigatório';
@@ -158,10 +205,41 @@ export default function PartnerDetail() {
     }
   }, [partner]);
 
-  const updateField = (field: string, value: any) => {
+  const [cepLoading, setCepLoading] = useState(false);
+
+  const updateField = useCallback((field: string, value: any) => {
+    // Apply masks for specific fields
+    if (field === 'cnpj') value = formatCnpj(value || '');
+    else if (field === 'cpf') value = formatCpf(value || '');
+    else if (field === 'telefone') value = formatPhone(value || '');
+    else if (field === 'endereco_pj_cep') value = formatCep(value || '');
     setForm(prev => ({ ...prev, [field]: value }));
     setDirty(true);
-  };
+  }, []);
+
+  // CEP auto-fill via ViaCEP
+  useEffect(() => {
+    const cepRaw = (form.endereco_pj_cep || '').replace(/\D/g, '');
+    if (cepRaw.length !== 8) return;
+    let cancelled = false;
+    setCepLoading(true);
+    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || data.erro) return;
+        setForm(prev => ({
+          ...prev,
+          endereco_pj_rua: data.logradouro || prev.endereco_pj_rua,
+          endereco_pj_bairro: data.bairro || prev.endereco_pj_bairro,
+          endereco_pj_municipio: data.localidade || prev.endereco_pj_municipio,
+          endereco_pj_uf: data.uf || prev.endereco_pj_uf,
+        }));
+        setDirty(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCepLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.endereco_pj_cep]);
 
   const contractErrors = useMemo(() => validateForContract(form), [form]);
   const canGenerateContract = Object.keys(contractErrors).length === 0;
@@ -334,7 +412,14 @@ export default function PartnerDetail() {
                     <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" required error={contractErrors.endereco_pj_bairro} />
                     <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
                     <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" required error={contractErrors.endereco_pj_uf} />
-                    <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="88131400" required error={contractErrors.endereco_pj_cep} />
+                    <div className="relative">
+                      <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="00000-000" required error={contractErrors.endereco_pj_cep} />
+                      {cepLoading && (
+                        <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
+                        </div>
+                      )}
+                    </div>
                     <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
                   </div>
                 </CardContent>
