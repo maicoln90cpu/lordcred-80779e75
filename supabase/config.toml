@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.clicksign-webhook]
 verify_jwt = false
+
+[functions.corban-snapshot-cron]
+verify_jwt = false

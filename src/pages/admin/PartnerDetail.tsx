@@ -70,6 +70,12 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
   if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
   if (!form.telefone) errors.telefone = 'Telefone é obrigatório';
 
+  // PJ fields required for contract
+  if (!form.cnpj || (form.cnpj || '').replace(/\D/g, '').length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
+  if (!form.razao_social || (form.razao_social || '').trim().length < 3) errors.razao_social = 'Razão Social é obrigatória';
+  if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua PJ é obrigatória';
+  if (!form.endereco_pj_municipio || (form.endereco_pj_municipio || '').trim().length < 2) errors.endereco_pj_municipio = 'Município PJ é obrigatório';
+
   return errors;
 }
 
@@ -152,6 +158,17 @@ export default function PartnerDetail() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const { id: _id, created_at, updated_at, ...updates } = form;
+      // Auto-fill endereco_pj from structured fields
+      const rua = (updates.endereco_pj_rua || '').trim();
+      const num = (updates.endereco_pj_numero || '').trim();
+      const bairro = (updates.endereco_pj_bairro || '').trim();
+      const mun = (updates.endereco_pj_municipio || '').trim();
+      const uf = (updates.endereco_pj_uf || '').trim();
+      const cep = (updates.endereco_pj_cep || '').trim();
+      if (rua && mun) {
+        const parts = [rua, num ? `n. ${num}` : '', bairro ? `bairro ${bairro}` : '', `${mun}${uf ? ' ' + uf : ''}`, cep ? `CEP ${cep}` : ''].filter(Boolean);
+        updates.endereco_pj = parts.join(', ');
+      }
       const { error } = await supabase.from('partners').update(updates).eq('id', id!);
       if (error) throw error;
       await supabase.from('partner_history').insert({
@@ -337,9 +354,15 @@ export default function PartnerDetail() {
               <CardHeader><CardTitle className="text-lg">Dados da Pessoa Jurídica</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" />
-                  <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" />
-                  <PartnerField label="Endereço PJ" field="endereco_pj" value={form.endereco_pj} onChange={updateField} placeholder="Rua, nº, bairro, cidade - UF, CEP" colSpan />
+                  <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" required error={contractErrors.cnpj} />
+                  <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" required error={contractErrors.razao_social} />
+                  <PartnerField label="Rua / Logradouro" field="endereco_pj_rua" value={form.endereco_pj_rua} onChange={updateField} placeholder="Rua Jacob Weingartner" required error={contractErrors.endereco_pj_rua} />
+                  <PartnerField label="Número" field="endereco_pj_numero" value={form.endereco_pj_numero} onChange={updateField} placeholder="4619" />
+                  <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" />
+                  <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
+                  <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" />
+                  <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="88131400" />
+                  <PartnerField label="Endereço PJ (texto livre)" field="endereco_pj" value={form.endereco_pj} onChange={updateField} placeholder="Preenchido automaticamente ao salvar" colSpan />
                   <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
                 </div>
               </CardContent>

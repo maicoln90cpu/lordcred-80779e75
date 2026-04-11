@@ -1812,6 +1812,12 @@ export type Database = {
           email: string | null
           endereco: string | null
           endereco_pj: string | null
+          endereco_pj_bairro: string | null
+          endereco_pj_cep: string | null
+          endereco_pj_municipio: string | null
+          endereco_pj_numero: string | null
+          endereco_pj_rua: string | null
+          endereco_pj_uf: string | null
           envelope_id: string | null
           enviou_link: boolean | null
           estado_civil: string | null
@@ -1851,6 +1857,12 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null
+          endereco_pj_bairro?: string | null
+          endereco_pj_cep?: string | null
+          endereco_pj_municipio?: string | null
+          endereco_pj_numero?: string | null
+          endereco_pj_rua?: string | null
+          endereco_pj_uf?: string | null
           envelope_id?: string | null
           enviou_link?: boolean | null
           estado_civil?: string | null
@@ -1890,6 +1902,12 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           endereco_pj?: string | null
+          endereco_pj_bairro?: string | null
+          endereco_pj_cep?: string | null
+          endereco_pj_municipio?: string | null
+          endereco_pj_numero?: string | null
+          endereco_pj_rua?: string | null
+          endereco_pj_uf?: string | null
           envelope_id?: string | null
           enviou_link?: boolean | null
           estado_civil?: string | null
