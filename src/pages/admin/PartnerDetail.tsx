@@ -105,7 +105,9 @@ function validateForContract(form: Record<string, any>): Record<string, string> 
 
   // === Empresa ===
   if (!form.razao_social || (form.razao_social || '').trim().length < 3) errors.razao_social = 'Razão Social é obrigatória';
-  if (!form.cnpj || (form.cnpj || '').replace(/\D/g, '').length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
+  const cnpjRaw = (form.cnpj || '').replace(/\D/g, '');
+  if (!cnpjRaw || cnpjRaw.length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
+  else if (!isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
   if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua da empresa é obrigatória';
   if (!form.endereco_pj_numero || (form.endereco_pj_numero || '').trim().length < 1) errors.endereco_pj_numero = 'Número é obrigatório';
   if (!form.endereco_pj_bairro || (form.endereco_pj_bairro || '').trim().length < 2) errors.endereco_pj_bairro = 'Bairro é obrigatório';
