@@ -348,7 +348,7 @@ export function ContractTemplateEditor() {
               <div className="flex items-center gap-2">
                 <span>{editName}</span>
                 {selected.is_default && <Badge variant="default" className="text-xs">Padrão</Badge>}
-                {isDirty && <Badge variant="outline" className="text-xs text-amber-500 border-amber-500">Não salvo</Badge>}
+                {isDirty && <Badge variant="outline" className="text-xs text-destructive border-destructive/50">Não salvo</Badge>}
               </div>
               <div className="flex gap-2 flex-wrap">
                 <Button variant="ghost" size="sm" onClick={() => { setRenameName(editName); setShowRenameDialog(true); }}>
