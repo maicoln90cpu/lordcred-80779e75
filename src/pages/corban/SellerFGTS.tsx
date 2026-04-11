@@ -105,6 +105,7 @@ export default function SellerFGTS() {
     } else {
       toast.success('CPF enviado para consulta FGTS!');
       setInsertCpf('');
+      setInsertTelefone('');
     }
   };
 
