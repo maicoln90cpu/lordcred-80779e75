@@ -28,6 +28,7 @@ export default function SellerFGTS() {
   const [loading, setLoading] = useState(false);
   const [filaItems, setFilaItems] = useState<any[]>([]);
   const [insertCpf, setInsertCpf] = useState('');
+  const [insertTelefone, setInsertTelefone] = useState('');
   const [inserting, setInserting] = useState(false);
   const [instituicao, setInstituicao] = useState('facta');
   const [logins, setLogins] = useState<Login[]>([]);
@@ -91,7 +92,12 @@ export default function SellerFGTS() {
     setInserting(true);
     const { error } = await invokeCorban('insertQueueFGTS', {
       tabela: 'fgts',
-      content: { cpf: insertCpf.replace(/\D/g, ''), instituicao, login_banco: selectedLogin }
+      content: {
+        cpf: insertCpf.replace(/\D/g, ''),
+        telefone: insertTelefone.replace(/\D/g, ''),
+        instituicao,
+        login_banco: selectedLogin
+      }
     });
     setInserting(false);
     if (error) {
@@ -99,6 +105,7 @@ export default function SellerFGTS() {
     } else {
       toast.success('CPF enviado para consulta FGTS!');
       setInsertCpf('');
+      setInsertTelefone('');
     }
   };
 
@@ -137,6 +144,10 @@ export default function SellerFGTS() {
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">CPF</label>
                   <Input placeholder="Somente números..." value={insertCpf} onChange={(e) => setInsertCpf(e.target.value)} className="w-48" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Telefone</label>
+                  <Input placeholder="DDD + número..." value={insertTelefone} onChange={(e) => setInsertTelefone(e.target.value)} className="w-48" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Instituição</label>
