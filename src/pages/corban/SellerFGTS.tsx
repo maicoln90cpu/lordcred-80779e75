@@ -179,13 +179,13 @@ export default function SellerFGTS() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Login</label>
-                  <Select value={selectedLogin} onValueChange={setSelectedLogin} disabled={logins.length === 0}>
+                  <Select value={selectedLogin} onValueChange={setSelectedLogin} disabled={loadingLogins || logins.length === 0}>
                     <SelectTrigger className="w-48">
-                      <SelectValue placeholder={logins.length === 0 ? 'Nenhum login' : 'Selecione'} />
+                      <SelectValue placeholder={loadingLogins ? 'Carregando...' : logins.length === 0 ? 'Nenhum login' : 'Selecione'} />
                     </SelectTrigger>
                     <SelectContent>
                       {logins.map(l => (
-                        <SelectItem key={l.id} value={String(l.id)}>{l.nome || l.label || l.id}</SelectItem>
+                        <SelectItem key={l.id} value={l.id}>{l.nome || l.label || l.id}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
