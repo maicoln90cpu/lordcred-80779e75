@@ -366,6 +366,8 @@ export default function CorbanDashboard() {
               </div>
             </div>
 
+        {analytics ? (
+          <>
             {/* KPI advanced cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card>
@@ -399,7 +401,6 @@ export default function CorbanDashboard() {
 
             {/* Charts row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Status distribution bar chart */}
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Distribuição por Status</CardTitle></CardHeader>
                 <CardContent>
@@ -414,7 +415,6 @@ export default function CorbanDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Banco distribution pie chart */}
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><PieChartIcon className="w-4 h-4" /> Distribuição por Banco</CardTitle></CardHeader>
                 <CardContent>
@@ -433,7 +433,6 @@ export default function CorbanDashboard() {
               </Card>
             </div>
 
-            {/* Vendedor ranking */}
             {analytics.vendedorData.length > 0 && (
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Ranking de Vendedores (Valor Liberado)</CardTitle></CardHeader>
@@ -450,7 +449,6 @@ export default function CorbanDashboard() {
               </Card>
             )}
 
-            {/* Top Status table */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-base">Top Status — Valores Agregados</CardTitle></CardHeader>
               <CardContent className="p-0">
