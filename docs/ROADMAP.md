@@ -60,14 +60,14 @@
 
 ## Fase 5 — Escala 📋 Planejado (Q3 2026)
 
-- [ ] Disparos em massa (broadcasts) com controle de taxa
+- [x] Disparos em massa (broadcasts) com controle de taxa
 - [ ] API pública REST para integrações externas
-- [ ] Progressão automática de fases de aquecimento
+- [x] Progressão automática de fases de aquecimento
 - [ ] Notificações push (service worker)
 - [ ] Multi-tenant (múltiplas organizações)
 - [ ] Dashboard de métricas customizável
 - [ ] Revisão de UX mobile
-- [ ] Testes automatizados abrangentes (Vitest)
+- [x] Testes automatizados abrangentes (Vitest)
 - [ ] Performance (lazy loading, code splitting)
 - [ ] Webhook reverso NewCorban
 
