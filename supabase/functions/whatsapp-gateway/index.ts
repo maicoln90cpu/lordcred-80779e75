@@ -105,7 +105,7 @@ async function handleMetaAction(
         return jsonResponse({ success: false, error: data.error.message || 'Meta API error' })
       }
 
-      // Log cost
+      // Log cost + audit
       try {
         await adminClient.from('whatsapp_cost_log').insert({
           chip_id: chip.id,
@@ -115,6 +115,20 @@ async function handleMetaAction(
           currency: 'BRL',
         })
       } catch { /* non-critical */ }
+
+      // Audit: log who sent this message
+      if (userId && data.messages?.[0]?.id) {
+        try {
+          // Wait briefly for webhook to create the message_history row
+          setTimeout(async () => {
+            await adminClient
+              .from('message_history')
+              .update({ sent_by_user_id: userId } as any)
+              .eq('chip_id', chip.id)
+              .eq('message_id', data.messages[0].id)
+          }, 2000)
+        } catch { /* non-critical */ }
+      }
 
       return jsonResponse({ success: true, data: { messageId: data.messages?.[0]?.id } })
     }
