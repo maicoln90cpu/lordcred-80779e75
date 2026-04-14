@@ -31,6 +31,21 @@ interface Campaign {
   media_type: string | null;
   source_type: string | null;
   scheduled_date: string | null;
+  owner_user_id: string | null;
+}
+
+interface ChipInfo {
+  id: string;
+  instance_name: string;
+  nickname: string | null;
+  provider: string;
+  user_id: string;
+}
+
+interface ProfileInfo {
+  user_id: string;
+  name: string | null;
+  email: string;
 }
 
 const statusMap: Record<string, { label: string; className: string }> = {
@@ -45,7 +60,8 @@ const statusMap: Record<string, { label: string; className: string }> = {
 export default function Broadcasts() {
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [chips, setChips] = useState<{ id: string; instance_name: string; nickname: string | null }[]>([]);
+  const [chips, setChips] = useState<ChipInfo[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileInfo>>({});
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<Campaign | null>(null);
@@ -58,12 +74,18 @@ export default function Broadcasts() {
   }, []);
 
   const loadData = async () => {
-    const [campRes, chipRes] = await Promise.all([
+    const [campRes, chipRes, profileRes] = await Promise.all([
       supabase.from('broadcast_campaigns').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('chips').select('id, instance_name, nickname').eq('status', 'connected'),
+      supabase.from('chips').select('id, instance_name, nickname, provider, user_id'),
+      supabase.from('profiles').select('user_id, name, email').eq('is_blocked', false),
     ]);
     if (campRes.data) setCampaigns(campRes.data as any);
-    if (chipRes.data) setChips(chipRes.data);
+    if (chipRes.data) setChips(chipRes.data as any);
+    if (profileRes.data) {
+      const pMap: Record<string, ProfileInfo> = {};
+      profileRes.data.forEach(p => { pMap[p.user_id] = p; });
+      setProfiles(pMap);
+    }
     setLoading(false);
   };
 
@@ -93,6 +115,18 @@ export default function Broadcasts() {
   const getChipName = (chipId: string) => {
     const chip = chips.find(c => c.id === chipId);
     return chip?.nickname || chip?.instance_name || chipId.slice(0, 8);
+  };
+
+  const getChipProvider = (chipId: string) => {
+    const chip = chips.find(c => c.id === chipId);
+    return chip?.provider || 'uazapi';
+  };
+
+  const getOwnerName = (c: Campaign) => {
+    const userId = c.owner_user_id;
+    if (!userId) return '—';
+    const p = profiles[userId];
+    return p?.name || p?.email || '—';
   };
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -161,6 +195,7 @@ export default function Broadcasts() {
                     <TableHead>Status</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Chip</TableHead>
+                    <TableHead>Proprietário</TableHead>
                     <TableHead className="text-center">Dest.</TableHead>
                     <TableHead className="text-center">Enviados</TableHead>
                     <TableHead className="text-center">Erros</TableHead>
@@ -184,8 +219,13 @@ export default function Broadcasts() {
                             {c.scheduled_date && <CalendarIcon className="w-3 h-3 text-blue-400" />}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs">{getChipName(c.chip_id)}</TableCell>
-                        <TableCell className="text-center text-sm">{c.total_recipients}</TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1">
+                            {getChipName(c.chip_id)}
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">{getChipProvider(c.chip_id) === 'meta' ? 'META' : 'UazAPI'}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">{getOwnerName(c)}</TableCell>
                         <TableCell className="text-center text-sm text-green-400">{c.sent_count}</TableCell>
                         <TableCell className="text-center text-sm text-destructive">{c.failed_count}</TableCell>
                         <TableCell><Badge variant="outline" className="text-xs">{sourceLabel(c.source_type)}</Badge></TableCell>
@@ -228,7 +268,7 @@ export default function Broadcasts() {
                   })}
                   {campaigns.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
                         <Radio className="w-8 h-8 mx-auto mb-2 opacity-40" />
                         <p>Nenhuma campanha criada</p>
                       </TableCell>

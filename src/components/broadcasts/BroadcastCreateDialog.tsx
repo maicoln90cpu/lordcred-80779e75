@@ -33,6 +33,7 @@ interface Chip {
   nickname: string | null;
   status: string;
   user_id: string;
+  provider: string;
 }
 
 interface Props {
@@ -106,7 +107,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const loadUsersAndChips = async () => {
     const [usersRes, chipsRes] = await Promise.all([
       supabase.from('profiles').select('user_id, email, name').order('name'),
-      supabase.from('chips').select('id, instance_name, nickname, status, user_id').eq('status', 'connected'),
+      supabase.from('chips').select('id, instance_name, nickname, status, user_id, provider').eq('status', 'connected'),
     ]);
     if (usersRes.data) setUsers(usersRes.data);
     if (chipsRes.data) setAllChips(chipsRes.data);
@@ -352,7 +353,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                 <SelectTrigger><SelectValue placeholder="Selecione o chip..." /></SelectTrigger>
                 <SelectContent>
                   {filteredChips.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.nickname || c.instance_name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nickname || c.instance_name} {c.provider === 'meta' ? '[META]' : '[UazAPI]'}
+                    </SelectItem>
                   ))}
                   {filteredChips.length === 0 && (
                     <div className="p-2 text-xs text-muted-foreground text-center">Nenhum chip conectado</div>

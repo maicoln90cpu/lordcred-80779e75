@@ -19,6 +19,7 @@ import SupportChatSettings from '@/components/settings/SupportChatSettings';
 import MessageSimulator from '@/components/admin/MessageSimulator';
 import MetaConfigCard from '@/components/admin/MetaConfigCard';
 import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
+import MetaChipsManager from '@/components/settings/MetaChipsManager';
 
 interface ProviderSettings {
   id: string;
@@ -313,6 +314,8 @@ export default function Settings() {
                       setProviderSettings(s => s ? { ...s, meta_allowed_user_ids: userIds } : s)
                     }
                   />
+
+                  <MetaChipsManager />
 
                   <div className="flex justify-end">
                     <Button onClick={handleSaveProvider} disabled={isSavingProvider}>
