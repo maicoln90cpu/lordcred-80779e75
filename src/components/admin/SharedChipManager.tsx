@@ -110,6 +110,18 @@ export default function SharedChipManager() {
     setSaving(null);
   };
 
+  const toggleBlockSend = async (chip: ChipRow) => {
+    const newVal = !chip.shared_block_send;
+    await supabase
+      .from('chips')
+      .update({ shared_block_send: newVal } as any)
+      .eq('id', chip.id);
+    setChips(prev => prev.map(c =>
+      c.id === chip.id ? { ...c, shared_block_send: newVal } : c
+    ));
+    toast({ title: newVal ? 'Bloqueio de envio ativado' : 'Bloqueio de envio desativado' });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -120,6 +132,112 @@ export default function SharedChipManager() {
 
   const sharedChips = chips.filter(c => c.is_shared);
   const availableChips = chips.filter(c => !c.is_shared);
+
+  const renderChipList = (chipList: ChipRow[], type: 'shared' | 'available') => {
+    if (type === 'shared' && chipList.length === 0) {
+      return <p className="text-sm text-muted-foreground text-center py-4">Nenhum chip compartilhado deste tipo</p>;
+    }
+    if (type === 'available' && chipList.length === 0) {
+      return <p className="text-sm text-muted-foreground text-center py-4">Nenhum chip disponível deste tipo</p>;
+    }
+    if (type === 'available') {
+      return (
+        <div className="grid gap-2">
+          {chipList.map(chip => {
+            const ownerProfile = profiles.find(p => p.user_id === chip.user_id);
+            return (
+              <Card key={chip.id} className="border-border/50">
+                <CardContent className="py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">{chip.nickname || chip.phone_number || chip.instance_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {ownerProfile?.name || ownerProfile?.email || '—'}
+                        {chip.provider === 'meta' && <Badge variant="outline" className="ml-2 text-[10px] py-0">META</Badge>}
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => toggleShared(chip)}>
+                    <Share2 className="w-3.5 h-3.5 mr-1.5" /> Compartilhar
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      );
+    }
+    // shared list
+    return chipList.map(chip => {
+      const isExpanded = expandedChip === chip.id;
+      const userIds = localSharedIds[chip.id] || [];
+      const ownerProfile = profiles.find(p => p.user_id === chip.user_id);
+      return (
+        <Card key={chip.id} className="border-primary/20">
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Smartphone className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{chip.nickname || chip.phone_number || chip.instance_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Dono: {ownerProfile?.name || ownerProfile?.email || 'Desconhecido'}
+                    {chip.provider === 'meta' && <Badge variant="outline" className="ml-2 text-[10px] py-0">META</Badge>}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={chip.status === 'connected' ? 'default' : 'destructive'} className="text-[10px]">
+                  {chip.status === 'connected' ? 'Online' : 'Offline'}
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  <Users className="w-3 h-3 mr-1" /> {userIds.length} usuário(s)
+                </Badge>
+                <Switch checked={chip.is_shared} onCheckedChange={() => toggleShared(chip)} />
+              </div>
+            </div>
+            {/* Block send toggle */}
+            <div className="flex items-center gap-2 px-1">
+              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground flex-1">Bloquear envio se outro operador já assumiu</span>
+              <Switch checked={chip.shared_block_send} onCheckedChange={() => toggleBlockSend(chip)} />
+            </div>
+            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpandedChip(isExpanded ? null : chip.id)}>
+              {isExpanded ? 'Recolher' : 'Gerenciar usuários autorizados'}
+            </Button>
+            {isExpanded && (
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Selecione quem pode atender por este número:</span>
+                </div>
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-1">
+                    {profiles.map(p => (
+                      <label key={p.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
+                        <Checkbox checked={userIds.includes(p.user_id)} onCheckedChange={() => toggleUser(chip.id, p.user_id)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{p.name || p.email}</p>
+                          {p.name && <p className="text-xs text-muted-foreground truncate">{p.email}</p>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Button size="sm" className="w-full" onClick={() => saveSharedUsers(chip.id)} disabled={saving === chip.id}>
+                  {saving === chip.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Salvar ({userIds.length} selecionados)
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      );
+    });
+  };
 
   return (
     <div className="space-y-6">
