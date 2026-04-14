@@ -44,7 +44,8 @@ async function handleMetaAction(
   body: any,
   adminClient: any,
   metaAccessToken: string,
-  chip: any
+  chip: any,
+  userId?: string
 ): Promise<Response> {
   const phoneNumberId = chip.meta_phone_number_id
 
