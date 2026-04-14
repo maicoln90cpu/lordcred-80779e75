@@ -120,11 +120,12 @@ Deno.serve(async (req) => {
         .limit(batchSize)
 
       if (!recipients || recipients.length === 0) {
+        // No more pending — mark campaign completed
         await adminClient
           .from('broadcast_campaigns')
           .update({ status: 'completed', completed_at: new Date().toISOString() })
           .eq('id', campaign.id)
-        console.log(`Campaign ${campaign.id} completed`)
+        console.log(`Campaign ${campaign.id} completed (no pending recipients)`)
         continue
       }
 
@@ -144,6 +145,9 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      let batchSent = 0
+      let batchFailed = 0
 
       for (let i = 0; i < recipients.length; i++) {
         const recipient = recipients[i]
@@ -212,12 +216,7 @@ Deno.serve(async (req) => {
               .from('broadcast_recipients')
               .update({ status: 'sent', sent_at: new Date().toISOString() })
               .eq('id', recipient.id)
-
-            await adminClient
-              .from('broadcast_campaigns')
-              .update({ sent_count: campaign.sent_count + 1 + totalProcessed })
-              .eq('id', campaign.id)
-
+            batchSent++
             totalProcessed++
           } else {
             const errData = await response.json().catch(() => ({}))
@@ -225,12 +224,7 @@ Deno.serve(async (req) => {
               .from('broadcast_recipients')
               .update({ status: 'failed', error_message: errData.message || 'Send failed' })
               .eq('id', recipient.id)
-
-            await adminClient
-              .from('broadcast_campaigns')
-              .update({ failed_count: campaign.failed_count + 1 + totalFailed })
-              .eq('id', campaign.id)
-
+            batchFailed++
             totalFailed++
           }
         } catch (err) {
@@ -238,12 +232,47 @@ Deno.serve(async (req) => {
             .from('broadcast_recipients')
             .update({ status: 'failed', error_message: err.message || 'Network error' })
             .eq('id', recipient.id)
+          batchFailed++
           totalFailed++
         }
 
         // Rate limiting delay
         if (i < recipients.length - 1) {
           await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+      }
+
+      // Update campaign counters using fresh DB values (avoid stale reads)
+      if (batchSent > 0 || batchFailed > 0) {
+        const { data: freshCampaign } = await adminClient
+          .from('broadcast_campaigns')
+          .select('sent_count, failed_count, total_recipients')
+          .eq('id', campaign.id)
+          .single()
+
+        if (freshCampaign) {
+          const newSent = (freshCampaign.sent_count || 0) + batchSent
+          const newFailed = (freshCampaign.failed_count || 0) + batchFailed
+          
+          await adminClient
+            .from('broadcast_campaigns')
+            .update({ sent_count: newSent, failed_count: newFailed })
+            .eq('id', campaign.id)
+
+          // Check if campaign is now complete (all recipients processed)
+          const { count: pendingCount } = await adminClient
+            .from('broadcast_recipients')
+            .select('id', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id)
+            .eq('status', 'pending')
+
+          if (pendingCount === 0) {
+            await adminClient
+              .from('broadcast_campaigns')
+              .update({ status: 'completed', completed_at: new Date().toISOString() })
+              .eq('id', campaign.id)
+            console.log(`Campaign ${campaign.id} completed after batch`)
+          }
         }
       }
     }
