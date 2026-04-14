@@ -47,6 +47,7 @@ interface ChatMessage {
   messageId?: string;
   status?: string;
   quotedMessageId?: string;
+  sentByUserName?: string;
 }
 
 interface ChatWindowProps {
