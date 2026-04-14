@@ -354,9 +354,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                 <SelectContent>
                   {filteredChips.map(c => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.nickname || c.instance_name}
-                      {c.provider === 'meta' ? ' [META]' : ' [UazAPI]'}
+                      {c.nickname || c.instance_name} {c.provider === 'meta' ? '[META]' : '[UazAPI]'}
                     </SelectItem>
+                  ))}
                   {filteredChips.length === 0 && (
                     <div className="p-2 text-xs text-muted-foreground text-center">Nenhum chip conectado</div>
                   )}
