@@ -281,8 +281,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         const batch = phones.slice(i, i + batchSize).map(phone => ({
           campaign_id: campaign.id,
           phone,
+          ...(leadIdMap[phone] ? { lead_id: leadIdMap[phone] } : {}),
         }));
-        await supabase.from('broadcast_recipients').insert(batch);
+        await supabase.from('broadcast_recipients').insert(batch as any);
       }
 
       toast({ title: `Campanha criada com ${phones.length} destinatários` });
