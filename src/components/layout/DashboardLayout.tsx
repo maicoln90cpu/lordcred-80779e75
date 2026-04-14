@@ -39,7 +39,8 @@ import {
   Cog,
   Zap,
   DollarSign,
-  FileBarChart
+  FileBarChart,
+  Send
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
