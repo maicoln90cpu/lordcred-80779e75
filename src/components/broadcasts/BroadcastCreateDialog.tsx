@@ -441,12 +441,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                     <span className="text-xs truncate">{mediaFilename || 'documento.pdf'}</span>
                   </div>
                 )}
-                <p className="text-[13px] text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap leading-snug">
-                  {(formMessage || 'Sua mensagem aqui...').replace(/\{\{(\w+)\}\}/g, (_, key) => {
-                    const samples: Record<string, string> = { nome: 'João Silva', cpf: '123.456.789-00', banco: 'Itaú', telefone: '(11) 99999-8888', perfil: 'CLT', status: 'Novo' };
-                    return samples[key.toLowerCase()] || `{{${key}}}`;
-                  })}
-                </p>
+                <p className="text-[13px] text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap leading-snug"
+                  dangerouslySetInnerHTML={{
+                    __html: formatWhatsAppText(
+                      (formMessage || 'Sua mensagem aqui...').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                        const samples: Record<string, string> = { nome: 'João Silva', cpf: '123.456.789-00', banco: 'Itaú', telefone: '(11) 99999-8888', perfil: 'CLT', status: 'Novo' };
+                        return samples[key.toLowerCase()] || `{{${key}}}`;
+                      })
+                    )
+                  }}
+                />
                 <div className="flex items-center justify-end gap-1 mt-1">
                   <span className="text-[10px] text-[#667781] dark:text-[#8696a0]">
                     {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
