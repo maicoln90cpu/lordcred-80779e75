@@ -230,6 +230,13 @@ export default function Integrations() {
             <div className="space-y-6">
               {providerSettings && (
                 <>
+                  <MetaSetupGuide
+                    hasAppId={!!providerSettings.meta_app_id}
+                    hasToken={!!providerSettings.meta_access_token}
+                    hasVerifyToken={!!providerSettings.meta_verify_token}
+                    webhookUrl={metaWebhookUrl}
+                  />
+
                   <MetaConfigCard
                     settings={{
                       meta_app_id: providerSettings.meta_app_id || '',
