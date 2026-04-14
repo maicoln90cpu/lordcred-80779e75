@@ -72,7 +72,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  const [senderNames, setSenderNames] = useState<Record<string, string>>({});
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
