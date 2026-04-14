@@ -98,12 +98,28 @@ Deno.serve(async (req) => {
     if (eventType === 'messages' && payload.message) {
       await handleUazapiMessage(adminClient, chip, payload)
       processingResult = 'message_processed'
+
+      // ── Broadcast reply detection ──
+      if (!payload.message.fromMe) {
+        try {
+          await detectBroadcastReply(adminClient, chip, payload)
+        } catch (e) {
+          console.error('Broadcast reply detection error:', e)
+        }
+      }
     } else if (eventType === 'chats' && payload.chat) {
       await handleUazapiChat(adminClient, chip, payload)
       processingResult = 'chat_processed'
     } else if (eventType === 'messages_update') {
       await handleMessagesUpdate(adminClient, chip, payload)
       processingResult = 'status_update_processed'
+
+      // ── Broadcast delivery status cross-reference ──
+      try {
+        await updateBroadcastDeliveryStatus(adminClient, payload)
+      } catch (e) {
+        console.error('Broadcast delivery status error:', e)
+      }
     } else if (eventType === 'connection.update' || payload.event === 'connection.update') {
       await handleConnectionUpdate(adminClient, chip, payload)
       processingResult = 'connection_update_processed'
