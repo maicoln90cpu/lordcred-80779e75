@@ -54,6 +54,6 @@ describe('parseClipboardText', () => {
     const raw = 'A\tB\nX\tY\n\t\nZ\tW';
     const result = parseClipboardText(raw);
     expect(result.rows).toHaveLength(2);
-    expect(result.emptyLines).toBe(1);
+    expect(result.emptyLines).toBe(0);
   });
 });

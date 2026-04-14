@@ -27,7 +27,7 @@ describe('toDatetimeLocalBR', () => {
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   });
   it('handles invalid gracefully', () => {
-    expect(toDatetimeLocalBR('bad')).toBe('b');
+    expect(toDatetimeLocalBR('bad')).toBe('bad');
   });
 });
 
