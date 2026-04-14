@@ -5,6 +5,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function replaceVariables(text: string, vars: Record<string, string | null>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    const val = vars[key.toLowerCase()]
+    return val ?? match
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -31,7 +38,6 @@ Deno.serve(async (req) => {
         .limit(1)
       campaigns = data || []
     } else {
-      // Auto-pick running campaigns
       const { data } = await adminClient
         .from('broadcast_campaigns')
         .select('*, chips(instance_name, instance_token, status)')
@@ -39,7 +45,6 @@ Deno.serve(async (req) => {
         .limit(5)
       campaigns = data || []
 
-      // Check scheduled ones that are ready (scheduled_date <= now OR no scheduled_date and status=scheduled with scheduled_at <= now)
       const { data: scheduled } = await adminClient
         .from('broadcast_campaigns')
         .select('*, chips(instance_name, instance_token, status)')
@@ -49,11 +54,8 @@ Deno.serve(async (req) => {
       if (scheduled?.length) {
         const now = new Date()
         for (const sc of scheduled) {
-          // Use scheduled_date (new) or scheduled_at (legacy) to determine readiness
           const scheduleTime = sc.scheduled_date || sc.scheduled_at
-          if (scheduleTime && new Date(scheduleTime) > now) {
-            continue // Not ready yet
-          }
+          if (scheduleTime && new Date(scheduleTime) > now) continue
           await adminClient
             .from('broadcast_campaigns')
             .update({ status: 'running', started_at: new Date().toISOString() })
@@ -86,8 +88,15 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Load blacklist once
+    const { data: blacklistData } = await adminClient
+      .from('broadcast_blacklist')
+      .select('phone')
+    const blacklistSet = new Set((blacklistData || []).map((b: any) => b.phone))
+
     let totalProcessed = 0
     let totalFailed = 0
+    let totalSkipped = 0
 
     for (const campaign of campaigns) {
       if (!campaign.chips || campaign.chips.status !== 'connected') {
@@ -101,7 +110,6 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Get pending recipients, limited by rate_per_minute
       const batchSize = Math.min(campaign.rate_per_minute || 10, 20)
       const { data: recipients } = await adminClient
         .from('broadcast_recipients')
@@ -112,7 +120,6 @@ Deno.serve(async (req) => {
         .limit(batchSize)
 
       if (!recipients || recipients.length === 0) {
-        // Campaign complete
         await adminClient
           .from('broadcast_campaigns')
           .update({ status: 'completed', completed_at: new Date().toISOString() })
@@ -121,14 +128,53 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Send with delay between messages (anti-blocking)
       const delayMs = Math.max(Math.floor(60000 / batchSize), 2000)
 
-      for (const recipient of recipients) {
+      // Pre-load lead data if source_type=leads and there are lead_ids
+      const leadIds = recipients.map((r: any) => r.lead_id).filter(Boolean)
+      let leadsMap: Record<string, any> = {}
+      if (leadIds.length > 0) {
+        const { data: leads } = await adminClient
+          .from('client_leads')
+          .select('id, nome, cpf, telefone, banco_nome, perfil, status')
+          .in('id', leadIds)
+        if (leads) {
+          for (const l of leads) {
+            leadsMap[l.id] = l
+          }
+        }
+      }
+
+      for (let i = 0; i < recipients.length; i++) {
+        const recipient = recipients[i]
+
+        // Check blacklist
+        if (blacklistSet.has(recipient.phone)) {
+          await adminClient
+            .from('broadcast_recipients')
+            .update({ status: 'skipped', error_message: 'Número na blacklist' })
+            .eq('id', recipient.id)
+          totalSkipped++
+          continue
+        }
+
         try {
+          // Build message with variable substitution
+          let messageText = campaign.message_content
+          if (recipient.lead_id && leadsMap[recipient.lead_id]) {
+            const lead = leadsMap[recipient.lead_id]
+            messageText = replaceVariables(messageText, {
+              nome: lead.nome,
+              cpf: lead.cpf,
+              telefone: lead.telefone,
+              banco: lead.banco_nome,
+              perfil: lead.perfil,
+              status: lead.status,
+            })
+          }
+
           let response: Response
 
-          // Determine send endpoint based on media_type
           if (campaign.media_type === 'image' && campaign.media_url) {
             response = await fetch(`${apiUrl}/send/image`, {
               method: 'POST',
@@ -136,7 +182,7 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 number: recipient.phone,
                 image: campaign.media_url,
-                caption: campaign.message_content || '',
+                caption: messageText || '',
               }),
             })
           } else if (campaign.media_type === 'document' && campaign.media_url) {
@@ -147,17 +193,16 @@ Deno.serve(async (req) => {
                 number: recipient.phone,
                 document: campaign.media_url,
                 fileName: campaign.media_filename || 'arquivo',
-                caption: campaign.message_content || '',
+                caption: messageText || '',
               }),
             })
           } else {
-            // Default: text message
             response = await fetch(`${apiUrl}/send/text`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'token': chipToken },
               body: JSON.stringify({
                 number: recipient.phone,
-                text: campaign.message_content,
+                text: messageText,
               }),
             })
           }
@@ -197,14 +242,14 @@ Deno.serve(async (req) => {
         }
 
         // Rate limiting delay
-        if (recipients.indexOf(recipient) < recipients.length - 1) {
+        if (i < recipients.length - 1) {
           await new Promise(resolve => setTimeout(resolve, delayMs))
         }
       }
     }
 
     return new Response(
-      JSON.stringify({ ok: true, processed: totalProcessed, failed: totalFailed }),
+      JSON.stringify({ ok: true, processed: totalProcessed, failed: totalFailed, skipped: totalSkipped }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
