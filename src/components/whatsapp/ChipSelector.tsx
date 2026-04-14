@@ -74,19 +74,33 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
 
   const fetchChips = async () => {
     if (!user) return;
-    const { data } = await (supabase
+    
+    // Fetch personal chips
+    const { data: personalData } = await (supabase
       .from('chips')
       .select('id, phone_number, instance_name, status, slot_number, nickname, provider')
       .eq('user_id', user.id)
       .order('slot_number')
       .limit(5) as any).eq('chip_type', 'whatsapp');
 
-    if (data && data.length > 0) {
-      setChips(data);
+    // Fetch shared chips where this user is authorized
+    const { data: sharedData } = await supabase
+      .from('chips')
+      .select('id, phone_number, instance_name, status, slot_number, nickname, provider, is_shared, shared_user_ids')
+      .eq('is_shared', true)
+      .contains('shared_user_ids', [user.id] as any);
+
+    // Merge: personal + shared (avoid duplicates)
+    const personalIds = new Set((personalData || []).map((c: any) => c.id));
+    const shared = (sharedData || []).filter((c: any) => !personalIds.has(c.id));
+    const all = [...(personalData || []), ...shared] as Chip[];
+
+    if (all.length > 0) {
+      setChips(all);
       if (!selectedChipId) {
-        const connected = data.find((c: Chip) => c.status === 'connected');
+        const connected = all.find((c: Chip) => c.status === 'connected');
         if (connected) onSelectChip(connected.id);
-        else onSelectChip(data[0].id);
+        else onSelectChip(all[0].id);
       }
     } else {
       setChips([]);

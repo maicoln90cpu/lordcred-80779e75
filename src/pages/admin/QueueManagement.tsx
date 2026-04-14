@@ -7,12 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, Pause, Play, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Search, Pause, Play, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import SharedChipManager from '@/components/admin/SharedChipManager';
 
 interface QueueItem {
   id: string;
@@ -141,9 +143,24 @@ export default function QueueManagement() {
     <DashboardLayout>
       <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold">Fila de Mensagens</h1>
-          <p className="text-muted-foreground text-sm">Gerencie mensagens pendentes, pausadas e com erro</p>
+          <h1 className="text-2xl font-bold">Fila & Atendimento</h1>
+          <p className="text-muted-foreground text-sm">Gerencie filas de mensagens e atendimento compartilhado</p>
         </div>
+
+        <Tabs defaultValue="queue">
+          <TabsList>
+            <TabsTrigger value="queue">Fila de Mensagens</TabsTrigger>
+            <TabsTrigger value="shared" className="flex items-center gap-1.5">
+              <Share2 className="w-3.5 h-3.5" />
+              Atendimento Compartilhado
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="shared" className="mt-4">
+            <SharedChipManager />
+          </TabsContent>
+
+          <TabsContent value="queue" className="mt-4 space-y-4">
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -263,6 +280,8 @@ export default function QueueManagement() {
             </ScrollArea>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>

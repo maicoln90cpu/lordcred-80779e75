@@ -44,7 +44,8 @@ async function handleMetaAction(
   body: any,
   adminClient: any,
   metaAccessToken: string,
-  chip: any
+  chip: any,
+  userId?: string
 ): Promise<Response> {
   const phoneNumberId = chip.meta_phone_number_id
 
@@ -104,7 +105,7 @@ async function handleMetaAction(
         return jsonResponse({ success: false, error: data.error.message || 'Meta API error' })
       }
 
-      // Log cost
+      // Log cost + audit
       try {
         await adminClient.from('whatsapp_cost_log').insert({
           chip_id: chip.id,
@@ -114,6 +115,20 @@ async function handleMetaAction(
           currency: 'BRL',
         })
       } catch { /* non-critical */ }
+
+      // Audit: log who sent this message
+      if (userId && data.messages?.[0]?.id) {
+        try {
+          // Wait briefly for webhook to create the message_history row
+          setTimeout(async () => {
+            await adminClient
+              .from('message_history')
+              .update({ sent_by_user_id: userId } as any)
+              .eq('chip_id', chip.id)
+              .eq('message_id', data.messages[0].id)
+          }, 2000)
+        } catch { /* non-critical */ }
+      }
 
       return jsonResponse({ success: true, data: { messageId: data.messages?.[0]?.id } })
     }
@@ -478,6 +493,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Invalid token' }, 401)
     }
 
+    const userId = (claimsData.claims as any).sub as string
+
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
@@ -492,17 +509,28 @@ Deno.serve(async (req) => {
     // Determine provider from chip
     let provider = 'uazapi'
     let chip: any = null
+    let isSharedChip = false
 
     if (chipId) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
         .eq('id', chipId)
         .single()
       
       if (chipData) {
         chip = chipData
         provider = (chipData as any).provider || 'uazapi'
+        isSharedChip = !!(chipData as any).is_shared
+        
+        // Check authorization for shared chips
+        if (isSharedChip) {
+          const sharedIds: string[] = (chipData as any).shared_user_ids || []
+          const isOwner = (chipData as any).user_id === userId
+          if (!isOwner && !sharedIds.includes(userId)) {
+            return jsonResponse({ error: 'You are not authorized to use this shared chip' }, 403)
+          }
+        }
       }
     }
 
@@ -510,17 +538,18 @@ Deno.serve(async (req) => {
     if (!chipId && body.instanceName) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
         .eq('instance_name', body.instanceName)
         .single()
       
       if (chipData) {
         chip = chipData
         provider = (chipData as any).provider || 'uazapi'
+        isSharedChip = !!(chipData as any).is_shared
       }
     }
 
-    console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}`)
+    console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}, shared=${isSharedChip}, user=${userId}`)
 
     // Route to the correct provider
     if (provider === 'meta') {
@@ -536,7 +565,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Meta access token not configured. Set it in Master Admin.' }, 500)
       }
 
-      return handleMetaAction(action, body, adminClient, metaAccessToken, chip)
+      return handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
     }
 
     // Provider is 'uazapi' — proxy to the existing uazapi-api function
@@ -550,6 +579,34 @@ Deno.serve(async (req) => {
       body: JSON.stringify(body),
     })
     const proxyData = await safeJson(proxyResp)
+
+    // Audit: log sent_by_user_id for outgoing messages on shared chips
+    if (isSharedChip && chip && ['send-chat-message', 'send-media'].includes(action)) {
+      try {
+        const chatId = body.chatId || ''
+        if (chatId) {
+          // Tag the most recent outgoing message with sent_by_user_id
+          const { data: recentMsg } = await adminClient
+            .from('message_history')
+            .select('id')
+            .eq('chip_id', chip.id)
+            .eq('remote_jid', chatId)
+            .eq('direction', 'outgoing')
+            .is('sent_by_user_id', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (recentMsg) {
+            await adminClient
+              .from('message_history')
+              .update({ sent_by_user_id: userId } as any)
+              .eq('id', recentMsg.id)
+          }
+        }
+      } catch { /* non-critical audit */ }
+    }
+
     return jsonResponse(proxyData, proxyResp.status)
 
   } catch (error: any) {
