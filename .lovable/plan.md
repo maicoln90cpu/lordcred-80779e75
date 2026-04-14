@@ -1,6 +1,6 @@
 # Plano de Implementação — LordCred
 
-## Estado Atual: Broadcasts v3 em andamento
+## Estado Atual: Broadcasts v3 concluído ✅
 
 ## Broadcasts v3 — Melhorias Avançadas
 
@@ -23,6 +23,7 @@
 - [x] Cross-reference no evolution-webhook (delivery status + reply detection)
 - [x] KPIs de entregue/lido/respondido no relatório (3 cards + funil atualizado)
 
-### Etapa 4 — Export PDF (Pendente)
-- [ ] Geração de PDF client-side com jspdf + html2canvas
-- [ ] Relatório visual com KPIs e gráficos
+### Etapa 4 — Export PDF ✅
+- [x] Geração de PDF client-side com jspdf + html2canvas
+- [x] Relatório visual com header, KPIs e gráficos
+- [x] Fix: trigger corban notifications recriado (track_snapshot_status_change)
