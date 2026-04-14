@@ -563,6 +563,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     if (filterStarred && !chat.is_starred) return false;
+    if (filterMine && chat.assigned_user_id !== user?.id) return false;
     
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
     if (filterBlocked && !chat.is_blocked) return false;
