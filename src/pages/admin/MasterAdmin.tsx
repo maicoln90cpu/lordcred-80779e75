@@ -11,6 +11,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/hooks/use-toast';
 import ExportDataTab from '@/components/admin/ExportDataTab';
 import MigrationSQLTab from '@/components/admin/MigrationSQLTab';
+import MetaConfigCard from '@/components/admin/MetaConfigCard';
+import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
 
 interface ProviderSettings {
   id: string;
@@ -18,6 +20,10 @@ interface ProviderSettings {
   uazapi_api_key: string | null;
   provider_api_url: string | null;
   provider_api_key: string | null;
+  meta_app_id: string | null;
+  meta_access_token: string | null;
+  meta_verify_token: string | null;
+  meta_allowed_user_ids: string[];
 }
 
 export default function MasterAdmin() {
@@ -30,6 +36,7 @@ export default function MasterAdmin() {
   const [settings, setSettings] = useState<ProviderSettings | null>(null);
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-webhook`;
+  const metaWebhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-webhook`;
 
   useEffect(() => {
     fetchSettings();
@@ -39,12 +46,15 @@ export default function MasterAdmin() {
     try {
       const { data, error } = await supabase
         .from('system_settings')
-        .select('id, provider_api_url, provider_api_key, uazapi_api_url, uazapi_api_key')
+        .select('id, provider_api_url, provider_api_key, uazapi_api_url, uazapi_api_key, meta_app_id, meta_access_token, meta_verify_token, meta_allowed_user_ids')
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new Error('No settings found');
-      setSettings(data as unknown as ProviderSettings);
+      setSettings({
+        ...data,
+        meta_allowed_user_ids: (data as any).meta_allowed_user_ids || [],
+      } as unknown as ProviderSettings);
     } catch (error) {
       console.error('Error fetching settings:', error);
     } finally {
@@ -56,19 +66,23 @@ export default function MasterAdmin() {
     if (!settings) return;
     setIsSaving(true);
     try {
-      const updateData = {
+      const updateData: Record<string, any> = {
         whatsapp_provider: 'uazapi',
         provider_api_url: settings.uazapi_api_url || null,
         provider_api_key: settings.uazapi_api_key || null,
         uazapi_api_url: settings.uazapi_api_url || null,
         uazapi_api_key: settings.uazapi_api_key || null,
+        meta_app_id: settings.meta_app_id || null,
+        meta_access_token: settings.meta_access_token || null,
+        meta_verify_token: settings.meta_verify_token || null,
+        meta_allowed_user_ids: settings.meta_allowed_user_ids || [],
       };
       const { error } = await supabase
         .from('system_settings')
         .update(updateData)
         .eq('id', settings.id);
       if (error) throw error;
-      toast({ title: 'Configurações salvas', description: 'UazAPI configurada com sucesso' });
+      toast({ title: 'Configurações salvas', description: 'Todas as configurações foram atualizadas' });
     } catch (error) {
       console.error('Error saving:', error);
       toast({ title: 'Erro ao salvar', description: (error as any)?.message || String(error), variant: 'destructive' });
@@ -131,18 +145,20 @@ export default function MasterAdmin() {
           <div>
             <h1 className="text-2xl font-bold">Master Admin</h1>
             <p className="text-muted-foreground">
-              Configurações técnicas, exportação de dados e migração
+              Configurações técnicas, provedores WhatsApp, exportação e migração
             </p>
           </div>
         </div>
 
         <Tabs defaultValue="provider" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="provider">Provedor</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="provider">UazAPI</TabsTrigger>
+            <TabsTrigger value="meta">Meta WhatsApp</TabsTrigger>
             <TabsTrigger value="export">Exportar Dados</TabsTrigger>
             <TabsTrigger value="migration">SQL Migração</TabsTrigger>
           </TabsList>
 
+          {/* UazAPI Tab */}
           <TabsContent value="provider">
             <div className="space-y-6">
               <div className="grid gap-6 lg:grid-cols-2">
@@ -150,9 +166,9 @@ export default function MasterAdmin() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Globe className="w-5 h-5" />
-                      Provedor WhatsApp
+                      Provedor WhatsApp — UazAPI
                     </CardTitle>
-                    <CardDescription>UazAPI — provedor exclusivo de comunicação WhatsApp</CardDescription>
+                    <CardDescription>Conexão via QR Code (WhatsApp Web)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Badge variant="secondary">UazAPI ativo</Badge>
@@ -191,9 +207,9 @@ export default function MasterAdmin() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Webhook className="w-5 h-5" />
-                      Webhook
+                      Webhook UazAPI
                     </CardTitle>
-                    <CardDescription>URL para receber eventos da UazAPI (configure no painel da UazAPI)</CardDescription>
+                    <CardDescription>URL para receber eventos da UazAPI</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -209,6 +225,37 @@ export default function MasterAdmin() {
                   </CardContent>
                 </Card>
               </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Salvar Configurações
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Meta WhatsApp Tab */}
+          <TabsContent value="meta">
+            <div className="space-y-6">
+              <MetaConfigCard
+                settings={{
+                  meta_app_id: settings?.meta_app_id || '',
+                  meta_access_token: settings?.meta_access_token || '',
+                  meta_verify_token: settings?.meta_verify_token || '',
+                }}
+                onChange={(field, value) =>
+                  setSettings(s => s ? { ...s, [field]: value } : s)
+                }
+                webhookUrl={metaWebhookUrl}
+              />
+
+              <MetaUserAccessCard
+                allowedUserIds={settings?.meta_allowed_user_ids || []}
+                onChange={(userIds) =>
+                  setSettings(s => s ? { ...s, meta_allowed_user_ids: userIds } : s)
+                }
+              />
 
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={isSaving}>
