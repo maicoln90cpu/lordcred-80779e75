@@ -278,6 +278,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           label_ids: r.label_ids || [],
           is_blocked: r.is_blocked || false,
           is_muted: r.is_muted || false,
+          assigned_user_id: r.assigned_user_id || null,
         };
       });
 
