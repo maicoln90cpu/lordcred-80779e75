@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
-import { WeekMultiSelect } from './WeekMultiSelect';
+import WeekMultiSelect from './WeekMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
 
