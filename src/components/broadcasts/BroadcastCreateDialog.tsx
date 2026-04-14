@@ -42,11 +42,25 @@ interface Props {
   onCreated: () => void;
 }
 
+// WhatsApp text formatting: *bold*, _italic_, ~strikethrough~, ```monospace```
+function formatWhatsAppText(text: string): string {
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
+    .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+    .replace(/~([^~\n]+)~/g, '<del>$1</del>')
+    .replace(/```([^`]+)```/g, '<code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;font-family:monospace;font-size:12px">$1</code>');
+  return html;
+}
+
 export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Overflow chips
+  const [overflowChipIds, setOverflowChipIds] = useState<string[]>([]);
 
   // Basic fields
   const [formName, setFormName] = useState('');
