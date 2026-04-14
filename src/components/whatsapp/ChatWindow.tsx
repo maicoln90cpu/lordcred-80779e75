@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -867,6 +867,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       {readOnly ? (
         <div className="flex items-center justify-center gap-2 px-4 py-3 bg-muted/50 border-t border-border/50">
           <span className="text-sm text-muted-foreground">Modo somente leitura — não é possível enviar mensagens</span>
+        </div>
+      ) : sharedBlockInfo.isShared && sharedBlockInfo.blockSend && sharedBlockInfo.assignedUserId && sharedBlockInfo.assignedUserId !== user?.id ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-3 bg-destructive/5 border-t border-destructive/20">
+          <UserCheck className="w-4 h-4 text-destructive/70 shrink-0" />
+          <span className="text-sm text-destructive/80">Esta conversa está sendo atendida por <strong>{sharedBlockInfo.assignedName}</strong></span>
         </div>
       ) : chipStatus && chipStatus !== 'connected' ? (
         <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">
