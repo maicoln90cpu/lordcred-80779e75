@@ -42,6 +42,7 @@ import {
   FileBarChart,
   Send,
   Globe
+} from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
