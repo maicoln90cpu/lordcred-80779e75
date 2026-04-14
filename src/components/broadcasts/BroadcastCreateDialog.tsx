@@ -307,7 +307,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const resetForm = () => {
     setFormName(''); setFormMessage(''); setFormRate(10);
     setSelectedUserId(''); setSelectedChipId('');
-    setMediaType('none'); setMediaUrl(''); setMediaFilename('');
+    setMediaType('none'); setMediaUrl(''); setMediaFilename(''); setUploading(false); setMediaInputMode('upload');
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
