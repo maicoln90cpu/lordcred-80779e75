@@ -1,6 +1,6 @@
 # LordCred — Edge Functions Catalog
 
-> 17 Edge Functions (Deno runtime). Todas com `verify_jwt = false` no config.toml.
+> 18 Edge Functions (Deno runtime). Todas com `verify_jwt = false` no config.toml.
 > Autenticação validada internamente via Supabase service role key ou JWT manual.
 
 ---
@@ -110,6 +110,15 @@
 ### `clicksign-webhook`
 - **Trigger**: Webhook HTTP da ClickSign
 - **Fluxo**: Recebe eventos de assinatura → atualiza status do contrato
+- **Secrets**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+
+---
+
+## Broadcasts
+
+### `broadcast-sender`
+- **Trigger**: Periódico (cron) ou manual
+- **Fluxo**: Busca campanhas running/scheduled → verifica `scheduled_date` → para cada destinatário pendente: envia via UazAPI (`/send/text`, `/send/image` ou `/send/document` conforme `media_type`) → atualiza status → aplica rate limiting entre mensagens
 - **Secrets**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 
 ---
