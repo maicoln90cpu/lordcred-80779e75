@@ -216,6 +216,12 @@ Políticas RLS usam `is_privileged()` (SECURITY DEFINER) que retorna `true` para
 - [PRD.md](./PRD.md) — Requisitos do produto
 - [ROADMAP.md](./ROADMAP.md) — Fases e prioridades
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura técnica
+- [DATABASE-SCHEMA.md](./DATABASE-SCHEMA.md) — Schema do banco
+- [SECURITY.md](./SECURITY.md) — Práticas de segurança
+- [CODE-STANDARDS.md](./CODE-STANDARDS.md) — Padrões de código
+- [EDGE-FUNCTIONS.md](./EDGE-FUNCTIONS.md) — Catálogo de edge functions
+- [ONBOARDING.md](./ONBOARDING.md) — Guia para novos devs
+- [ADR.md](./ADR.md) — Decisões arquiteturais
 - [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) — Auditoria de comissões
 - [corban.md](./corban.md) — Integração NewCorban
 - [UAZAPI.md](./UAZAPI.md) — Referência de endpoints
