@@ -195,6 +195,7 @@ export default function Broadcasts() {
                     <TableHead>Status</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Chip</TableHead>
+                    <TableHead>Proprietário</TableHead>
                     <TableHead className="text-center">Dest.</TableHead>
                     <TableHead className="text-center">Enviados</TableHead>
                     <TableHead className="text-center">Erros</TableHead>
