@@ -80,6 +80,7 @@ interface ExtendedChat extends ChatContact {
   custom_status?: ConversationStatus;
   is_blocked?: boolean;
   is_muted?: boolean;
+  assigned_user_id?: string | null;
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
@@ -237,7 +238,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
       const { data: dbConvos, error } = await supabase
         .from('conversations')
-        .select('id, remote_jid, contact_name, wa_name, contact_phone, last_message_text, last_message_at, unread_count, is_group, is_pinned, is_archived, is_starred, is_blocked, is_muted, custom_status, label_ids, profile_pic_url')
+        .select('id, remote_jid, contact_name, wa_name, contact_phone, last_message_text, last_message_at, unread_count, is_group, is_pinned, is_archived, is_starred, is_blocked, is_muted, custom_status, label_ids, profile_pic_url, assigned_user_id')
         .eq('chip_id', requestChipId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(from, to);
