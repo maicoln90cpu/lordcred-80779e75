@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Loader2, QrCode, RefreshCw, Smartphone } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, Smartphone, Globe, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -16,15 +17,22 @@ interface ChipConnectDialogProps {
   reconnectInstanceName?: string | null;
 }
 
+type ProviderChoice = 'uazapi' | 'meta';
+
 export default function ChipConnectDialog({ open, onOpenChange, onChipConnected, chipType = 'whatsapp', reconnectInstanceName }: ChipConnectDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [step, setStep] = useState<'form' | 'qr'>('form');
+  const [step, setStep] = useState<'provider' | 'form' | 'qr' | 'meta-form'>('provider');
+  const [provider, setProvider] = useState<ProviderChoice>('uazapi');
   const [instanceName, setInstanceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [chipId, setChipId] = useState<string | null>(null);
   const [qrAttempts, setQrAttempts] = useState(0);
+  const [canUseMeta, setCanUseMeta] = useState(false);
+  const [metaPhoneId, setMetaPhoneId] = useState('');
+  const [metaWabaId, setMetaWabaId] = useState('');
+  const [isValidatingMeta, setIsValidatingMeta] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -35,17 +43,49 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
 
   useEffect(() => {
     if (!open) {
-      setStep('form');
+      setStep(reconnectInstanceName ? 'qr' : 'provider');
+      setProvider('uazapi');
       setQrCode(null);
       setChipId(null);
       setInstanceName('');
       setQrAttempts(0);
+      setMetaPhoneId('');
+      setMetaWabaId('');
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     } else if (reconnectInstanceName) {
-      // Reconnect mode: skip form, go directly to QR
       handleReconnect(reconnectInstanceName);
+    } else {
+      checkMetaAccess();
     }
   }, [open]);
+
+  const checkMetaAccess = async () => {
+    if (!user) return;
+    try {
+      const { data: settings } = await supabase
+        .from('system_settings')
+        .select('meta_access_token, meta_allowed_user_ids')
+        .limit(1)
+        .maybeSingle();
+      
+      if (!settings) return;
+      const s = settings as any;
+      const hasToken = !!s.meta_access_token;
+      const allowedIds: string[] = s.meta_allowed_user_ids || [];
+      
+      // Check user role
+      const { data: role } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+      
+      const isPrivileged = ['master', 'admin'].includes((role as any)?.role || '');
+      setCanUseMeta(hasToken && (isPrivileged || allowedIds.includes(user.id)));
+    } catch {
+      setCanUseMeta(false);
+    }
+  };
 
   const getAuthToken = async () => {
     const { data } = await supabase.auth.getSession();
@@ -72,7 +112,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     setStep('qr');
 
     try {
-      // Find existing chip for this instance
       const { data: existingChip } = await supabase
         .from('chips')
         .select('id, instance_name')
@@ -88,7 +127,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
         }).eq('id', existingChip.id);
       }
 
-      // Get QR code for existing instance
       let gotQr = false;
       for (let i = 0; i < 5; i++) {
         if (i > 0) await new Promise(r => setTimeout(r, 2000));
@@ -114,6 +152,15 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     }
   };
 
+  const handleSelectProvider = (p: ProviderChoice) => {
+    setProvider(p);
+    if (p === 'uazapi') {
+      setStep('form');
+    } else {
+      setStep('meta-form');
+    }
+  };
+
   const handleCreate = async () => {
     if (!user) return;
     setIsCreating(true);
@@ -136,7 +183,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
       }
     }
 
-    // Fetch user's max_chips from profile
     const { data: profileData } = await supabase
       .from('profiles')
       .select('max_chips')
@@ -238,6 +284,106 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     }
   };
 
+  const handleCreateMeta = async () => {
+    if (!user || !metaPhoneId.trim()) {
+      toast({ title: 'Preencha o Phone Number ID', variant: 'destructive' });
+      return;
+    }
+    setIsValidatingMeta(true);
+
+    try {
+      // Validate with Meta API
+      const { data: settings } = await supabase
+        .from('system_settings')
+        .select('meta_access_token')
+        .limit(1)
+        .maybeSingle();
+      
+      const metaToken = (settings as any)?.meta_access_token;
+      if (!metaToken) {
+        toast({ title: 'Token Meta não configurado', description: 'Configure o Access Token no Master Admin', variant: 'destructive' });
+        return;
+      }
+
+      // Test the phone number ID
+      const testResp = await fetch(`https://graph.facebook.com/v21.0/${metaPhoneId.trim()}`, {
+        headers: { 'Authorization': `Bearer ${metaToken}` },
+      });
+      const testData = await testResp.json();
+
+      if (testData.error) {
+        toast({
+          title: 'Phone Number ID inválido',
+          description: testData.error.message || 'Verifique o ID no Meta Business Manager',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const displayPhone = testData.display_phone_number || metaPhoneId;
+      const verifiedName = testData.verified_name || '';
+
+      // Get slot
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('max_chips')
+        .eq('user_id', user.id)
+        .single();
+      
+      const userMaxChips = (profileData as any)?.max_chips ?? 5;
+      const slotStart = 101;
+      const slotEnd = 100 + userMaxChips;
+
+      const { data: existing } = await (supabase
+        .from('chips')
+        .select('slot_number')
+        .eq('user_id', user.id)
+        .order('slot_number') as any).eq('chip_type', 'whatsapp');
+
+      const usedSlots = new Set((existing || []).map((c: any) => c.slot_number));
+      let slot = slotStart;
+      while (usedSlots.has(slot) && slot <= slotEnd) slot++;
+      if (slot > slotEnd) {
+        toast({ title: 'Limite atingido', description: `Máximo de ${userMaxChips} chips`, variant: 'destructive' });
+        return;
+      }
+
+      const name = verifiedName || `meta_${displayPhone.replace(/\D/g, '')}`;
+
+      // Create chip with provider='meta'
+      const { error } = await supabase
+        .from('chips')
+        .insert({
+          user_id: user.id,
+          slot_number: slot,
+          instance_name: name,
+          status: 'connected',
+          activated_at: new Date().toISOString(),
+          last_connection_attempt: new Date().toISOString(),
+          chip_type: 'whatsapp',
+          provider: 'meta',
+          meta_phone_number_id: metaPhoneId.trim(),
+          meta_waba_id: metaWabaId.trim() || null,
+          phone_number: displayPhone.replace(/\D/g, ''),
+        } as any)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: 'Meta WhatsApp conectado!',
+        description: `Número ${displayPhone} vinculado via Meta Cloud API`,
+      });
+      onOpenChange(false);
+      onChipConnected();
+    } catch (error: any) {
+      toast({ title: 'Erro ao conectar Meta', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsValidatingMeta(false);
+    }
+  };
+
   const startPolling = (instName: string, cId: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -273,7 +419,6 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
     const newAttempts = qrAttempts + 1;
     setQrAttempts(newAttempts);
 
-    // Determine instance name
     let targetInstance = instName;
     if (!targetInstance && activeChipId) {
       const { data: chip } = await supabase.from('chips').select('instance_name').eq('id', activeChipId).single();
@@ -320,10 +465,59 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
             {reconnectInstanceName ? 'Reconectar Chip' : 'Conectar Chip'}
           </DialogTitle>
           <DialogDescription>
-            {reconnectInstanceName ? 'Escaneie o QR Code para reconectar' : 'Conecte seu WhatsApp escaneando o QR Code'}
+            {reconnectInstanceName
+              ? 'Escaneie o QR Code para reconectar'
+              : step === 'provider'
+              ? 'Escolha o provedor de conexão WhatsApp'
+              : step === 'meta-form'
+              ? 'Conecte via Meta WhatsApp Cloud API (oficial)'
+              : 'Conecte seu WhatsApp escaneando o QR Code'}
           </DialogDescription>
         </DialogHeader>
 
+        {/* Step 1: Provider selection (only for new connections) */}
+        {step === 'provider' && !reconnectInstanceName && (
+          <div className="space-y-3 py-2">
+            <button
+              onClick={() => handleSelectProvider('uazapi')}
+              className="w-full flex items-start gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors text-left"
+            >
+              <QrCode className="w-8 h-8 text-green-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium flex items-center gap-2">
+                  UazAPI (QR Code)
+                  <Badge variant="secondary" className="text-xs">Atual</Badge>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Conexão via WhatsApp Web. Bom para aquecimento e uso geral.
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => canUseMeta ? handleSelectProvider('meta') : undefined}
+              disabled={!canUseMeta}
+              className={`w-full flex items-start gap-3 p-4 rounded-lg border transition-colors text-left ${
+                canUseMeta ? 'hover:bg-muted/50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <Shield className="w-8 h-8 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium flex items-center gap-2">
+                  Meta Cloud API (Oficial)
+                  <Badge variant="outline" className="text-xs text-blue-500 border-blue-500">Oficial</Badge>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {canUseMeta
+                    ? 'Conexão oficial do WhatsApp. Sem risco de ban, ideal para atendimento.'
+                    : 'Não disponível. Solicite acesso ao administrador.'}
+                </p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Step 2a: UazAPI form */}
         {step === 'form' && !reconnectInstanceName && (
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -334,12 +528,61 @@ export default function ChipConnectDialog({ open, onOpenChange, onChipConnected,
                 onChange={(e) => setInstanceName(e.target.value)}
               />
             </div>
-            <Button onClick={handleCreate} disabled={isCreating} className="w-full">
-              {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</> : 'Criar e Conectar'}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep('provider')} className="shrink-0">
+                Voltar
+              </Button>
+              <Button onClick={handleCreate} disabled={isCreating} className="flex-1">
+                {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</> : 'Criar e Conectar'}
+              </Button>
+            </div>
           </div>
         )}
 
+        {/* Step 2b: Meta form */}
+        {step === 'meta-form' && (
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Phone Number ID *</Label>
+              <Input
+                placeholder="Ex: 123456789012345"
+                value={metaPhoneId}
+                onChange={(e) => setMetaPhoneId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Encontrado em Meta Business Manager → WhatsApp → API Setup
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>WABA ID (opcional)</Label>
+              <Input
+                placeholder="Ex: 987654321098765"
+                value={metaWabaId}
+                onChange={(e) => setMetaWabaId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                WhatsApp Business Account ID — necessário para sincronizar templates
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep('provider')} className="shrink-0">
+                Voltar
+              </Button>
+              <Button onClick={handleCreateMeta} disabled={isValidatingMeta} className="flex-1">
+                {isValidatingMeta ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validando...</>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Conectar via Meta
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: QR Code (UazAPI only) */}
         {(step === 'qr' || reconnectInstanceName) && (
           <div className="flex flex-col items-center gap-4 py-4">
             {qrCode ? (
