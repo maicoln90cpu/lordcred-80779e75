@@ -199,14 +199,15 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setCreating(true);
     try {
       let phones: string[] = [];
+      const leadIdMap: Record<string, string> = {};
 
       if (sourceType === 'manual') {
         phones = formPhones.split(/[\n,;]+/).map(p => p.trim().replace(/\D/g, '')).filter(p => p.length >= 10);
       } else if (sourceType === 'csv') {
         phones = csvPhones;
       } else if (sourceType === 'leads') {
-        // Fetch lead phones matching filters
-        let query = supabase.from('client_leads').select('telefone')
+        // Fetch lead phones matching filters + lead ids for variable substitution
+        let query = supabase.from('client_leads').select('id, telefone')
           .not('telefone', 'is', null)
           .neq('telefone', '');
         if (leadStatuses.length > 0) query = query.in('status', leadStatuses);
@@ -216,7 +217,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
         const { data: leads } = await query;
         if (leads) {
-          phones = leads.map(l => (l.telefone || '').replace(/\D/g, '')).filter(p => p.length >= 10);
+          // Build phone-to-lead map for lead_id linking
+          const seen = new Set<string>();
+          for (const l of leads) {
+            const cleaned = (l.telefone || '').replace(/\D/g, '');
+            if (cleaned.length >= 10 && !seen.has(cleaned)) {
+              seen.add(cleaned);
+              phones.push(cleaned);
+              leadIdMap[cleaned] = l.id;
+            }
+          }
         }
       }
 
@@ -271,8 +281,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         const batch = phones.slice(i, i + batchSize).map(phone => ({
           campaign_id: campaign.id,
           phone,
+          ...(leadIdMap[phone] ? { lead_id: leadIdMap[phone] } : {}),
         }));
-        await supabase.from('broadcast_recipients').insert(batch);
+        await supabase.from('broadcast_recipients').insert(batch as any);
       }
 
       toast({ title: `Campanha criada com ${phones.length} destinatários` });
@@ -369,7 +380,23 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
           <div>
             <Label>Mensagem</Label>
             <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={3} />
-            <p className="text-xs text-muted-foreground mt-1">{formMessage.length} caracteres</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-muted-foreground">{formMessage.length} caracteres</p>
+              {sourceType === 'leads' && (
+                <div className="flex flex-wrap gap-1">
+                  {['{{nome}}', '{{cpf}}', '{{banco}}', '{{telefone}}', '{{perfil}}', '{{status}}'].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
+                      onClick={() => setFormMessage(prev => prev + ' ' + v)}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mídia */}

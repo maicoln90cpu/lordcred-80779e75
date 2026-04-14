@@ -9,10 +9,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon } from 'lucide-react';
+import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
+const BlacklistManager = lazy(() => import('@/components/broadcasts/BlacklistManager'));
 
 interface Campaign {
   id: string;
@@ -66,6 +67,7 @@ export default function Broadcasts() {
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<Campaign | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; id: string } | null>(null);
+  const [showBlacklist, setShowBlacklist] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -160,9 +162,14 @@ export default function Broadcasts() {
             <h1 className="text-2xl font-bold">Disparos em Massa</h1>
             <p className="text-muted-foreground text-sm">Campanhas de envio com controle de taxa anti-bloqueio</p>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus className="w-4 h-4" /> Nova Campanha
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowBlacklist(true)} className="gap-2">
+              <Ban className="w-4 h-4" /> Blacklist
+            </Button>
+            <Button onClick={() => setShowCreate(true)} className="gap-2">
+              <Plus className="w-4 h-4" /> Nova Campanha
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -284,6 +291,11 @@ export default function Broadcasts() {
       {/* Create Dialog */}
       <Suspense fallback={null}>
         <BroadcastCreateDialog open={showCreate} onOpenChange={setShowCreate} onCreated={loadData} />
+      </Suspense>
+
+      {/* Blacklist Dialog */}
+      <Suspense fallback={null}>
+        <BlacklistManager open={showBlacklist} onOpenChange={setShowBlacklist} />
       </Suspense>
 
       {/* Detail Dialog */}
