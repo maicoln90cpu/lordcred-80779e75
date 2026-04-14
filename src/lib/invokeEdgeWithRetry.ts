@@ -28,7 +28,6 @@ function isRetryableError(error: unknown): boolean {
 
 export function isDisconnectError(result: InvokeResult<any>): boolean {
   if (!result.data && !result.error) return false;
-  // Only true when the API explicitly says the chip is disconnected
   const errMsg = String(result.data?.error || result.error?.message || result.error || '').toLowerCase();
   return (
     errMsg.includes('disconnected') ||
@@ -38,7 +37,11 @@ export function isDisconnectError(result: InvokeResult<any>): boolean {
   );
 }
 
-export async function invokeUazapiWithRetry<T = any>(
+/**
+ * Calls the whatsapp-gateway edge function (unified router).
+ * The gateway automatically routes to UazAPI or Meta based on chip provider.
+ */
+export async function invokeGatewayWithRetry<T = any>(
   body: Record<string, unknown>,
   options: InvokeOptions = {}
 ): Promise<InvokeResult<T>> {
@@ -50,7 +53,7 @@ export async function invokeUazapiWithRetry<T = any>(
 
   while (attempt <= retries) {
     try {
-      const { data, error } = await supabase.functions.invoke('uazapi-api', { body });
+      const { data, error } = await supabase.functions.invoke('whatsapp-gateway', { body });
 
       if (!error) {
         return { data: data as T, error: null, isTransportError: false };
@@ -61,7 +64,6 @@ export async function invokeUazapiWithRetry<T = any>(
         return { data: null, error: lastError, isTransportError: isRetryableError(error) };
       }
     } catch (thrown: any) {
-      // supabase.functions.invoke can throw on network failures
       lastError = thrown;
       if (attempt === retries || !isRetryableError(thrown)) {
         return { data: null, error: lastError, isTransportError: true };
@@ -75,3 +77,9 @@ export async function invokeUazapiWithRetry<T = any>(
 
   return { data: null, error: lastError, isTransportError: true };
 }
+
+/**
+ * @deprecated Use invokeGatewayWithRetry instead. This is kept for backward compatibility
+ * and now internally calls the whatsapp-gateway.
+ */
+export const invokeUazapiWithRetry = invokeGatewayWithRetry;
