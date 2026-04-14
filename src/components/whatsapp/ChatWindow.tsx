@@ -676,6 +676,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         </div>
       </div>
 
+      {/* Assign banner for shared chips */}
+      {chipId && chat && (
+        <AssignConversationBanner chipId={chipId} conversationId={chat.id} remoteJid={chat.remoteJid} />
+      )}
+
       {/* Search bar */}
       {searchOpen && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/30">
