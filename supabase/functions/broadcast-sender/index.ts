@@ -267,13 +267,17 @@ Deno.serve(async (req) => {
               .update({ status: 'sent', sent_at: new Date().toISOString(), variant })
               .eq('id', recipient.id)
             // Increment messages_sent_today for the chip used
-            await adminClient.rpc('increment_field', { table_name: 'chips', field_name: 'messages_sent_today', row_id: activeChip.chipId, amount: 1 }).catch(() => {
-              // Fallback: direct update if RPC doesn't exist
-              adminClient
+            const { data: chipCurrent } = await adminClient
+              .from('chips')
+              .select('messages_sent_today')
+              .eq('id', activeChip.chipId)
+              .single()
+            if (chipCurrent) {
+              await adminClient
                 .from('chips')
-                .update({ messages_sent_today: (0) }) // Will be handled below
+                .update({ messages_sent_today: (chipCurrent.messages_sent_today || 0) + 1 })
                 .eq('id', activeChip.chipId)
-            })
+            }
             batchSent++
             totalProcessed++
           } else {
