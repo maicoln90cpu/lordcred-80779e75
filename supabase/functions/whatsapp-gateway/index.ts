@@ -550,7 +550,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Meta access token not configured. Set it in Master Admin.' }, 500)
       }
 
-      return handleMetaAction(action, body, adminClient, metaAccessToken, chip)
+      return handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
     }
 
     // Provider is 'uazapi' — proxy to the existing uazapi-api function
@@ -564,6 +564,34 @@ Deno.serve(async (req) => {
       body: JSON.stringify(body),
     })
     const proxyData = await safeJson(proxyResp)
+
+    // Audit: log sent_by_user_id for outgoing messages on shared chips
+    if (isSharedChip && chip && ['send-chat-message', 'send-media'].includes(action)) {
+      try {
+        const chatId = body.chatId || ''
+        if (chatId) {
+          // Tag the most recent outgoing message with sent_by_user_id
+          const { data: recentMsg } = await adminClient
+            .from('message_history')
+            .select('id')
+            .eq('chip_id', chip.id)
+            .eq('remote_jid', chatId)
+            .eq('direction', 'outgoing')
+            .is('sent_by_user_id', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (recentMsg) {
+            await adminClient
+              .from('message_history')
+              .update({ sent_by_user_id: userId } as any)
+              .eq('id', recentMsg.id)
+          }
+        }
+      } catch { /* non-critical audit */ }
+    }
+
     return jsonResponse(proxyData, proxyResp.status)
 
   } catch (error: any) {
