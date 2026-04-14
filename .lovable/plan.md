@@ -1,42 +1,26 @@
 # Plano de Implementação — LordCred
 
-## Estado Atual: Documentação Completa ✅
+## Estado Atual: Broadcasts v3 em andamento
 
-Todas as etapas de refatoração (1-4) e documentação foram concluídas.
+## Broadcasts v3 — Melhorias Avançadas
 
-## Documentação (15 documentos)
+### Etapa 1 — Fix Mídia + Preview + Export CSV ✅
+- [x] Correção endpoint mídia: `/send/image` e `/send/document` → `/send/media` (UazAPI v2)
+- [x] Preview WhatsApp: simulação de balão com variáveis fictícias e mídia
+- [x] Export CSV: botão para baixar relatório de todas as campanhas
 
-### Raiz
-- `README.md` — Setup, stack, estrutura, edge functions, roles
+### Etapa 2 — Limite Diário + Overflow de Chips (Pendente)
+- [ ] Coluna `broadcast_daily_limit` em chips
+- [ ] Coluna `overflow_chip_ids` em broadcast_campaigns
+- [ ] Lógica de transbordo no broadcast-sender
+- [ ] UI para configurar limite e chips de overflow
 
-### docs/
-- `PRD.md` — Requisitos, personas, métricas, backlog
-- `ROADMAP.md` — Fases 1-4.5 concluídas, Fase 5 planejada
-- `SYSTEM-DESIGN.md` — Arquitetura, hooks, fluxos de dados
-- `DATABASE-SCHEMA.md` — 40+ tabelas com colunas e FKs
-- `SECURITY.md` — RLS, roles, checklist de segurança
-- `CODE-STANDARDS.md` — Padrões obrigatórios, do/don't
-- `EDGE-FUNCTIONS.md` — 17 funções com trigger, fluxo, secrets
-- `ONBOARDING.md` — Guia para novos devs (< 1 dia)
-- `ADR.md` — 6 decisões arquiteturais registradas
-- `INSTRUCOES.md` — Manual de uso
-- `PENDENCIAS.md` — Changelog completo
-- `COMMISSION-REPORTS.md` — Motor de cálculo de comissões
-- `corban.md` — Integração NewCorban
-- `UAZAPI.md` — Referência de endpoints UazAPI
-- `HISTORICO-EVOLUTION-CLEANUP.md` — Migração Evolution → UazAPI
+### Etapa 3 — Webhook de Status + Métricas de Resposta (Pendente)
+- [ ] Colunas `delivery_status`, `message_id`, `replied`, `replied_at` em broadcast_recipients
+- [ ] Salvar message_id no broadcast-sender
+- [ ] Cross-reference no evolution-webhook
+- [ ] KPIs de entregue/lido/respondido no relatório
 
-## Fase 5 — Escala
-
-### Etapa 1 — Performance e Code Splitting ✅
-- [x] React.lazy() + Suspense em todas as 40+ rotas
-- [x] Componente LoadingFallback com spinner padrão
-- [x] Compilação validada sem erros
-
-### Próximos Passos
-
-- [ ] Broadcasts com controle de taxa
-- [ ] API pública REST
-- [ ] Progressão automática de aquecimento
-- [ ] Notificações push
-- [ ] Testes automatizados
+### Etapa 4 — Export PDF (Pendente)
+- [ ] Geração de PDF client-side com jspdf + html2canvas
+- [ ] Relatório visual com KPIs e gráficos

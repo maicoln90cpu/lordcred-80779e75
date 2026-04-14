@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye } from 'lucide-react';
 
 interface Profile {
   user_id: string;
@@ -46,6 +46,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Basic fields
   const [formName, setFormName] = useState('');
@@ -315,7 +316,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
-    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]);
+    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false);
   };
 
   const MultiSelect = ({ label, options, selected, onChange }: {
@@ -408,10 +409,56 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                   ))}
                 </div>
               )}
-            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setShowPreview(p => !p)}
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              {showPreview ? 'Ocultar preview' : 'Preview'}
+            </Button>
           </div>
 
-          {/* Teste A/B */}
+          {/* WhatsApp Preview */}
+          {showPreview && (
+            <div className="bg-[#efeae2] dark:bg-[#0b141a] rounded-lg p-4 flex justify-end">
+              <div className="bg-[#d9fdd3] dark:bg-[#005c4b] rounded-lg p-2.5 max-w-[280px] shadow-sm relative">
+                {mediaType === 'image' && mediaUrl && (
+                  <div className="mb-1.5 rounded overflow-hidden bg-muted/30">
+                    <img src={mediaUrl} alt="preview" className="w-full max-h-40 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  </div>
+                )}
+                {mediaType === 'image' && !mediaUrl && (
+                  <div className="mb-1.5 rounded bg-muted/30 h-24 flex items-center justify-center">
+                    <Image className="w-8 h-8 text-muted-foreground/40" />
+                  </div>
+                )}
+                {mediaType === 'document' && (
+                  <div className="mb-1.5 rounded bg-muted/20 dark:bg-white/10 p-2 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-red-400" />
+                    <span className="text-xs truncate">{mediaFilename || 'documento.pdf'}</span>
+                  </div>
+                )}
+                <p className="text-[13px] text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap leading-snug">
+                  {(formMessage || 'Sua mensagem aqui...').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                    const samples: Record<string, string> = { nome: 'João Silva', cpf: '123.456.789-00', banco: 'Itaú', telefone: '(11) 99999-8888', perfil: 'CLT', status: 'Novo' };
+                    return samples[key.toLowerCase()] || `{{${key}}}`;
+                  })}
+                </p>
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <span className="text-[10px] text-[#667781] dark:text-[#8696a0]">
+                    {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="text-[10px] text-[#53bdeb]">✓✓</span>
+                </div>
+              </div>
+            </div>
+          )}
+          </div>
+
+
           <div className="border rounded-lg p-3 space-y-2">
             <div className="flex items-center gap-2">
               <Switch checked={abEnabled} onCheckedChange={setAbEnabled} />
