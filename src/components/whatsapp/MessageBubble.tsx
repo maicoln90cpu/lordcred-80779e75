@@ -36,6 +36,7 @@ interface MessageBubbleProps {
   quotedSender?: string;
   quotedFromMe?: boolean;
   onQuotedClick?: () => void;
+  sentByUserName?: string;
 }
 
 function nameToColor(name: string): string {
