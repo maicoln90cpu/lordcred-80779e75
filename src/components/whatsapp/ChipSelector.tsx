@@ -129,13 +129,13 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Sessão expirada');
 
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-gateway`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: 'logout-instance', instanceName: chipToDisconnect.instance_name }),
+        body: JSON.stringify({ action: 'logout-instance', instanceName: chipToDisconnect.instance_name, chipId: chipToDisconnect.id }),
       });
 
       await supabase
