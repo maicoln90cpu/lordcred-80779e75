@@ -11,156 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Clock, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw, MapPin } from 'lucide-react';
+import { ArrowLeft, Save, Building2, FileText, History, Loader2, Send, Eye, AlertTriangle, Download, MessageSquare, RefreshCw, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { PartnerField, PartnerSelectField } from '@/components/partners/PartnerFormFields';
 import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDialog';
 import { ContractViewerDialog } from '@/components/partners/ContractViewerDialog';
-
-const PIPELINE_STATUSES = [
-  { value: 'contato_inicial', label: 'Contato Inicial' },
-  { value: 'reuniao_marcada', label: 'Reunião Marcada' },
-  { value: 'link_enviado', label: 'Link Enviado' },
-  { value: 'confirmou', label: 'Confirmou' },
-  { value: 'mei_pendente', label: 'MEI Pendente' },
-  { value: 'mei_criado', label: 'MEI Criado' },
-  { value: 'contrato_pendente', label: 'Contrato Pendente' },
-  { value: 'contrato_assinado', label: 'Contrato Assinado' },
-  { value: 'em_treinamento', label: 'Em Treinamento' },
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'desistencia', label: 'Desistência' },
-];
-
-const CONTRATO_STATUSES = [
-  { value: 'pendente', label: 'Pendente' },
-  { value: 'gerado', label: 'Gerado' },
-  { value: 'pendente_parceiro', label: 'Aguardando Assinatura' },
-  { value: 'assinado', label: 'Assinado' },
-];
-
-const TREINAMENTO_STATUSES = [
-  { value: 'pendente', label: 'Pendente' },
-  { value: 'em_andamento', label: 'Em Andamento' },
-  { value: 'concluido', label: 'Concluído' },
-];
-
-function isValidCpf(value: string): boolean {
-  const raw = value.replace(/\D/g, '');
-  if (raw.length !== 11 || /^(\d)\1{10}$/.test(raw)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += Number(raw[i]) * (10 - i);
-  if (((sum * 10) % 11) % 10 !== Number(raw[9])) return false;
-  sum = 0;
-  for (let i = 0; i < 10; i++) sum += Number(raw[i]) * (11 - i);
-  return ((sum * 10) % 11) % 10 === Number(raw[10]);
-}
-
-function isValidCnpj(value: string): boolean {
-  const raw = value.replace(/\D/g, '');
-  if (raw.length !== 14 || /^(\d)\1{13}$/.test(raw)) return false;
-  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  let s = 0;
-  for (let i = 0; i < 12; i++) s += Number(raw[i]) * w1[i];
-  const d1 = s % 11 < 2 ? 0 : 11 - (s % 11);
-  if (d1 !== Number(raw[12])) return false;
-  s = 0;
-  for (let i = 0; i < 13; i++) s += Number(raw[i]) * w2[i];
-  const d2 = s % 11 < 2 ? 0 : 11 - (s % 11);
-  return d2 === Number(raw[13]);
-}
-
-function formatCnpj(value: string): string {
-  const raw = value.replace(/\D/g, '').slice(0, 14);
-  if (raw.length <= 2) return raw;
-  if (raw.length <= 5) return `${raw.slice(0, 2)}.${raw.slice(2)}`;
-  if (raw.length <= 8) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
-  if (raw.length <= 12) return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
-  return `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12)}`;
-}
-
-function formatCpf(value: string): string {
-  const raw = value.replace(/\D/g, '').slice(0, 11);
-  if (raw.length <= 3) return raw;
-  if (raw.length <= 6) return `${raw.slice(0, 3)}.${raw.slice(3)}`;
-  if (raw.length <= 9) return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
-  return `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9)}`;
-}
-
-function formatPhone(value: string): string {
-  const raw = value.replace(/\D/g, '').slice(0, 11);
-  if (raw.length <= 2) return raw;
-  if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
-  return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
-}
-
-function formatCep(value: string): string {
-  const raw = value.replace(/\D/g, '').slice(0, 8);
-  if (raw.length <= 5) return raw;
-  return `${raw.slice(0, 5)}-${raw.slice(5)}`;
-}
-
-function validateForContract(form: Record<string, any>): Record<string, string> {
-  const errors: Record<string, string> = {};
-
-  // === Empresa ===
-  if (!form.razao_social || (form.razao_social || '').trim().length < 3) errors.razao_social = 'Razão Social é obrigatória';
-  const cnpjRaw = (form.cnpj || '').replace(/\D/g, '');
-  if (!cnpjRaw || cnpjRaw.length < 14) errors.cnpj = 'CNPJ válido é obrigatório';
-  else if (!isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
-  if (!form.endereco_pj_rua || (form.endereco_pj_rua || '').trim().length < 3) errors.endereco_pj_rua = 'Rua da empresa é obrigatória';
-  if (!form.endereco_pj_numero || (form.endereco_pj_numero || '').trim().length < 1) errors.endereco_pj_numero = 'Número é obrigatório';
-  if (!form.endereco_pj_bairro || (form.endereco_pj_bairro || '').trim().length < 2) errors.endereco_pj_bairro = 'Bairro é obrigatório';
-  if (!form.endereco_pj_municipio || (form.endereco_pj_municipio || '').trim().length < 2) errors.endereco_pj_municipio = 'Município é obrigatório';
-  if (!form.endereco_pj_uf || (form.endereco_pj_uf || '').trim().length < 2) errors.endereco_pj_uf = 'UF é obrigatória';
-  if (!form.endereco_pj_cep || (form.endereco_pj_cep || '').trim().length < 5) errors.endereco_pj_cep = 'CEP é obrigatório';
-
-  // === Representante Legal ===
-  const nome = (form.nome || '').trim();
-  const parts = nome.split(' ').filter(Boolean);
-  if (!nome) errors.nome = 'Nome do representante é obrigatório';
-  else if (parts.length < 2) errors.nome = 'Informe nome e sobrenome do representante';
-  else if (/\d/.test(nome)) errors.nome = 'Nome não pode conter números';
-
-  const cpf = (form.cpf || '').replace(/\D/g, '');
-  if (!cpf) errors.cpf = 'CPF do representante é obrigatório';
-  else if (!isValidCpf(cpf)) errors.cpf = 'CPF inválido';
-
-  if (!form.telefone || (form.telefone || '').trim().length < 8) errors.telefone = 'Telefone é obrigatório';
-  if (!form.email || !form.email.includes('@')) errors.email = 'Email válido é obrigatório';
-  if (!form.nacionalidade || (form.nacionalidade || '').trim().length < 3) errors.nacionalidade = 'Nacionalidade é obrigatória';
-  if (!form.estado_civil || (form.estado_civil || '').trim().length < 3) errors.estado_civil = 'Estado civil é obrigatório';
-  
-  // Endereço pessoal — campos estruturados
-  if (!form.endereco_rep_cep || (form.endereco_rep_cep || '').replace(/\D/g, '').length < 8) errors.endereco_rep_cep = 'CEP pessoal é obrigatório';
-  if (!form.endereco_rep_rua || (form.endereco_rep_rua || '').trim().length < 3) errors.endereco_rep_rua = 'Rua é obrigatória';
-  if (!form.endereco_rep_numero || (form.endereco_rep_numero || '').trim().length < 1) errors.endereco_rep_numero = 'Número é obrigatório';
-  if (!form.endereco_rep_bairro || (form.endereco_rep_bairro || '').trim().length < 2) errors.endereco_rep_bairro = 'Bairro é obrigatório';
-  if (!form.endereco_rep_municipio || (form.endereco_rep_municipio || '').trim().length < 2) errors.endereco_rep_municipio = 'Município é obrigatório';
-  if (!form.endereco_rep_uf || (form.endereco_rep_uf || '').trim().length < 2) errors.endereco_rep_uf = 'UF é obrigatória';
-
-  return errors;
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  'criado': 'Parceiro criado',
-  'dados_atualizados': 'Dados atualizados',
-  'status_alterado': 'Status alterado',
-  'contrato_gerado': 'Contrato gerado',
-  'contrato_assinado': 'Contrato assinado',
-  'contrato_enviado': 'Contrato enviado para assinatura',
-  'nota_adicionada': 'Nota adicionada',
-};
-
-const ACTION_ICONS: Record<string, string> = {
-  'criado': '🆕',
-  'dados_atualizados': '✏️',
-  'status_alterado': '🔄',
-  'contrato_gerado': '📄',
-  'contrato_assinado': '✅',
-  'contrato_enviado': '📧',
-  'nota_adicionada': '💬',
-};
+import {
+  formatCnpj, formatCpf, formatPhone, formatCep, validateForContract,
+  PIPELINE_STATUSES, CONTRATO_STATUSES, TREINAMENTO_STATUSES, ACTION_LABELS, ACTION_ICONS,
+} from '@/lib/partnerUtils';
 
 export default function PartnerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -178,6 +37,8 @@ export default function PartnerDetail() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerPdfBase64, setViewerPdfBase64] = useState('');
   const [viewerFilename, setViewerFilename] = useState('');
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepRepLoading, setCepRepLoading] = useState(false);
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -192,29 +53,16 @@ export default function PartnerDetail() {
   const { data: history = [] } = useQuery({
     queryKey: ['partner-history', id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('partner_history')
-        .select('*')
-        .eq('partner_id', id!)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('partner_history').select('*').eq('partner_id', id!).order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!id,
   });
 
-  useEffect(() => {
-    if (partner) {
-      setForm({ ...partner });
-      setDirty(false);
-    }
-  }, [partner]);
-
-  const [cepLoading, setCepLoading] = useState(false);
-  const [cepRepLoading, setCepRepLoading] = useState(false);
+  useEffect(() => { if (partner) { setForm({ ...partner }); setDirty(false); } }, [partner]);
 
   const updateField = useCallback((field: string, value: any) => {
-    // Apply masks for specific fields
     if (field === 'cnpj') value = formatCnpj(value || '');
     else if (field === 'cpf') value = formatCpf(value || '');
     else if (field === 'telefone') value = formatPhone(value || '');
@@ -224,51 +72,31 @@ export default function PartnerDetail() {
     setDirty(true);
   }, []);
 
-  // CEP auto-fill via ViaCEP
+  // CEP auto-fill PJ
   useEffect(() => {
     const cepRaw = (form.endereco_pj_cep || '').replace(/\D/g, '');
     if (cepRaw.length !== 8) return;
     let cancelled = false;
     setCepLoading(true);
-    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled || data.erro) return;
-        setForm(prev => ({
-          ...prev,
-          endereco_pj_rua: data.logradouro || prev.endereco_pj_rua,
-          endereco_pj_bairro: data.bairro || prev.endereco_pj_bairro,
-          endereco_pj_municipio: data.localidade || prev.endereco_pj_municipio,
-          endereco_pj_uf: data.uf || prev.endereco_pj_uf,
-        }));
-        setDirty(true);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setCepLoading(false); });
+    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`).then(r => r.json()).then(data => {
+      if (cancelled || data.erro) return;
+      setForm(prev => ({ ...prev, endereco_pj_rua: data.logradouro || prev.endereco_pj_rua, endereco_pj_bairro: data.bairro || prev.endereco_pj_bairro, endereco_pj_municipio: data.localidade || prev.endereco_pj_municipio, endereco_pj_uf: data.uf || prev.endereco_pj_uf }));
+      setDirty(true);
+    }).catch(() => {}).finally(() => { if (!cancelled) setCepLoading(false); });
     return () => { cancelled = true; };
   }, [form.endereco_pj_cep]);
 
-  // CEP auto-fill for representative address
+  // CEP auto-fill Rep
   useEffect(() => {
     const cepRaw = (form.endereco_rep_cep || '').replace(/\D/g, '');
     if (cepRaw.length !== 8) return;
     let cancelled = false;
     setCepRepLoading(true);
-    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled || data.erro) return;
-        setForm(prev => ({
-          ...prev,
-          endereco_rep_rua: data.logradouro || prev.endereco_rep_rua,
-          endereco_rep_bairro: data.bairro || prev.endereco_rep_bairro,
-          endereco_rep_municipio: data.localidade || prev.endereco_rep_municipio,
-          endereco_rep_uf: data.uf || prev.endereco_rep_uf,
-        }));
-        setDirty(true);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setCepRepLoading(false); });
+    fetch(`https://viacep.com.br/ws/${cepRaw}/json/`).then(r => r.json()).then(data => {
+      if (cancelled || data.erro) return;
+      setForm(prev => ({ ...prev, endereco_rep_rua: data.logradouro || prev.endereco_rep_rua, endereco_rep_bairro: data.bairro || prev.endereco_rep_bairro, endereco_rep_municipio: data.localidade || prev.endereco_rep_municipio, endereco_rep_uf: data.uf || prev.endereco_rep_uf }));
+      setDirty(true);
+    }).catch(() => {}).finally(() => { if (!cancelled) setCepRepLoading(false); });
     return () => { cancelled = true; };
   }, [form.endereco_rep_cep]);
 
@@ -278,7 +106,6 @@ export default function PartnerDetail() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const { id: _id, created_at, updated_at, ...updates } = form;
-      // Auto-fill endereco_pj from structured fields
       const rua = (updates.endereco_pj_rua || '').trim();
       const num = (updates.endereco_pj_numero || '').trim();
       const bairro = (updates.endereco_pj_bairro || '').trim();
@@ -286,10 +113,8 @@ export default function PartnerDetail() {
       const uf = (updates.endereco_pj_uf || '').trim();
       const cep = (updates.endereco_pj_cep || '').trim();
       if (rua && mun) {
-        const parts = [rua, num ? `n. ${num}` : '', bairro ? `bairro ${bairro}` : '', `${mun}${uf ? ' ' + uf : ''}`, cep ? `CEP ${cep}` : ''].filter(Boolean);
-        updates.endereco_pj = parts.join(', ');
+        updates.endereco_pj = [rua, num ? `n. ${num}` : '', bairro ? `bairro ${bairro}` : '', `${mun}${uf ? ' ' + uf : ''}`, cep ? `CEP ${cep}` : ''].filter(Boolean).join(', ');
       }
-      // Auto-fill endereco from representative structured fields
       const repRua = (updates.endereco_rep_rua || '').trim();
       const repNum = (updates.endereco_rep_numero || '').trim();
       const repBairro = (updates.endereco_rep_bairro || '').trim();
@@ -297,143 +122,91 @@ export default function PartnerDetail() {
       const repUf = (updates.endereco_rep_uf || '').trim();
       const repCep = (updates.endereco_rep_cep || '').trim();
       if (repRua && repMun) {
-        const parts = [repRua, repNum ? `n. ${repNum}` : '', repBairro ? `bairro ${repBairro}` : '', `${repMun}${repUf ? ' ' + repUf : ''}`, repCep ? `CEP ${repCep}` : ''].filter(Boolean);
-        updates.endereco = parts.join(', ');
+        updates.endereco = [repRua, repNum ? `n. ${repNum}` : '', repBairro ? `bairro ${repBairro}` : '', `${repMun}${repUf ? ' ' + repUf : ''}`, repCep ? `CEP ${repCep}` : ''].filter(Boolean).join(', ');
       }
       const { error } = await supabase.from('partners').update(updates).eq('id', id!);
       if (error) throw error;
-      await supabase.from('partner_history').insert({
-        partner_id: id!,
-        action: 'dados_atualizados',
-        details: { fields_changed: Object.keys(updates) },
-        created_by: user!.id,
-      });
+      await supabase.from('partner_history').insert({ partner_id: id!, action: 'dados_atualizados', details: { fields_changed: Object.keys(updates) }, created_by: user!.id });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['partner', id] });
-      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
-      setDirty(false);
-      toast({ title: 'Parceiro atualizado com sucesso' });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['partner', id] }); queryClient.invalidateQueries({ queryKey: ['partner-history', id] }); setDirty(false); toast({ title: 'Parceiro atualizado com sucesso' }); },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
   const addNoteMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('partner_history').insert({
-        partner_id: id!,
-        action: 'nota_adicionada',
-        details: { nota: newNote },
-        created_by: user!.id,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
-      setNewNote('');
-      toast({ title: 'Nota adicionada' });
-    },
+    mutationFn: async () => { const { error } = await supabase.from('partner_history').insert({ partner_id: id!, action: 'nota_adicionada', details: { nota: newNote }, created_by: user!.id }); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['partner-history', id] }); setNewNote(''); toast({ title: 'Nota adicionada' }); },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
   const previewMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('clicksign-api', {
-        body: { action: 'preview', partner_id: id },
-      });
-      if (error) throw new Error(error.message || 'Erro ao gerar prévia');
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      setContractPreviewText(data.contract_text);
-      setContractPdfBase64(data.pdf_base64 || '');
-      setPreviewOpen(true);
-    },
+    mutationFn: async () => { const { data, error } = await supabase.functions.invoke('clicksign-api', { body: { action: 'preview', partner_id: id } }); if (error) throw new Error(error.message); if (data?.error) throw new Error(data.error); return data; },
+    onSuccess: (data) => { setContractPreviewText(data.contract_text); setContractPdfBase64(data.pdf_base64 || ''); setPreviewOpen(true); },
     onError: (e: any) => toast({ title: 'Erro ao gerar prévia', description: e.message, variant: 'destructive' }),
   });
 
   const generateContractMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('clicksign-api', {
-        body: { action: 'generate_and_send', partner_id: id },
-      });
-      if (error) throw new Error(error.message || 'Erro ao gerar contrato');
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      setPreviewOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['partner', id] });
-      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
-      toast({ title: 'Contrato gerado e enviado!', description: 'O parceiro receberá um email com o link para assinatura.' });
-    },
+    mutationFn: async () => { const { data, error } = await supabase.functions.invoke('clicksign-api', { body: { action: 'generate_and_send', partner_id: id } }); if (error) throw new Error(error.message); if (data?.error) throw new Error(data.error); return data; },
+    onSuccess: () => { setPreviewOpen(false); queryClient.invalidateQueries({ queryKey: ['partner', id] }); queryClient.invalidateQueries({ queryKey: ['partner-history', id] }); toast({ title: 'Contrato gerado e enviado!' }); },
     onError: (e: any) => toast({ title: 'Erro ao gerar contrato', description: e.message, variant: 'destructive' }),
   });
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>
-      </DashboardLayout>
-    );
-  }
+  const handleDownloadOrView = async (mode: 'view' | 'download') => {
+    setDownloadingPdf(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('clicksign-api', { body: { action: 'download_pdf', partner_id: id } });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
+      if (data?.pdf_base64) {
+        if (mode === 'view') { setViewerPdfBase64(data.pdf_base64); setViewerFilename(data.filename || 'contrato.pdf'); setViewerOpen(true); }
+        else {
+          const byteChars = atob(data.pdf_base64);
+          const byteArray = new Uint8Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = data.filename || 'contrato.pdf'; a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
+    } catch (e: any) { toast({ title: 'Erro', description: e.message, variant: 'destructive' }); }
+    finally { setDownloadingPdf(false); }
+  };
 
-  if (!partner) {
-    return (
-      <DashboardLayout>
-        <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">Parceiro não encontrado.</p>
-          <Button variant="outline" onClick={() => navigate('/admin/parceiros')}>Voltar</Button>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('clicksign-api', { body: { action: 'resend_notification', partner_id: id } });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
+      toast({ title: '✅ Contrato reenviado!', description: `${data.notified} signatário(s) notificado(s)` });
+      queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
+    } catch (e: any) { toast({ title: 'Erro ao reenviar', description: e.message, variant: 'destructive' }); }
+    finally { setResending(false); }
+  };
+
+  if (isLoading) return <DashboardLayout><div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div></DashboardLayout>;
+  if (!partner) return <DashboardLayout><div className="text-center py-12"><p className="text-muted-foreground mb-4">Parceiro não encontrado.</p><Button variant="outline" onClick={() => navigate('/admin/parceiros')}>Voltar</Button></div></DashboardLayout>;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/admin/parceiros')}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin/parceiros')}><ArrowLeft className="w-5 h-5" /></Button>
             <div>
               <h1 className="text-2xl font-bold">{form.nome || 'Parceiro'}</h1>
-              <p className="text-sm text-muted-foreground">
-                Cadastrado em {format(new Date(partner.created_at), 'dd/MM/yyyy')}
-              </p>
+              <p className="text-sm text-muted-foreground">Cadastrado em {format(new Date(partner.created_at), 'dd/MM/yyyy')}</p>
             </div>
           </div>
-          <Button onClick={() => saveMutation.mutate()} disabled={!dirty || saveMutation.isPending}>
-            <Save className="w-4 h-4 mr-2" />
-            {saveMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
-          </Button>
+          <Button onClick={() => saveMutation.mutate()} disabled={!dirty || saveMutation.isPending}><Save className="w-4 h-4 mr-2" />{saveMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
         </div>
 
-        {/* Status Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <PartnerSelectField label="Status Pipeline" field="pipeline_status" value={form.pipeline_status} onChange={updateField} options={PIPELINE_STATUSES} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <PartnerSelectField label="Status Contrato" field="contrato_status" value={form.contrato_status} onChange={updateField} options={CONTRATO_STATUSES} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <PartnerSelectField label="Status Treinamento" field="treinamento_status" value={form.treinamento_status} onChange={updateField} options={TREINAMENTO_STATUSES} />
-            </CardContent>
-          </Card>
+          <Card><CardContent className="p-4"><PartnerSelectField label="Status Pipeline" field="pipeline_status" value={form.pipeline_status} onChange={updateField} options={PIPELINE_STATUSES} /></CardContent></Card>
+          <Card><CardContent className="p-4"><PartnerSelectField label="Status Contrato" field="contrato_status" value={form.contrato_status} onChange={updateField} options={CONTRATO_STATUSES} /></CardContent></Card>
+          <Card><CardContent className="p-4"><PartnerSelectField label="Status Treinamento" field="treinamento_status" value={form.treinamento_status} onChange={updateField} options={TREINAMENTO_STATUSES} /></CardContent></Card>
         </div>
 
-        {/* Tabs */}
         <Tabs defaultValue="empresa" className="space-y-4">
-           <TabsList>
+          <TabsList>
             <TabsTrigger value="empresa"><Building2 className="w-4 h-4 mr-1" /> Dados da Empresa</TabsTrigger>
             <TabsTrigger value="contrato"><FileText className="w-4 h-4 mr-1" /> Contrato</TabsTrigger>
             <TabsTrigger value="notas"><MessageSquare className="w-4 h-4 mr-1" /> Notas</TabsTrigger>
@@ -442,54 +215,42 @@ export default function PartnerDetail() {
 
           <TabsContent value="empresa">
             <div className="space-y-6">
-              {/* Seção: Empresa */}
               <Card>
                 <CardHeader><CardTitle className="text-lg">🏢 Empresa</CardTitle></CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <PartnerField label="Razão Social" field="razao_social" value={form.razao_social} onChange={updateField} placeholder="Razão Social Ltda" required error={contractErrors.razao_social} />
                     <PartnerField label="CNPJ" field="cnpj" value={form.cnpj} onChange={updateField} placeholder="00.000.000/0000-00" required error={contractErrors.cnpj} />
-                    <PartnerField label="Rua / Logradouro" field="endereco_pj_rua" value={form.endereco_pj_rua} onChange={updateField} placeholder="Rua Jacob Weingartner" required error={contractErrors.endereco_pj_rua} />
+                    <PartnerField label="Rua / Logradouro" field="endereco_pj_rua" value={form.endereco_pj_rua} onChange={updateField} placeholder="Rua..." required error={contractErrors.endereco_pj_rua} />
                     <PartnerField label="Número" field="endereco_pj_numero" value={form.endereco_pj_numero} onChange={updateField} placeholder="4619" required error={contractErrors.endereco_pj_numero} />
                     <PartnerField label="Bairro" field="endereco_pj_bairro" value={form.endereco_pj_bairro} onChange={updateField} placeholder="Centro" required error={contractErrors.endereco_pj_bairro} />
                     <PartnerField label="Município" field="endereco_pj_municipio" value={form.endereco_pj_municipio} onChange={updateField} placeholder="Palhoça" required error={contractErrors.endereco_pj_municipio} />
                     <PartnerField label="UF" field="endereco_pj_uf" value={form.endereco_pj_uf} onChange={updateField} placeholder="SC" required error={contractErrors.endereco_pj_uf} />
                     <div className="relative">
                       <PartnerField label="CEP" field="endereco_pj_cep" value={form.endereco_pj_cep} onChange={updateField} placeholder="00000-000" required error={contractErrors.endereco_pj_cep} />
-                      {cepLoading && (
-                        <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
-                        </div>
-                      )}
+                      {cepLoading && <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Buscando...</div>}
                     </div>
                     <PartnerField label="Chave PIX PJ" field="pix_pj" value={form.pix_pj} onChange={updateField} placeholder="Chave PIX da empresa" colSpan />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Seção: Representante Legal */}
               <Card>
                 <CardHeader><CardTitle className="text-lg">👤 Representante Legal</CardTitle></CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo do representante" required error={contractErrors.nome} />
-                    <PartnerField label="CPF do Representante" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00" required error={contractErrors.cpf} />
+                    <PartnerField label="Nome Completo" field="nome" value={form.nome} onChange={updateField} placeholder="Nome completo" required error={contractErrors.nome} />
+                    <PartnerField label="CPF" field="cpf" value={form.cpf} onChange={updateField} placeholder="000.000.000-00" required error={contractErrors.cpf} />
                     <PartnerField label="Telefone" field="telefone" value={form.telefone} onChange={updateField} placeholder="(00) 00000-0000" required error={contractErrors.telefone} />
                     <PartnerField label="Email" field="email" value={form.email} onChange={updateField} placeholder="email@exemplo.com" type="email" required error={contractErrors.email} />
                     <PartnerField label="Nacionalidade" field="nacionalidade" value={form.nacionalidade} onChange={updateField} placeholder="Brasileira" required error={contractErrors.nacionalidade} />
                     <PartnerField label="Estado Civil" field="estado_civil" value={form.estado_civil} onChange={updateField} placeholder="Solteiro(a)" required error={contractErrors.estado_civil} />
-                    <div className="col-span-1 sm:col-span-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1 mb-3 mt-2"><MapPin className="w-3.5 h-3.5" /> Endereço Pessoal</h3>
-                    </div>
+                    <div className="col-span-1 sm:col-span-2"><h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1 mb-3 mt-2"><MapPin className="w-3.5 h-3.5" /> Endereço Pessoal</h3></div>
                     <div className="relative">
                       <PartnerField label="CEP" field="endereco_rep_cep" value={form.endereco_rep_cep} onChange={updateField} placeholder="00000-000" required error={contractErrors.endereco_rep_cep} />
-                      {cepRepLoading && (
-                        <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
-                        </div>
-                      )}
+                      {cepRepLoading && <div className="absolute right-2 top-7 flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Buscando...</div>}
                     </div>
-                    <PartnerField label="Rua / Logradouro" field="endereco_rep_rua" value={form.endereco_rep_rua} onChange={updateField} placeholder="Rua..." required error={contractErrors.endereco_rep_rua} />
+                    <PartnerField label="Rua" field="endereco_rep_rua" value={form.endereco_rep_rua} onChange={updateField} placeholder="Rua..." required error={contractErrors.endereco_rep_rua} />
                     <PartnerField label="Número" field="endereco_rep_numero" value={form.endereco_rep_numero} onChange={updateField} placeholder="123" required error={contractErrors.endereco_rep_numero} />
                     <PartnerField label="Complemento" field="endereco_rep_complemento" value={form.endereco_rep_complemento} onChange={updateField} placeholder="Apto, Sala..." />
                     <PartnerField label="Bairro" field="endereco_rep_bairro" value={form.endereco_rep_bairro} onChange={updateField} placeholder="Centro" required error={contractErrors.endereco_rep_bairro} />
@@ -499,25 +260,11 @@ export default function PartnerDetail() {
                 </CardContent>
               </Card>
 
-              {/* Seção: Captação */}
               <Card>
                 <CardHeader><CardTitle className="text-lg">📋 Captação</CardTitle></CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <PartnerSelectField
-                      label="Tipo de Captação"
-                      field="captacao_tipo"
-                      value={form.captacao_tipo}
-                      onChange={updateField}
-                      options={[
-                        { value: 'indicacao', label: 'Indicação' },
-                        { value: 'redes_sociais', label: 'Redes Sociais' },
-                        { value: 'anuncio', label: 'Anúncio' },
-                        { value: 'organico', label: 'Orgânico' },
-                        { value: 'evento', label: 'Evento' },
-                        { value: 'outro', label: 'Outro' },
-                      ]}
-                    />
+                    <PartnerSelectField label="Tipo de Captação" field="captacao_tipo" value={form.captacao_tipo} onChange={updateField} options={[{ value: 'indicacao', label: 'Indicação' }, { value: 'redes_sociais', label: 'Redes Sociais' }, { value: 'anuncio', label: 'Anúncio' }, { value: 'organico', label: 'Orgânico' }, { value: 'evento', label: 'Evento' }, { value: 'outro', label: 'Outro' }]} />
                     <PartnerField label="Indicado por" field="indicado_por" value={form.indicado_por} onChange={updateField} placeholder="Quem indicou" />
                     <PartnerField label="Idade" field="idade" value={form.idade} onChange={updateField} placeholder="30" type="number" />
                   </div>
@@ -541,75 +288,12 @@ export default function PartnerDetail() {
                 </div>
 
                 {form.contrato_status === 'assinado' && (
-                  <div className="mt-6 space-y-4">
-                    <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                      <p className="text-sm font-medium text-green-400 mb-2">✅ Contrato Assinado</p>
-                      {form.contrato_assinado_em && (
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Assinado em {format(new Date(form.contrato_assinado_em), 'dd/MM/yyyy HH:mm')}
-                        </p>
-                      )}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={downloadingPdf}
-                          onClick={async () => {
-                            setDownloadingPdf(true);
-                            try {
-                              const { data, error } = await supabase.functions.invoke('clicksign-api', {
-                                body: { action: 'download_pdf', partner_id: id },
-                              });
-                              if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
-                              if (data?.pdf_base64) {
-                                setViewerPdfBase64(data.pdf_base64);
-                                setViewerFilename(data.filename || 'contrato.pdf');
-                                setViewerOpen(true);
-                              }
-                            } catch (e: any) {
-                              toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-                            } finally {
-                              setDownloadingPdf(false);
-                            }
-                          }}
-                        >
-                          {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
-                          Visualizar Contrato
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={downloadingPdf}
-                          onClick={async () => {
-                            setDownloadingPdf(true);
-                            try {
-                              const { data, error } = await supabase.functions.invoke('clicksign-api', {
-                                body: { action: 'download_pdf', partner_id: id },
-                              });
-                              if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
-                              if (data?.pdf_base64) {
-                                const byteChars = atob(data.pdf_base64);
-                                const byteArray = new Uint8Array(byteChars.length);
-                                for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
-                                const blob = new Blob([byteArray], { type: 'application/pdf' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = data.filename || 'contrato.pdf';
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }
-                            } catch (e: any) {
-                              toast({ title: 'Erro ao buscar PDF', description: e.message, variant: 'destructive' });
-                            } finally {
-                              setDownloadingPdf(false);
-                            }
-                          }}
-                        >
-                          {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1" />}
-                          Baixar PDF Assinado
-                        </Button>
-                      </div>
+                  <div className="mt-6 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <p className="text-sm font-medium text-green-400 mb-2">✅ Contrato Assinado</p>
+                    {form.contrato_assinado_em && <p className="text-xs text-muted-foreground mb-2">Assinado em {format(new Date(form.contrato_assinado_em), 'dd/MM/yyyy HH:mm')}</p>}
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" disabled={downloadingPdf} onClick={() => handleDownloadOrView('view')}>{downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}Visualizar</Button>
+                      <Button variant="outline" size="sm" disabled={downloadingPdf} onClick={() => handleDownloadOrView('download')}>{downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1" />}Baixar PDF</Button>
                     </div>
                   </div>
                 )}
@@ -619,86 +303,22 @@ export default function PartnerDetail() {
                     <p className="text-sm font-medium text-amber-400 mb-2">⏳ Aguardando Assinatura do Parceiro</p>
                     <p className="text-xs text-muted-foreground mb-2">O contrato foi enviado para o email do parceiro via ClickSign.</p>
                     <div className="flex gap-2 mt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={downloadingPdf}
-                        onClick={async () => {
-                          setDownloadingPdf(true);
-                          try {
-                            const { data, error } = await supabase.functions.invoke('clicksign-api', {
-                              body: { action: 'download_pdf', partner_id: id },
-                            });
-                            if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
-                            if (data?.pdf_base64) {
-                              setViewerPdfBase64(data.pdf_base64);
-                              setViewerFilename(data.filename || 'contrato.pdf');
-                              setViewerOpen(true);
-                            }
-                          } catch (e: any) {
-                            toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-                          } finally {
-                            setDownloadingPdf(false);
-                          }
-                        }}
-                      >
-                        {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
-                        Visualizar Contrato
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={resending}
-                        onClick={async () => {
-                          setResending(true);
-                          try {
-                            const { data, error } = await supabase.functions.invoke('clicksign-api', {
-                              body: { action: 'resend_notification', partner_id: id },
-                            });
-                            if (error || data?.error) throw new Error(data?.error || error?.message || 'Erro');
-                            toast({ title: '✅ Contrato reenviado!', description: `${data.notified} signatário(s) notificado(s) por email.` });
-                            queryClient.invalidateQueries({ queryKey: ['partner-history', id] });
-                          } catch (e: any) {
-                            toast({ title: 'Erro ao reenviar', description: e.message, variant: 'destructive' });
-                          } finally {
-                            setResending(false);
-                          }
-                        }}
-                      >
-                        {resending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
-                        Reenviar Contrato
-                      </Button>
+                      <Button variant="outline" size="sm" disabled={downloadingPdf} onClick={() => handleDownloadOrView('view')}>{downloadingPdf ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}Visualizar</Button>
+                      <Button variant="outline" size="sm" disabled={resending} onClick={handleResend}>{resending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}Reenviar</Button>
                     </div>
                   </div>
                 )}
 
                 {(form.contrato_status === 'pendente' || form.contrato_status === 'gerado') && (
-                  <div className="mt-6 p-4 rounded-lg bg-muted border space-y-3">
+                  <div className="mt-6 space-y-4">
                     {!canGenerateContract && (
-                      <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                        <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                        <div className="text-sm">
-                          <p className="font-medium text-destructive mb-1">Preencha os campos obrigatórios antes de gerar o contrato:</p>
-                          <ul className="list-disc list-inside text-destructive/80 text-xs space-y-0.5">
-                            {Object.values(contractErrors).map((err, i) => (
-                              <li key={i}>{err}</li>
-                            ))}
-                          </ul>
-                        </div>
+                      <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                        <p className="text-sm font-medium text-destructive flex items-center gap-1"><AlertTriangle className="w-4 h-4" />Campos obrigatórios faltando:</p>
+                        <ul className="mt-1 text-xs text-muted-foreground list-disc list-inside">{Object.values(contractErrors).map((e, i) => <li key={i}>{e}</li>)}</ul>
                       </div>
                     )}
-                    <p className="text-sm text-muted-foreground">
-                      Clique abaixo para gerar a prévia do contrato. Após revisá-lo, você poderá confirmar o envio para assinatura digital via ClickSign.
-                    </p>
-                    <Button
-                      onClick={() => previewMutation.mutate()}
-                      disabled={!canGenerateContract || previewMutation.isPending}
-                    >
-                      {previewMutation.isPending ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando prévia...</>
-                      ) : (
-                        <><Eye className="w-4 h-4 mr-2" /> Gerar Prévia do Contrato</>
-                      )}
+                    <Button onClick={() => previewMutation.mutate()} disabled={!canGenerateContract || previewMutation.isPending}>
+                      {previewMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Eye className="w-4 h-4 mr-2" />}Gerar Prévia do Contrato
                     </Button>
                   </div>
                 )}
@@ -706,41 +326,23 @@ export default function PartnerDetail() {
             </Card>
           </TabsContent>
 
-          {/* New Notes Tab */}
           <TabsContent value="notas">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Notas e Comentários</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Notas</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
-                  <Textarea
-                    value={newNote}
-                    onChange={e => setNewNote(e.target.value)}
-                    placeholder="Adicionar uma nota sobre este parceiro..."
-                    rows={2}
-                    className="flex-1"
-                  />
-                  <Button
-                    onClick={() => addNoteMutation.mutate()}
-                    disabled={!newNote.trim() || addNoteMutation.isPending}
-                    className="self-end"
-                  >
+                  <Textarea value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="Adicionar uma nota..." className="flex-1" rows={2} />
+                  <Button onClick={() => addNoteMutation.mutate()} disabled={!newNote.trim() || addNoteMutation.isPending} className="shrink-0">
                     {addNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
                 </div>
-
                 <div className="space-y-3">
-                  {history.filter(h => h.action === 'nota_adicionada').length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota registrada ainda.</p>
-                  ) : (
-                    history.filter(h => h.action === 'nota_adicionada').map(h => (
-                      <div key={h.id} className="p-3 rounded-lg bg-muted/50 border">
-                        <p className="text-sm">{(h.details as any)?.nota || ''}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}
-                        </p>
-                      </div>
-                    ))
-                  )}
+                  {history.filter((h: any) => h.action === 'nota_adicionada').map((h: any) => (
+                    <div key={h.id} className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                      <p className="text-sm">{h.details?.nota}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}</p>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -748,65 +350,28 @@ export default function PartnerDetail() {
 
           <TabsContent value="historico">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Timeline de Ações</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Histórico</CardTitle></CardHeader>
               <CardContent>
-                {history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">Nenhuma ação registrada ainda.</p>
-                ) : (
-                  <div className="space-y-1">
-                    {history.map((h, i) => (
-                      <div key={h.id} className="flex gap-3 items-start relative">
-                        {/* Timeline line */}
-                        {i < history.length - 1 && (
-                          <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
-                        )}
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm shrink-0 z-10">
-                          {ACTION_ICONS[h.action] || '📋'}
-                        </div>
-                        <div className="flex-1 pb-4">
-                          <p className="text-sm font-medium">{ACTION_LABELS[h.action] || h.action}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}
-                          </p>
-                          {h.action === 'nota_adicionada' && (h.details as any)?.nota && (
-                            <p className="text-sm mt-1 p-2 rounded bg-muted/50 border">{(h.details as any).nota}</p>
-                          )}
-                          {h.action !== 'nota_adicionada' && h.details && typeof h.details === 'object' && (
-                            <details className="mt-1">
-                              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver detalhes</summary>
-                              <pre className="text-xs text-muted-foreground mt-1 bg-muted rounded p-2 overflow-x-auto max-w-full">
-                                {JSON.stringify(h.details, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                        </div>
+                <div className="space-y-3">
+                  {history.map((h: any) => (
+                    <div key={h.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
+                      <span className="text-xl">{ACTION_ICONS[h.action] || '📋'}</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{ACTION_LABELS[h.action] || h.action}</p>
+                        {h.details && <p className="text-xs text-muted-foreground mt-0.5">{h.action === 'nota_adicionada' ? h.details.nota : JSON.stringify(h.details)}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">{format(new Date(h.created_at), 'dd/MM/yyyy HH:mm')}</p>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        <ContractPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} contractText={contractPreviewText} pdfBase64={contractPdfBase64} onConfirm={() => generateContractMutation.mutate()} isGenerating={generateContractMutation.isPending} />
+        <ContractViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} pdfBase64={viewerPdfBase64} filename={viewerFilename} />
       </div>
-
-      <ContractPreviewDialog
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        contractText={contractPreviewText}
-        pdfBase64={contractPdfBase64}
-        partnerName={form.nome}
-        onConfirmSend={() => generateContractMutation.mutate()}
-        isSending={generateContractMutation.isPending}
-      />
-
-      <ContractViewerDialog
-        open={viewerOpen}
-        onOpenChange={setViewerOpen}
-        pdfBase64={viewerPdfBase64}
-        partnerName={form.nome}
-        filename={viewerFilename}
-      />
     </DashboardLayout>
   );
 }
