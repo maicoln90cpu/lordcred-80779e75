@@ -478,6 +478,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Invalid token' }, 401)
     }
 
+    const userId = (claimsData.claims as any).sub as string
+
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
@@ -492,17 +494,28 @@ Deno.serve(async (req) => {
     // Determine provider from chip
     let provider = 'uazapi'
     let chip: any = null
+    let isSharedChip = false
 
     if (chipId) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
         .eq('id', chipId)
         .single()
       
       if (chipData) {
         chip = chipData
         provider = (chipData as any).provider || 'uazapi'
+        isSharedChip = !!(chipData as any).is_shared
+        
+        // Check authorization for shared chips
+        if (isSharedChip) {
+          const sharedIds: string[] = (chipData as any).shared_user_ids || []
+          const isOwner = (chipData as any).user_id === userId
+          if (!isOwner && !sharedIds.includes(userId)) {
+            return jsonResponse({ error: 'You are not authorized to use this shared chip' }, 403)
+          }
+        }
       }
     }
 
@@ -510,17 +523,18 @@ Deno.serve(async (req) => {
     if (!chipId && body.instanceName) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
         .eq('instance_name', body.instanceName)
         .single()
       
       if (chipData) {
         chip = chipData
         provider = (chipData as any).provider || 'uazapi'
+        isSharedChip = !!(chipData as any).is_shared
       }
     }
 
-    console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}`)
+    console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}, shared=${isSharedChip}, user=${userId}`)
 
     // Route to the correct provider
     if (provider === 'meta') {
