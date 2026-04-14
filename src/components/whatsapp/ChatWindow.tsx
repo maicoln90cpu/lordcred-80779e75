@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
+import AssignConversationBanner from './AssignConversationBanner';
+import ConversationAuditPanel from './ConversationAuditPanel';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeUazapiWithRetry, isDisconnectError } from '@/lib/invokeEdgeWithRetry';
