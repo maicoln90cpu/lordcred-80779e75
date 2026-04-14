@@ -198,11 +198,22 @@ Deno.serve(async (req) => {
         }
 
         try {
+          // Get a chip with remaining daily capacity
+          const activeChip = await getAvailableChip()
+          if (!activeChip) {
+            await adminClient
+              .from('broadcast_recipients')
+              .update({ status: 'skipped', error_message: 'Limite diário atingido em todos os chips' })
+              .eq('id', recipient.id)
+            totalSkipped++
+            continue
+          }
+          const chipToken = activeChip.token
+
           // Determine which variant to use (A/B testing)
           let messageText = campaign.message_content
           let variant = 'A'
           if (campaign.ab_enabled && campaign.message_variant_b) {
-            // Alternate 50/50 based on index
             if (i % 2 === 1) {
               messageText = campaign.message_variant_b
               variant = 'B'
