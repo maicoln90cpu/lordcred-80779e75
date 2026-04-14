@@ -171,6 +171,8 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         return;
       }
 
+      // Resolve sender names for shared chip messages
+      if (dbMessages) resolveSenderNames(dbMessages);
       const mapped = (dbMessages || []).map(mapDbRow).reverse();
 
       if (mapped.length < PAGE_SIZE) setHasMore(false);
