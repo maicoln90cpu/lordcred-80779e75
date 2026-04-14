@@ -62,6 +62,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const [mediaType, setMediaType] = useState<'none' | 'image' | 'document'>('none');
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaFilename, setMediaFilename] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [mediaInputMode, setMediaInputMode] = useState<'upload' | 'url'>('upload');
 
   // Scheduling
   const [enableSchedule, setEnableSchedule] = useState(false);
@@ -109,8 +111,14 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
       supabase.from('profiles').select('user_id, email, name').order('name'),
       supabase.from('chips').select('id, instance_name, nickname, status, user_id, provider').eq('status', 'connected'),
     ]);
-    if (usersRes.data) setUsers(usersRes.data);
     if (chipsRes.data) setAllChips(chipsRes.data);
+    // Only show users that have at least one connected chip
+    if (usersRes.data && chipsRes.data) {
+      const usersWithChip = new Set(chipsRes.data.map(c => c.user_id));
+      setUsers(usersRes.data.filter(u => usersWithChip.has(u.user_id)));
+    } else if (usersRes.data) {
+      setUsers(usersRes.data);
+    }
   };
 
   const loadLeadFilterOptions = async () => {
@@ -299,7 +307,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const resetForm = () => {
     setFormName(''); setFormMessage(''); setFormRate(10);
     setSelectedUserId(''); setSelectedChipId('');
-    setMediaType('none'); setMediaUrl(''); setMediaFilename('');
+    setMediaType('none'); setMediaUrl(''); setMediaFilename(''); setUploading(false); setMediaInputMode('upload');
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
@@ -418,8 +426,58 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </RadioGroup>
             {mediaType !== 'none' && (
               <div className="space-y-2">
-                <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="URL da mídia (https://...)" />
-                {mediaType === 'document' && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button" size="sm"
+                    variant={mediaInputMode === 'upload' ? 'default' : 'outline'}
+                    onClick={() => setMediaInputMode('upload')}
+                  >
+                    <Upload className="w-3 h-3 mr-1" /> Upload
+                  </Button>
+                  <Button
+                    type="button" size="sm"
+                    variant={mediaInputMode === 'url' ? 'default' : 'outline'}
+                    onClick={() => setMediaInputMode('url')}
+                  >
+                    🔗 Colar URL
+                  </Button>
+                </div>
+                {mediaInputMode === 'upload' ? (
+                  <div>
+                    <Input
+                      type="file"
+                      accept={mediaType === 'image' ? 'image/*' : '*'}
+                      disabled={uploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploading(true);
+                        try {
+                          const ext = file.name.split('.').pop() || 'bin';
+                          const path = `${crypto.randomUUID()}.${ext}`;
+                          const { error } = await supabase.storage.from('broadcast-media').upload(path, file);
+                          if (error) throw error;
+                          const { data: urlData } = supabase.storage.from('broadcast-media').getPublicUrl(path);
+                          setMediaUrl(urlData.publicUrl);
+                          setMediaFilename(file.name);
+                          toast({ title: `${file.name} enviado com sucesso` });
+                        } catch (err: any) {
+                          toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+                        }
+                        setUploading(false);
+                      }}
+                    />
+                    {uploading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Enviando...</div>}
+                    {mediaUrl && !uploading && (
+                      <Badge variant="secondary" className="text-xs mt-1">
+                        ✅ {mediaFilename || 'Arquivo enviado'}
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="URL da mídia (https://...)" />
+                )}
+                {mediaType === 'document' && mediaInputMode === 'url' && (
                   <Input value={mediaFilename} onChange={e => setMediaFilename(e.target.value)} placeholder="Nome do arquivo (ex: proposta.pdf)" />
                 )}
               </div>
