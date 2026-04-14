@@ -331,7 +331,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
-    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false);
+    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false); setOverflowChipIds([]);
   };
 
   const MultiSelect = ({ label, options, selected, onChange }: {
