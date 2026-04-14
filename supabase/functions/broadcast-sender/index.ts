@@ -189,26 +189,20 @@ Deno.serve(async (req) => {
 
           let response: Response
 
-          if (campaign.media_type === 'image' && campaign.media_url) {
-            response = await fetch(`${apiUrl}/send/image`, {
+          if ((campaign.media_type === 'image' || campaign.media_type === 'document') && campaign.media_url) {
+            const mediaBody: Record<string, string> = {
+              number: recipient.phone,
+              type: campaign.media_type,
+              file: campaign.media_url,
+            }
+            if (messageText) mediaBody.text = messageText
+            if (campaign.media_type === 'document' && campaign.media_filename) {
+              mediaBody.docName = campaign.media_filename
+            }
+            response = await fetch(`${apiUrl}/send/media`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify({
-                number: recipient.phone,
-                image: campaign.media_url,
-                caption: messageText || '',
-              }),
-            })
-          } else if (campaign.media_type === 'document' && campaign.media_url) {
-            response = await fetch(`${apiUrl}/send/document`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify({
-                number: recipient.phone,
-                document: campaign.media_url,
-                fileName: campaign.media_filename || 'arquivo',
-                caption: messageText || '',
-              }),
+              body: JSON.stringify(mediaBody),
             })
           } else {
             response = await fetch(`${apiUrl}/send/text`, {
