@@ -659,6 +659,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setAuditOpen(!auditOpen)}
+            className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors", auditOpen && "text-primary bg-primary/10")}
+            title="Auditoria"
+          >
+            <ClipboardList className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
             className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >
