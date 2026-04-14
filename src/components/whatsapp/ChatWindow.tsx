@@ -760,6 +760,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
                 quotedText={quotedText}
                 quotedSender={quotedSender}
                 quotedFromMe={quotedFromMe}
+                sentByUserName={msg.sentByUserName}
                 onQuotedClick={msg.quotedMessageId ? () => {
                   const el = scrollRef.current?.querySelector(`[data-message-id="${msg.quotedMessageId}"]`);
                   if (el) {
