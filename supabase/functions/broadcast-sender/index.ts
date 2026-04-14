@@ -99,15 +99,50 @@ Deno.serve(async (req) => {
     let totalSkipped = 0
 
     for (const campaign of campaigns) {
-      if (!campaign.chips || campaign.chips.status !== 'connected') {
-        console.log(`Chip not connected for campaign ${campaign.id}`)
+      // Build list of available chips: primary + overflow
+      const chipCandidates: { token: string; chipId: string }[] = []
+
+      if (campaign.chips && campaign.chips.status === 'connected' && campaign.chips.instance_token) {
+        chipCandidates.push({ token: campaign.chips.instance_token, chipId: campaign.chip_id })
+      }
+
+      // Load overflow chips if configured
+      const overflowIds: string[] = campaign.overflow_chip_ids || []
+      if (overflowIds.length > 0) {
+        const { data: overflowChips } = await adminClient
+          .from('chips')
+          .select('id, instance_token, status, broadcast_daily_limit, messages_sent_today')
+          .in('id', overflowIds)
+          .eq('status', 'connected')
+        if (overflowChips) {
+          for (const oc of overflowChips) {
+            if (oc.instance_token) {
+              chipCandidates.push({ token: oc.instance_token, chipId: oc.id })
+            }
+          }
+        }
+      }
+
+      if (chipCandidates.length === 0) {
+        console.log(`No connected chips for campaign ${campaign.id}`)
         continue
       }
 
-      const chipToken = campaign.chips.instance_token
-      if (!chipToken) {
-        console.log(`No token for campaign ${campaign.id}`)
-        continue
+      // Function to get current chip with capacity
+      const getAvailableChip = async (): Promise<{ token: string; chipId: string } | null> => {
+        for (const candidate of chipCandidates) {
+          const { data: chipData } = await adminClient
+            .from('chips')
+            .select('broadcast_daily_limit, messages_sent_today')
+            .eq('id', candidate.chipId)
+            .single()
+          if (chipData) {
+            const limit = chipData.broadcast_daily_limit || 200
+            const sent = chipData.messages_sent_today || 0
+            if (sent < limit) return candidate
+          }
+        }
+        return null
       }
 
       const batchSize = Math.min(campaign.rate_per_minute || 10, 20)
@@ -163,11 +198,22 @@ Deno.serve(async (req) => {
         }
 
         try {
+          // Get a chip with remaining daily capacity
+          const activeChip = await getAvailableChip()
+          if (!activeChip) {
+            await adminClient
+              .from('broadcast_recipients')
+              .update({ status: 'skipped', error_message: 'Limite diário atingido em todos os chips' })
+              .eq('id', recipient.id)
+            totalSkipped++
+            continue
+          }
+          const chipToken = activeChip.token
+
           // Determine which variant to use (A/B testing)
           let messageText = campaign.message_content
           let variant = 'A'
           if (campaign.ab_enabled && campaign.message_variant_b) {
-            // Alternate 50/50 based on index
             if (i % 2 === 1) {
               messageText = campaign.message_variant_b
               variant = 'B'
@@ -220,6 +266,18 @@ Deno.serve(async (req) => {
               .from('broadcast_recipients')
               .update({ status: 'sent', sent_at: new Date().toISOString(), variant })
               .eq('id', recipient.id)
+            // Increment messages_sent_today for the chip used
+            const { data: chipCurrent } = await adminClient
+              .from('chips')
+              .select('messages_sent_today')
+              .eq('id', activeChip.chipId)
+              .single()
+            if (chipCurrent) {
+              await adminClient
+                .from('chips')
+                .update({ messages_sent_today: (chipCurrent.messages_sent_today || 0) + 1 })
+                .eq('id', activeChip.chipId)
+            }
             batchSent++
             totalProcessed++
           } else {

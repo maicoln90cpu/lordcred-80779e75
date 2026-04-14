@@ -42,11 +42,25 @@ interface Props {
   onCreated: () => void;
 }
 
+// WhatsApp text formatting: *bold*, _italic_, ~strikethrough~, ```monospace```
+function formatWhatsAppText(text: string): string {
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
+    .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+    .replace(/~([^~\n]+)~/g, '<del>$1</del>')
+    .replace(/```([^`]+)```/g, '<code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;font-family:monospace;font-size:12px">$1</code>');
+  return html;
+}
+
 export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Overflow chips
+  const [overflowChipIds, setOverflowChipIds] = useState<string[]>([]);
 
   // Basic fields
   const [formName, setFormName] = useState('');
@@ -282,6 +296,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             sellers: leadSellers,
           } : null,
           owner_user_id: selectedUserId || null,
+          overflow_chip_ids: overflowChipIds.length > 0 ? overflowChipIds : [],
         } as any)
         .select()
         .single();
@@ -316,7 +331,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
-    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false);
+    setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false); setOverflowChipIds([]);
   };
 
   const MultiSelect = ({ label, options, selected, onChange }: {
@@ -389,7 +404,40 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </div>
           </div>
 
-          {/* Mensagem */}
+          {/* Overflow Chips */}
+          {selectedChipId && (
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-xs flex items-center gap-2">🔄 Chips de Overflow (quando limite diário atingido)</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Cada chip tem limite de 200 msgs/dia. Selecione chips extras para continuar o envio automaticamente.
+              </p>
+              <ScrollArea className="max-h-24">
+                {allChips
+                  .filter(c => c.id !== selectedChipId && c.status === 'connected')
+                  .map(c => (
+                    <label key={c.id} className="flex items-center gap-2 py-0.5 text-xs cursor-pointer hover:bg-muted/50 px-1 rounded">
+                      <Checkbox
+                        checked={overflowChipIds.includes(c.id)}
+                        onCheckedChange={checked => {
+                          setOverflowChipIds(prev => checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
+                        }}
+                      />
+                      {c.nickname || c.instance_name} {c.provider === 'meta' ? '[META]' : '[UazAPI]'}
+                    </label>
+                  ))}
+                {allChips.filter(c => c.id !== selectedChipId && c.status === 'connected').length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">Nenhum chip extra disponível</p>
+                )}
+              </ScrollArea>
+              {overflowChipIds.length > 0 && (
+                <Badge variant="outline" className="text-[10px]">
+                  💡 {getPhoneCount()} msgs → até {Math.min(200, getPhoneCount())} no chip principal, resto nos {overflowChipIds.length} chip(s) extra(s)
+                </Badge>
+              )}
+            </div>
+          )}
+
+
           <div>
             <Label>{abEnabled ? 'Mensagem (Variante A)' : 'Mensagem'}</Label>
             <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={3} />
@@ -441,12 +489,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                     <span className="text-xs truncate">{mediaFilename || 'documento.pdf'}</span>
                   </div>
                 )}
-                <p className="text-[13px] text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap leading-snug">
-                  {(formMessage || 'Sua mensagem aqui...').replace(/\{\{(\w+)\}\}/g, (_, key) => {
-                    const samples: Record<string, string> = { nome: 'João Silva', cpf: '123.456.789-00', banco: 'Itaú', telefone: '(11) 99999-8888', perfil: 'CLT', status: 'Novo' };
-                    return samples[key.toLowerCase()] || `{{${key}}}`;
-                  })}
-                </p>
+                <p className="text-[13px] text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap leading-snug"
+                  dangerouslySetInnerHTML={{
+                    __html: formatWhatsAppText(
+                      (formMessage || 'Sua mensagem aqui...').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+                        const samples: Record<string, string> = { nome: 'João Silva', cpf: '123.456.789-00', banco: 'Itaú', telefone: '(11) 99999-8888', perfil: 'CLT', status: 'Novo' };
+                        return samples[key.toLowerCase()] || `{{${key}}}`;
+                      })
+                    )
+                  }}
+                />
                 <div className="flex items-center justify-end gap-1 mt-1">
                   <span className="text-[10px] text-[#667781] dark:text-[#8696a0]">
                     {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
