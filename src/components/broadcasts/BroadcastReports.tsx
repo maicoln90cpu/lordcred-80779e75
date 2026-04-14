@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, BarChart3, TrendingUp, FlaskConical, Send, CheckCircle2, XCircle, Target, Percent, Download, Eye, MessageSquareReply } from 'lucide-react';
+import { Loader2, BarChart3, TrendingUp, FlaskConical, Send, CheckCircle2, XCircle, Target, Percent, Download, Eye, MessageSquareReply, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell, PieChart, Pie } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +40,7 @@ export default function BroadcastReports() {
   const [deliveryMetrics, setDeliveryMetrics] = useState<DeliveryMetrics>({ delivered: 0, read: 0, replied: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const { toast } = useToast();
 
   const exportCSV = async () => {
@@ -80,6 +81,68 @@ export default function BroadcastReports() {
       toast({ title: 'Erro ao exportar', description: err.message, variant: 'destructive' });
     }
     setExporting(false);
+  };
+
+  const exportPDF = async () => {
+    setExportingPdf(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: html2canvas } = await import('html2canvas');
+      
+      const reportEl = document.getElementById('broadcast-report-content');
+      if (!reportEl) {
+        toast({ title: 'Erro', description: 'Conteúdo do relatório não encontrado', variant: 'destructive' });
+        setExportingPdf(false);
+        return;
+      }
+
+      const canvas = await html2canvas(reportEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#1a1a2e',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      // Header
+      pdf.setFillColor(26, 26, 46);
+      pdf.rect(0, 0, pdfWidth, 25, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(16);
+      pdf.text('Relatório de Broadcasts — LordCred', 14, 12);
+      pdf.setFontSize(9);
+      pdf.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 20);
+      pdf.text(`${kpis.total} campanhas | ${kpis.totalSent.toLocaleString('pt-BR')} enviados | Taxa: ${kpis.globalRate}%`, pdfWidth - 14, 20, { align: 'right' });
+
+      // Content image
+      const imgWidth = pdfWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let yOffset = 30;
+      let heightLeft = imgHeight;
+
+      // First page
+      pdf.addImage(imgData, 'PNG', 10, yOffset, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - yOffset);
+
+      // Additional pages if content overflows
+      while (heightLeft > 0) {
+        pdf.addPage();
+        yOffset = -(pdfHeight - 30) + (imgHeight - heightLeft);
+        pdf.addImage(imgData, 'PNG', 10, -heightLeft + 10, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      pdf.save(`broadcast-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast({ title: 'PDF exportado com sucesso' });
+    } catch (err: any) {
+      console.error('PDF export error:', err);
+      toast({ title: 'Erro ao exportar PDF', description: err.message, variant: 'destructive' });
+    }
+    setExportingPdf(false);
   };
 
   useEffect(() => {
@@ -204,13 +267,19 @@ export default function BroadcastReports() {
 
   return (
     <div className="space-y-4">
-      {/* Export Button */}
-      <div className="flex justify-end">
+      {/* Export Buttons */}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={exportPDF} disabled={exportingPdf || campaigns.length === 0}>
+          {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+          Exportar PDF
+        </Button>
         <Button variant="outline" size="sm" onClick={exportCSV} disabled={exporting || campaigns.length === 0}>
           {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
           Exportar CSV
         </Button>
       </div>
+
+      <div id="broadcast-report-content">
 
       {/* KPI Cards - Row 1: Sending */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
