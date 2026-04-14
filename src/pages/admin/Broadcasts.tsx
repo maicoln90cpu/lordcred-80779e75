@@ -7,13 +7,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon, Ban } from 'lucide-react';
+import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon, Ban, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
 const BlacklistManager = lazy(() => import('@/components/broadcasts/BlacklistManager'));
+const BroadcastReports = lazy(() => import('@/components/broadcasts/BroadcastReports'));
 
 interface Campaign {
   id: string;
@@ -192,100 +194,117 @@ export default function Broadcasts() {
           ))}
         </div>
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-340px)]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Chip</TableHead>
-                    <TableHead>Proprietário</TableHead>
-                    <TableHead className="text-center">Dest.</TableHead>
-                    <TableHead className="text-center">Enviados</TableHead>
-                    <TableHead className="text-center">Erros</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Taxa</TableHead>
-                    <TableHead>Criado</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {campaigns.map(c => {
-                    const st = statusMap[c.status] || statusMap.draft;
-                    return (
-                      <TableRow key={c.id}>
-                        <TableCell><Badge className={cn('text-xs', st.className)}>{st.label}</Badge></TableCell>
-                        <TableCell className="font-medium text-sm">
-                          <div className="flex items-center gap-1.5">
-                            {c.name}
-                            {c.media_type === 'image' && <Image className="w-3 h-3 text-muted-foreground" />}
-                            {c.media_type === 'document' && <FileText className="w-3 h-3 text-muted-foreground" />}
-                            {c.scheduled_date && <CalendarIcon className="w-3 h-3 text-blue-400" />}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1">
-                            {getChipName(c.chip_id)}
-                            <Badge variant="outline" className="text-[10px] px-1 py-0">{getChipProvider(c.chip_id) === 'meta' ? 'META' : 'UazAPI'}</Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs">{getOwnerName(c)}</TableCell>
-                        <TableCell className="text-center text-sm text-green-400">{c.sent_count}</TableCell>
-                        <TableCell className="text-center text-sm text-destructive">{c.failed_count}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs">{sourceLabel(c.source_type)}</Badge></TableCell>
-                        <TableCell className="text-xs">{c.rate_per_minute}/min</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{formatDate(c.created_at)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {c.status === 'draft' && (
-                              <Button size="icon" variant="ghost" onClick={() => handleAction('start', c.id)} title="Iniciar">
-                                <Play className="w-4 h-4 text-green-400" />
-                              </Button>
-                            )}
-                            {c.status === 'running' && (
-                              <Button size="icon" variant="ghost" onClick={() => handleAction('pause', c.id)} title="Pausar">
-                                <Pause className="w-4 h-4 text-orange-400" />
-                              </Button>
-                            )}
-                            {c.status === 'paused' && (
-                              <Button size="icon" variant="ghost" onClick={() => handleAction('resume', c.id)} title="Retomar">
-                                <Play className="w-4 h-4 text-green-400" />
-                              </Button>
-                            )}
-                            {['draft', 'running', 'paused'].includes(c.status) && (
-                              <Button size="icon" variant="ghost" onClick={() => setConfirmAction({ action: 'cancel', id: c.id })} title="Cancelar">
-                                <XCircle className="w-4 h-4 text-destructive" />
-                              </Button>
-                            )}
-                            {['completed', 'cancelled'].includes(c.status) && (
-                              <Button size="icon" variant="ghost" onClick={() => setConfirmAction({ action: 'delete', id: c.id })} title="Excluir">
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            )}
-                            <Button size="icon" variant="ghost" onClick={() => setShowDetail(c)} title="Detalhes">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+        {/* Tabs */}
+        <Tabs defaultValue="campanhas" className="space-y-3">
+          <TabsList>
+            <TabsTrigger value="campanhas" className="gap-1.5"><Radio className="w-3.5 h-3.5" /> Campanhas</TabsTrigger>
+            <TabsTrigger value="relatorio" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> Relatório</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="campanhas">
+            {/* Table */}
+            <Card>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-400px)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Chip</TableHead>
+                        <TableHead>Proprietário</TableHead>
+                        <TableHead className="text-center">Dest.</TableHead>
+                        <TableHead className="text-center">Enviados</TableHead>
+                        <TableHead className="text-center">Erros</TableHead>
+                        <TableHead>Origem</TableHead>
+                        <TableHead>Taxa</TableHead>
+                        <TableHead>Criado</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
-                    );
-                  })}
-                  {campaigns.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
-                        <Radio className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p>Nenhuma campanha criada</p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {campaigns.map(c => {
+                        const st = statusMap[c.status] || statusMap.draft;
+                        return (
+                          <TableRow key={c.id}>
+                            <TableCell><Badge className={cn('text-xs', st.className)}>{st.label}</Badge></TableCell>
+                            <TableCell className="font-medium text-sm">
+                              <div className="flex items-center gap-1.5">
+                                {c.name}
+                                {c.media_type === 'image' && <Image className="w-3 h-3 text-muted-foreground" />}
+                                {c.media_type === 'document' && <FileText className="w-3 h-3 text-muted-foreground" />}
+                                {c.scheduled_date && <CalendarIcon className="w-3 h-3 text-blue-400" />}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-1">
+                                {getChipName(c.chip_id)}
+                                <Badge variant="outline" className="text-[10px] px-1 py-0">{getChipProvider(c.chip_id) === 'meta' ? 'META' : 'UazAPI'}</Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs">{getOwnerName(c)}</TableCell>
+                            <TableCell className="text-center text-sm">{c.total_recipients}</TableCell>
+                            <TableCell className="text-center text-sm text-green-400">{c.sent_count}</TableCell>
+                            <TableCell className="text-center text-sm text-destructive">{c.failed_count}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-xs">{sourceLabel(c.source_type)}</Badge></TableCell>
+                            <TableCell className="text-xs">{c.rate_per_minute}/min</TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">{formatDate(c.created_at)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {c.status === 'draft' && (
+                                  <Button size="icon" variant="ghost" onClick={() => handleAction('start', c.id)} title="Iniciar">
+                                    <Play className="w-4 h-4 text-green-400" />
+                                  </Button>
+                                )}
+                                {c.status === 'running' && (
+                                  <Button size="icon" variant="ghost" onClick={() => handleAction('pause', c.id)} title="Pausar">
+                                    <Pause className="w-4 h-4 text-orange-400" />
+                                  </Button>
+                                )}
+                                {c.status === 'paused' && (
+                                  <Button size="icon" variant="ghost" onClick={() => handleAction('resume', c.id)} title="Retomar">
+                                    <Play className="w-4 h-4 text-green-400" />
+                                  </Button>
+                                )}
+                                {['draft', 'running', 'paused'].includes(c.status) && (
+                                  <Button size="icon" variant="ghost" onClick={() => setConfirmAction({ action: 'cancel', id: c.id })} title="Cancelar">
+                                    <XCircle className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                )}
+                                {['completed', 'cancelled'].includes(c.status) && (
+                                  <Button size="icon" variant="ghost" onClick={() => setConfirmAction({ action: 'delete', id: c.id })} title="Excluir">
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                )}
+                                <Button size="icon" variant="ghost" onClick={() => setShowDetail(c)} title="Detalhes">
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {campaigns.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
+                            <Radio className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                            <p>Nenhuma campanha criada</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="relatorio">
+            <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+              <BroadcastReports />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Create Dialog */}
