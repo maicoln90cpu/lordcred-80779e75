@@ -84,6 +84,8 @@ interface ExtendedChat extends ChatContact {
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
+  const currentUserId = supabase.auth.getUser ? undefined : undefined; // placeholder
+  const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
