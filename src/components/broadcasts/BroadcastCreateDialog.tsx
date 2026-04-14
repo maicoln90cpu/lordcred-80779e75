@@ -62,6 +62,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const [mediaType, setMediaType] = useState<'none' | 'image' | 'document'>('none');
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaFilename, setMediaFilename] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [mediaInputMode, setMediaInputMode] = useState<'upload' | 'url'>('upload');
 
   // Scheduling
   const [enableSchedule, setEnableSchedule] = useState(false);
