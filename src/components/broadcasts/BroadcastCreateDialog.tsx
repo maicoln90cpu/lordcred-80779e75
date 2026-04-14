@@ -426,8 +426,58 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </RadioGroup>
             {mediaType !== 'none' && (
               <div className="space-y-2">
-                <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="URL da mídia (https://...)" />
-                {mediaType === 'document' && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button" size="sm"
+                    variant={mediaInputMode === 'upload' ? 'default' : 'outline'}
+                    onClick={() => setMediaInputMode('upload')}
+                  >
+                    <Upload className="w-3 h-3 mr-1" /> Upload
+                  </Button>
+                  <Button
+                    type="button" size="sm"
+                    variant={mediaInputMode === 'url' ? 'default' : 'outline'}
+                    onClick={() => setMediaInputMode('url')}
+                  >
+                    🔗 Colar URL
+                  </Button>
+                </div>
+                {mediaInputMode === 'upload' ? (
+                  <div>
+                    <Input
+                      type="file"
+                      accept={mediaType === 'image' ? 'image/*' : '*'}
+                      disabled={uploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploading(true);
+                        try {
+                          const ext = file.name.split('.').pop() || 'bin';
+                          const path = `${crypto.randomUUID()}.${ext}`;
+                          const { error } = await supabase.storage.from('broadcast-media').upload(path, file);
+                          if (error) throw error;
+                          const { data: urlData } = supabase.storage.from('broadcast-media').getPublicUrl(path);
+                          setMediaUrl(urlData.publicUrl);
+                          setMediaFilename(file.name);
+                          toast({ title: `${file.name} enviado com sucesso` });
+                        } catch (err: any) {
+                          toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+                        }
+                        setUploading(false);
+                      }}
+                    />
+                    {uploading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Enviando...</div>}
+                    {mediaUrl && !uploading && (
+                      <Badge variant="secondary" className="text-xs mt-1">
+                        ✅ {mediaFilename || 'Arquivo enviado'}
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="URL da mídia (https://...)" />
+                )}
+                {mediaType === 'document' && mediaInputMode === 'url' && (
                   <Input value={mediaFilename} onChange={e => setMediaFilename(e.target.value)} placeholder="Nome do arquivo (ex: proposta.pdf)" />
                 )}
               </div>
