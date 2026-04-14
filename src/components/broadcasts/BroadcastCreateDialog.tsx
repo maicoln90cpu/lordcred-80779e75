@@ -199,8 +199,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setCreating(true);
     try {
       let phones: string[] = [];
-
-      if (sourceType === 'manual') {
+      const leadIdMap: Record<string, string> = {};
         phones = formPhones.split(/[\n,;]+/).map(p => p.trim().replace(/\D/g, '')).filter(p => p.length >= 10);
       } else if (sourceType === 'csv') {
         phones = csvPhones;
