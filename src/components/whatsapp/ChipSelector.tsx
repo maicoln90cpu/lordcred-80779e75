@@ -210,7 +210,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
               )}
               <span>{chip.nickname || chip.phone_number || chip.instance_name}</span>
               {chip.provider === 'meta' && (
-                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 leading-none">META</span>
+                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-primary/20 text-primary leading-none">META</span>
               )}
               {!isConnected && (
                 <span className="text-[10px] font-medium">(offline)</span>
