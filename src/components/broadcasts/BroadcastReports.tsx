@@ -489,6 +489,7 @@ export default function BroadcastReports() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
