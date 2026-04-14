@@ -225,6 +225,9 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
           {isGroup && !fromMe && senderName && (
             <p className={cn("text-xs font-semibold mb-0.5", senderColor)}>{senderName}</p>
           )}
+          {fromMe && sentByUserName && (
+            <p className="text-[10px] font-medium text-primary/70 mb-0.5">📤 {sentByUserName}</p>
+          )}
           {isMedia && messageId && chipId && (
             <div className="mb-1">
               <MediaRenderer messageId={messageId} mediaType={effectiveMediaType!} chipId={chipId} caption={displayText || undefined} />
