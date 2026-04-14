@@ -162,9 +162,14 @@ export default function Broadcasts() {
             <h1 className="text-2xl font-bold">Disparos em Massa</h1>
             <p className="text-muted-foreground text-sm">Campanhas de envio com controle de taxa anti-bloqueio</p>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus className="w-4 h-4" /> Nova Campanha
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowBlacklist(true)} className="gap-2">
+              <Ban className="w-4 h-4" /> Blacklist
+            </Button>
+            <Button onClick={() => setShowCreate(true)} className="gap-2">
+              <Plus className="w-4 h-4" /> Nova Campanha
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
