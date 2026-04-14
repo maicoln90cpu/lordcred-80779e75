@@ -85,11 +85,18 @@ export type Database = {
           created_by: string
           failed_count: number
           id: string
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           message_content: string
           name: string
+          owner_user_id: string | null
           rate_per_minute: number
           scheduled_at: string | null
+          scheduled_date: string | null
           sent_count: number
+          source_filters: Json | null
+          source_type: string
           started_at: string | null
           status: string
           total_recipients: number
@@ -102,11 +109,18 @@ export type Database = {
           created_by: string
           failed_count?: number
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_content: string
           name: string
+          owner_user_id?: string | null
           rate_per_minute?: number
           scheduled_at?: string | null
+          scheduled_date?: string | null
           sent_count?: number
+          source_filters?: Json | null
+          source_type?: string
           started_at?: string | null
           status?: string
           total_recipients?: number
@@ -119,11 +133,18 @@ export type Database = {
           created_by?: string
           failed_count?: number
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_content?: string
           name?: string
+          owner_user_id?: string | null
           rate_per_minute?: number
           scheduled_at?: string | null
+          scheduled_date?: string | null
           sent_count?: number
+          source_filters?: Json | null
+          source_type?: string
           started_at?: string | null
           status?: string
           total_recipients?: number
