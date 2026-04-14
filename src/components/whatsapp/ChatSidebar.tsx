@@ -92,6 +92,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [showArchived, setShowArchived] = useState(false);
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterStarred, setFilterStarred] = useState(false);
+  const [filterMine, setFilterMine] = useState(false);
   
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);

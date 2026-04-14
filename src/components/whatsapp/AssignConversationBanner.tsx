@@ -55,7 +55,36 @@ export default function AssignConversationBanner({ chipId, conversationId, remot
       }
     };
     fetchAssignment();
-  }, [conversationId, isShared]);
+
+    // Realtime: escuta mudanças de atribuição na conversa
+    const channel = supabase
+      .channel(`assign-${conversationId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${conversationId}` },
+        async (payload) => {
+          const newUid = (payload.new as any)?.assigned_user_id || null;
+          setAssignedUserId(newUid);
+          if (newUid && newUid !== user?.id) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('name')
+              .eq('user_id', newUid)
+              .single();
+            const name = profile?.name || 'Outro operador';
+            setAssignedName(name);
+            toast({ title: `${name} assumiu esta conversa` });
+          } else if (newUid === user?.id) {
+            setAssignedName('Você');
+          } else {
+            setAssignedName(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [conversationId, isShared, user?.id]);
 
   const handleAssign = async () => {
     if (!user || !conversationId) return;
