@@ -161,6 +161,14 @@ export default function BroadcastReports() {
 
   return (
     <div className="space-y-4">
+      {/* Export Button */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={exportCSV} disabled={exporting || campaigns.length === 0}>
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+          Exportar CSV
+        </Button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
