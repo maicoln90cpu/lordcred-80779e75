@@ -124,8 +124,11 @@ export type Database = {
           last_sync_cursor: number | null
           last_webhook_at: string | null
           messages_sent_today: number
+          meta_phone_number_id: string | null
+          meta_waba_id: string | null
           nickname: string | null
           phone_number: string | null
+          provider: string
           slot_number: number
           status: string
           updated_at: string
@@ -146,8 +149,11 @@ export type Database = {
           last_sync_cursor?: number | null
           last_webhook_at?: string | null
           messages_sent_today?: number
+          meta_phone_number_id?: string | null
+          meta_waba_id?: string | null
           nickname?: string | null
           phone_number?: string | null
+          provider?: string
           slot_number: number
           status?: string
           updated_at?: string
@@ -168,8 +174,11 @@ export type Database = {
           last_sync_cursor?: number | null
           last_webhook_at?: string | null
           messages_sent_today?: number
+          meta_phone_number_id?: string | null
+          meta_waba_id?: string | null
           nickname?: string | null
           phone_number?: string | null
+          provider?: string
           slot_number?: number
           status?: string
           updated_at?: string
@@ -548,6 +557,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      conversation_audit_log: {
+        Row: {
+          action: string
+          conversation_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          message_preview: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          conversation_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message_preview?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          conversation_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          message_preview?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_audit_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversation_notes: {
         Row: {
@@ -1861,6 +1908,45 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_message_templates: {
+        Row: {
+          category: string
+          components: Json
+          created_at: string
+          id: string
+          language: string
+          status: string
+          synced_at: string
+          template_name: string
+          updated_at: string
+          waba_id: string
+        }
+        Insert: {
+          category?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          language?: string
+          status?: string
+          synced_at?: string
+          template_name: string
+          updated_at?: string
+          waba_id: string
+        }
+        Update: {
+          category?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          language?: string
+          status?: string
+          synced_at?: string
+          template_name?: string
+          updated_at?: string
+          waba_id?: string
+        }
+        Relationships: []
+      }
       partner_history: {
         Row: {
           action: string
@@ -2221,6 +2307,130 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_queue_agents: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_concurrent: number
+          queue_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_concurrent?: number
+          queue_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_concurrent?: number
+          queue_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_queue_agents_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "shared_queue_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_queue_assignments: {
+        Row: {
+          assigned_at: string | null
+          assigned_to: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          queue_id: string
+          released_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          queue_id: string
+          released_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          queue_id?: string
+          released_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_queue_assignments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shared_queue_assignments_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "shared_queue_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_queue_config: {
+        Row: {
+          chip_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          max_wait_minutes: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          chip_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_wait_minutes?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          chip_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_wait_minutes?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_queue_config_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           assigned_to: string | null
@@ -2288,6 +2498,12 @@ export type Database = {
           messages_day_8_plus: number
           messages_day_aquecido: number
           messages_day_novo: number
+          meta_access_token: string | null
+          meta_allowed_user_ids: string[]
+          meta_app_id: string | null
+          meta_app_secret: string | null
+          meta_verify_token: string | null
+          meta_webhook_secret: string | null
           min_interval_seconds: number
           night_mode_reduction: number
           online_offline_simulation: boolean
@@ -2338,6 +2554,12 @@ export type Database = {
           messages_day_8_plus?: number
           messages_day_aquecido?: number
           messages_day_novo?: number
+          meta_access_token?: string | null
+          meta_allowed_user_ids?: string[]
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_verify_token?: string | null
+          meta_webhook_secret?: string | null
           min_interval_seconds?: number
           night_mode_reduction?: number
           online_offline_simulation?: boolean
@@ -2388,6 +2610,12 @@ export type Database = {
           messages_day_8_plus?: number
           messages_day_aquecido?: number
           messages_day_novo?: number
+          meta_access_token?: string | null
+          meta_allowed_user_ids?: string[]
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_verify_token?: string | null
+          meta_webhook_secret?: string | null
           min_interval_seconds?: number
           night_mode_reduction?: number
           online_offline_simulation?: boolean
@@ -2557,6 +2785,54 @@ export type Database = {
             columns: ["chip_id"]
             isOneToOne: false
             referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_cost_log: {
+        Row: {
+          category: string
+          chip_id: string
+          conversation_id: string | null
+          cost_estimate: number
+          created_at: string
+          currency: string
+          direction: string
+          id: string
+        }
+        Insert: {
+          category?: string
+          chip_id: string
+          conversation_id?: string | null
+          cost_estimate?: number
+          created_at?: string
+          currency?: string
+          direction?: string
+          id?: string
+        }
+        Update: {
+          category?: string
+          chip_id?: string
+          conversation_id?: string | null
+          cost_estimate?: number
+          created_at?: string
+          currency?: string
+          direction?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_cost_log_chip_id_fkey"
+            columns: ["chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_cost_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
