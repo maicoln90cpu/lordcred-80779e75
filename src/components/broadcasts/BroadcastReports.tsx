@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, BarChart3, TrendingUp, FlaskConical, Send, CheckCircle2, XCircle, Target, Percent, Download } from 'lucide-react';
+import { Loader2, BarChart3, TrendingUp, FlaskConical, Send, CheckCircle2, XCircle, Target, Percent, Download, Eye, MessageSquareReply } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell, PieChart, Pie } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,9 +27,17 @@ interface ABStats {
   variantB: { sent: number; failed: number };
 }
 
+interface DeliveryMetrics {
+  delivered: number;
+  read: number;
+  replied: number;
+  total: number;
+}
+
 export default function BroadcastReports() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [abStats, setAbStats] = useState<ABStats[]>([]);
+  const [deliveryMetrics, setDeliveryMetrics] = useState<DeliveryMetrics>({ delivered: 0, read: 0, replied: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
@@ -37,11 +45,11 @@ export default function BroadcastReports() {
   const exportCSV = async () => {
     setExporting(true);
     try {
-      const rows: string[] = ['Campanha,Telefone,Status,Variante,Enviado Em,Erro'];
+      const rows: string[] = ['Campanha,Telefone,Status,Entrega,Variante,Enviado Em,Respondeu,Erro'];
       for (const camp of campaigns) {
         const { data: recipients } = await supabase
           .from('broadcast_recipients')
-          .select('phone, status, variant, sent_at, error_message')
+          .select('phone, status, variant, sent_at, error_message, delivery_status, replied, replied_at')
           .eq('campaign_id', camp.id)
           .order('created_at');
         if (recipients) {
@@ -50,8 +58,10 @@ export default function BroadcastReports() {
               `"${camp.name}"`,
               r.phone,
               r.status,
+              r.delivery_status || 'sent',
               r.variant || 'A',
               r.sent_at ? new Date(r.sent_at).toLocaleString('pt-BR') : '',
+              r.replied ? 'Sim' : 'Não',
               `"${(r.error_message || '').replace(/"/g, '""')}"`,
             ].join(',');
             rows.push(line);
@@ -86,6 +96,26 @@ export default function BroadcastReports() {
 
     const list = (data || []) as Campaign[];
     setCampaigns(list);
+
+    // Load delivery metrics across all campaigns
+    if (list.length > 0) {
+      const campaignIds = list.map(c => c.id);
+      const { data: allRecipients } = await supabase
+        .from('broadcast_recipients')
+        .select('delivery_status, replied')
+        .in('campaign_id', campaignIds)
+        .eq('status', 'sent');
+
+      if (allRecipients) {
+        const metrics: DeliveryMetrics = { delivered: 0, read: 0, replied: 0, total: allRecipients.length };
+        for (const r of allRecipients) {
+          if (r.delivery_status === 'delivered' || r.delivery_status === 'read') metrics.delivered++;
+          if (r.delivery_status === 'read') metrics.read++;
+          if (r.replied) metrics.replied++;
+        }
+        setDeliveryMetrics(metrics);
+      }
+    }
 
     const abCampaigns = list.filter(c => c.ab_enabled);
     if (abCampaigns.length > 0) {
@@ -125,12 +155,25 @@ export default function BroadcastReports() {
     return { totalSent, totalFailed, totalRecipients, completed, globalRate, total: campaigns.length };
   }, [campaigns]);
 
+  // Delivery percentages
+  const deliveryPct = useMemo(() => {
+    const t = deliveryMetrics.total || 1;
+    return {
+      delivered: Math.round((deliveryMetrics.delivered / t) * 100),
+      read: Math.round((deliveryMetrics.read / t) * 100),
+      replied: Math.round((deliveryMetrics.replied / t) * 100),
+    };
+  }, [deliveryMetrics]);
+
   // ── Funnel data ──
   const funnelData = useMemo(() => [
     { name: 'Destinatários', value: kpis.totalRecipients, color: 'hsl(var(--primary))' },
-    { name: 'Enviados', value: kpis.totalSent, color: 'hsl(var(--primary) / 0.7)' },
+    { name: 'Enviados', value: kpis.totalSent, color: 'hsl(var(--primary) / 0.8)' },
+    { name: 'Entregues', value: deliveryMetrics.delivered, color: 'hsl(142 76% 36%)' },
+    { name: 'Lidos', value: deliveryMetrics.read, color: 'hsl(217 91% 60%)' },
+    { name: 'Respondidos', value: deliveryMetrics.replied, color: 'hsl(280 67% 55%)' },
     { name: 'Falhas', value: kpis.totalFailed, color: 'hsl(var(--destructive))' },
-  ].filter(d => d.value > 0), [kpis]);
+  ].filter(d => d.value > 0), [kpis, deliveryMetrics]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -169,7 +212,7 @@ export default function BroadcastReports() {
         </Button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards - Row 1: Sending */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: 'Campanhas', value: kpis.total, icon: BarChart3, color: 'text-primary' },
@@ -189,6 +232,39 @@ export default function BroadcastReports() {
           </Card>
         ))}
       </div>
+
+      {/* KPI Cards - Row 2: Delivery Metrics */}
+      {deliveryMetrics.total > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="border-green-500/20">
+            <CardContent className="p-3 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-green-400" />
+              <div>
+                <p className="text-lg font-bold text-green-400">{deliveryPct.delivered}%</p>
+                <p className="text-[11px] text-muted-foreground">📬 Entregues ({deliveryMetrics.delivered.toLocaleString('pt-BR')})</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-500/20">
+            <CardContent className="p-3 flex items-center gap-3">
+              <Eye className="w-5 h-5 shrink-0 text-blue-400" />
+              <div>
+                <p className="text-lg font-bold text-blue-400">{deliveryPct.read}%</p>
+                <p className="text-[11px] text-muted-foreground">👁 Lidos ({deliveryMetrics.read.toLocaleString('pt-BR')})</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-purple-500/20">
+            <CardContent className="p-3 flex items-center gap-3">
+              <MessageSquareReply className="w-5 h-5 shrink-0 text-purple-400" />
+              <div>
+                <p className="text-lg font-bold text-purple-400">{deliveryPct.replied}%</p>
+                <p className="text-[11px] text-muted-foreground">💬 Respostas ({deliveryMetrics.replied.toLocaleString('pt-BR')})</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-4">
         {/* Success rate chart */}

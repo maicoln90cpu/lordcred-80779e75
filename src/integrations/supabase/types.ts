@@ -197,10 +197,14 @@ export type Database = {
         Row: {
           campaign_id: string
           created_at: string
+          delivery_status: string
           error_message: string | null
           id: string
           lead_id: string | null
+          message_id: string | null
           phone: string
+          replied: boolean
+          replied_at: string | null
           sent_at: string | null
           status: string
           variant: string | null
@@ -208,10 +212,14 @@ export type Database = {
         Insert: {
           campaign_id: string
           created_at?: string
+          delivery_status?: string
           error_message?: string | null
           id?: string
           lead_id?: string | null
+          message_id?: string | null
           phone: string
+          replied?: boolean
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
           variant?: string | null
@@ -219,10 +227,14 @@ export type Database = {
         Update: {
           campaign_id?: string
           created_at?: string
+          delivery_status?: string
           error_message?: string | null
           id?: string
           lead_id?: string | null
+          message_id?: string | null
           phone?: string
+          replied?: boolean
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
           variant?: string | null

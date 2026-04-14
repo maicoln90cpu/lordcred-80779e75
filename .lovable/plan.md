@@ -17,11 +17,11 @@
 - [x] Incremento de messages_sent_today por chip usado
 - [x] UI para selecionar chips de overflow no diálogo de criação
 
-### Etapa 3 — Webhook de Status + Métricas de Resposta (Pendente)
-- [ ] Colunas `delivery_status`, `message_id`, `replied`, `replied_at` em broadcast_recipients
-- [ ] Salvar message_id no broadcast-sender
-- [ ] Cross-reference no evolution-webhook
-- [ ] KPIs de entregue/lido/respondido no relatório
+### Etapa 3 — Webhook de Status + Métricas de Resposta ✅
+- [x] Colunas `delivery_status`, `message_id`, `replied`, `replied_at` em broadcast_recipients
+- [x] Salvar message_id no broadcast-sender (extraído da resposta UazAPI)
+- [x] Cross-reference no evolution-webhook (delivery status + reply detection)
+- [x] KPIs de entregue/lido/respondido no relatório (3 cards + funil atualizado)
 
 ### Etapa 4 — Export PDF (Pendente)
 - [ ] Geração de PDF client-side com jspdf + html2canvas

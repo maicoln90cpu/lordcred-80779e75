@@ -262,9 +262,19 @@ Deno.serve(async (req) => {
           }
 
           if (response.ok) {
+            // Extract message_id from UazAPI response
+            const resData = await response.json().catch(() => ({}))
+            const messageId = resData?.messageId || resData?.id || resData?.key?.id || null
+
             await adminClient
               .from('broadcast_recipients')
-              .update({ status: 'sent', sent_at: new Date().toISOString(), variant })
+              .update({
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+                variant,
+                message_id: messageId,
+                delivery_status: 'sent',
+              })
               .eq('id', recipient.id)
             // Increment messages_sent_today for the chip used
             const { data: chipCurrent } = await adminClient

@@ -98,12 +98,28 @@ Deno.serve(async (req) => {
     if (eventType === 'messages' && payload.message) {
       await handleUazapiMessage(adminClient, chip, payload)
       processingResult = 'message_processed'
+
+      // ── Broadcast reply detection ──
+      if (!payload.message.fromMe) {
+        try {
+          await detectBroadcastReply(adminClient, chip, payload)
+        } catch (e) {
+          console.error('Broadcast reply detection error:', e)
+        }
+      }
     } else if (eventType === 'chats' && payload.chat) {
       await handleUazapiChat(adminClient, chip, payload)
       processingResult = 'chat_processed'
     } else if (eventType === 'messages_update') {
       await handleMessagesUpdate(adminClient, chip, payload)
       processingResult = 'status_update_processed'
+
+      // ── Broadcast delivery status cross-reference ──
+      try {
+        await updateBroadcastDeliveryStatus(adminClient, payload)
+      } catch (e) {
+        console.error('Broadcast delivery status error:', e)
+      }
     } else if (eventType === 'connection.update' || payload.event === 'connection.update') {
       await handleConnectionUpdate(adminClient, chip, payload)
       processingResult = 'connection_update_processed'
@@ -438,4 +454,79 @@ async function handleConnectionUpdate(adminClient: any, chip: any, payload: any)
   }).catch(() => {})
 
   console.log(`Chip ${chip.instance_name} status: ${newStatus}`)
+}
+
+// ── Broadcast delivery status cross-reference ──
+async function updateBroadcastDeliveryStatus(adminClient: any, payload: any) {
+  const eventType = payload?.event?.Type || ''
+  const stateStr = String(eventType || payload?.state || '').toLowerCase()
+
+  let newDeliveryStatus = ''
+  if (stateStr === 'read' || stateStr === 'played' || stateStr === '4' || stateStr === '5') {
+    newDeliveryStatus = 'read'
+  } else if (stateStr === 'delivered' || stateStr === 'delivery_ack' || stateStr === '3') {
+    newDeliveryStatus = 'delivered'
+  }
+
+  if (!newDeliveryStatus) return
+
+  // Collect message IDs
+  let messageIds: string[] = []
+  if (payload?.event?.MessageIDs && Array.isArray(payload.event.MessageIDs)) {
+    messageIds = payload.event.MessageIDs.filter((id: any) => typeof id === 'string' && id.length > 0)
+  }
+  if (messageIds.length === 0) {
+    const singleId = payload?.messageid || payload?.message?.messageid || payload?.key?.id
+    if (singleId) messageIds = [singleId]
+  }
+
+  if (messageIds.length === 0) return
+
+  // Status hierarchy for broadcast: sent(1) → delivered(2) → read(3)
+  const statusRank: Record<string, number> = { sent: 1, delivered: 2, read: 3 }
+  const newRank = statusRank[newDeliveryStatus] || 0
+  const excludeStatuses = Object.entries(statusRank)
+    .filter(([, rank]) => rank >= newRank)
+    .map(([s]) => s)
+
+  const { data, error } = await adminClient
+    .from('broadcast_recipients')
+    .update({ delivery_status: newDeliveryStatus })
+    .in('message_id', messageIds)
+    .not('delivery_status', 'in', `(${excludeStatuses.join(',')})`)
+    .select('id')
+
+  if (data?.length) {
+    console.log(`Broadcast delivery: ${data.length} recipient(s) updated to ${newDeliveryStatus}`)
+  }
+}
+
+// ── Broadcast reply detection ──
+async function detectBroadcastReply(adminClient: any, chip: any, payload: any) {
+  const msg = payload.message
+  if (!msg || !msg.chatid || msg.fromMe) return
+
+  const senderPhone = msg.chatid.split('@')[0].replace(/\D/g, '')
+  if (!senderPhone) return
+
+  // Find recent broadcast recipients with this phone (last 7 days)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: recipients } = await adminClient
+    .from('broadcast_recipients')
+    .select('id, replied')
+    .eq('phone', senderPhone)
+    .eq('status', 'sent')
+    .eq('replied', false)
+    .gte('sent_at', sevenDaysAgo)
+    .limit(5)
+
+  if (recipients && recipients.length > 0) {
+    const ids = recipients.map((r: any) => r.id)
+    await adminClient
+      .from('broadcast_recipients')
+      .update({ replied: true, replied_at: new Date().toISOString() })
+      .in('id', ids)
+    console.log(`Broadcast reply detected from ${senderPhone}: ${ids.length} recipient(s) marked`)
+  }
 }
