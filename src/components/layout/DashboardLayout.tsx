@@ -142,6 +142,12 @@ const navGroups: NavGroupWithChildren[] = [
     ],
   },
   {
+    groupLabel: 'Integrações',
+    items: [
+      { label: 'UazAPI / Meta', icon: Globe, href: '/admin/integrations', sellerHidden: true },
+    ],
+  },
+  {
     groupLabel: 'Operações',
     items: [
       { label: 'Disparos em Massa', icon: Send, href: '/admin/broadcasts', sellerHidden: true },
