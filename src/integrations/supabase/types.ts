@@ -103,6 +103,7 @@ export type Database = {
       }
       broadcast_campaigns: {
         Row: {
+          ab_enabled: boolean
           chip_id: string
           completed_at: string | null
           created_at: string
@@ -113,6 +114,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_content: string
+          message_variant_b: string | null
           name: string
           owner_user_id: string | null
           rate_per_minute: number
@@ -127,6 +129,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ab_enabled?: boolean
           chip_id: string
           completed_at?: string | null
           created_at?: string
@@ -137,6 +140,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_content: string
+          message_variant_b?: string | null
           name: string
           owner_user_id?: string | null
           rate_per_minute?: number
@@ -151,6 +155,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ab_enabled?: boolean
           chip_id?: string
           completed_at?: string | null
           created_at?: string
@@ -161,6 +166,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_content?: string
+          message_variant_b?: string | null
           name?: string
           owner_user_id?: string | null
           rate_per_minute?: number
