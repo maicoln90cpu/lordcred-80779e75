@@ -219,8 +219,13 @@ export default function Broadcasts() {
                             {c.scheduled_date && <CalendarIcon className="w-3 h-3 text-blue-400" />}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs">{getChipName(c.chip_id)}</TableCell>
-                        <TableCell className="text-center text-sm">{c.total_recipients}</TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1">
+                            {getChipName(c.chip_id)}
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">{getChipProvider(c.chip_id) === 'meta' ? 'META' : 'UazAPI'}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">{getOwnerName(c)}</TableCell>
                         <TableCell className="text-center text-sm text-green-400">{c.sent_count}</TableCell>
                         <TableCell className="text-center text-sm text-destructive">{c.failed_count}</TableCell>
                         <TableCell><Badge variant="outline" className="text-xs">{sourceLabel(c.source_type)}</Badge></TableCell>
@@ -263,7 +268,7 @@ export default function Broadcasts() {
                   })}
                   {campaigns.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-12">
                         <Radio className="w-8 h-8 mx-auto mb-2 opacity-40" />
                         <p>Nenhuma campanha criada</p>
                       </TableCell>
