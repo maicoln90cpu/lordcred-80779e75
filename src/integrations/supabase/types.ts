@@ -116,6 +116,7 @@ export type Database = {
           message_content: string
           message_variant_b: string | null
           name: string
+          overflow_chip_ids: string[] | null
           owner_user_id: string | null
           rate_per_minute: number
           scheduled_at: string | null
@@ -142,6 +143,7 @@ export type Database = {
           message_content: string
           message_variant_b?: string | null
           name: string
+          overflow_chip_ids?: string[] | null
           owner_user_id?: string | null
           rate_per_minute?: number
           scheduled_at?: string | null
@@ -168,6 +170,7 @@ export type Database = {
           message_content?: string
           message_variant_b?: string | null
           name?: string
+          overflow_chip_ids?: string[] | null
           owner_user_id?: string | null
           rate_per_minute?: number
           scheduled_at?: string | null
@@ -269,6 +272,7 @@ export type Database = {
       chips: {
         Row: {
           activated_at: string | null
+          broadcast_daily_limit: number
           chip_type: string
           created_at: string
           health_fail_count: number
@@ -297,6 +301,7 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          broadcast_daily_limit?: number
           chip_type?: string
           created_at?: string
           health_fail_count?: number
@@ -325,6 +330,7 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          broadcast_daily_limit?: number
           chip_type?: string
           created_at?: string
           health_fail_count?: number
