@@ -369,7 +369,7 @@ export default function PartnerDetail() {
           </TabsContent>
         </Tabs>
 
-        <ContractPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} contractText={contractPreviewText} pdfBase64={contractPdfBase64} onConfirm={() => generateContractMutation.mutate()} isGenerating={generateContractMutation.isPending} />
+        <ContractPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} contractText={contractPreviewText} pdfBase64={contractPdfBase64} onConfirmSend={() => generateContractMutation.mutate()} isSending={generateContractMutation.isPending} />
         <ContractViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} pdfBase64={viewerPdfBase64} filename={viewerFilename} />
       </div>
     </DashboardLayout>
