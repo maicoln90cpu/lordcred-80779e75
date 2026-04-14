@@ -130,6 +130,7 @@ export type Database = {
           nickname: string | null
           phone_number: string | null
           provider: string
+          shared_block_send: boolean
           shared_user_ids: string[] | null
           slot_number: number
           status: string
@@ -157,6 +158,7 @@ export type Database = {
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number: number
           status?: string
@@ -184,6 +186,7 @@ export type Database = {
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number?: number
           status?: string

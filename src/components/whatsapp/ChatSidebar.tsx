@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, Pencil, BellOff, Ban, Trash2, VolumeX, MessageSquarePlus, Phone, Users, Columns3 } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Pin, Archive, ChevronLeft, Tag, MoreVertical, Star, Pencil, BellOff, Ban, Trash2, VolumeX, MessageSquarePlus, Phone, Users, Columns3, UserCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
 import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import LabelBadge from './LabelBadge';
 import ManageLabelsDialog from './ManageLabelsDialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -80,9 +81,11 @@ interface ExtendedChat extends ChatContact {
   custom_status?: ConversationStatus;
   is_blocked?: boolean;
   is_muted?: boolean;
+  assigned_user_id?: string | null;
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,6 +95,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [showArchived, setShowArchived] = useState(false);
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterStarred, setFilterStarred] = useState(false);
+  const [filterMine, setFilterMine] = useState(false);
   
   const [labels, setLabels] = useState<LabelItem[]>([]);
   const [filterLabel, setFilterLabel] = useState<string | null>(null);
@@ -236,7 +240,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
       const { data: dbConvos, error } = await supabase
         .from('conversations')
-        .select('id, remote_jid, contact_name, wa_name, contact_phone, last_message_text, last_message_at, unread_count, is_group, is_pinned, is_archived, is_starred, is_blocked, is_muted, custom_status, label_ids, profile_pic_url')
+        .select('id, remote_jid, contact_name, wa_name, contact_phone, last_message_text, last_message_at, unread_count, is_group, is_pinned, is_archived, is_starred, is_blocked, is_muted, custom_status, label_ids, profile_pic_url, assigned_user_id')
         .eq('chip_id', requestChipId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(from, to);
@@ -276,6 +280,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
           label_ids: r.label_ids || [],
           is_blocked: r.is_blocked || false,
           is_muted: r.is_muted || false,
+          assigned_user_id: r.assigned_user_id || null,
         };
       });
 
@@ -558,6 +563,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     }
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     if (filterStarred && !chat.is_starred) return false;
+    if (filterMine && chat.assigned_user_id !== user?.id) return false;
     
     if (filterLabel && (!chat.label_ids || !chat.label_ids.includes(filterLabel))) return false;
     if (filterBlocked && !chat.is_blocked) return false;
@@ -731,6 +737,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             <Ban className="w-3 h-3 mr-1" /> Bloqueados
           </Button>
 
+          <Button
+            variant={filterMine ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", !filterMine && "text-muted-foreground")}
+            onClick={() => setFilterMine(!filterMine)}
+          >
+            <UserCheck className="w-3 h-3 mr-1" /> Minhas
+
+          </Button>
 
 
           {/* Labels filter */}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
@@ -62,6 +63,7 @@ interface ChatWindowProps {
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -75,6 +77,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [senderNames, setSenderNames] = useState<Record<string, string>>({});
+  const [sharedBlockInfo, setSharedBlockInfo] = useState<{ isShared: boolean; blockSend: boolean; assignedUserId: string | null; assignedName: string | null }>({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -96,6 +99,48 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setChipDisconnected(false);
     setFailedMessage(null);
   }, [chipId]);
+
+  // Check shared chip block-send config
+  useEffect(() => {
+    if (!chipId || !chat) {
+      setSharedBlockInfo({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
+      return;
+    }
+    const check = async () => {
+      const [chipRes, convRes] = await Promise.all([
+        supabase.from('chips').select('is_shared, shared_block_send').eq('id', chipId).single(),
+        supabase.from('conversations').select('assigned_user_id').eq('id', chat.id).single(),
+      ]);
+      const isShared = chipRes.data?.is_shared || false;
+      const blockSend = (chipRes.data as any)?.shared_block_send || false;
+      const assignedUid = convRes.data?.assigned_user_id || null;
+      let assignedName: string | null = null;
+      if (assignedUid && assignedUid !== user?.id) {
+        const { data: prof } = await supabase.from('profiles').select('name').eq('user_id', assignedUid).single();
+        assignedName = prof?.name || 'Outro operador';
+      }
+      setSharedBlockInfo({ isShared, blockSend, assignedUserId: assignedUid, assignedName });
+    };
+    check();
+
+    // Realtime updates
+    const ch = supabase
+      .channel(`block-check-${chat.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${chat.id}` }, (payload) => {
+        const newUid = (payload.new as any)?.assigned_user_id || null;
+        setSharedBlockInfo(prev => ({ ...prev, assignedUserId: newUid }));
+        if (newUid && newUid !== user?.id) {
+          supabase.from('profiles').select('name').eq('user_id', newUid).single().then(({ data }) => {
+            setSharedBlockInfo(prev => ({ ...prev, assignedName: data?.name || 'Outro operador' }));
+          });
+        } else {
+          setSharedBlockInfo(prev => ({ ...prev, assignedName: null }));
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [chipId, chat?.id, user?.id]);
 
   const mapDbRow = useCallback((r: any): ChatMessage => ({
     id: r.id,
@@ -822,6 +867,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
       {readOnly ? (
         <div className="flex items-center justify-center gap-2 px-4 py-3 bg-muted/50 border-t border-border/50">
           <span className="text-sm text-muted-foreground">Modo somente leitura — não é possível enviar mensagens</span>
+        </div>
+      ) : sharedBlockInfo.isShared && sharedBlockInfo.blockSend && sharedBlockInfo.assignedUserId && sharedBlockInfo.assignedUserId !== user?.id ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-3 bg-destructive/5 border-t border-destructive/20">
+          <UserCheck className="w-4 h-4 text-destructive/70 shrink-0" />
+          <span className="text-sm text-destructive/80">Esta conversa está sendo atendida por <strong>{sharedBlockInfo.assignedName}</strong></span>
         </div>
       ) : chipStatus && chipStatus !== 'connected' ? (
         <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">
