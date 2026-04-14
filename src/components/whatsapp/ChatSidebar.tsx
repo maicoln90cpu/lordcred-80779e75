@@ -737,6 +737,15 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
             <Ban className="w-3 h-3 mr-1" /> Bloqueados
           </Button>
 
+          <Button
+            variant={filterMine ? "default" : "ghost"}
+            size="sm"
+            className={cn("h-7 text-xs shrink-0", !filterMine && "text-muted-foreground")}
+            onClick={() => setFilterMine(!filterMine)}
+          >
+            <UserCheck className="w-3 h-3 mr-1" /> Minhas
+
+          </Button>
 
 
           {/* Labels filter */}
