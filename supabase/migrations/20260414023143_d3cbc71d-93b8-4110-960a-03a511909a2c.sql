@@ -1,0 +1,1 @@
+ALTER TABLE public.chips ADD COLUMN IF NOT EXISTS shared_block_send boolean NOT NULL DEFAULT false;
