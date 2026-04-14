@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import MetaConfigCard from '@/components/admin/MetaConfigCard';
 import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
 import MetaChipsManager from '@/components/settings/MetaChipsManager';
+import MetaSetupGuide from '@/components/admin/MetaSetupGuide';
 import SupportChatSettings from '@/components/settings/SupportChatSettings';
 
 interface ProviderSettings {
