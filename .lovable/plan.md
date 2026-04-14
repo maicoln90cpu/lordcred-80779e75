@@ -26,7 +26,14 @@ Todas as etapas de refatoração (1-4) e documentação foram concluídas.
 - `UAZAPI.md` — Referência de endpoints UazAPI
 - `HISTORICO-EVOLUTION-CLEANUP.md` — Migração Evolution → UazAPI
 
-## Próximos Passos (Fase 5)
+## Fase 5 — Escala
+
+### Etapa 1 — Performance e Code Splitting ✅
+- [x] React.lazy() + Suspense em todas as 40+ rotas
+- [x] Componente LoadingFallback com spinner padrão
+- [x] Compilação validada sem erros
+
+### Próximos Passos
 
 - [ ] Broadcasts com controle de taxa
 - [ ] API pública REST

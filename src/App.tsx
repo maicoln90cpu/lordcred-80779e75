@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,48 +8,55 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { InternalChatUnreadProvider } from "@/contexts/InternalChatUnreadContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
-import Chips from "./pages/Chips";
-import Messages from "./pages/Messages";
-import Users from "./pages/admin/Users";
-import Settings from "./pages/admin/Settings";
-import MasterAdmin from "./pages/admin/MasterAdmin";
-import Leads from "./pages/admin/Leads";
-import Performance from "./pages/admin/Performance";
-import KanbanAdmin from "./pages/admin/KanbanAdmin";
-import LinksAdmin from "./pages/admin/LinksAdmin";
-import ChipMonitor from "./pages/admin/ChipMonitor";
-import InternalChat from "./pages/admin/InternalChat";
-import Tickets from "./pages/admin/Tickets";
-import AuditLogs from "./pages/admin/AuditLogs";
-import QueueManagement from "./pages/admin/QueueManagement";
-import WebhookDiagnostics from "./pages/admin/WebhookDiagnostics";
-import Templates from "./pages/admin/Templates";
-import QuickReplies from "./pages/admin/QuickReplies";
-import RemoteAssistance from "./pages/admin/RemoteAssistance";
-import WarmingReports from "./pages/admin/WarmingReports";
-import ProductInfo from "./pages/admin/ProductInfo";
-import CorbanDashboard from "./pages/admin/CorbanDashboard";
-import CorbanPropostas from "./pages/admin/CorbanPropostas";
-import CorbanFGTS from "./pages/admin/CorbanFGTS";
-import CorbanAssets from "./pages/admin/CorbanAssets";
-import CorbanConfig from "./pages/admin/CorbanConfig";
-import Commissions from "./pages/admin/Commissions";
-import CommissionReports from "./pages/admin/CommissionReports";
-import Permissions from "./pages/admin/Permissions";
-import BankCredentials from "./pages/admin/BankCredentials";
-import PartnersAdmin from "./pages/admin/PartnersAdmin";
-import PartnerDetail from "./pages/admin/PartnerDetail";
-import ContractTemplate from "./pages/admin/ContractTemplate";
-import SellerPropostas from "./pages/corban/SellerPropostas";
-import SellerFGTS from "./pages/corban/SellerFGTS";
-import SellerDashboard from "./pages/corban/SellerDashboard";
-import WhatsApp from "./pages/WhatsApp";
-import Landing from "./pages/Landing";
-import NotFound from "./pages/NotFound";
+import LoadingFallback from "@/components/LoadingFallback";
+
+// Lazy-loaded pages — each loads only when accessed
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Chips = lazy(() => import("./pages/Chips"));
+const Messages = lazy(() => import("./pages/Messages"));
+const WhatsApp = lazy(() => import("./pages/WhatsApp"));
+const Landing = lazy(() => import("./pages/Landing"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Admin pages
+const Users = lazy(() => import("./pages/admin/Users"));
+const Settings = lazy(() => import("./pages/admin/Settings"));
+const MasterAdmin = lazy(() => import("./pages/admin/MasterAdmin"));
+const Leads = lazy(() => import("./pages/admin/Leads"));
+const Performance = lazy(() => import("./pages/admin/Performance"));
+const KanbanAdmin = lazy(() => import("./pages/admin/KanbanAdmin"));
+const LinksAdmin = lazy(() => import("./pages/admin/LinksAdmin"));
+const ChipMonitor = lazy(() => import("./pages/admin/ChipMonitor"));
+const InternalChat = lazy(() => import("./pages/admin/InternalChat"));
+const Tickets = lazy(() => import("./pages/admin/Tickets"));
+const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
+const QueueManagement = lazy(() => import("./pages/admin/QueueManagement"));
+const WebhookDiagnostics = lazy(() => import("./pages/admin/WebhookDiagnostics"));
+const Templates = lazy(() => import("./pages/admin/Templates"));
+const QuickReplies = lazy(() => import("./pages/admin/QuickReplies"));
+const RemoteAssistance = lazy(() => import("./pages/admin/RemoteAssistance"));
+const WarmingReports = lazy(() => import("./pages/admin/WarmingReports"));
+const ProductInfo = lazy(() => import("./pages/admin/ProductInfo"));
+const Commissions = lazy(() => import("./pages/admin/Commissions"));
+const CommissionReports = lazy(() => import("./pages/admin/CommissionReports"));
+const Permissions = lazy(() => import("./pages/admin/Permissions"));
+const BankCredentials = lazy(() => import("./pages/admin/BankCredentials"));
+const PartnersAdmin = lazy(() => import("./pages/admin/PartnersAdmin"));
+const PartnerDetail = lazy(() => import("./pages/admin/PartnerDetail"));
+const ContractTemplate = lazy(() => import("./pages/admin/ContractTemplate"));
+
+// Corban pages
+const CorbanDashboard = lazy(() => import("./pages/admin/CorbanDashboard"));
+const CorbanPropostas = lazy(() => import("./pages/admin/CorbanPropostas"));
+const CorbanFGTS = lazy(() => import("./pages/admin/CorbanFGTS"));
+const CorbanAssets = lazy(() => import("./pages/admin/CorbanAssets"));
+const CorbanConfig = lazy(() => import("./pages/admin/CorbanConfig"));
+const SellerPropostas = lazy(() => import("./pages/corban/SellerPropostas"));
+const SellerFGTS = lazy(() => import("./pages/corban/SellerFGTS"));
+const SellerDashboard = lazy(() => import("./pages/corban/SellerDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -61,55 +69,57 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <InternalChatUnreadProvider>
-            <Routes>
-              <Route path="/landing" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/" element={<Navigate to="/whatsapp" replace />} />
-              <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute blockSellers><Dashboard /></ProtectedRoute>} />
-              <Route path="/chips" element={<ProtectedRoute blockSellers><Chips /></ProtectedRoute>} />
-              <Route path="/messages" element={<ProtectedRoute blockSellers><Messages /></ProtectedRoute>} />
-              <Route path="/history" element={<Navigate to="/messages" replace />} />
-              <Route path="/admin/users" element={<ProtectedRoute blockSellers><Users /></ProtectedRoute>} />
-              <Route path="/settingsaquecimento" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
-              <Route path="/settings" element={<Navigate to="/settingsaquecimento" replace />} />
-              <Route path="/admin/settings" element={<Navigate to="/settingsaquecimento" replace />} />
-              <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
-              <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
-              <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
-              <Route path="/admin/links" element={<ProtectedRoute blockSellers><LinksAdmin /></ProtectedRoute>} />
-              <Route path="/admin/chip-monitor" element={<ProtectedRoute blockSellers blockSupport={false}><ChipMonitor /></ProtectedRoute>} />
-              <Route path="/chat" element={<ProtectedRoute><InternalChat /></ProtectedRoute>} />
-              <Route path="/admin/chat" element={<Navigate to="/chat" replace />} />
-              <Route path="/admin/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
-              <Route path="/admin/audit-logs" element={<ProtectedRoute blockSellers><AuditLogs /></ProtectedRoute>} />
-              <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
-              <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
-              <Route path="/admin/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
-              <Route path="/admin/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
-              <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
-              <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
-              <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />
-              <Route path="/admin/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
-              <Route path="/admin/commission-reports" element={<ProtectedRoute><CommissionReports /></ProtectedRoute>} />
-              <Route path="/admin/corban" element={<ProtectedRoute blockSellers><CorbanDashboard /></ProtectedRoute>} />
-              <Route path="/admin/corban/propostas" element={<ProtectedRoute blockSellers><CorbanPropostas /></ProtectedRoute>} />
-              <Route path="/admin/corban/fgts" element={<ProtectedRoute blockSellers><CorbanFGTS /></ProtectedRoute>} />
-              <Route path="/admin/corban/assets" element={<ProtectedRoute blockSellers><CorbanAssets /></ProtectedRoute>} />
-              <Route path="/admin/corban/config" element={<ProtectedRoute blockSellers><CorbanConfig /></ProtectedRoute>} />
-              <Route path="/corban/propostas" element={<ProtectedRoute><SellerPropostas /></ProtectedRoute>} />
-              <Route path="/corban/fgts" element={<ProtectedRoute><SellerFGTS /></ProtectedRoute>} />
-              <Route path="/corban/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
-              <Route path="/admin/permissions" element={<ProtectedRoute blockSellers><Permissions /></ProtectedRoute>} />
-              <Route path="/admin/bancos" element={<ProtectedRoute blockSellers><BankCredentials /></ProtectedRoute>} />
-              <Route path="/admin/parceiros" element={<ProtectedRoute blockSellers><PartnersAdmin /></ProtectedRoute>} />
-              <Route path="/admin/parceiros/template" element={<ProtectedRoute blockSellers><ContractTemplate /></ProtectedRoute>} />
-              <Route path="/admin/parceiros/:id" element={<ProtectedRoute blockSellers><PartnerDetail /></ProtectedRoute>} />
-              <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/landing" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/" element={<Navigate to="/whatsapp" replace />} />
+                <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute blockSellers><Dashboard /></ProtectedRoute>} />
+                <Route path="/chips" element={<ProtectedRoute blockSellers><Chips /></ProtectedRoute>} />
+                <Route path="/messages" element={<ProtectedRoute blockSellers><Messages /></ProtectedRoute>} />
+                <Route path="/history" element={<Navigate to="/messages" replace />} />
+                <Route path="/admin/users" element={<ProtectedRoute blockSellers><Users /></ProtectedRoute>} />
+                <Route path="/settingsaquecimento" element={<ProtectedRoute blockSellers><Settings /></ProtectedRoute>} />
+                <Route path="/settings" element={<Navigate to="/settingsaquecimento" replace />} />
+                <Route path="/admin/settings" element={<Navigate to="/settingsaquecimento" replace />} />
+                <Route path="/admin/leads" element={<ProtectedRoute blockSellers><Leads /></ProtectedRoute>} />
+                <Route path="/admin/performance" element={<ProtectedRoute blockSellers blockSupport><Performance /></ProtectedRoute>} />
+                <Route path="/admin/kanban" element={<ProtectedRoute blockSellers><KanbanAdmin /></ProtectedRoute>} />
+                <Route path="/admin/links" element={<ProtectedRoute blockSellers><LinksAdmin /></ProtectedRoute>} />
+                <Route path="/admin/chip-monitor" element={<ProtectedRoute blockSellers blockSupport={false}><ChipMonitor /></ProtectedRoute>} />
+                <Route path="/chat" element={<ProtectedRoute><InternalChat /></ProtectedRoute>} />
+                <Route path="/admin/chat" element={<Navigate to="/chat" replace />} />
+                <Route path="/admin/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
+                <Route path="/admin/audit-logs" element={<ProtectedRoute blockSellers><AuditLogs /></ProtectedRoute>} />
+                <Route path="/admin/queue" element={<ProtectedRoute blockSellers><QueueManagement /></ProtectedRoute>} />
+                <Route path="/admin/webhooks" element={<ProtectedRoute blockSellers><WebhookDiagnostics /></ProtectedRoute>} />
+                <Route path="/admin/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+                <Route path="/admin/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
+                <Route path="/admin/remote" element={<ProtectedRoute blockSellers><RemoteAssistance /></ProtectedRoute>} />
+                <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
+                <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />
+                <Route path="/admin/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
+                <Route path="/admin/commission-reports" element={<ProtectedRoute><CommissionReports /></ProtectedRoute>} />
+                <Route path="/admin/corban" element={<ProtectedRoute blockSellers><CorbanDashboard /></ProtectedRoute>} />
+                <Route path="/admin/corban/propostas" element={<ProtectedRoute blockSellers><CorbanPropostas /></ProtectedRoute>} />
+                <Route path="/admin/corban/fgts" element={<ProtectedRoute blockSellers><CorbanFGTS /></ProtectedRoute>} />
+                <Route path="/admin/corban/assets" element={<ProtectedRoute blockSellers><CorbanAssets /></ProtectedRoute>} />
+                <Route path="/admin/corban/config" element={<ProtectedRoute blockSellers><CorbanConfig /></ProtectedRoute>} />
+                <Route path="/corban/propostas" element={<ProtectedRoute><SellerPropostas /></ProtectedRoute>} />
+                <Route path="/corban/fgts" element={<ProtectedRoute><SellerFGTS /></ProtectedRoute>} />
+                <Route path="/corban/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
+                <Route path="/admin/permissions" element={<ProtectedRoute blockSellers><Permissions /></ProtectedRoute>} />
+                <Route path="/admin/bancos" element={<ProtectedRoute blockSellers><BankCredentials /></ProtectedRoute>} />
+                <Route path="/admin/parceiros" element={<ProtectedRoute blockSellers><PartnersAdmin /></ProtectedRoute>} />
+                <Route path="/admin/parceiros/template" element={<ProtectedRoute blockSellers><ContractTemplate /></ProtectedRoute>} />
+                <Route path="/admin/parceiros/:id" element={<ProtectedRoute blockSellers><PartnerDetail /></ProtectedRoute>} />
+                <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </InternalChatUnreadProvider>
           </AuthProvider>
         </BrowserRouter>
