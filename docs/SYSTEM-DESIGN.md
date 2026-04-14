@@ -17,22 +17,24 @@
 │  │  + RLS   │  │         │  │(WebSocket) │  │        │ │
 │  └──────────┘  └─────────┘  └────────────┘  └────────┘ │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │              Edge Functions (Deno)               │   │
+│  │              Edge Functions (17)                 │   │
 │  │  warming-engine │ queue-processor │ uazapi-api   │   │
 │  │  evolution-webhook │ instance-maintenance        │   │
 │  │  chip-health-check │ sync-history                │   │
 │  │  create-user │ delete-user │ update-user-role    │   │
 │  │  corban-api │ corban-status-sync                 │   │
+│  │  corban-snapshot-cron │ whatsapp-gateway         │   │
+│  │  meta-webhook │ clicksign-api │ clicksign-webhook│   │
 │  └──────────────────────────┬───────────────────────┘   │
 └─────────────────────────────┼───────────────────────────┘
-               │ HTTP                │ HTTP
-               ▼                     ▼
-┌──────────────────────┐  ┌──────────────────────┐
-│  UazAPI v2 Server    │  │  NewCorban API       │
-│  (uazapiGO)          │  │  (propostas/FGTS)    │
-└──────────┬───────────┘  └──────────────────────┘
-           │ WhatsApp Web Protocol
-           ▼
+          │ HTTP              │ HTTP              │ HTTP
+          ▼                   ▼                   ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────┐
+│ UazAPI v2 Server │ │ NewCorban API    │ │ ClickSign    │
+│ (uazapiGO)       │ │ (propostas/FGTS) │ │ (contratos)  │
+└────────┬─────────┘ └──────────────────┘ └──────────────┘
+         │ WhatsApp Web Protocol
+         ▼
 ┌──────────────────────────┐
 │    WhatsApp Servers       │
 └──────────────────────────┘
@@ -41,6 +43,8 @@
 ---
 
 ## Sistema de Roles e RLS
+
+> Ver detalhes completos em [SECURITY.md](./SECURITY.md)
 
 ### 5 Roles
 
@@ -52,149 +56,43 @@
 | `support` | Suporte | ❌ |
 | `seller` | Vendedor | ❌ |
 
-### Funções SECURITY DEFINER
+---
 
-```sql
--- Retorna true para master, admin, manager
-CREATE FUNCTION is_privileged(_user_id uuid DEFAULT auth.uid())
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM user_roles
-    WHERE user_id = _user_id AND role IN ('master', 'admin', 'manager')
-  )
-$$;
+## Banco de Dados
 
--- Check role específico (evita recursão RLS)
-CREATE FUNCTION has_role(_user_id uuid, _role app_role)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM user_roles WHERE user_id = _user_id AND role = _role
-  )
-$$;
-```
+> Schema completo em [DATABASE-SCHEMA.md](./DATABASE-SCHEMA.md)
 
-### RLS Pattern
-
-Todas as tabelas usam `is_privileged()` para acesso administrativo, `has_role(auth.uid(), 'support')` para suporte, e `user_id = auth.uid()` ou ownership para acesso individual.
+O banco possui **40+ tabelas** organizadas em 6 domínios: Core, CRM, Comissões, Corban, Contratos e Operacional.
 
 ---
 
-## Banco de Dados — Tabelas
+## Edge Functions
 
-### Core
+> Catálogo completo em [EDGE-FUNCTIONS.md](./EDGE-FUNCTIONS.md)
 
-| Tabela | Descrição |
-|---|---|
-| `chips` | Instâncias WhatsApp (status, fase, tipo, token, phone) |
-| `message_queue` | Fila de mensagens pendentes para envio |
-| `message_history` | Histórico de todas as mensagens (enviadas e recebidas) |
-| `message_templates` | Templates de mensagens gerais |
-| `message_shortcuts` | Respostas rápidas (trigger word → resposta) |
-| `system_settings` | Configurações globais (singleton) |
-| `external_numbers` | Números externos para aquecimento |
-
-### CRM
-
-| Tabela | Descrição |
-|---|---|
-| `conversations` | Conversas WhatsApp (por chip + remote_jid) |
-| `conversation_notes` | Notas por conversa |
-| `message_favorites` | Mensagens favoritadas |
-| `labels` | Etiquetas de conversa |
-| `client_leads` | Leads de vendas |
-| `kanban_columns` | Colunas do Kanban |
-| `kanban_cards` | Cards do Kanban (1:1 com conversations) |
-
-### Relatório de Comissões
-
-| Tabela | Descrição |
-|---|---|
-| `cr_geral` | Dados de produção (Geral) — importado via paste |
-| `cr_repasse` | Dados de repasse — importado via paste |
-| `cr_seguros` | Dados de seguros — importado via paste |
-| `cr_relatorio` | Dados de vendas (Relatório) — fonte primária para cálculos |
-| `cr_rules_clt` | Regras de comissão CLT (banco, tabela_chave, prazo, seguro, taxa) |
-| `cr_rules_fgts` | Regras de comissão FGTS (banco, tabela_chave, valor, seguro, taxa) |
-| `cr_historico_gestao` | Fechamentos históricos (totais por período) |
-| `cr_historico_detalhado` | Contratos individuais de cada fechamento |
-| `import_batches` | Controle de lotes de importação (module, file_name, row_count) |
-
-### Comissões Parceiros
-
-| Tabela | Descrição |
-|---|---|
-| `commission_sales` | Vendas registradas para comissão |
-| `commission_settings` | Configurações de comissão (bônus, semana) |
-| `commission_rates_clt` | Taxas CLT por banco (legado, substituído por cr_rules_clt) |
-| `commission_rates_fgts` | Taxas FGTS por banco (legado, substituído por cr_rules_fgts) |
-
-### Corban
-
-| Tabela | Descrição |
-|---|---|
-| `corban_assets_cache` | Cache de assets NewCorban (bancos, convênios, tabelas) |
-| `corban_feature_config` | Configuração de visibilidade de funcionalidades por papel |
-
-### Operacional
-
-| Tabela | Descrição |
-|---|---|
-| `profiles` | Perfis de usuário (email, nome, is_blocked, created_by) |
-| `user_roles` | Roles dos usuários (master, admin, manager, support, seller) |
-| `feature_permissions` | Permissões granulares por cargo e por usuário |
-| `audit_logs` | Logs de auditoria |
-| `chip_lifecycle_logs` | Eventos de ciclo de vida dos chips |
-| `support_tickets` | Tickets de suporte |
-| `internal_channels` | Canais de chat interno |
-| `internal_messages` | Mensagens do chat interno |
-| `internal_channel_members` | Membros dos canais internos |
-| `seller_pix` | Chaves PIX dos vendedores |
+17 edge functions Deno com CORS headers, autenticação via Supabase service role key.
 
 ---
 
-## Edge Functions — Detalhamento
+## Hooks Modulares (15)
 
-### `warming-engine`
-**Trigger**: Periódico (cron ou manual)
-**Fluxo**: Lê settings → busca chips ativos → calcula intervalo dinâmico → aplica variação ±50% → seleciona template → insere em `message_queue`
-
-### `queue-processor`
-**Trigger**: Periódico
-**Fluxo**: Lê `message_queue` (status=pending, scheduled_at<=now) → busca `instance_token` → envia via UazAPI `/send/text` → atualiza status → registra em `message_history`
-
-### `evolution-webhook` (nome legado, recebe eventos UazAPI)
-**Trigger**: Webhook HTTP da UazAPI
-**Fluxo**: Recebe evento → identifica chip por `instance_name` → processa (mensagem recebida → `message_history` + `conversations`, status conexão → `chips.status`)
-
-### `uazapi-api`
-**Trigger**: Frontend
-**Fluxo**: Proxy autenticado para UazAPI (adiciona headers de auth)
-
-### `instance-maintenance`
-**Trigger**: Periódico
-**Fluxo**: Verifica saúde das instâncias, reconecta se necessário
-
-### `chip-health-check`
-**Trigger**: Manual
-**Fluxo**: Verifica status de cada chip via UazAPI `/instance/status`
-
-### `sync-history`
-**Trigger**: Manual ou periódico
-**Fluxo**: Sincroniza histórico de mensagens via UazAPI `/message/find`
-
-### `create-user` / `delete-user` / `update-user-role`
-**Trigger**: Admin actions
-**Fluxo**: Gerenciamento de usuários via Supabase Admin API
-
-### `corban-api`
-**Trigger**: Frontend
-**Fluxo**: Proxy autenticado para NewCorban API. Suporta: getPropostas, createProposta, getAssets, getFGTS. Normalização profunda de respostas aninhadas.
-
-### `corban-status-sync`
-**Trigger**: pg_cron (periódico)
-**Fluxo**: Busca propostas Corban → atualiza `corban_status` nos `client_leads` correspondentes
+| Hook | Responsabilidade |
+|---|---|
+| `useChatMessages` | Mensagens do chat (fetch, paginação, busca, real-time) |
+| `useChatActions` | Ações de chat (envio texto/mídia, marcar lido, status) |
+| `useConversations` | Lista de conversas (fetch, filtros, seleção) |
+| `useInternalChat` | Chat interno (canais, mensagens, membros) |
+| `useInternalChatUnread` | Contagem de não-lidos no chat interno |
+| `useLeadsData` | Dados de leads (fetch, sellers, constantes) |
+| `useKanban` | Kanban (colunas, cards, drag & drop) |
+| `useCorbanFeatures` | Visibilidade de features Corban |
+| `useFeaturePermissions` | Permissões granulares (cache 5min + realtime) |
+| `useRealtimeSubscription` | Hook genérico para Supabase Realtime (debounce) |
+| `useRealtimeChips` | Realtime para chips |
+| `useRealtimeMessages` | Realtime para mensagens |
+| `useMessageCache` | Cache de mensagens |
+| `use-mobile` | Detecção de dispositivo móvel |
+| `use-toast` | Notificações toast |
 
 ---
 
@@ -225,35 +123,35 @@ Frontend (ChatInput) → uazapi-api → UazAPI /send/text → WhatsApp
                                                               Frontend (ChatWindow)
 ```
 
-### Cálculo de Comissão (Commission Reports)
+### Cálculo de Comissão
+
+> Detalhes em [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md)
 
 ```
 Paste Import → cr_relatorio (fonte primária)
              → cr_geral / cr_repasse / cr_seguros (cross-reference)
 
-Cálculo Esperada:
-  cr_relatorio.produto = "FGTS"?
-    → extractTableKeyFGTS(banco, tabela) → findFGTSRate(banco, key, valor, seguro, data)
-  cr_relatorio.produto = "Crédito do Trabalhador"?
-    → extractTableKeyCLT(banco, tabela) → findCLTRate(banco, key, prazo, seguro, data)
-  → Soma SUMIFS-style (wildcard * + chave específica)
-
-Comissão Recebida:
-  Cross-reference por num_contrato/cod_contrato entre cr_relatorio ↔ cr_geral/cr_repasse
-  + cr_seguros por batch_id do mesmo período
-
-Resumo:
-  Filtra cr_relatorio por data_pago (toSaoPauloDate, range inclusivo)
-  Agrupa por banco → totais
+Comissão Esperada = extractTableKey* → findRate* (SUMIFS-style)
+Comissão Recebida = cross-reference por num_contrato/cod_contrato
 ```
 
-### Conexão de Chip
+### Conexão de Chip (UazAPI)
 
 ```
 Frontend → uazapi-api → UazAPI /instance/init → retorna token
                        → UazAPI /instance/connect → gera QR
                        → UazAPI /instance/status → lê QR
                        → UazAPI /webhook → configura callback
+```
+
+### Contratos Digitais (ClickSign)
+
+```
+Frontend → clicksign-api → ClickSign API → cria documento + signatário
+                                                    │
+                                              assinatura
+                                                    │
+                                          clicksign-webhook → atualiza status
 ```
 
 ---
@@ -263,11 +161,12 @@ Frontend → uazapi-api → UazAPI /instance/init → retorna token
 | Canal | Tabela | Usado em |
 |---|---|---|
 | chips | `chips` | Dashboard, Chips.tsx, ChipMonitor |
-| messages | `message_history` | ChatWindow |
-| conversations | `conversations` | ChatSidebar |
+| messages | `message_history` | ChatWindow (useChatMessages) |
+| conversations | `conversations` | ChatSidebar (useConversations) |
 | queue | `message_queue` | QueueContent |
-| kanban | `kanban_cards` | KanbanDialog |
+| kanban | `kanban_cards` | KanbanDialog (useKanban) |
 | feature-permissions | `feature_permissions` | useFeaturePermissions |
+| internal-messages | `internal_messages` | useInternalChat |
 
 ---
 
@@ -286,33 +185,15 @@ Tabela singleton com campos agrupados:
 
 ---
 
-## Convenções de Código
-
-### Frontend
-- Componentes em `src/components/` organizados por domínio (`whatsapp/`, `admin/`, `charts/`, `commission-reports/`, `layout/`, `ui/`)
-- Páginas em `src/pages/` (admin em `pages/admin/`, corban em `pages/corban/`)
-- Hooks customizados em `src/hooks/`
-- Contexts em `src/contexts/`
-- UI primitivos: shadcn/ui (não customizar diretamente, usar variants)
-- Cores: sempre via tokens CSS semânticos (nunca hardcoded)
-- Timezone: `America/Sao_Paulo` para todos os cálculos de data em comissões
-
-### Backend (Edge Functions)
-- Deno runtime
-- CORS headers em todas as respostas
-- Autenticação via Supabase service role key
-- UazAPI: header `token` (por instância) ou `admintoken` (global)
-- Nome `evolution-webhook` mantido por compatibilidade (webhooks já configurados)
-
----
-
 ## Ver Também
 
 - [PRD.md](./PRD.md) — Requisitos do produto
 - [ROADMAP.md](./ROADMAP.md) — Fases e prioridades
+- [DATABASE-SCHEMA.md](./DATABASE-SCHEMA.md) — Schema completo do banco
+- [SECURITY.md](./SECURITY.md) — Práticas de segurança
+- [EDGE-FUNCTIONS.md](./EDGE-FUNCTIONS.md) — Catálogo de edge functions
+- [CODE-STANDARDS.md](./CODE-STANDARDS.md) — Padrões de código
 - [INSTRUCOES.md](./INSTRUCOES.md) — Manual de uso
 - [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) — Auditoria de comissões
 - [corban.md](./corban.md) — Integração NewCorban
-- [UAZAPI.md](./UAZAPI.md) — Referência de endpoints UazAPI
-- [uazapidoc.md](./uazapidoc.md) — Documentação OpenAPI completa
-- [HISTORICO-EVOLUTION-CLEANUP.md](./HISTORICO-EVOLUTION-CLEANUP.md) — Migração Evolution → UazAPI
+- [UAZAPI.md](./UAZAPI.md) — Referência UazAPI
