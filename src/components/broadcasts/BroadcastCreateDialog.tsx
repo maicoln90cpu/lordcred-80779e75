@@ -296,6 +296,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             sellers: leadSellers,
           } : null,
           owner_user_id: selectedUserId || null,
+          overflow_chip_ids: overflowChipIds.length > 0 ? overflowChipIds : [],
         } as any)
         .select()
         .single();
