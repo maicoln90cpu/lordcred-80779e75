@@ -50,6 +50,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   // Basic fields
   const [formName, setFormName] = useState('');
   const [formMessage, setFormMessage] = useState('');
+  const [formMessageB, setFormMessageB] = useState('');
+  const [abEnabled, setAbEnabled] = useState(false);
   const [formRate, setFormRate] = useState(10);
 
   // User + Chip selection
@@ -260,6 +262,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         .insert({
           name: formName,
           message_content: formMessage,
+          message_variant_b: abEnabled ? formMessageB : null,
+          ab_enabled: abEnabled,
           chip_id: selectedChipId,
           rate_per_minute: formRate,
           total_recipients: phones.length,
@@ -305,7 +309,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   };
 
   const resetForm = () => {
-    setFormName(''); setFormMessage(''); setFormRate(10);
+    setFormName(''); setFormMessage(''); setFormMessageB(''); setAbEnabled(false); setFormRate(10);
     setSelectedUserId(''); setSelectedChipId('');
     setMediaType('none'); setMediaUrl(''); setMediaFilename(''); setUploading(false); setMediaInputMode('upload');
     setEnableSchedule(false); setScheduleDate(undefined); setScheduleTime('09:00');
@@ -386,7 +390,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
           {/* Mensagem */}
           <div>
-            <Label>Mensagem</Label>
+            <Label>{abEnabled ? 'Mensagem (Variante A)' : 'Mensagem'}</Label>
             <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={3} />
             <div className="flex items-center justify-between mt-1">
               <p className="text-xs text-muted-foreground">{formMessage.length} caracteres</p>
@@ -405,6 +409,22 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Teste A/B */}
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={abEnabled} onCheckedChange={setAbEnabled} />
+              <Label className="cursor-pointer">Teste A/B</Label>
+              {abEnabled && <Badge variant="outline" className="text-[10px]">50% A / 50% B</Badge>}
+            </div>
+            {abEnabled && (
+              <div>
+                <Label className="text-xs">Mensagem (Variante B)</Label>
+                <Textarea value={formMessageB} onChange={e => setFormMessageB(e.target.value)} placeholder="Versão alternativa da mensagem..." rows={3} />
+                <p className="text-xs text-muted-foreground mt-1">{formMessageB.length} caracteres</p>
+              </div>
+            )}
           </div>
 
           {/* Mídia */}
