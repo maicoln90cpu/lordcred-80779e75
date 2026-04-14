@@ -100,6 +100,48 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     setFailedMessage(null);
   }, [chipId]);
 
+  // Check shared chip block-send config
+  useEffect(() => {
+    if (!chipId || !chat) {
+      setSharedBlockInfo({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
+      return;
+    }
+    const check = async () => {
+      const [chipRes, convRes] = await Promise.all([
+        supabase.from('chips').select('is_shared, shared_block_send').eq('id', chipId).single(),
+        supabase.from('conversations').select('assigned_user_id').eq('id', chat.id).single(),
+      ]);
+      const isShared = chipRes.data?.is_shared || false;
+      const blockSend = (chipRes.data as any)?.shared_block_send || false;
+      const assignedUid = convRes.data?.assigned_user_id || null;
+      let assignedName: string | null = null;
+      if (assignedUid && assignedUid !== user?.id) {
+        const { data: prof } = await supabase.from('profiles').select('name').eq('user_id', assignedUid).single();
+        assignedName = prof?.name || 'Outro operador';
+      }
+      setSharedBlockInfo({ isShared, blockSend, assignedUserId: assignedUid, assignedName });
+    };
+    check();
+
+    // Realtime updates
+    const ch = supabase
+      .channel(`block-check-${chat.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${chat.id}` }, (payload) => {
+        const newUid = (payload.new as any)?.assigned_user_id || null;
+        setSharedBlockInfo(prev => ({ ...prev, assignedUserId: newUid }));
+        if (newUid && newUid !== user?.id) {
+          supabase.from('profiles').select('name').eq('user_id', newUid).single().then(({ data }) => {
+            setSharedBlockInfo(prev => ({ ...prev, assignedName: data?.name || 'Outro operador' }));
+          });
+        } else {
+          setSharedBlockInfo(prev => ({ ...prev, assignedName: null }));
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [chipId, chat?.id, user?.id]);
+
   const mapDbRow = useCallback((r: any): ChatMessage => ({
     id: r.id,
     text: typeof r.message_content === 'string' ? r.message_content : '',
