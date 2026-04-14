@@ -20,7 +20,6 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const campaignId = body.campaign_id
 
-    // If no specific campaign, find running ones
     let campaigns: any[] = []
 
     if (campaignId) {
@@ -40,23 +39,28 @@ Deno.serve(async (req) => {
         .limit(5)
       campaigns = data || []
 
-      // Also check scheduled ones that are ready
+      // Check scheduled ones that are ready (scheduled_date <= now OR no scheduled_date and status=scheduled with scheduled_at <= now)
       const { data: scheduled } = await adminClient
         .from('broadcast_campaigns')
         .select('*, chips(instance_name, instance_token, status)')
         .eq('status', 'scheduled')
-        .lte('scheduled_at', new Date().toISOString())
-        .limit(5)
+        .limit(10)
 
       if (scheduled?.length) {
+        const now = new Date()
         for (const sc of scheduled) {
+          // Use scheduled_date (new) or scheduled_at (legacy) to determine readiness
+          const scheduleTime = sc.scheduled_date || sc.scheduled_at
+          if (scheduleTime && new Date(scheduleTime) > now) {
+            continue // Not ready yet
+          }
           await adminClient
             .from('broadcast_campaigns')
             .update({ status: 'running', started_at: new Date().toISOString() })
             .eq('id', sc.id)
           sc.status = 'running'
+          campaigns.push(sc)
         }
-        campaigns.push(...scheduled)
       }
     }
 
@@ -122,14 +126,41 @@ Deno.serve(async (req) => {
 
       for (const recipient of recipients) {
         try {
-          const response = await fetch(`${apiUrl}/send/text`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'token': chipToken },
-            body: JSON.stringify({
-              number: recipient.phone,
-              text: campaign.message_content,
-            }),
-          })
+          let response: Response
+
+          // Determine send endpoint based on media_type
+          if (campaign.media_type === 'image' && campaign.media_url) {
+            response = await fetch(`${apiUrl}/send/image`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+              body: JSON.stringify({
+                number: recipient.phone,
+                image: campaign.media_url,
+                caption: campaign.message_content || '',
+              }),
+            })
+          } else if (campaign.media_type === 'document' && campaign.media_url) {
+            response = await fetch(`${apiUrl}/send/document`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+              body: JSON.stringify({
+                number: recipient.phone,
+                document: campaign.media_url,
+                fileName: campaign.media_filename || 'arquivo',
+                caption: campaign.message_content || '',
+              }),
+            })
+          } else {
+            // Default: text message
+            response = await fetch(`${apiUrl}/send/text`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': chipToken },
+              body: JSON.stringify({
+                number: recipient.phone,
+                text: campaign.message_content,
+              }),
+            })
+          }
 
           if (response.ok) {
             await adminClient

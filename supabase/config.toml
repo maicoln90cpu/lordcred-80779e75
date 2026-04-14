@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.meta-webhook]
 verify_jwt = false
+
+[functions.broadcast-sender]
+verify_jwt = false
