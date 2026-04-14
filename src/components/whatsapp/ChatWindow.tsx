@@ -888,6 +888,14 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         onClose={() => setNotesOpen(false)}
       />
     )}
+    {/* Audit panel */}
+    {chat && (
+      <ConversationAuditPanel
+        conversationId={chat.id}
+        open={auditOpen}
+        onClose={() => setAuditOpen(false)}
+      />
+    )}
     </div>
   );
 }
