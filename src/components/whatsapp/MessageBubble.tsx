@@ -36,6 +36,7 @@ interface MessageBubbleProps {
   quotedSender?: string;
   quotedFromMe?: boolean;
   onQuotedClick?: () => void;
+  sentByUserName?: string;
 }
 
 function nameToColor(name: string): string {
@@ -138,7 +139,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
   { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
     onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status,
-    quotedText, quotedSender, quotedFromMe, onQuotedClick }, ref
+    quotedText, quotedSender, quotedFromMe, onQuotedClick, sentByUserName }, ref
 ) {
   const [hovered, setHovered] = useState(false);
 
@@ -223,6 +224,9 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
           )}
           {isGroup && !fromMe && senderName && (
             <p className={cn("text-xs font-semibold mb-0.5", senderColor)}>{senderName}</p>
+          )}
+          {fromMe && sentByUserName && (
+            <p className="text-[10px] font-medium text-primary/70 mb-0.5">📤 {sentByUserName}</p>
           )}
           {isMedia && messageId && chipId && (
             <div className="mb-1">

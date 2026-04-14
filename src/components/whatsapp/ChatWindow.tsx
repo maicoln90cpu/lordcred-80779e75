@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
+import AssignConversationBanner from './AssignConversationBanner';
+import ConversationAuditPanel from './ConversationAuditPanel';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeUazapiWithRetry, isDisconnectError } from '@/lib/invokeEdgeWithRetry';
@@ -45,6 +47,7 @@ interface ChatMessage {
   messageId?: string;
   status?: string;
   quotedMessageId?: string;
+  sentByUserName?: string;
 }
 
 interface ChatWindowProps {
@@ -69,7 +72,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  const [senderNames, setSenderNames] = useState<Record<string, string>>({});
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -104,7 +109,23 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     messageId: r.message_id || undefined,
     status: r.status || 'sent',
     quotedMessageId: r.quoted_message_id || undefined,
-  }), []);
+    sentByUserName: r.sent_by_user_id ? (senderNames[r.sent_by_user_id] || undefined) : undefined,
+  }), [senderNames]);
+
+  // Resolve sender names for shared chips
+  const resolveSenderNames = useCallback(async (rows: any[]) => {
+    const userIds = [...new Set(rows.filter(r => r.sent_by_user_id).map(r => r.sent_by_user_id))];
+    const missing = userIds.filter(id => !senderNames[id]);
+    if (missing.length === 0) return;
+    const { data: profiles } = await supabase.from('profiles').select('user_id, name').in('user_id', missing);
+    if (profiles) {
+      setSenderNames(prev => {
+        const next = { ...prev };
+        profiles.forEach(p => { next[p.user_id] = p.name || 'Usuário'; });
+        return next;
+      });
+    }
+  }, [senderNames]);
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId || !chat) return;
@@ -150,6 +171,8 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         return;
       }
 
+      // Resolve sender names for shared chip messages
+      if (dbMessages) resolveSenderNames(dbMessages);
       const mapped = (dbMessages || []).map(mapDbRow).reverse();
 
       if (mapped.length < PAGE_SIZE) setHasMore(false);
@@ -636,6 +659,15 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setAuditOpen(!auditOpen)}
+            className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors", auditOpen && "text-primary bg-primary/10")}
+            title="Auditoria"
+          >
+            <ClipboardList className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }}
             className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >
@@ -643,6 +675,11 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           </Button>
         </div>
       </div>
+
+      {/* Assign banner for shared chips */}
+      {chipId && chat && (
+        <AssignConversationBanner chipId={chipId} conversationId={chat.id} remoteJid={chat.remoteJid} />
+      )}
 
       {/* Search bar */}
       {searchOpen && (
@@ -723,6 +760,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
                 quotedText={quotedText}
                 quotedSender={quotedSender}
                 quotedFromMe={quotedFromMe}
+                sentByUserName={msg.sentByUserName}
                 onQuotedClick={msg.quotedMessageId ? () => {
                   const el = scrollRef.current?.querySelector(`[data-message-id="${msg.quotedMessageId}"]`);
                   if (el) {
@@ -849,6 +887,14 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         remoteJid={chat.remoteJid}
         open={notesOpen}
         onClose={() => setNotesOpen(false)}
+      />
+    )}
+    {/* Audit panel */}
+    {chat && (
+      <ConversationAuditPanel
+        conversationId={chat.id}
+        open={auditOpen}
+        onClose={() => setAuditOpen(false)}
       />
     )}
     </div>
