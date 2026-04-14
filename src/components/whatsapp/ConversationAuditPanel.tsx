@@ -44,11 +44,11 @@ export default function ConversationAuditPanel({ conversationId, open, onClose }
       const userIds = [...new Set(data.map(d => d.user_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('user_id, full_name')
+        .select('user_id, name')
         .in('user_id', userIds);
 
       const nameMap: Record<string, string> = {};
-      profiles?.forEach(p => { nameMap[p.user_id] = p.full_name || 'Usuário'; });
+      profiles?.forEach(p => { nameMap[p.user_id] = p.name || 'Usuário'; });
 
       setEntries(data.map(d => ({ ...d, user_name: nameMap[d.user_id] || 'Usuário' })));
     };

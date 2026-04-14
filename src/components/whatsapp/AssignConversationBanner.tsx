@@ -46,10 +46,10 @@ export default function AssignConversationBanner({ chipId, conversationId, remot
       if (uid) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('name')
           .eq('user_id', uid)
           .single();
-        setAssignedName(profile?.full_name || 'Usuário');
+        setAssignedName(profile?.name || 'Usuário');
       } else {
         setAssignedName(null);
       }
