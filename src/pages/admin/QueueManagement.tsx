@@ -280,6 +280,8 @@ export default function QueueManagement() {
             </ScrollArea>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
