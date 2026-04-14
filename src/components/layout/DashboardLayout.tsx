@@ -40,8 +40,8 @@ import {
   Zap,
   DollarSign,
   FileBarChart,
-  Send
-} from 'lucide-react';
+  Send,
+  Globe
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
