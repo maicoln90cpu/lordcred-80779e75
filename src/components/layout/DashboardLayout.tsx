@@ -40,7 +40,8 @@ import {
   Zap,
   DollarSign,
   FileBarChart,
-  Send
+  Send,
+  Globe
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -139,6 +140,12 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
       { label: 'Parceiros', icon: Users2, href: '/admin/parceiros', sellerHidden: true },
       { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
+    ],
+  },
+  {
+    groupLabel: 'Integrações',
+    items: [
+      { label: 'UazAPI / Meta', icon: Globe, href: '/admin/integrations', sellerHidden: true },
     ],
   },
   {
