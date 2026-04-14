@@ -403,7 +403,40 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </div>
           </div>
 
-          {/* Mensagem */}
+          {/* Overflow Chips */}
+          {selectedChipId && (
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-xs flex items-center gap-2">🔄 Chips de Overflow (quando limite diário atingido)</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Cada chip tem limite de 200 msgs/dia. Selecione chips extras para continuar o envio automaticamente.
+              </p>
+              <ScrollArea className="max-h-24">
+                {allChips
+                  .filter(c => c.id !== selectedChipId && c.status === 'connected')
+                  .map(c => (
+                    <label key={c.id} className="flex items-center gap-2 py-0.5 text-xs cursor-pointer hover:bg-muted/50 px-1 rounded">
+                      <Checkbox
+                        checked={overflowChipIds.includes(c.id)}
+                        onCheckedChange={checked => {
+                          setOverflowChipIds(prev => checked ? [...prev, c.id] : prev.filter(id => id !== c.id));
+                        }}
+                      />
+                      {c.nickname || c.instance_name} {c.provider === 'meta' ? '[META]' : '[UazAPI]'}
+                    </label>
+                  ))}
+                {allChips.filter(c => c.id !== selectedChipId && c.status === 'connected').length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">Nenhum chip extra disponível</p>
+                )}
+              </ScrollArea>
+              {overflowChipIds.length > 0 && (
+                <Badge variant="outline" className="text-[10px]">
+                  💡 {getPhoneCount()} msgs → até {Math.min(200, getPhoneCount())} no chip principal, resto nos {overflowChipIds.length} chip(s) extra(s)
+                </Badge>
+              )}
+            </div>
+          )}
+
+
           <div>
             <Label>{abEnabled ? 'Mensagem (Variante A)' : 'Mensagem'}</Label>
             <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={3} />
