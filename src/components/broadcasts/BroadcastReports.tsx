@@ -31,6 +31,46 @@ export default function BroadcastReports() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [abStats, setAbStats] = useState<ABStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const { toast } = useToast();
+
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const rows: string[] = ['Campanha,Telefone,Status,Variante,Enviado Em,Erro'];
+      for (const camp of campaigns) {
+        const { data: recipients } = await supabase
+          .from('broadcast_recipients')
+          .select('phone, status, variant, sent_at, error_message')
+          .eq('campaign_id', camp.id)
+          .order('created_at');
+        if (recipients) {
+          for (const r of recipients) {
+            const line = [
+              `"${camp.name}"`,
+              r.phone,
+              r.status,
+              r.variant || 'A',
+              r.sent_at ? new Date(r.sent_at).toLocaleString('pt-BR') : '',
+              `"${(r.error_message || '').replace(/"/g, '""')}"`,
+            ].join(',');
+            rows.push(line);
+          }
+        }
+      }
+      const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `broadcast-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'CSV exportado com sucesso' });
+    } catch (err: any) {
+      toast({ title: 'Erro ao exportar', description: err.message, variant: 'destructive' });
+    }
+    setExporting(false);
+  };
 
   useEffect(() => {
     loadReports();
