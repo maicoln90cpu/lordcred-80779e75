@@ -205,8 +205,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
       } else if (sourceType === 'csv') {
         phones = csvPhones;
       } else if (sourceType === 'leads') {
-        // Fetch lead phones matching filters
-        let query = supabase.from('client_leads').select('telefone')
+        // Fetch lead phones matching filters + lead ids for variable substitution
+        let query = supabase.from('client_leads').select('id, telefone')
           .not('telefone', 'is', null)
           .neq('telefone', '');
         if (leadStatuses.length > 0) query = query.in('status', leadStatuses);
@@ -216,7 +216,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
         const { data: leads } = await query;
         if (leads) {
-          phones = leads.map(l => (l.telefone || '').replace(/\D/g, '')).filter(p => p.length >= 10);
+          // Build phone-to-lead map for lead_id linking
+          const seen = new Set<string>();
+          for (const l of leads) {
+            const cleaned = (l.telefone || '').replace(/\D/g, '');
+            if (cleaned.length >= 10 && !seen.has(cleaned)) {
+              seen.add(cleaned);
+              phones.push(cleaned);
+              leadIdMap[cleaned] = l.id;
+            }
+          }
         }
       }
 
