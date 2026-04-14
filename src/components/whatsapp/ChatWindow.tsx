@@ -109,7 +109,23 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
     messageId: r.message_id || undefined,
     status: r.status || 'sent',
     quotedMessageId: r.quoted_message_id || undefined,
-  }), []);
+    sentByUserName: r.sent_by_user_id ? (senderNames[r.sent_by_user_id] || undefined) : undefined,
+  }), [senderNames]);
+
+  // Resolve sender names for shared chips
+  const resolveSenderNames = useCallback(async (rows: any[]) => {
+    const userIds = [...new Set(rows.filter(r => r.sent_by_user_id).map(r => r.sent_by_user_id))];
+    const missing = userIds.filter(id => !senderNames[id]);
+    if (missing.length === 0) return;
+    const { data: profiles } = await supabase.from('profiles').select('user_id, name').in('user_id', missing);
+    if (profiles) {
+      setSenderNames(prev => {
+        const next = { ...prev };
+        profiles.forEach(p => { next[p.user_id] = p.name || 'Usuário'; });
+        return next;
+      });
+    }
+  }, [senderNames]);
 
   const fetchMessages = useCallback(async (pageNum = 1, append = false) => {
     if (!chipId || !chat) return;
