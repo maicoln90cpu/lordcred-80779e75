@@ -55,7 +55,7 @@ export default function Settings() {
                   <SettingsProtectionCard settings={settings} onChange={setSettings} />
                 </div>
 
-                <SettingsPhaseProgression settings={settings} onChange={setSettings} />
+                <SettingsPhaseProgression />
 
                 <MessageSimulator settings={settings} chips={connectedChips} />
 

@@ -2763,6 +2763,39 @@ export type Database = {
         }
         Relationships: []
       }
+      warming_phase_rules: {
+        Row: {
+          created_at: string
+          id: string
+          min_avg_messages: number
+          min_days: number
+          phase_from: string
+          phase_to: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_avg_messages?: number
+          min_days?: number
+          phase_from: string
+          phase_to: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_avg_messages?: number
+          min_days?: number
+          phase_from?: string
+          phase_to?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           chip_id: string | null

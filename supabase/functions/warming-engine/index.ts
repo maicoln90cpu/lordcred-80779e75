@@ -201,34 +201,62 @@ Deno.serve(async (req) => {
 
     const typedChips = chips as Chip[]
 
-    // Auto phase progression
-    const autoProgression = (settings as any).auto_phase_progression
-    if (autoProgression) {
-      const daysNovo = (settings as any).days_phase_novo ?? 3
-      const daysIniciante = (settings as any).days_phase_iniciante ?? 5
-      const daysCrescimento = (settings as any).days_phase_crescimento ?? 7
-      const daysAquecido = (settings as any).days_phase_aquecido ?? 10
+    // === Auto phase progression using warming_phase_rules ===
+    const { data: phaseRules } = await adminClient
+      .from('warming_phase_rules')
+      .select('*')
+      .order('sort_order', { ascending: true })
 
+    if (phaseRules && phaseRules.length > 0) {
       for (const chip of typedChips) {
         if (!chip.activated_at) continue
+        const currentPhase = chip.warming_phase || 'novo'
+        if (currentPhase === 'maduro') continue // already final phase
+
+        const rule = phaseRules.find((r: any) => r.phase_from === currentPhase)
+        if (!rule) continue
+
+        // Check min_days since activation
         const daysSinceActivation = Math.floor((now.getTime() - new Date(chip.activated_at).getTime()) / (1000 * 60 * 60 * 24))
         
-        let expectedPhase = 'novo'
-        if (daysSinceActivation >= daysNovo + daysIniciante + daysCrescimento + daysAquecido) {
-          expectedPhase = 'maduro'
-        } else if (daysSinceActivation >= daysNovo + daysIniciante + daysCrescimento) {
-          expectedPhase = 'aquecido'
-        } else if (daysSinceActivation >= daysNovo + daysIniciante) {
-          expectedPhase = 'crescimento'
-        } else if (daysSinceActivation >= daysNovo) {
-          expectedPhase = 'iniciante'
+        // Calculate cumulative days needed for this phase
+        let cumulativeDays = 0
+        for (const r of phaseRules as any[]) {
+          cumulativeDays += r.min_days
+          if (r.phase_from === currentPhase) break
         }
 
-        if (expectedPhase !== (chip.warming_phase || 'novo')) {
-          console.log(`Auto-promoting chip ${chip.instance_name}: ${chip.warming_phase} -> ${expectedPhase} (${daysSinceActivation} days)`)
-          await adminClient.from('chips').update({ warming_phase: expectedPhase }).eq('id', chip.id)
-          chip.warming_phase = expectedPhase
+        if (daysSinceActivation < cumulativeDays) continue
+
+        // Check min_avg_messages: average msgs/day over the last rule.min_days days
+        const lookbackDate = new Date(now.getTime() - (rule as any).min_days * 24 * 60 * 60 * 1000).toISOString()
+        const { count: msgCount } = await adminClient
+          .from('message_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('chip_id', chip.id)
+          .eq('direction', 'outgoing')
+          .gte('created_at', lookbackDate)
+
+        const avgMsgsPerDay = (msgCount || 0) / (rule as any).min_days
+        if (avgMsgsPerDay < (rule as any).min_avg_messages) {
+          console.log(`Chip ${chip.instance_name}: avg ${avgMsgsPerDay.toFixed(1)} msgs/day < ${(rule as any).min_avg_messages} required for ${currentPhase} → ${(rule as any).phase_to}`)
+          continue
         }
+
+        // Promote!
+        const newPhase = (rule as any).phase_to
+        console.log(`Auto-promoting chip ${chip.instance_name}: ${currentPhase} → ${newPhase} (${daysSinceActivation} days, avg ${avgMsgsPerDay.toFixed(1)} msgs/day)`)
+        
+        await adminClient.from('chips').update({ warming_phase: newPhase }).eq('id', chip.id)
+
+        // Log lifecycle event
+        await adminClient.from('chip_lifecycle_logs').insert({
+          chip_id: chip.id,
+          event: 'phase_promoted',
+          details: `${currentPhase} → ${newPhase} (${daysSinceActivation}d, avg ${avgMsgsPerDay.toFixed(1)} msgs/day)`
+        })
+
+        chip.warming_phase = newPhase
       }
     }
 
