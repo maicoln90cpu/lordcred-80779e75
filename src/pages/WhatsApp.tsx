@@ -224,7 +224,7 @@ export default function WhatsApp() {
     try {
       const query = supabase
         .from('chips')
-        .select('id, instance_name, instance_token, status')
+        .select('id, instance_name, instance_token, status, provider')
         .eq('user_id', user.id);
       const { data: chips } = await (query as any).eq('chip_type', 'whatsapp');
       if (!chips || chips.length === 0) {
@@ -243,13 +243,13 @@ export default function WhatsApp() {
         const controller = new AbortController();
         const tid = setTimeout(() => controller.abort(), PER_CHIP_TIMEOUT);
         try {
-          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-gateway`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ action: 'check-status', instanceName: chip.instance_name, instanceToken: chip.instance_token }),
+            body: JSON.stringify({ action: 'check-status', instanceName: chip.instance_name, chipId: chip.id }),
             signal: controller.signal,
           });
           const data = await res.json();

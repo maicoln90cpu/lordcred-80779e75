@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_meta_templates_waba ON public.meta_message_templates (waba_id, status);

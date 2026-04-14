@@ -41,6 +41,7 @@ interface Chip {
   status: string;
   slot_number: number;
   nickname?: string | null;
+  provider?: string;
 }
 
 interface ChipSelectorProps {
@@ -75,7 +76,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
     if (!user) return;
     const { data } = await (supabase
       .from('chips')
-      .select('id, phone_number, instance_name, status, slot_number, nickname')
+      .select('id, phone_number, instance_name, status, slot_number, nickname, provider')
       .eq('user_id', user.id)
       .order('slot_number')
       .limit(5) as any).eq('chip_type', 'whatsapp');
@@ -128,13 +129,13 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Sessão expirada');
 
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uazapi-api`, {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-gateway`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: 'logout-instance', instanceName: chipToDisconnect.instance_name }),
+        body: JSON.stringify({ action: 'logout-instance', instanceName: chipToDisconnect.instance_name, chipId: chipToDisconnect.id }),
       });
 
       await supabase
@@ -208,6 +209,9 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
                 <WifiOff className="w-3.5 h-3.5" />
               )}
               <span>{chip.nickname || chip.phone_number || chip.instance_name}</span>
+              {chip.provider === 'meta' && (
+                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-primary/20 text-primary leading-none">META</span>
+              )}
               {!isConnected && (
                 <span className="text-[10px] font-medium">(offline)</span>
               )}
