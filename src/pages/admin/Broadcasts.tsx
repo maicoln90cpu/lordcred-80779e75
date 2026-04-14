@@ -1,22 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, Users, CheckCircle2, XCircle, Clock, Radio } from 'lucide-react';
+import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
 
 interface Campaign {
   id: string;
@@ -32,13 +28,9 @@ interface Campaign {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
-}
-
-interface Chip {
-  id: string;
-  instance_name: string;
-  nickname: string | null;
-  status: string;
+  media_type: string | null;
+  source_type: string | null;
+  scheduled_date: string | null;
 }
 
 const statusMap: Record<string, { label: string; className: string }> = {
@@ -51,22 +43,13 @@ const statusMap: Record<string, { label: string; className: string }> = {
 };
 
 export default function Broadcasts() {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [chips, setChips] = useState<Chip[]>([]);
+  const [chips, setChips] = useState<{ id: string; instance_name: string; nickname: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState<Campaign | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; id: string } | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  // Form state
-  const [formName, setFormName] = useState('');
-  const [formMessage, setFormMessage] = useState('');
-  const [formChip, setFormChip] = useState('');
-  const [formRate, setFormRate] = useState(10);
-  const [formPhones, setFormPhones] = useState('');
 
   useEffect(() => {
     loadData();
@@ -77,81 +60,17 @@ export default function Broadcasts() {
   const loadData = async () => {
     const [campRes, chipRes] = await Promise.all([
       supabase.from('broadcast_campaigns').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('chips').select('id, instance_name, nickname, status').eq('status', 'connected'),
+      supabase.from('chips').select('id, instance_name, nickname').eq('status', 'connected'),
     ]);
-    if (campRes.data) setCampaigns(campRes.data);
+    if (campRes.data) setCampaigns(campRes.data as any);
     if (chipRes.data) setChips(chipRes.data);
     setLoading(false);
-  };
-
-  const handleCreate = async () => {
-    if (!formName || !formMessage || !formChip || !formPhones.trim()) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const phones = formPhones
-        .split(/[\n,;]+/)
-        .map(p => p.trim().replace(/\D/g, ''))
-        .filter(p => p.length >= 10);
-
-      if (phones.length === 0) {
-        toast({ title: 'Nenhum telefone válido encontrado', variant: 'destructive' });
-        setCreating(false);
-        return;
-      }
-
-      // Create campaign
-      const { data: campaign, error } = await supabase
-        .from('broadcast_campaigns')
-        .insert({
-          name: formName,
-          message_content: formMessage,
-          chip_id: formChip,
-          rate_per_minute: formRate,
-          total_recipients: phones.length,
-          created_by: user!.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Insert recipients in batches of 500
-      const batchSize = 500;
-      for (let i = 0; i < phones.length; i += batchSize) {
-        const batch = phones.slice(i, i + batchSize).map(phone => ({
-          campaign_id: campaign.id,
-          phone,
-        }));
-        await supabase.from('broadcast_recipients').insert(batch);
-      }
-
-      toast({ title: `Campanha criada com ${phones.length} destinatários` });
-      setShowCreate(false);
-      resetForm();
-      loadData();
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-    }
-    setCreating(false);
-  };
-
-  const resetForm = () => {
-    setFormName('');
-    setFormMessage('');
-    setFormChip('');
-    setFormRate(10);
-    setFormPhones('');
   };
 
   const handleAction = async (action: string, id: string) => {
     try {
       if (action === 'start') {
         await supabase.from('broadcast_campaigns').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', id);
-        // Trigger the edge function
         supabase.functions.invoke('broadcast-sender', { body: { campaign_id: id } });
       } else if (action === 'pause') {
         await supabase.from('broadcast_campaigns').update({ status: 'paused' }).eq('id', id);
@@ -177,6 +96,12 @@ export default function Broadcasts() {
   };
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+  const sourceLabel = (t: string | null) => {
+    if (t === 'leads') return 'Leads';
+    if (t === 'csv') return 'CSV';
+    return 'Manual';
+  };
 
   const stats = {
     total: campaigns.length,
@@ -226,7 +151,7 @@ export default function Broadcasts() {
           ))}
         </div>
 
-        {/* Campaigns Table */}
+        {/* Table */}
         <Card>
           <CardContent className="p-0">
             <ScrollArea className="h-[calc(100vh-340px)]">
@@ -236,9 +161,10 @@ export default function Broadcasts() {
                     <TableHead>Status</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Chip</TableHead>
-                    <TableHead className="text-center">Destinatários</TableHead>
+                    <TableHead className="text-center">Dest.</TableHead>
                     <TableHead className="text-center">Enviados</TableHead>
                     <TableHead className="text-center">Erros</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead>Taxa</TableHead>
                     <TableHead>Criado</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -247,15 +173,22 @@ export default function Broadcasts() {
                 <TableBody>
                   {campaigns.map(c => {
                     const st = statusMap[c.status] || statusMap.draft;
-                    const progress = c.total_recipients > 0 ? Math.round(((c.sent_count + c.failed_count) / c.total_recipients) * 100) : 0;
                     return (
                       <TableRow key={c.id}>
                         <TableCell><Badge className={cn('text-xs', st.className)}>{st.label}</Badge></TableCell>
-                        <TableCell className="font-medium text-sm">{c.name}</TableCell>
+                        <TableCell className="font-medium text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {c.name}
+                            {c.media_type === 'image' && <Image className="w-3 h-3 text-muted-foreground" />}
+                            {c.media_type === 'document' && <FileText className="w-3 h-3 text-muted-foreground" />}
+                            {c.scheduled_date && <CalendarIcon className="w-3 h-3 text-blue-400" />}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-xs">{getChipName(c.chip_id)}</TableCell>
                         <TableCell className="text-center text-sm">{c.total_recipients}</TableCell>
                         <TableCell className="text-center text-sm text-green-400">{c.sent_count}</TableCell>
                         <TableCell className="text-center text-sm text-destructive">{c.failed_count}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{sourceLabel(c.source_type)}</Badge></TableCell>
                         <TableCell className="text-xs">{c.rate_per_minute}/min</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{formatDate(c.created_at)}</TableCell>
                         <TableCell className="text-right">
@@ -295,7 +228,7 @@ export default function Broadcasts() {
                   })}
                   {campaigns.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">
                         <Radio className="w-8 h-8 mx-auto mb-2 opacity-40" />
                         <p>Nenhuma campanha criada</p>
                       </TableCell>
@@ -309,54 +242,9 @@ export default function Broadcasts() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Nova Campanha</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Nome da Campanha</Label>
-              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Promoção FGTS Abril" />
-            </div>
-            <div>
-              <Label>Chip de Envio</Label>
-              <Select value={formChip} onValueChange={setFormChip}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>
-                  {chips.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.nickname || c.instance_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Mensagem</Label>
-              <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={4} />
-              <p className="text-xs text-muted-foreground mt-1">{formMessage.length} caracteres</p>
-            </div>
-            <div>
-              <Label>Taxa de Envio: {formRate} msgs/minuto</Label>
-              <Slider value={[formRate]} onValueChange={v => setFormRate(v[0])} min={1} max={20} step={1} className="mt-2" />
-              <p className="text-xs text-muted-foreground mt-1">Menor taxa = menor risco de bloqueio</p>
-            </div>
-            <div>
-              <Label>Telefones (um por linha, ou separados por vírgula)</Label>
-              <Textarea value={formPhones} onChange={e => setFormPhones(e.target.value)} placeholder="5511999998888&#10;5521988887777&#10;..." rows={5} />
-              <p className="text-xs text-muted-foreground mt-1">
-                {formPhones.split(/[\n,;]+/).filter(p => p.trim().replace(/\D/g, '').length >= 10).length} telefones válidos
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Criar Campanha
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Suspense fallback={null}>
+        <BroadcastCreateDialog open={showCreate} onOpenChange={setShowCreate} onCreated={loadData} />
+      </Suspense>
 
       {/* Detail Dialog */}
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
@@ -375,6 +263,13 @@ export default function Broadcasts() {
                 <div><span className="text-muted-foreground">Erros:</span> <span className="text-destructive">{showDetail.failed_count}</span></div>
                 <div><span className="text-muted-foreground">Início:</span> {formatDate(showDetail.started_at)}</div>
                 <div><span className="text-muted-foreground">Fim:</span> {formatDate(showDetail.completed_at)}</div>
+                <div><span className="text-muted-foreground">Origem:</span> <Badge variant="outline" className="text-xs">{sourceLabel(showDetail.source_type)}</Badge></div>
+                {showDetail.media_type && (
+                  <div><span className="text-muted-foreground">Mídia:</span> {showDetail.media_type === 'image' ? 'Imagem' : 'Documento'}</div>
+                )}
+                {showDetail.scheduled_date && (
+                  <div><span className="text-muted-foreground">Agendado:</span> {formatDate(showDetail.scheduled_date)}</div>
+                )}
               </div>
               {showDetail.total_recipients > 0 && (
                 <div>
