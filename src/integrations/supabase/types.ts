@@ -77,6 +77,30 @@ export type Database = {
         }
         Relationships: []
       }
+      broadcast_blacklist: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          phone: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          phone: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          phone?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       broadcast_campaigns: {
         Row: {
           chip_id: string
@@ -166,27 +190,33 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          lead_id: string | null
           phone: string
           sent_at: string | null
           status: string
+          variant: string | null
         }
         Insert: {
           campaign_id: string
           created_at?: string
           error_message?: string | null
           id?: string
+          lead_id?: string | null
           phone: string
           sent_at?: string | null
           status?: string
+          variant?: string | null
         }
         Update: {
           campaign_id?: string
           created_at?: string
           error_message?: string | null
           id?: string
+          lead_id?: string | null
           phone?: string
           sent_at?: string | null
           status?: string
+          variant?: string | null
         }
         Relationships: [
           {
