@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, BarChart3, TrendingUp, FlaskConical } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell } from 'recharts';
+import { Loader2, BarChart3, TrendingUp, FlaskConical, Send, CheckCircle2, XCircle, Target, Percent } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell, PieChart, Pie } from 'recharts';
+import { cn } from '@/lib/utils';
 
 interface Campaign {
   id: string;
@@ -44,7 +45,6 @@ export default function BroadcastReports() {
     const list = (data || []) as Campaign[];
     setCampaigns(list);
 
-    // Load A/B stats for campaigns with ab_enabled
     const abCampaigns = list.filter(c => c.ab_enabled);
     if (abCampaigns.length > 0) {
       const stats: ABStats[] = [];
@@ -72,6 +72,24 @@ export default function BroadcastReports() {
     setLoading(false);
   };
 
+  // ── KPIs ──
+  const kpis = useMemo(() => {
+    const totalSent = campaigns.reduce((s, c) => s + c.sent_count, 0);
+    const totalFailed = campaigns.reduce((s, c) => s + c.failed_count, 0);
+    const totalRecipients = campaigns.reduce((s, c) => s + c.total_recipients, 0);
+    const completed = campaigns.filter(c => c.status === 'completed').length;
+    const globalRate = (totalSent + totalFailed) > 0 ? Math.round((totalSent / (totalSent + totalFailed)) * 100) : 0;
+
+    return { totalSent, totalFailed, totalRecipients, completed, globalRate, total: campaigns.length };
+  }, [campaigns]);
+
+  // ── Funnel data ──
+  const funnelData = useMemo(() => [
+    { name: 'Destinatários', value: kpis.totalRecipients, color: 'hsl(var(--primary))' },
+    { name: 'Enviados', value: kpis.totalSent, color: 'hsl(var(--primary) / 0.7)' },
+    { name: 'Falhas', value: kpis.totalFailed, color: 'hsl(var(--destructive))' },
+  ].filter(d => d.value > 0), [kpis]);
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -87,7 +105,7 @@ export default function BroadcastReports() {
     };
   });
 
-  // Chart data: sends over time (group by date)
+  // Chart data: sends over time
   const timeMap: Record<string, { date: string; enviados: number; falhas: number }> = {};
   for (const c of campaigns) {
     const date = new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -101,36 +119,100 @@ export default function BroadcastReports() {
 
   return (
     <div className="space-y-4">
-      {/* Success rate chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" /> Taxa de Sucesso por Campanha
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {successData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nenhuma campanha com dados</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={successData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} unit="%" />
-                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip
-                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                  formatter={(val: number) => [`${val}%`, 'Taxa de sucesso']}
-                />
-                <Bar dataKey="taxa" radius={[0, 4, 4, 0]} maxBarSize={28}>
-                  {successData.map((_, i) => (
-                    <Cell key={i} fill={barColors[i % barColors.length]} />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: 'Campanhas', value: kpis.total, icon: BarChart3, color: 'text-primary' },
+          { label: 'Concluídas', value: kpis.completed, icon: CheckCircle2, color: 'text-green-400' },
+          { label: 'Total Enviados', value: kpis.totalSent.toLocaleString('pt-BR'), icon: Send, color: 'text-blue-400' },
+          { label: 'Total Falhas', value: kpis.totalFailed.toLocaleString('pt-BR'), icon: XCircle, color: 'text-destructive' },
+          { label: 'Taxa Global', value: `${kpis.globalRate}%`, icon: Percent, color: kpis.globalRate >= 90 ? 'text-green-400' : kpis.globalRate >= 70 ? 'text-yellow-400' : 'text-destructive' },
+        ].map(k => (
+          <Card key={k.label}>
+            <CardContent className="p-3 flex items-center gap-3">
+              <k.icon className={cn('w-5 h-5 shrink-0', k.color)} />
+              <div>
+                <p className={cn('text-lg font-bold', k.color)}>{k.value}</p>
+                <p className="text-[11px] text-muted-foreground">{k.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Success rate chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" /> Taxa de Sucesso por Campanha
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {successData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhuma campanha com dados</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={successData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} unit="%" />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    formatter={(val: number) => [`${val}%`, 'Taxa de sucesso']}
+                  />
+                  <Bar dataKey="taxa" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                    {successData.map((_, i) => (
+                      <Cell key={i} fill={barColors[i % barColors.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delivery Funnel */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4" /> Funil de Entrega
+            </CardTitle>
+            <CardDescription className="text-xs">Visão geral de todos os disparos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {funnelData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Sem dados</p>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie data={funnelData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
+                      {funnelData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-1.5 mt-2">
+                  {funnelData.map(f => (
+                    <div key={f.name} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: f.color }} />
+                        <span className="text-muted-foreground">{f.name}</span>
+                      </div>
+                      <span className="font-medium">{f.value.toLocaleString('pt-BR')}</span>
+                    </div>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Sends over time */}
       <Card>

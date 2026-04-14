@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import MetaConfigCard from '@/components/admin/MetaConfigCard';
 import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
 import MetaChipsManager from '@/components/settings/MetaChipsManager';
+import MetaSetupGuide from '@/components/admin/MetaSetupGuide';
 import SupportChatSettings from '@/components/settings/SupportChatSettings';
 
 interface ProviderSettings {
@@ -229,6 +230,13 @@ export default function Integrations() {
             <div className="space-y-6">
               {providerSettings && (
                 <>
+                  <MetaSetupGuide
+                    hasAppId={!!providerSettings.meta_app_id}
+                    hasToken={!!providerSettings.meta_access_token}
+                    hasVerifyToken={!!providerSettings.meta_verify_token}
+                    webhookUrl={metaWebhookUrl}
+                  />
+
                   <MetaConfigCard
                     settings={{
                       meta_app_id: providerSettings.meta_app_id || '',
