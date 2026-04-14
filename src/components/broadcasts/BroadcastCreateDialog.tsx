@@ -109,8 +109,14 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
       supabase.from('profiles').select('user_id, email, name').order('name'),
       supabase.from('chips').select('id, instance_name, nickname, status, user_id, provider').eq('status', 'connected'),
     ]);
-    if (usersRes.data) setUsers(usersRes.data);
     if (chipsRes.data) setAllChips(chipsRes.data);
+    // Only show users that have at least one connected chip
+    if (usersRes.data && chipsRes.data) {
+      const usersWithChip = new Set(chipsRes.data.map(c => c.user_id));
+      setUsers(usersRes.data.filter(u => usersWithChip.has(u.user_id)));
+    } else if (usersRes.data) {
+      setUsers(usersRes.data);
+    }
   };
 
   const loadLeadFilterOptions = async () => {
