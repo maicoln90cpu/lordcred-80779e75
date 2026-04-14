@@ -85,15 +85,3 @@ export function setCachedChats(chipId: string, chats: ChatContact[]): void {
   }
 }
 
-export function clearAllChatCache(): void {
-  try {
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key.startsWith(CACHE_VERSION + '_chat_')) {
-        localStorage.removeItem(key);
-      }
-    }
-  } catch {
-    // silently fail
-  }
-}
