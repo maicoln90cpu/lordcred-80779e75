@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Users, Smartphone, Share2, Shield, Save } from 'lucide-react';
+import { Loader2, Users, Smartphone, Share2, Shield, Save, Lock } from 'lucide-react';
 
 interface ChipRow {
   id: string;
@@ -17,6 +18,7 @@ interface ChipRow {
   provider: string;
   is_shared: boolean;
   shared_user_ids: string[];
+  shared_block_send: boolean;
   status: string;
   user_id: string;
 }
@@ -44,7 +46,7 @@ export default function SharedChipManager() {
     const [chipsRes, profilesRes] = await Promise.all([
       supabase
         .from('chips')
-        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, status, user_id')
+        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, status, user_id')
         .order('instance_name'),
       supabase
         .from('profiles')
