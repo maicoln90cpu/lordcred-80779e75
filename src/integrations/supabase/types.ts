@@ -118,6 +118,7 @@ export type Database = {
           id: string
           instance_name: string
           instance_token: string | null
+          is_shared: boolean
           last_connection_attempt: string | null
           last_message_at: string | null
           last_sync_at: string | null
@@ -129,6 +130,7 @@ export type Database = {
           nickname: string | null
           phone_number: string | null
           provider: string
+          shared_user_ids: string[] | null
           slot_number: number
           status: string
           updated_at: string
@@ -143,6 +145,7 @@ export type Database = {
           id?: string
           instance_name: string
           instance_token?: string | null
+          is_shared?: boolean
           last_connection_attempt?: string | null
           last_message_at?: string | null
           last_sync_at?: string | null
@@ -154,6 +157,7 @@ export type Database = {
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          shared_user_ids?: string[] | null
           slot_number: number
           status?: string
           updated_at?: string
@@ -168,6 +172,7 @@ export type Database = {
           id?: string
           instance_name?: string
           instance_token?: string | null
+          is_shared?: boolean
           last_connection_attempt?: string | null
           last_message_at?: string | null
           last_sync_at?: string | null
@@ -179,6 +184,7 @@ export type Database = {
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          shared_user_ids?: string[] | null
           slot_number?: number
           status?: string
           updated_at?: string
@@ -633,6 +639,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assigned_user_id: string | null
           chip_id: string
           contact_name: string | null
           contact_phone: string | null
@@ -655,6 +662,7 @@ export type Database = {
           wa_name: string | null
         }
         Insert: {
+          assigned_user_id?: string | null
           chip_id: string
           contact_name?: string | null
           contact_phone?: string | null
@@ -677,6 +685,7 @@ export type Database = {
           wa_name?: string | null
         }
         Update: {
+          assigned_user_id?: string | null
           chip_id?: string
           contact_name?: string | null
           contact_phone?: string | null
@@ -1702,6 +1711,7 @@ export type Database = {
           recipient_phone: string | null
           remote_jid: string | null
           sender_name: string | null
+          sent_by_user_id: string | null
           status: string
         }
         Insert: {
@@ -1719,6 +1729,7 @@ export type Database = {
           recipient_phone?: string | null
           remote_jid?: string | null
           sender_name?: string | null
+          sent_by_user_id?: string | null
           status?: string
         }
         Update: {
@@ -1736,6 +1747,7 @@ export type Database = {
           recipient_phone?: string | null
           remote_jid?: string | null
           sender_name?: string | null
+          sent_by_user_id?: string | null
           status?: string
         }
         Relationships: [
