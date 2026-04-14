@@ -9,6 +9,7 @@ import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
 import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import LabelBadge from './LabelBadge';
 import ManageLabelsDialog from './ManageLabelsDialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -84,8 +85,7 @@ interface ExtendedChat extends ChatContact {
 }
 
 export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUnreadUpdate, isSyncing, syncProgress, refreshKey }: ChatSidebarProps) {
-  const currentUserId = supabase.auth.getUser ? undefined : undefined; // placeholder
-  const [currentUid, setCurrentUid] = useState<string | null>(null);
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [chats, setChats] = useState<ExtendedChat[]>([]);
   const [loading, setLoading] = useState(false);
