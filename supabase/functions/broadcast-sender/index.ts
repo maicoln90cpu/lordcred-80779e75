@@ -163,8 +163,18 @@ Deno.serve(async (req) => {
         }
 
         try {
-          // Build message with variable substitution
+          // Determine which variant to use (A/B testing)
           let messageText = campaign.message_content
+          let variant = 'A'
+          if (campaign.ab_enabled && campaign.message_variant_b) {
+            // Alternate 50/50 based on index
+            if (i % 2 === 1) {
+              messageText = campaign.message_variant_b
+              variant = 'B'
+            }
+          }
+
+          // Variable substitution
           if (recipient.lead_id && leadsMap[recipient.lead_id]) {
             const lead = leadsMap[recipient.lead_id]
             messageText = replaceVariables(messageText, {
@@ -214,7 +224,7 @@ Deno.serve(async (req) => {
           if (response.ok) {
             await adminClient
               .from('broadcast_recipients')
-              .update({ status: 'sent', sent_at: new Date().toISOString() })
+              .update({ status: 'sent', sent_at: new Date().toISOString(), variant })
               .eq('id', recipient.id)
             batchSent++
             totalProcessed++
