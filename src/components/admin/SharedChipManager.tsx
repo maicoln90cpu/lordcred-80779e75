@@ -363,49 +363,35 @@ export default function SharedChipManager() {
         </div>
       )}
 
-      {/* Available chips to share */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          Chips Disponíveis para Compartilhar
-        </h3>
-        {availableChips.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Nenhum chip disponível</p>
-        ) : (
-          <div className="grid gap-2">
-            {availableChips.map(chip => {
-              const ownerProfile = profiles.find(p => p.user_id === chip.user_id);
-              return (
-                <Card key={chip.id} className="border-border/50">
-                  <CardContent className="py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Smartphone className="w-4 h-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">
-                          {chip.nickname || chip.phone_number || chip.instance_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {ownerProfile?.name || ownerProfile?.email || '—'}
-                          {chip.provider === 'meta' && (
-                            <Badge variant="outline" className="ml-2 text-[10px] py-0">META</Badge>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleShared(chip)}
-                    >
-                      <Share2 className="w-3.5 h-3.5 mr-1.5" />
-                      Compartilhar
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Tabs by provider */}
+      <Tabs defaultValue="all" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="all">Todos ({sharedChips.length + availableChips.length})</TabsTrigger>
+          <TabsTrigger value="uazapi">UazAPI ({chips.filter(c => c.provider === 'uazapi').length})</TabsTrigger>
+          <TabsTrigger value="meta">Meta Oficial ({chips.filter(c => c.provider === 'meta').length})</TabsTrigger>
+        </TabsList>
+
+        {['all', 'uazapi', 'meta'].map(tab => (
+          <TabsContent key={tab} value={tab} className="space-y-6">
+            {/* Shared */}
+            {sharedChips.filter(c => tab === 'all' || c.provider === tab).length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Compartilhados Ativos ({sharedChips.filter(c => tab === 'all' || c.provider === tab).length})
+                </h3>
+                {renderChipList(sharedChips.filter(c => tab === 'all' || c.provider === tab), 'shared')}
+              </div>
+            )}
+            {/* Available */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Disponíveis para Compartilhar
+              </h3>
+              {renderChipList(availableChips.filter(c => tab === 'all' || c.provider === tab), 'available')}
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
