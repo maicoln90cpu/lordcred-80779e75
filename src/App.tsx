@@ -47,6 +47,7 @@ const BankCredentials = lazy(() => import("./pages/admin/BankCredentials"));
 const PartnersAdmin = lazy(() => import("./pages/admin/PartnersAdmin"));
 const PartnerDetail = lazy(() => import("./pages/admin/PartnerDetail"));
 const ContractTemplate = lazy(() => import("./pages/admin/ContractTemplate"));
+const Broadcasts = lazy(() => import("./pages/admin/Broadcasts"));
 
 // Corban pages
 const CorbanDashboard = lazy(() => import("./pages/admin/CorbanDashboard"));
@@ -116,6 +117,7 @@ const App = () => (
                 <Route path="/admin/parceiros" element={<ProtectedRoute blockSellers><PartnersAdmin /></ProtectedRoute>} />
                 <Route path="/admin/parceiros/template" element={<ProtectedRoute blockSellers><ContractTemplate /></ProtectedRoute>} />
                 <Route path="/admin/parceiros/:id" element={<ProtectedRoute blockSellers><PartnerDetail /></ProtectedRoute>} />
+                <Route path="/admin/broadcasts" element={<ProtectedRoute blockSellers><Broadcasts /></ProtectedRoute>} />
                 <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

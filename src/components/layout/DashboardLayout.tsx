@@ -143,6 +143,7 @@ const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Operações',
     items: [
+      { label: 'Disparos em Massa', icon: Send, href: '/admin/broadcasts', sellerHidden: true },
       { label: 'Fila de Mensagens', icon: ListOrdered, href: '/admin/queue', sellerHidden: true },
       { label: 'Monitor de Chips', icon: Activity, href: '/admin/chip-monitor', sellerHidden: true },
       { label: 'Notas Rápidas', icon: Zap, href: '/admin/quick-replies' },
