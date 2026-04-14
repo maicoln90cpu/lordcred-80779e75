@@ -46,6 +46,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Basic fields
   const [formName, setFormName] = useState('');
