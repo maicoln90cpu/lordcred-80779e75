@@ -369,7 +369,23 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
           <div>
             <Label>Mensagem</Label>
             <Textarea value={formMessage} onChange={e => setFormMessage(e.target.value)} placeholder="Texto da mensagem..." rows={3} />
-            <p className="text-xs text-muted-foreground mt-1">{formMessage.length} caracteres</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-muted-foreground">{formMessage.length} caracteres</p>
+              {sourceType === 'leads' && (
+                <div className="flex flex-wrap gap-1">
+                  {['{{nome}}', '{{cpf}}', '{{banco}}', '{{telefone}}', '{{perfil}}', '{{status}}'].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
+                      onClick={() => setFormMessage(prev => prev + ' ' + v)}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mídia */}

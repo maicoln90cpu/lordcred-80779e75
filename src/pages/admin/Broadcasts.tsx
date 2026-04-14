@@ -293,6 +293,11 @@ export default function Broadcasts() {
         <BroadcastCreateDialog open={showCreate} onOpenChange={setShowCreate} onCreated={loadData} />
       </Suspense>
 
+      {/* Blacklist Dialog */}
+      <Suspense fallback={null}>
+        <BlacklistManager open={showBlacklist} onOpenChange={setShowBlacklist} />
+      </Suspense>
+
       {/* Detail Dialog */}
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
         <DialogContent className="max-w-lg">
