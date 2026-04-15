@@ -45,6 +45,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
   const [globalBancos, setGlobalBancos] = useState<string[]>([]);
   const [globalBatches, setGlobalBatches] = useState<string[]>([]);
+  const [globalTeam, setGlobalTeam] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
