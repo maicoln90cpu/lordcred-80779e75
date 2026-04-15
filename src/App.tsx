@@ -72,6 +72,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
           <InternalChatUnreadProvider>
+            <ErrorBoundary>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 <Route path="/landing" element={<Landing />} />
