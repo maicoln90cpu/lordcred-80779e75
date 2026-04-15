@@ -40,6 +40,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [userTeams, setUserTeams] = useState<string[]>([]);
 
   // Sync state when user changes
   const handleOpenChange = (value: boolean) => {
@@ -50,6 +51,17 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       setEditRole(user.role);
       setResetPasswordValue('');
       setShowResetPassword(false);
+      // Fetch user teams
+      supabase.from('team_members').select('team_id').eq('user_id', user.user_id)
+        .then(async ({ data }) => {
+          if (data && data.length > 0) {
+            const teamIds = data.map((d: any) => d.team_id);
+            const { data: teamsData } = await supabase.from('teams').select('name').in('id', teamIds);
+            setUserTeams((teamsData || []).map((t: any) => t.name));
+          } else {
+            setUserTeams([]);
+          }
+        });
     }
     onOpenChange(value);
   };
