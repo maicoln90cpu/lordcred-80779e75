@@ -13,6 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface StatusOption {
   value: string;
@@ -177,8 +179,20 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       const pctContacted = totalFiltrado > 0 ? Math.round((contacted / totalFiltrado) * 100) : 0;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
       return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
-    }).sort((a, b) => b.total - a.total);
+    });
   }, [allLeads, globalFiltered]);
+
+  const { sort, toggle } = useSortState();
+
+  const sortedSellerData = useMemo(() => {
+    if (!sort.key || !sort.dir) {
+      return [...sellerData].sort((a, b) => b.total - a.total);
+    }
+    return applySortToData(sellerData, sort, (item, key) => {
+      if (key === 'sellerName') return getSellerName(item.sellerId);
+      return (item as any)[key];
+    });
+  }, [sellerData, sort, sellers]);
 
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
