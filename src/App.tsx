@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { InternalChatUnreadProvider } from "@/contexts/InternalChatUnreadContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LoadingFallback from "@/components/LoadingFallback";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Lazy-loaded pages — each loads only when accessed
 const Login = lazy(() => import("./pages/Login"));
