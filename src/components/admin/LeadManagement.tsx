@@ -396,6 +396,19 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </div>
               </PopoverContent>
             </Popover>
+            {teamsList.length > 0 && (
+              <Select value={globalTeam} onValueChange={setGlobalTeam}>
+                <SelectTrigger className="w-48 h-9 text-sm">
+                  <SelectValue placeholder="Todas as equipes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as equipes</SelectItem>
+                  {teamsList.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">De:</span>
               <Input
