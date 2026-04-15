@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { Loader2, KeyRound, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { UserTeamsField } from '@/components/admin/UserTeamsField';
+import { fetchTeamOptions, fetchUserTeamIds, syncUserTeams, type TeamOption } from '@/lib/userTeams';
 
 interface UserProfile {
   id: string;
@@ -24,11 +23,6 @@ interface UserProfile {
   role: string;
 }
 
-interface TeamOption {
-  id: string;
-  name: string;
-}
-
 interface UserEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,6 +33,7 @@ interface UserEditDialogProps {
 
 export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUserUpdated }: UserEditDialogProps) {
   const { toast } = useToast();
+  const [isLoadingTeams, setIsLoadingTeams] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [editMaxChips, setEditMaxChips] = useState(user?.max_chips ?? 5);
@@ -51,33 +46,67 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [originalTeamIds, setOriginalTeamIds] = useState<string[]>([]);
 
-  const handleOpenChange = (value: boolean) => {
-    if (value && user) {
-      setEditName(user.name || '');
-      setEditEmail(user.email);
-      setEditMaxChips(user.max_chips);
-      setEditRole(user.role);
-      setResetPasswordValue('');
-      setShowResetPassword(false);
+  useEffect(() => {
+    if (!open) return;
 
-      // Fetch all teams + user's current teams
-      Promise.all([
-        supabase.from('teams').select('id, name').order('name'),
-        supabase.from('team_members').select('team_id').eq('user_id', user.user_id),
-      ]).then(([teamsRes, membersRes]) => {
-        setAllTeams((teamsRes.data || []) as TeamOption[]);
-        const ids = (membersRes.data || []).map((d: any) => d.team_id);
-        setSelectedTeamIds(ids);
-        setOriginalTeamIds(ids);
-      });
+    setResetPasswordValue('');
+    setShowResetPassword(false);
+
+    if (!user) {
+      setEditName('');
+      setEditEmail('');
+      setEditMaxChips(5);
+      setEditRole('seller');
+      setAllTeams([]);
+      setSelectedTeamIds([]);
+      setOriginalTeamIds([]);
+      return;
     }
-    onOpenChange(value);
-  };
 
-  const toggleTeam = (teamId: string) => {
-    setSelectedTeamIds(prev =>
-      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
-    );
+    setEditName(user.name || '');
+    setEditEmail(user.email);
+    setEditMaxChips(user.max_chips ?? 5);
+    setEditRole(user.role || 'seller');
+
+    if (!canManageUsers || user.role === 'master') {
+      setAllTeams([]);
+      setSelectedTeamIds([]);
+      setOriginalTeamIds([]);
+      return;
+    }
+
+    let isActive = true;
+    setIsLoadingTeams(true);
+
+    Promise.all([fetchTeamOptions(), fetchUserTeamIds(user.user_id)])
+      .then(([teams, teamIds]) => {
+        if (!isActive) return;
+        setAllTeams(teams);
+        setSelectedTeamIds(teamIds);
+        setOriginalTeamIds(teamIds);
+      })
+      .catch((error: any) => {
+        if (!isActive) return;
+        setAllTeams([]);
+        setSelectedTeamIds([]);
+        setOriginalTeamIds([]);
+        toast({
+          title: 'Erro ao carregar equipes',
+          description: error.message || 'Não foi possível carregar as equipes deste usuário.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingTeams(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [open, user, canManageUsers, toast]);
+
+  const handleOpenChange = (value: boolean) => {
+    onOpenChange(value);
   };
 
   const handleResetPassword = async () => {
@@ -106,21 +135,6 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
       setIsResettingPassword(false);
-    }
-  };
-
-  const saveTeams = async (userId: string) => {
-    const toRemove = originalTeamIds.filter(id => !selectedTeamIds.includes(id));
-    const toAdd = selectedTeamIds.filter(id => !originalTeamIds.includes(id));
-
-    if (toRemove.length > 0) {
-      for (const teamId of toRemove) {
-        await supabase.from('team_members').delete().eq('team_id', teamId).eq('user_id', userId);
-      }
-    }
-    if (toAdd.length > 0) {
-      const rows = toAdd.map(teamId => ({ team_id: teamId, user_id: userId }));
-      await supabase.from('team_members').insert(rows as any);
     }
   };
 
@@ -166,8 +180,9 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
         if (!response.ok) throw new Error(result.error || 'Erro ao atualizar role');
       }
 
-      // Save team memberships
-      await saveTeams(user.user_id);
+      if (canManageUsers && user.role !== 'master') {
+        await syncUserTeams(user.user_id, originalTeamIds, selectedTeamIds);
+      }
 
       toast({ title: 'Usuário atualizado' });
       onOpenChange(false);
@@ -178,6 +193,8 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       setIsEditing(false);
     }
   };
+
+  const showTeamsField = canManageUsers && user?.role !== 'master';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -218,44 +235,14 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
             </div>
           )}
 
-          {canManageUsers && allTeams.length > 0 && (
-            <div className="space-y-2">
-              <Label>Equipes</Label>
-              {selectedTeamIds.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {selectedTeamIds.map(tid => {
-                    const team = allTeams.find(t => t.id === tid);
-                    return team ? (
-                      <Badge key={tid} variant="default" className="text-xs gap-1 cursor-pointer" onClick={() => toggleTeam(tid)}>
-                        {team.name}
-                        <X className="w-3 h-3" />
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full justify-start text-sm">
-                    {selectedTeamIds.length === 0 ? 'Selecionar equipes...' : `${selectedTeamIds.length} equipe(s) selecionada(s)`}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2" align="start">
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {allTeams.map(team => (
-                      <label key={team.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                        <Checkbox
-                          checked={selectedTeamIds.includes(team.id)}
-                          onCheckedChange={() => toggleTeam(team.id)}
-                        />
-                        {team.name}
-                      </label>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <p className="text-xs text-muted-foreground">Selecione as equipes deste usuário</p>
-            </div>
+          {showTeamsField && (
+            <UserTeamsField
+              teams={allTeams}
+              selectedTeamIds={selectedTeamIds}
+              onSelectedTeamIdsChange={setSelectedTeamIds}
+              isLoading={isLoadingTeams}
+              disabled={isEditing}
+            />
           )}
 
           <div className="space-y-2 border-t pt-4">
@@ -276,7 +263,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={isEditing} onClick={handleSave}>
+          <Button disabled={isEditing || !user} onClick={handleSave}>
             {isEditing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Salvar
           </Button>
