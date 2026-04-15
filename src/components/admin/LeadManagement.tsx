@@ -87,6 +87,28 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }
   });
 
+  const { data: teamsData } = useQuery({
+    queryKey: ['teams-with-members'],
+    queryFn: async () => {
+      const [teamsRes, membersRes] = await Promise.all([
+        supabase.from('teams').select('id, name').order('name'),
+        supabase.from('team_members').select('team_id, user_id'),
+      ]);
+      return {
+        teams: (teamsRes.data || []) as { id: string; name: string }[],
+        members: (membersRes.data || []) as { team_id: string; user_id: string }[],
+      };
+    }
+  });
+
+  const teamsList = teamsData?.teams || [];
+  const teamMembers = teamsData?.members || [];
+
+  const teamFilteredUserIds = useMemo(() => {
+    if (globalTeam === 'all') return null;
+    return new Set(teamMembers.filter(m => m.team_id === globalTeam).map(m => m.user_id));
+  }, [globalTeam, teamMembers]);
+
   const getSellerName = (userId: string) => {
     const s = sellers.find((s: any) => s.user_id === userId);
     return s?.name || s?.email || 'N/A';
