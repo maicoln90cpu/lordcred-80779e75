@@ -3165,6 +3165,15 @@ export type Database = {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }
+      get_visible_profiles: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          email: string
+          name: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

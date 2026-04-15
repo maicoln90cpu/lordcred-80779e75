@@ -124,7 +124,7 @@ export default function Performance() {
   useEffect(() => {
     (async () => {
       const [sellersRes, chipsRes] = await Promise.all([
-        supabase.from('profiles').select('user_id, email, name'),
+        supabase.rpc('get_visible_profiles'),
         supabase.from('chips').select('id, user_id, chip_type'),
       ]);
       if (sellersRes.data) setSellers(sellersRes.data);

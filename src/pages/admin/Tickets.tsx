@@ -95,7 +95,7 @@ export default function Tickets() {
   }, [messages]);
 
   const loadProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('user_id, email, name');
+    const { data } = await supabase.rpc('get_visible_profiles');
     if (data) {
       const map: Record<string, string> = {};
       data.forEach(p => { map[p.user_id] = p.name || p.email; });

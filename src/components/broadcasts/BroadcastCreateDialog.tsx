@@ -125,7 +125,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
   const loadUsersAndChips = async () => {
     const [usersRes, chipsRes] = await Promise.all([
-      supabase.from('profiles').select('user_id, email, name').order('name'),
+      supabase.rpc('get_visible_profiles'),
       supabase.from('chips').select('id, instance_name, nickname, status, user_id, provider').eq('status', 'connected'),
     ]);
     if (chipsRes.data) setAllChips(chipsRes.data);
@@ -153,10 +153,8 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
     // Fetch seller names
     if (sellerIds.length > 0) {
-      const { data: sellerProfiles } = await supabase
-        .from('profiles')
-        .select('user_id, name, email')
-        .in('user_id', sellerIds);
+      const { data: allProfiles } = await supabase.rpc('get_visible_profiles');
+      const sellerProfiles = (allProfiles || []).filter((p: any) => sellerIds.includes(p.user_id));
       if (sellerProfiles) {
         setAvailableSellers(sellerProfiles.map(s => ({ id: s.user_id, name: s.name || s.email })));
       }

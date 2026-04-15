@@ -41,12 +41,8 @@ export default function InternalChat() {
   const [savingSupport, setSavingSupport] = useState(false);
 
   const openSupportConfig = async () => {
-    const [{ data: profiles }, { data: masterIds }] = await Promise.all([
-      supabase.rpc('get_all_chat_profiles' as any),
-      supabase.rpc('get_master_user_ids'),
-    ]);
-    const masterSet = new Set((masterIds as string[]) || []);
-    setSupportConfigProfiles((profiles as any[] || []).filter((p: any) => !masterSet.has(p.user_id)));
+    const { data: profiles } = await supabase.rpc('get_visible_profiles');
+    setSupportConfigProfiles((profiles as any[] || []));
     setSupportConfigUserId(ic.supportUserId || '');
     setSupportConfigOpen(true);
   };

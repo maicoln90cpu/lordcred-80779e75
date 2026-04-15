@@ -90,7 +90,7 @@ export default function Permissions() {
   const loadData = async () => {
     const [featRes, profRes, rolesRes] = await Promise.all([
       supabase.from('feature_permissions').select('*').order('feature_group').order('feature_label'),
-      supabase.from('profiles').select('user_id, name, email').order('name'),
+      supabase.rpc('get_visible_profiles'),
       supabase.from('user_roles').select('user_id, role'),
     ]);
 
@@ -105,16 +105,9 @@ export default function Permissions() {
     const rolesMap: Record<string, string> = {};
     (rolesRes.data || []).forEach(r => { rolesMap[r.user_id] = r.role; });
 
-    let masterIds = new Set<string>();
-    if (!isMaster) {
-      const { data: mIds } = await supabase.rpc('get_master_user_ids');
-      masterIds = new Set<string>((mIds as string[]) || []);
-    }
-
     if (profRes.data) {
       setProfiles(
-        profRes.data
-          .filter(p => !masterIds.has(p.user_id))
+        (profRes.data as any[])
           .map(p => ({ ...p, role: rolesMap[p.user_id] || 'seller' }))
       );
     }

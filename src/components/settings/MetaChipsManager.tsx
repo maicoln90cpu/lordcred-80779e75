@@ -48,7 +48,7 @@ export default function MetaChipsManager() {
     const [chipsRes, profilesRes] = await Promise.all([
       supabase.from('chips').select('id, instance_name, nickname, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at')
         .eq('provider', 'meta').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('user_id, email, name').eq('is_blocked', false),
+      supabase.rpc('get_visible_profiles'),
     ]);
 
     setChips((chipsRes.data || []) as unknown as MetaChip[]);

@@ -25,7 +25,7 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
   const pageSize = 15;
   const { sort, toggle } = useSortState();
 
-  const { data: profiles = [] } = useQuery({ queryKey: ['profiles-for-batches'], queryFn: async () => { const { data } = await supabase.from('profiles').select('user_id, name, email'); return (data || []) as Profile[]; } });
+  const { data: profiles = [] } = useQuery({ queryKey: ['profiles-for-batches'], queryFn: async () => { const { data } = await supabase.rpc('get_visible_profiles'); return (data || []) as unknown as Profile[]; } });
   const { data: batches = [], isLoading, refetch } = useQuery({
     queryKey: ['cr-import-batches', moduleFilter],
     queryFn: async () => { const { data, error } = await supabase.from('import_batches' as any).select('*').eq('module', moduleFilter).order('created_at', { ascending: false }).limit(500); if (error) throw error; return (data || []) as unknown as ImportBatch[]; }

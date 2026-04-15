@@ -93,22 +93,15 @@ export function useInternalChat() {
   }, [user?.id]);
 
   const loadUsers = useCallback(async () => {
-    const { data: allData } = await supabase.rpc('get_all_chat_profiles' as any);
+    const { data: visibleData } = await supabase.rpc('get_visible_profiles');
     const { data: chatData } = await supabase.rpc('get_internal_chat_profiles_v2' as any);
     const chatProfiles = chatData || (await supabase.rpc('get_internal_chat_profiles')).data;
-    let users = (allData || chatProfiles || []) as unknown as ICUserProfile[];
-    let masterIds = new Set<string>();
-    if (!isMaster) {
-      const { data: masterIdsArr } = await supabase.rpc('get_master_user_ids' as any);
-      masterIds = new Set<string>((masterIdsArr as string[]) || []);
-      users = users.filter(u => !masterIds.has(u.user_id));
-    }
+    let users = (visibleData || chatProfiles || []) as unknown as ICUserProfile[];
     setAllUsers(users);
     const map: Record<string, ICUserProfile> = {};
     users.forEach(u => { map[u.user_id] = u; });
-    if (chatProfiles && allData) {
+    if (chatProfiles && visibleData) {
       (chatProfiles as unknown as ICUserProfile[]).forEach(u => {
-        if (masterIds.has(u.user_id)) return;
         if (!map[u.user_id]) map[u.user_id] = u;
         else if (u.avatar_url && !map[u.user_id].avatar_url) map[u.user_id].avatar_url = u.avatar_url;
       });

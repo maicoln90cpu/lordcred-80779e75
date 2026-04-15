@@ -124,8 +124,8 @@ export function useLeadsData() {
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, name, email');
-      return data || [];
+      const { data } = await supabase.rpc('get_visible_profiles');
+      return (data || []) as unknown as { user_id: string; name: string; email: string }[];
     }
   });
 
