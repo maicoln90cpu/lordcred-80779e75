@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { checkPermission, type PermissionEntry } from '@/lib/permissionLogic';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** Maps feature_key → route path(s) */
@@ -50,18 +51,14 @@ Object.entries(FEATURE_ROUTE_MAP).forEach(([key, routes]) => {
 
 export { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP };
 
-interface FeaturePermission {
-  feature_key: string;
-  allowed_user_ids: string[];
-  allowed_roles: string[];
-}
+// PermissionEntry is imported from @/lib/permissionLogic
 
 interface FeatureToggle {
   feature_key: string;
   is_enabled: boolean;
 }
 
-async function fetchPermissions(): Promise<FeaturePermission[]> {
+async function fetchPermissions(): Promise<PermissionEntry[]> {
   const { data } = await supabase
     .from('feature_permissions')
     .select('feature_key, allowed_user_ids, allowed_roles');
@@ -152,24 +149,14 @@ export function useFeaturePermissions() {
   }, [toggles]);
 
   const hasPermission = useCallback((featureKey: string): boolean => {
-    if (!user) return false;
-    if (isMaster) return true;
-
-    // Global toggle check — if disabled, nobody except master sees it
-    if (disabledFeatures.has(featureKey)) return false;
-
-    if (userRole === 'admin') return true;
-    if (userRole === 'manager') return featureKey !== 'permissions';
-
-    const perm = permissions.find(p => p.feature_key === featureKey);
-    if (!perm) return true;
-
-    const hasRoleAccess = perm.allowed_roles.length > 0 && perm.allowed_roles.includes(userRole);
-    const hasUserAccess = perm.allowed_user_ids.length > 0 && perm.allowed_user_ids.includes(user.id);
-
-    if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
-
-    return hasRoleAccess || hasUserAccess;
+    return checkPermission(
+      featureKey,
+      user?.id || null,
+      userRole,
+      isMaster,
+      permissions,
+      disabledFeatures,
+    );
   }, [user, isMaster, userRole, permissions, disabledFeatures]);
 
   const hasRoutePermission = useCallback((path: string): boolean => {
