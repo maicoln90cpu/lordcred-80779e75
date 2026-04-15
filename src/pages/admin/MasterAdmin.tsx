@@ -5,12 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ExportDataTab from '@/components/admin/ExportDataTab';
 import MigrationSQLTab from '@/components/admin/MigrationSQLTab';
+import MasterModulesTab from '@/components/admin/MasterModulesTab';
 
 export default function MasterAdmin() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Quick check to confirm settings exist
     supabase.from('system_settings').select('id').limit(1).maybeSingle().then(() => setIsLoading(false));
   }, []);
 
@@ -32,16 +32,21 @@ export default function MasterAdmin() {
           <div>
             <h1 className="text-2xl font-bold">Master Admin</h1>
             <p className="text-muted-foreground">
-              Exportação de dados e migração SQL — acesso exclusivo master
+              Controle de módulos, exportação de dados e migração SQL
             </p>
           </div>
         </div>
 
-        <Tabs defaultValue="export" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="modules" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="modules">Módulos</TabsTrigger>
             <TabsTrigger value="export">Exportar Dados</TabsTrigger>
             <TabsTrigger value="migration">SQL Migração</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="modules">
+            <MasterModulesTab />
+          </TabsContent>
 
           <TabsContent value="export">
             <ExportDataTab />
