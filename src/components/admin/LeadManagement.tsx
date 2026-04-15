@@ -13,6 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 
 interface StatusOption {
   value: string;
@@ -177,8 +179,20 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       const pctContacted = totalFiltrado > 0 ? Math.round((contacted / totalFiltrado) * 100) : 0;
       const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
       return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
-    }).sort((a, b) => b.total - a.total);
+    });
   }, [allLeads, globalFiltered]);
+
+  const { sort, toggle } = useSortState();
+
+  const sortedSellerData = useMemo(() => {
+    if (!sort.key || !sort.dir) {
+      return [...sellerData].sort((a, b) => b.total - a.total);
+    }
+    return applySortToData(sellerData, sort, (item, key) => {
+      if (key === 'sellerName') return getSellerName(item.sellerId);
+      return (item as any)[key];
+    });
+  }, [sellerData, sort, sellers]);
 
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
@@ -436,14 +450,15 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
             <p className="text-muted-foreground text-center py-8">Nenhum vendedor com leads encontrado.</p>
           ) : (
             <div className="border rounded-lg overflow-auto">
+              <TooltipProvider>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead className="text-center">Qtd Leads</TableHead>
-                    <TableHead className="text-center">Total Filtrado</TableHead>
-                    <TableHead className="text-center">% Contatos</TableHead>
-                    <TableHead className="text-center">Última Alteração</TableHead>
+                    <TSHead label="Vendedor" sortKey="sellerName" sort={sort} toggle={toggle} tooltip="Nome do vendedor responsável" />
+                    <TSHead label="Qtd Leads" sortKey="total" sort={sort} toggle={toggle} className="text-center" tooltip="Total absoluto de leads atribuídos" />
+                    <TSHead label="Total Filtrado" sortKey="totalFiltrado" sort={sort} toggle={toggle} className="text-center" tooltip="Leads que atendem aos filtros globais" />
+                    <TSHead label="% Contatos" sortKey="pctContacted" sort={sort} toggle={toggle} className="text-center" tooltip="Percentual de leads já contatados" />
+                    <TSHead label="Última Alteração" sortKey="lastUpdate" sort={sort} toggle={toggle} className="text-center" tooltip="Data da última modificação nos leads" />
                     <TableHead>Filtro Perfil</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
                     <TableHead>Vendedor Destino</TableHead>
@@ -451,7 +466,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
+                  {sortedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
@@ -542,6 +557,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   })}
                 </TableBody>
               </Table>
+              </TooltipProvider>
             </div>
           )}
         </CardContent>
