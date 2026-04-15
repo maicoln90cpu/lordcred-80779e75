@@ -7,6 +7,27 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 export type SortDir = 'asc' | 'desc' | null;
 export interface SortConfig { key: string; dir: SortDir }
 
+export function getComparableSortValue(value: unknown): number | string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return Number.isNaN(value) ? '' : value;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (value instanceof Date) return value.getTime();
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  if (/^-?\d+(?:[.,]\d+)?$/.test(raw)) {
+    return Number(raw.replace(',', '.'));
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}(?:[tT ].*)?$/.test(raw)) {
+    const parsed = Date.parse(raw);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  return raw.toLocaleLowerCase('pt-BR');
+}
+
 export function useSortState() {
   const [sort, setSort] = useState<SortConfig>({ key: '', dir: null });
   const toggle = (key: string) => {
@@ -22,10 +43,16 @@ export function useSortState() {
 export function applySortToData<T>(data: T[], sort: SortConfig, getValue?: (item: T, key: string) => any): T[] {
   if (!sort.key || !sort.dir) return data;
   return [...data].sort((a, b) => {
-    const va = getValue ? getValue(a, sort.key) : (a as any)[sort.key] ?? '';
-    const vb = getValue ? getValue(b, sort.key) : (b as any)[sort.key] ?? '';
-    if (typeof va === 'number' && typeof vb === 'number') return sort.dir === 'asc' ? va - vb : vb - va;
-    return sort.dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    const va = getComparableSortValue(getValue ? getValue(a, sort.key) : (a as any)[sort.key]);
+    const vb = getComparableSortValue(getValue ? getValue(b, sort.key) : (b as any)[sort.key]);
+
+    if (typeof va === 'number' && typeof vb === 'number') {
+      return sort.dir === 'asc' ? va - vb : vb - va;
+    }
+
+    return sort.dir === 'asc'
+      ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' })
+      : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true, sensitivity: 'base' });
   });
 }
 
