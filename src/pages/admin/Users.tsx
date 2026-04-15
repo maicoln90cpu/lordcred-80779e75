@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserCreateDialog } from '@/components/admin/UserCreateDialog';
 import { UserEditDialog } from '@/components/admin/UserEditDialog';
 import { UsersTable } from '@/components/admin/UsersTable';
+import { TeamsManager } from '@/components/admin/TeamsManager';
 
 interface UserProfile {
   id: string;
@@ -115,6 +116,10 @@ export default function Users() {
           onEditUser={(user) => { setUserToEdit(user); setEditDialogOpen(true); }}
           onRefresh={fetchUsers}
         />
+
+        {canManageUsers && (
+          <TeamsManager users={users.map(u => ({ user_id: u.user_id, name: u.name, email: u.email }))} />
+        )}
 
         <UserEditDialog
           open={editDialogOpen}

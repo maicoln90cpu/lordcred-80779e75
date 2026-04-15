@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +40,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [userTeams, setUserTeams] = useState<string[]>([]);
 
   // Sync state when user changes
   const handleOpenChange = (value: boolean) => {
@@ -49,6 +51,17 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       setEditRole(user.role);
       setResetPasswordValue('');
       setShowResetPassword(false);
+      // Fetch user teams
+      supabase.from('team_members').select('team_id').eq('user_id', user.user_id)
+        .then(async ({ data }) => {
+          if (data && data.length > 0) {
+            const teamIds = data.map((d: any) => d.team_id);
+            const { data: teamsData } = await supabase.from('teams').select('name').in('id', teamIds);
+            setUserTeams((teamsData || []).map((t: any) => t.name));
+          } else {
+            setUserTeams([]);
+          }
+        });
     }
     onOpenChange(value);
   };
@@ -170,6 +183,18 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Alterar o tipo de acesso deste usuário</p>
+            </div>
+          )}
+
+          {userTeams.length > 0 && (
+            <div className="space-y-2">
+              <Label>Equipes</Label>
+              <div className="flex flex-wrap gap-1">
+                {userTeams.map(t => (
+                  <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Gerencie equipes na seção abaixo da tabela de usuários</p>
             </div>
           )}
 
