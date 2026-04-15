@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { UserTeamsField } from '@/components/admin/UserTeamsField';
+import { fetchTeamOptions, syncUserTeams, type TeamOption } from '@/lib/userTeams';
 
 interface UserCreateDialogProps {
   canChooseRole: boolean;
@@ -19,11 +21,62 @@ export function UserCreateDialog({ canChooseRole, isMaster, isRegularAdmin, onUs
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoadingTeams, setIsLoadingTeams] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'manager' | 'seller' | 'support'>('seller');
   const [showPassword, setShowPassword] = useState(false);
+  const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+
+  const canAssignTeams = canChooseRole;
+
+  const resetForm = () => {
+    setNewUserEmail('');
+    setNewUserPassword('');
+    setNewUserName('');
+    setNewUserRole('seller');
+    setShowPassword(false);
+    setSelectedTeamIds([]);
+  };
+
+  useEffect(() => {
+    if (!dialogOpen || !canAssignTeams) return;
+
+    let isActive = true;
+    setIsLoadingTeams(true);
+
+    fetchTeamOptions()
+      .then((teams) => {
+        if (!isActive) return;
+        setAllTeams(teams);
+      })
+      .catch((error: any) => {
+        if (!isActive) return;
+        setAllTeams([]);
+        toast({
+          title: 'Erro ao carregar equipes',
+          description: error.message || 'Não foi possível carregar as equipes para o novo usuário.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingTeams(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [dialogOpen, canAssignTeams, toast]);
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+
+    if (!open) {
+      resetForm();
+    }
+  };
 
   const handleCreateUser = async () => {
     if (!newUserEmail || !newUserPassword) {
@@ -55,12 +108,21 @@ export function UserCreateDialog({ canChooseRole, isMaster, isRegularAdmin, onUs
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Erro ao criar usuário');
 
-      toast({ title: 'Usuário criado', description: 'O usuário foi criado com sucesso' });
-      setDialogOpen(false);
-      setNewUserEmail('');
-      setNewUserPassword('');
-      setNewUserName('');
-      setNewUserRole('seller');
+      let teamWarning = '';
+      if (canAssignTeams && result?.user?.id && selectedTeamIds.length > 0) {
+        try {
+          await syncUserTeams(result.user.id, [], selectedTeamIds);
+        } catch (teamError: any) {
+          console.error('Error assigning teams:', teamError);
+          teamWarning = ' Usuário criado, mas as equipes não puderam ser vinculadas agora.';
+        }
+      }
+
+      toast({
+        title: 'Usuário criado',
+        description: `O usuário foi criado com sucesso.${teamWarning}`,
+      });
+      handleDialogOpenChange(false);
       onUserCreated();
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -71,7 +133,7 @@ export function UserCreateDialog({ canChooseRole, isMaster, isRegularAdmin, onUs
   };
 
   return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+    <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
@@ -126,9 +188,19 @@ export function UserCreateDialog({ canChooseRole, isMaster, isRegularAdmin, onUs
               </RadioGroup>
             </div>
           )}
+
+          {canAssignTeams && (
+            <UserTeamsField
+              teams={allTeams}
+              selectedTeamIds={selectedTeamIds}
+              onSelectedTeamIdsChange={setSelectedTeamIds}
+              isLoading={isLoadingTeams}
+              disabled={isCreating}
+            />
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleCreateUser} disabled={isCreating}>
             {isCreating ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</>
