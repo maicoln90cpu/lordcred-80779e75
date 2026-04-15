@@ -450,14 +450,15 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
             <p className="text-muted-foreground text-center py-8">Nenhum vendedor com leads encontrado.</p>
           ) : (
             <div className="border rounded-lg overflow-auto">
+              <TooltipProvider>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead className="text-center">Qtd Leads</TableHead>
-                    <TableHead className="text-center">Total Filtrado</TableHead>
-                    <TableHead className="text-center">% Contatos</TableHead>
-                    <TableHead className="text-center">Última Alteração</TableHead>
+                    <TSHead label="Vendedor" sortKey="sellerName" sort={sort} toggle={toggle} tooltip="Nome do vendedor responsável" />
+                    <TSHead label="Qtd Leads" sortKey="total" sort={sort} toggle={toggle} className="text-center" tooltip="Total absoluto de leads atribuídos" />
+                    <TSHead label="Total Filtrado" sortKey="totalFiltrado" sort={sort} toggle={toggle} className="text-center" tooltip="Leads que atendem aos filtros globais" />
+                    <TSHead label="% Contatos" sortKey="pctContacted" sort={sort} toggle={toggle} className="text-center" tooltip="Percentual de leads já contatados" />
+                    <TSHead label="Última Alteração" sortKey="lastUpdate" sort={sort} toggle={toggle} className="text-center" tooltip="Data da última modificação nos leads" />
                     <TableHead>Filtro Perfil</TableHead>
                     <TableHead className="text-center">Qtd Leads</TableHead>
                     <TableHead>Vendedor Destino</TableHead>
@@ -465,7 +466,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
+                  {sortedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
@@ -556,6 +557,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   })}
                 </TableBody>
               </Table>
+              </TooltipProvider>
             </div>
           )}
         </CardContent>
