@@ -236,10 +236,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     return map;
   }, [profileOptions]);
 
-  const { data: allLeads = [], isLoading } = useQuery({
-    queryKey: ['my-leads-all'],
+  const { data: allLeads = [], isLoading } = useQuery<any[]>({
+    queryKey: ['my-leads-all', user?.id],
     enabled: open && !!user,
-    queryFn: fetchAllLeads,
+    queryFn: () => fetchMyLeads(user!.id),
   });
 
   const batchNames = useMemo(() => {
