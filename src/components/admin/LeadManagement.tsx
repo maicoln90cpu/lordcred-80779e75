@@ -141,6 +141,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
+    if (teamFilteredUserIds) result = result.filter((l: any) => teamFilteredUserIds.has(l.assigned_to));
     if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
     if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
     if (globalBancos.length > 0) result = result.filter((l: any) => globalBancos.includes(l.banco_simulado));
@@ -148,7 +149,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     if (dateFrom) result = result.filter((l: any) => l.updated_at >= dateFrom);
     if (dateTo) result = result.filter((l: any) => l.updated_at <= dateTo + 'T23:59:59');
     return result;
-  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches, dateFrom, dateTo]);
+  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches, dateFrom, dateTo, teamFilteredUserIds]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
