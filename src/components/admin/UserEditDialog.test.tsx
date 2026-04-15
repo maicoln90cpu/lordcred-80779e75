@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi, waitFor } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserEditDialog } from '@/components/admin/UserEditDialog';
 
 const fetchTeamOptionsMock = vi.fn();
@@ -75,7 +75,7 @@ describe('UserEditDialog', () => {
       role: 'seller',
     };
 
-    const { rerender } = render(
+    const view = render(
       <UserEditDialog
         open={false}
         onOpenChange={vi.fn()}
@@ -85,7 +85,7 @@ describe('UserEditDialog', () => {
       />,
     );
 
-    rerender(
+    view.rerender(
       <UserEditDialog
         open={true}
         onOpenChange={vi.fn()}
@@ -98,9 +98,7 @@ describe('UserEditDialog', () => {
     expect(await view.findByDisplayValue('Maria Teste')).toBeInTheDocument();
     expect(view.getByDisplayValue('maria@teste.com')).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(fetchUserTeamIdsMock).toHaveBeenCalledWith('user-1');
-    });
+    expect(fetchUserTeamIdsMock).toHaveBeenCalledWith('user-1');
 
     expect(view.getByText('Equipes')).toBeInTheDocument();
   });
