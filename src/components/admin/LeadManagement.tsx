@@ -45,6 +45,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   const [globalStatuses, setGlobalStatuses] = useState<string[]>([]);
   const [globalBancos, setGlobalBancos] = useState<string[]>([]);
   const [globalBatches, setGlobalBatches] = useState<string[]>([]);
+  const [globalTeam, setGlobalTeam] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [rowStates, setRowStates] = useState<Record<string, SellerRowState>>({});
@@ -86,6 +87,28 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     }
   });
 
+  const { data: teamsData } = useQuery({
+    queryKey: ['teams-with-members'],
+    queryFn: async () => {
+      const [teamsRes, membersRes] = await Promise.all([
+        supabase.from('teams').select('id, name').order('name'),
+        supabase.from('team_members').select('team_id, user_id'),
+      ]);
+      return {
+        teams: (teamsRes.data || []) as { id: string; name: string }[],
+        members: (membersRes.data || []) as { team_id: string; user_id: string }[],
+      };
+    }
+  });
+
+  const teamsList = teamsData?.teams || [];
+  const teamMembers = teamsData?.members || [];
+
+  const teamFilteredUserIds = useMemo(() => {
+    if (globalTeam === 'all') return null;
+    return new Set(teamMembers.filter(m => m.team_id === globalTeam).map(m => m.user_id));
+  }, [globalTeam, teamMembers]);
+
   const getSellerName = (userId: string) => {
     const s = sellers.find((s: any) => s.user_id === userId);
     return s?.name || s?.email || 'N/A';
@@ -118,6 +141,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   // Apply global filters
   const globalFiltered = useMemo(() => {
     let result = [...allLeads];
+    if (teamFilteredUserIds) result = result.filter((l: any) => teamFilteredUserIds.has(l.assigned_to));
     if (globalProfiles.length > 0) result = result.filter((l: any) => globalProfiles.includes(l.perfil));
     if (globalStatuses.length > 0) result = result.filter((l: any) => globalStatuses.includes(l.status || 'pendente'));
     if (globalBancos.length > 0) result = result.filter((l: any) => globalBancos.includes(l.banco_simulado));
@@ -125,7 +149,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     if (dateFrom) result = result.filter((l: any) => l.updated_at >= dateFrom);
     if (dateTo) result = result.filter((l: any) => l.updated_at <= dateTo + 'T23:59:59');
     return result;
-  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches, dateFrom, dateTo]);
+  }, [allLeads, globalProfiles, globalStatuses, globalBancos, globalBatches, dateFrom, dateTo, teamFilteredUserIds]);
 
   // Group leads by seller
   const sellerData = useMemo(() => {
@@ -372,6 +396,19 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </div>
               </PopoverContent>
             </Popover>
+            {teamsList.length > 0 && (
+              <Select value={globalTeam} onValueChange={setGlobalTeam}>
+                <SelectTrigger className="w-48 h-9 text-sm">
+                  <SelectValue placeholder="Todas as equipes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as equipes</SelectItem>
+                  {teamsList.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">De:</span>
               <Input
