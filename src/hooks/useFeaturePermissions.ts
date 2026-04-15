@@ -39,6 +39,7 @@ const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   bank_credentials: ['/admin/bancos'],
   partners: ['/admin/parceiros', '/admin/parceiros/template'],
   contract_template: ['/admin/parceiros/template'],
+  broadcasts: ['/admin/broadcasts'],
 };
 
 /** Builds reverse map: route → feature_key */
@@ -55,6 +56,11 @@ interface FeaturePermission {
   allowed_roles: string[];
 }
 
+interface FeatureToggle {
+  feature_key: string;
+  is_enabled: boolean;
+}
+
 async function fetchPermissions(): Promise<FeaturePermission[]> {
   const { data } = await supabase
     .from('feature_permissions')
@@ -66,6 +72,16 @@ async function fetchPermissions(): Promise<FeaturePermission[]> {
   }));
 }
 
+async function fetchToggles(): Promise<FeatureToggle[]> {
+  const { data } = await supabase
+    .from('master_feature_toggles')
+    .select('feature_key, is_enabled');
+  return (data || []).map(d => ({
+    feature_key: d.feature_key,
+    is_enabled: d.is_enabled,
+  }));
+}
+
 export function useFeaturePermissions() {
   const { user, isMaster, userRole, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -74,11 +90,19 @@ export function useFeaturePermissions() {
     queryKey: ['feature-permissions'],
     queryFn: fetchPermissions,
     enabled: !!user && !authLoading,
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
-  // Realtime subscription — invalidates React Query cache on changes
+  const { data: toggles = [], isLoading: togglesLoading } = useQuery({
+    queryKey: ['master-feature-toggles'],
+    queryFn: fetchToggles,
+    enabled: !!user && !authLoading,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Realtime subscription for permissions
   useEffect(() => {
     if (!user || authLoading) return;
 
@@ -98,9 +122,42 @@ export function useFeaturePermissions() {
     };
   }, [user?.id, authLoading, queryClient]);
 
+  // Realtime subscription for toggles
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const channel = supabase
+      .channel('master-toggles-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'master_feature_toggles' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['master-feature-toggles'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, authLoading, queryClient]);
+
+  // Build a set of disabled feature keys for fast lookup
+  const disabledFeatures = useMemo(() => {
+    const set = new Set<string>();
+    toggles.forEach(t => {
+      if (!t.is_enabled) set.add(t.feature_key);
+    });
+    return set;
+  }, [toggles]);
+
   const hasPermission = useCallback((featureKey: string): boolean => {
     if (!user) return false;
     if (isMaster) return true;
+
+    // Global toggle check — if disabled, nobody except master sees it
+    if (disabledFeatures.has(featureKey)) return false;
+
     if (userRole === 'admin') return true;
     if (userRole === 'manager') return featureKey !== 'permissions';
 
@@ -113,7 +170,7 @@ export function useFeaturePermissions() {
     if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
 
     return hasRoleAccess || hasUserAccess;
-  }, [user, isMaster, userRole, permissions]);
+  }, [user, isMaster, userRole, permissions, disabledFeatures]);
 
   const hasRoutePermission = useCallback((path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
@@ -121,7 +178,12 @@ export function useFeaturePermissions() {
     return hasPermission(featureKey);
   }, [hasPermission]);
 
-  const loading = isLoading || authLoading;
+  const isFeatureEnabled = useCallback((featureKey: string): boolean => {
+    if (isMaster) return true;
+    return !disabledFeatures.has(featureKey);
+  }, [isMaster, disabledFeatures]);
 
-  return { permissions, loading, hasPermission, hasRoutePermission };
+  const loading = isLoading || authLoading || togglesLoading;
+
+  return { permissions, toggles, loading, hasPermission, hasRoutePermission, isFeatureEnabled };
 }
