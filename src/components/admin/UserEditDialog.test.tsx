@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { render } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi, waitFor } from 'vitest';
 import { UserEditDialog } from '@/components/admin/UserEditDialog';
 
 const fetchTeamOptionsMock = vi.fn();
@@ -23,20 +24,20 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectValue: () => <span />,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/admin/UserTeamsField', () => ({
@@ -94,13 +95,13 @@ describe('UserEditDialog', () => {
       />,
     );
 
-    expect(await screen.findByDisplayValue('Maria Teste')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('maria@teste.com')).toBeInTheDocument();
+    expect(await view.findByDisplayValue('Maria Teste')).toBeInTheDocument();
+    expect(view.getByDisplayValue('maria@teste.com')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchUserTeamIdsMock).toHaveBeenCalledWith('user-1');
     });
 
-    expect(screen.getByText('Equipes')).toBeInTheDocument();
+    expect(view.getByText('Equipes')).toBeInTheDocument();
   });
 });
