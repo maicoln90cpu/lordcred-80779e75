@@ -132,16 +132,10 @@ export default function ChipMonitor() {
 
       setChips((chipsData || []) as unknown as ChipMonitorData[]);
 
-      // Fetch profiles for user name mapping - use RPC fallback for reliability
-      const { data: rpcProfiles } = await supabase.rpc('get_all_chat_profiles');
+      // Fetch profiles for user name mapping - uses RPC that auto-hides master
+      const { data: rpcProfiles } = await supabase.rpc('get_visible_profiles');
       const pMap: Record<string, { email: string; name: string | null }> = {};
-      if (rpcProfiles) {
-        rpcProfiles.forEach((p: any) => { pMap[p.user_id] = { email: p.email, name: p.name }; });
-      } else {
-        // Fallback to direct query
-        const { data: profilesData } = await supabase.from('profiles').select('user_id, email, name');
-        (profilesData || []).forEach(p => { pMap[p.user_id] = { email: p.email, name: p.name }; });
-      }
+      (rpcProfiles || []).forEach((p: any) => { pMap[p.user_id] = { email: p.email, name: p.name }; });
       setProfilesMap(pMap);
 
       const { data: settingsData } = await supabase

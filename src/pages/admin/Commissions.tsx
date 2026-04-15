@@ -27,8 +27,8 @@ export default function Commissions() {
   }, []);
 
   const loadProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('user_id, name, email');
-    if (data) setProfiles(data);
+    const { data } = await supabase.rpc('get_visible_profiles');
+    if (data) setProfiles(data as unknown as Profile[]);
   };
 
   const getSellerName = (sellerId: string) => {

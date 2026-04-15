@@ -43,22 +43,15 @@ export default function RemoteAssistance() {
   }, []);
 
   const fetchSellers = async () => {
-    // Get all sellers and users (not admins)
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('user_id, role')
-      .in('role', ['seller', 'admin']);
+    const [{ data: roles }, { data: profiles }] = await Promise.all([
+      supabase.from('user_roles').select('user_id, role').in('role', ['seller', 'admin']),
+      supabase.rpc('get_visible_profiles'),
+    ]);
 
-    if (!roles) { setIsLoading(false); return; }
+    if (!roles || !profiles) { setIsLoading(false); return; }
 
-    const userIds = roles.map(r => r.user_id);
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('user_id, email, name')
-      .in('user_id', userIds)
-      .eq('is_blocked', false);
-
-    setSellers(profiles || []);
+    const userIds = new Set(roles.map(r => r.user_id));
+    setSellers((profiles as any[]).filter(p => userIds.has(p.user_id)));
     setIsLoading(false);
   };
 

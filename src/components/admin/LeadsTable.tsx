@@ -148,8 +148,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
   const { data: sellers = [] } = useQuery({
     queryKey: ['sellers-list'],
     queryFn: async () => {
-      const { data: profiles } = await supabase.from('profiles').select('user_id, name, email');
-      return profiles || [];
+      const { data } = await supabase.rpc('get_visible_profiles');
+      return (data || []) as unknown as { user_id: string; name: string; email: string }[];
     }
   });
 

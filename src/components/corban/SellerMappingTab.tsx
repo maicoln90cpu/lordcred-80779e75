@@ -42,9 +42,7 @@ export function SellerMappingTab() {
     queryKey: ['profiles-for-mapping'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, name, email')
-        .order('name');
+        .rpc('get_visible_profiles');
       if (error) throw error;
       return data as Profile[];
     },

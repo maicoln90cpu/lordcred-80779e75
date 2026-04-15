@@ -81,7 +81,7 @@ export default function Broadcasts() {
     const [campRes, chipRes, profileRes] = await Promise.all([
       supabase.from('broadcast_campaigns').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('chips').select('id, instance_name, nickname, provider, user_id'),
-      supabase.from('profiles').select('user_id, name, email').eq('is_blocked', false),
+      supabase.rpc('get_visible_profiles'),
     ]);
     if (campRes.data) setCampaigns(campRes.data as any);
     if (chipRes.data) setChips(chipRes.data as any);

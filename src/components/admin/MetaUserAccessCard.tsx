@@ -28,10 +28,7 @@ export default function MetaUserAccessCard({ allowedUserIds, onChange }: MetaUse
   const fetchUsers = async () => {
     try {
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, email, name')
-        .eq('is_blocked', false)
-        .order('name');
+        .rpc('get_visible_profiles');
 
       if (profilesError) throw profilesError;
 
