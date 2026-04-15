@@ -74,15 +74,9 @@ export default function Templates() {
   useEffect(() => {
     if (!canSetVisibility) return;
     (async () => {
-      const { data } = await supabase.rpc('get_all_chat_profiles' as any);
+      const { data } = await supabase.rpc('get_visible_profiles');
       if (data) {
-        let profiles = data as unknown as SellerProfile[];
-        if (!isMaster) {
-          const { data: masterIdsArr } = await supabase.rpc('get_master_user_ids' as any);
-          const masterIds = new Set<string>((masterIdsArr as string[]) || []);
-          profiles = profiles.filter(p => !masterIds.has(p.user_id));
-        }
-        setSellerProfiles(profiles);
+        setSellerProfiles(data as unknown as SellerProfile[]);
       }
     })();
   }, [canSetVisibility, isMaster]);
