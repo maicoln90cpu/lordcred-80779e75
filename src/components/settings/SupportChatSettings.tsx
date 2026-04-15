@@ -16,18 +16,16 @@ export default function SupportChatSettings() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: settings }, { data: profiles }, { data: masterIds }] = await Promise.all([
+      const [{ data: settings }, { data: profiles }] = await Promise.all([
         supabase.from('system_settings').select('id,support_chat_user_id').maybeSingle(),
-        supabase.rpc('get_all_chat_profiles' as any),
-        supabase.rpc('get_master_user_ids'),
+        supabase.rpc('get_visible_profiles'),
       ]);
       if (settings?.id) {
         setSettingsId(settings.id);
         if (settings.support_chat_user_id) setSupportUserId(settings.support_chat_user_id);
       }
       if (profiles) {
-        const masterSet = new Set((masterIds as string[]) || []);
-        setAllProfiles((profiles as any[]).filter(p => !masterSet.has(p.user_id)));
+        setAllProfiles(profiles as any[]);
       }
     })();
   }, []);
