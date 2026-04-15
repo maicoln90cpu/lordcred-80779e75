@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { checkPermission, type PermissionEntry } from '@/lib/permissionLogic';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** Maps feature_key → route path(s) */
