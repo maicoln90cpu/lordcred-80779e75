@@ -1835,6 +1835,33 @@ export type Database = {
         }
         Relationships: []
       }
+      master_feature_toggles: {
+        Row: {
+          feature_group: string
+          feature_key: string
+          feature_label: string
+          id: string
+          is_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          feature_group?: string
+          feature_key: string
+          feature_label: string
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          feature_group?: string
+          feature_key?: string
+          feature_label?: string
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       message_favorites: {
         Row: {
           chip_id: string
