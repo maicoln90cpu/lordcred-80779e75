@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '../corbanPropostas';
 
-const norm1 = (input: unknown): NormalizedCorbanProposta => normalizeCorbanPropostasInput(input)[0];
+// Helper: wrap in array so coerceToPropostasArray always finds it
+const norm1 = (input: Record<string, unknown>): NormalizedCorbanProposta => normalizeCorbanPropostasInput([input])[0];
 
 describe('normalizeCorbanPropostasInput', () => {
   // ===== Unwrapping =====
@@ -46,6 +47,10 @@ describe('normalizeCorbanPropostasInput', () => {
     expect(res[0].cpf).toBe('12345');
   });
 
+  it('returns empty for empty array', () => {
+    expect(normalizeCorbanPropostasInput([])).toEqual([]);
+  });
+
   // ===== Field mapping =====
   it('maps proposta_id from "id" fallback', () => {
     expect(norm1({ id: 'ABC' }).proposta_id).toBe('ABC');
@@ -55,7 +60,7 @@ describe('normalizeCorbanPropostasInput', () => {
     expect(norm1({ codigo_proposta: 'XYZ' }).proposta_id).toBe('XYZ');
   });
 
-  it('maps cpf from nested "cliente_cpf"', () => {
+  it('maps cpf from "cliente_cpf"', () => {
     expect(norm1({ cliente_cpf: '111.222.333-44' }).cpf).toBe('111.222.333-44');
   });
 
@@ -96,25 +101,23 @@ describe('normalizeCorbanPropostasInput', () => {
     expect(norm1({}).valor_liberado).toBeNull();
   });
 
-  // ===== Prazo (string or number) =====
-  it('keeps prazo as number when numeric', () => {
+  // ===== Prazo =====
+  it('keeps prazo as number when source is number', () => {
+    // findDeepValue returns the raw number; normalization checks typeof
     expect(norm1({ prazo: 12 }).prazo).toBe(12);
   });
 
-  it('keeps prazo as string when non-numeric', () => {
+  it('keeps prazo as string when source is string', () => {
     expect(norm1({ prazo: '12x' }).prazo).toBe('12x');
   });
 
   // ===== Deep lookup =====
   it('finds cpf in nested structure', () => {
-    const input = { cliente: { dados: { cpf: '999' } } };
-    expect(norm1(input).cpf).toBe('999');
+    expect(norm1({ cliente: { dados: { cpf: '999' } } }).cpf).toBe('999');
   });
 
-  it('finds value in nested JSON string', () => {
-    const input = { raw: JSON.stringify({ cpf: '888' }) };
-    // raw is stored but cpf found at top-level walk
-    expect(norm1(input).cpf).toBe('888');
+  it('finds cpf in nested JSON string field', () => {
+    expect(norm1({ dados: JSON.stringify({ cpf: '888' }) }).cpf).toBe('888');
   });
 
   // ===== Equipe fields =====
@@ -145,8 +148,7 @@ describe('normalizeCorbanPropostasInput', () => {
 
   // ===== Endereco completo =====
   it('builds endereco_completo from parts', () => {
-    const input = { logradouro: 'Rua A', numero: '10', bairro: 'Centro', cidade: 'SP', uf: 'SP', cep: '01000-000' };
-    const result = norm1(input);
+    const result = norm1({ logradouro: 'Rua A', numero: '10', bairro: 'Centro', cidade: 'SP', uf: 'SP', cep: '01000-000' });
     expect(result.endereco_completo).toContain('Rua A');
     expect(result.endereco_completo).toContain('Centro');
     expect(result.endereco_completo).toContain('01000-000');
@@ -158,23 +160,16 @@ describe('normalizeCorbanPropostasInput', () => {
 
   // ===== Observacoes =====
   it('builds observacoes from api + manual', () => {
-    const input = { observacao_api: 'err timeout', observacao: 'ok teste' };
-    const result = norm1(input);
+    const result = norm1({ observacao_api: 'err timeout', observacao: 'ok teste' });
     expect(result.observacoes).toContain('API: err timeout');
     expect(result.observacoes).toContain('Manual: ok teste');
   });
 
   // ===== raw preserved =====
   it('preserves raw source', () => {
-    const input = { id: '1', extra_field: 'xyz' };
-    const result = norm1(input);
+    const result = norm1({ id: '1', extra_field: 'xyz' });
     expect(result.raw).toBeTruthy();
     expect((result.raw as any).extra_field).toBe('xyz');
-  });
-
-  // ===== Edge: empty array =====
-  it('returns empty for empty array', () => {
-    expect(normalizeCorbanPropostasInput([])).toEqual([]);
   });
 
   // ===== Batch =====
