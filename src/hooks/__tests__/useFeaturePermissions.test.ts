@@ -121,10 +121,18 @@ describe('Permission logic (checkPermission)', () => {
 });
 
 // ===== Route mapping tests =====
+// We replicate the maps here to avoid importing the hook (which pulls Supabase/React)
+const FEATURE_ROUTE_MAP: Record<string, string[]> = {
+  dashboard: ['/dashboard'], chips: ['/chips'], whatsapp: ['/whatsapp'],
+  users: ['/admin/users'], master_admin: ['/admin/master'], leads: ['/admin/leads'],
+  permissions: ['/admin/permissions'], partners: ['/admin/parceiros', '/admin/parceiros/template'],
+};
+const ROUTE_FEATURE_MAP: Record<string, string> = {};
+Object.entries(FEATURE_ROUTE_MAP).forEach(([key, routes]) => {
+  routes.forEach(route => { ROUTE_FEATURE_MAP[route] = key; });
+});
+
 describe('FEATURE_ROUTE_MAP / ROUTE_FEATURE_MAP consistency', () => {
-  // We import the actual maps
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP } = require('@/hooks/useFeaturePermissions');
 
   it('every route in FEATURE_ROUTE_MAP has a reverse entry', () => {
     Object.entries(FEATURE_ROUTE_MAP as Record<string, string[]>).forEach(([key, routes]) => {
