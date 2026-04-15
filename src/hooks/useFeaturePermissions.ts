@@ -51,18 +51,14 @@ Object.entries(FEATURE_ROUTE_MAP).forEach(([key, routes]) => {
 
 export { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP };
 
-interface FeaturePermission {
-  feature_key: string;
-  allowed_user_ids: string[];
-  allowed_roles: string[];
-}
+// PermissionEntry is imported from @/lib/permissionLogic
 
 interface FeatureToggle {
   feature_key: string;
   is_enabled: boolean;
 }
 
-async function fetchPermissions(): Promise<FeaturePermission[]> {
+async function fetchPermissions(): Promise<PermissionEntry[]> {
   const { data } = await supabase
     .from('feature_permissions')
     .select('feature_key, allowed_user_ids, allowed_roles');
