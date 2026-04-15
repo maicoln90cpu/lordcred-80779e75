@@ -186,6 +186,18 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
             </div>
           )}
 
+          {userTeams.length > 0 && (
+            <div className="space-y-2">
+              <Label>Equipes</Label>
+              <div className="flex flex-wrap gap-1">
+                {userTeams.map(t => (
+                  <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Gerencie equipes na seção abaixo da tabela de usuários</p>
+            </div>
+          )}
+
           <div className="space-y-2 border-t pt-4">
             <Button variant="outline" size="sm" className="w-full" onClick={() => setShowResetPassword(!showResetPassword)}>
               <KeyRound className="w-4 h-4 mr-2" />
