@@ -149,24 +149,14 @@ export function useFeaturePermissions() {
   }, [toggles]);
 
   const hasPermission = useCallback((featureKey: string): boolean => {
-    if (!user) return false;
-    if (isMaster) return true;
-
-    // Global toggle check — if disabled, nobody except master sees it
-    if (disabledFeatures.has(featureKey)) return false;
-
-    if (userRole === 'admin') return true;
-    if (userRole === 'manager') return featureKey !== 'permissions';
-
-    const perm = permissions.find(p => p.feature_key === featureKey);
-    if (!perm) return true;
-
-    const hasRoleAccess = perm.allowed_roles.length > 0 && perm.allowed_roles.includes(userRole);
-    const hasUserAccess = perm.allowed_user_ids.length > 0 && perm.allowed_user_ids.includes(user.id);
-
-    if (perm.allowed_roles.length === 0 && perm.allowed_user_ids.length === 0) return true;
-
-    return hasRoleAccess || hasUserAccess;
+    return checkPermission(
+      featureKey,
+      user?.id || null,
+      userRole,
+      isMaster,
+      permissions,
+      disabledFeatures,
+    );
   }, [user, isMaster, userRole, permissions, disabledFeatures]);
 
   const hasRoutePermission = useCallback((path: string): boolean => {
