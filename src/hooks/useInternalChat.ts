@@ -100,9 +100,8 @@ export function useInternalChat() {
     setAllUsers(users);
     const map: Record<string, ICUserProfile> = {};
     users.forEach(u => { map[u.user_id] = u; });
-    if (chatProfiles && allData) {
+    if (chatProfiles && visibleData) {
       (chatProfiles as unknown as ICUserProfile[]).forEach(u => {
-        if (masterIds.has(u.user_id)) return;
         if (!map[u.user_id]) map[u.user_id] = u;
         else if (u.avatar_url && !map[u.user_id].avatar_url) map[u.user_id].avatar_url = u.avatar_url;
       });
