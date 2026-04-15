@@ -100,8 +100,8 @@ interface ColumnConfig {
 type SortField = 'nome' | 'valor_lib' | 'status' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
-// Fetch all rows without the 1000 limit
-async function fetchAllLeads() {
+// Fetch only leads assigned to a specific user
+async function fetchMyLeads(userId: string) {
   const allData: any[] = [];
   let from = 0;
   const batchSize = 1000;
@@ -109,6 +109,7 @@ async function fetchAllLeads() {
     const { data, error } = await supabase
       .from('client_leads' as any)
       .select('*')
+      .eq('assigned_to', userId)
       .order('created_at', { ascending: false })
       .range(from, from + batchSize - 1);
     if (error) throw error;
@@ -235,10 +236,10 @@ export default function LeadsPanel({ open, onOpenChange, onStartConversation }: 
     return map;
   }, [profileOptions]);
 
-  const { data: allLeads = [], isLoading } = useQuery({
-    queryKey: ['my-leads-all'],
+  const { data: allLeads = [], isLoading } = useQuery<any[]>({
+    queryKey: ['my-leads-all', user?.id],
     enabled: open && !!user,
-    queryFn: fetchAllLeads,
+    queryFn: () => fetchMyLeads(user!.id),
   });
 
   const batchNames = useMemo(() => {

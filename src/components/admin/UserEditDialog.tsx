@@ -165,6 +165,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
                 <SelectContent>
                   <SelectItem value="seller">Vendedor</SelectItem>
                   <SelectItem value="support">Suporte</SelectItem>
+                  <SelectItem value="manager">Gerente</SelectItem>
                   <SelectItem value="admin">Administrador</SelectItem>
                 </SelectContent>
               </Select>
