@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserCreateDialog } from '@/components/admin/UserCreateDialog';
 import { UserEditDialog } from '@/components/admin/UserEditDialog';
 import { UsersTable } from '@/components/admin/UsersTable';
+import { TeamsManager } from '@/components/admin/TeamsManager';
 
 interface UserProfile {
   id: string;
