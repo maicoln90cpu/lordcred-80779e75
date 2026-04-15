@@ -117,6 +117,10 @@ export default function Users() {
           onRefresh={fetchUsers}
         />
 
+        {canManageUsers && (
+          <TeamsManager users={users.map(u => ({ user_id: u.user_id, name: u.name, email: u.email }))} />
+        )}
+
         <UserEditDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
