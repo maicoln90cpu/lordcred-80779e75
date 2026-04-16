@@ -59,6 +59,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       setEditEmail('');
       setEditMaxChips(5);
       setEditRole('seller');
+      setEditIsBlocked(false);
       setAllTeams([]);
       setSelectedTeamIds([]);
       setOriginalTeamIds([]);
