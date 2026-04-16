@@ -2225,6 +2225,13 @@ export type Database = {
           endereco_pj_numero: string | null
           endereco_pj_rua: string | null
           endereco_pj_uf: string | null
+          endereco_rep_bairro: string | null
+          endereco_rep_cep: string | null
+          endereco_rep_complemento: string | null
+          endereco_rep_municipio: string | null
+          endereco_rep_numero: string | null
+          endereco_rep_rua: string | null
+          endereco_rep_uf: string | null
           envelope_id: string | null
           enviou_link: boolean | null
           estado_civil: string | null
@@ -2270,6 +2277,13 @@ export type Database = {
           endereco_pj_numero?: string | null
           endereco_pj_rua?: string | null
           endereco_pj_uf?: string | null
+          endereco_rep_bairro?: string | null
+          endereco_rep_cep?: string | null
+          endereco_rep_complemento?: string | null
+          endereco_rep_municipio?: string | null
+          endereco_rep_numero?: string | null
+          endereco_rep_rua?: string | null
+          endereco_rep_uf?: string | null
           envelope_id?: string | null
           enviou_link?: boolean | null
           estado_civil?: string | null
@@ -2315,6 +2329,13 @@ export type Database = {
           endereco_pj_numero?: string | null
           endereco_pj_rua?: string | null
           endereco_pj_uf?: string | null
+          endereco_rep_bairro?: string | null
+          endereco_rep_cep?: string | null
+          endereco_rep_complemento?: string | null
+          endereco_rep_municipio?: string | null
+          endereco_rep_numero?: string | null
+          endereco_rep_rua?: string | null
+          endereco_rep_uf?: string | null
           envelope_id?: string | null
           enviou_link?: boolean | null
           estado_civil?: string | null
