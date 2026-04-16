@@ -26,6 +26,7 @@ export default function Users() {
   const [isLoading, setIsLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'blocked' | 'all'>('active');
 
   const isRegularAdmin = userRole === 'admin';
   const canManageUsers = isMaster || (!isSupport && isRegularAdmin);
@@ -107,12 +108,14 @@ export default function Users() {
         </div>
 
         <UsersTable
-          users={users}
+          users={statusFilter === 'all' ? users : users.filter(u => statusFilter === 'active' ? !u.is_blocked : u.is_blocked)}
           isLoading={isLoading}
           isSupport={isSupport}
           isMaster={isMaster}
           isRegularAdmin={isRegularAdmin}
           canManageUsers={canManageUsers}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
           onEditUser={(user) => { setUserToEdit(user); setEditDialogOpen(true); }}
           onRefresh={fetchUsers}
         />

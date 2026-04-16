@@ -42,11 +42,13 @@ interface UsersTableProps {
   isMaster: boolean;
   isRegularAdmin: boolean;
   canManageUsers: boolean;
+  statusFilter: 'active' | 'blocked' | 'all';
+  onStatusFilterChange: (value: 'active' | 'blocked' | 'all') => void;
   onEditUser: (user: UserProfile) => void;
   onRefresh: () => void;
 }
 
-export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdmin, canManageUsers, onEditUser, onRefresh }: UsersTableProps) {
+export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdmin, canManageUsers, statusFilter, onStatusFilterChange, onEditUser, onRefresh }: UsersTableProps) {
   const { toast } = useToast();
   const { sort, toggle } = useSortState();
   const [page, setPage] = useState(0);
@@ -116,10 +118,20 @@ export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdm
     <>
       <Card className="border-border/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UsersIcon className="w-5 h-5" />
-            {isMaster ? 'Usuários Cadastrados' : 'Meus Usuários'}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <UsersIcon className="w-5 h-5" />
+              {isMaster ? 'Usuários Cadastrados' : 'Meus Usuários'}
+            </CardTitle>
+            <Select value={statusFilter} onValueChange={(v) => onStatusFilterChange(v as 'active' | 'blocked' | 'all')}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="blocked">Inativos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <CardDescription>{users.length} usuário(s) encontrado(s)</CardDescription>
         </CardHeader>
         <CardContent>
