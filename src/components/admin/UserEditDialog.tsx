@@ -43,6 +43,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [editIsBlocked, setEditIsBlocked] = useState(false);
   const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [originalTeamIds, setOriginalTeamIds] = useState<string[]>([]);
