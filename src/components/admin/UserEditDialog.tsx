@@ -70,6 +70,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
     setEditEmail(user.email);
     setEditMaxChips(user.max_chips ?? 5);
     setEditRole(user.role || 'seller');
+    setEditIsBlocked(user.is_blocked ?? false);
 
     if (!canManageUsers || user.role === 'master') {
       setAllTeams([]);
@@ -147,7 +148,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
+        .update({ name: editName.trim() || null, max_chips: editMaxChips, is_blocked: editIsBlocked } as any)
         .eq('user_id', user.user_id);
       if (error) throw error;
 
