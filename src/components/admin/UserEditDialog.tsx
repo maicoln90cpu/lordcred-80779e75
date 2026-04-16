@@ -239,6 +239,23 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
             </div>
           )}
 
+          {canManageUsers && user && (
+            <div className="space-y-2">
+              <Label>Status do Usuário</Label>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={!editIsBlocked}
+                  onCheckedChange={(checked) => setEditIsBlocked(!checked)}
+                  disabled={isEditing}
+                />
+                <span className={`text-sm font-medium ${editIsBlocked ? 'text-destructive' : 'text-green-600'}`}>
+                  {editIsBlocked ? 'Inativo (Bloqueado)' : 'Ativo'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Usuários inativos não conseguem acessar o sistema</p>
+            </div>
+          )}
+
           {showTeamsField && (
             <UserTeamsField
               teams={allTeams}
