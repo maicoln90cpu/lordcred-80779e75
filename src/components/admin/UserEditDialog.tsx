@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,6 +43,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [editIsBlocked, setEditIsBlocked] = useState(false);
   const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [originalTeamIds, setOriginalTeamIds] = useState<string[]>([]);
@@ -57,6 +59,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
       setEditEmail('');
       setEditMaxChips(5);
       setEditRole('seller');
+      setEditIsBlocked(false);
       setAllTeams([]);
       setSelectedTeamIds([]);
       setOriginalTeamIds([]);
@@ -67,6 +70,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
     setEditEmail(user.email);
     setEditMaxChips(user.max_chips ?? 5);
     setEditRole(user.role || 'seller');
+    setEditIsBlocked(user.is_blocked ?? false);
 
     if (!canManageUsers || user.role === 'master') {
       setAllTeams([]);
@@ -144,7 +148,7 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ name: editName.trim() || null, max_chips: editMaxChips } as any)
+        .update({ name: editName.trim() || null, max_chips: editMaxChips, is_blocked: editIsBlocked } as any)
         .eq('user_id', user.user_id);
       if (error) throw error;
 
@@ -232,6 +236,23 @@ export function UserEditDialog({ open, onOpenChange, user, canManageUsers, onUse
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Alterar o tipo de acesso deste usuário</p>
+            </div>
+          )}
+
+          {canManageUsers && user && (
+            <div className="space-y-2">
+              <Label>Status do Usuário</Label>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={!editIsBlocked}
+                  onCheckedChange={(checked) => setEditIsBlocked(!checked)}
+                  disabled={isEditing}
+                />
+                <span className={`text-sm font-medium ${editIsBlocked ? 'text-destructive' : 'text-green-600'}`}>
+                  {editIsBlocked ? 'Inativo (Bloqueado)' : 'Ativo'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Usuários inativos não conseguem acessar o sistema</p>
             </div>
           )}
 
