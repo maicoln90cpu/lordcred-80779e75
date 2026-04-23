@@ -42,6 +42,7 @@ const RemoteAssistance = lazy(() => import("./pages/admin/RemoteAssistance"));
 const WarmingReports = lazy(() => import("./pages/admin/WarmingReports"));
 const ProductInfo = lazy(() => import("./pages/admin/ProductInfo"));
 const Commissions = lazy(() => import("./pages/admin/Commissions"));
+const CommissionsV2 = lazy(() => import("./pages/admin/CommissionsV2"));
 const CommissionReports = lazy(() => import("./pages/admin/CommissionReports"));
 const Permissions = lazy(() => import("./pages/admin/Permissions"));
 const BankCredentials = lazy(() => import("./pages/admin/BankCredentials"));
@@ -106,6 +107,7 @@ const App = () => (
                 <Route path="/admin/warming-reports" element={<ProtectedRoute blockSellers><WarmingReports /></ProtectedRoute>} />
                 <Route path="/admin/product-info" element={<ProtectedRoute blockSellers><ProductInfo /></ProtectedRoute>} />
                 <Route path="/admin/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
+                <Route path="/admin/commissions-v2" element={<ProtectedRoute blockSellers><CommissionsV2 /></ProtectedRoute>} />
                 <Route path="/admin/commission-reports" element={<ProtectedRoute><CommissionReports /></ProtectedRoute>} />
                 <Route path="/admin/corban" element={<ProtectedRoute blockSellers><CorbanDashboard /></ProtectedRoute>} />
                 <Route path="/admin/corban/propostas" element={<ProtectedRoute blockSellers><CorbanPropostas /></ProtectedRoute>} />
