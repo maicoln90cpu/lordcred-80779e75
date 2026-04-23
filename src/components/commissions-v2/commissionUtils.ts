@@ -29,8 +29,14 @@ export interface RateFGTS {
   id: string;
   effective_date: string;
   bank: string;
-  rate_no_insurance: number;
-  rate_with_insurance: number;
+  table_key: string | null;
+  term_min: number;
+  term_max: number;
+  min_value: number;
+  max_value: number;
+  has_insurance: boolean;
+  rate: number;
+  obs: string | null;
 }
 
 export interface RateCLT {
