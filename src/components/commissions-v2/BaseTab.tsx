@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns, Copy, Eraser } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
@@ -276,6 +276,101 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
     toast({ title: 'Exportado com sucesso' });
   };
 
+  const handleCopyFromV1 = async () => {
+    const { count: existingCount } = await supabase
+      .from('commission_sales_v2')
+      .select('*', { count: 'exact', head: true });
+
+    if ((existingCount ?? 0) > 0) {
+      const choice = confirm(
+        `O V2 já tem ${existingCount} venda(s). Deseja LIMPAR o V2 e copiar tudo do V1 novamente?\n\nOK = Limpar V2 e copiar do V1\nCancelar = Não fazer nada`
+      );
+      if (!choice) return;
+      const { error: delErr } = await supabase
+        .from('commission_sales_v2')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (delErr) {
+        toast({ title: 'Erro ao limpar V2', description: delErr.message, variant: 'destructive' });
+        return;
+      }
+    } else {
+      if (!confirm(
+        'Isso vai copiar TODAS as vendas existentes do módulo V1 para o V2.\n\nAs vendas serão recalculadas automaticamente com a NOVA fórmula FGTS (multivariável).\n\nContinuar?'
+      )) return;
+    }
+
+    setImporting(true);
+    try {
+      const allSales: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('commission_sales')
+          .select('seller_id, sale_date, bank, product, table_name, released_value, term, has_insurance, client_cpf, client_name, client_phone, client_birth_date, external_proposal_id, created_by')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allSales.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      if (allSales.length === 0) {
+        toast({ title: 'V1 está vazio', description: 'Nenhuma venda encontrada no módulo V1.' });
+        setImporting(false);
+        return;
+      }
+
+      const batchSize = 50;
+      let inserted = 0;
+      let errors = 0;
+      for (let i = 0; i < allSales.length; i += batchSize) {
+        const batch = allSales.slice(i, i + batchSize).map(s => ({ ...s, created_by: s.created_by || userId }));
+        const { error } = await supabase.from('commission_sales_v2').insert(batch as any);
+        if (error) {
+          console.error('Batch error:', error);
+          errors += batch.length;
+        } else {
+          inserted += batch.length;
+        }
+      }
+
+      toast({
+        title: '✅ Cópia concluída',
+        description: `${inserted} venda(s) copiada(s) e recalculada(s) com a nova fórmula FGTS V2.${errors > 0 ? ` ${errors} com erro.` : ''}`,
+      });
+      loadSales();
+    } catch (err: any) {
+      toast({ title: 'Erro ao copiar do V1', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleClearV2 = async () => {
+    const { count } = await supabase
+      .from('commission_sales_v2')
+      .select('*', { count: 'exact', head: true });
+    if (!count || count === 0) {
+      toast({ title: 'V2 já está vazio' });
+      return;
+    }
+    if (!confirm(`Tem certeza que deseja APAGAR todas as ${count} venda(s) do V2?\n\nO V1 não será afetado. Esta ação não pode ser desfeita.`)) return;
+    const { error } = await supabase
+      .from('commission_sales_v2')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) {
+      toast({ title: 'Erro ao limpar V2', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: '🗑️ V2 limpo', description: `${count} venda(s) removida(s) do sandbox V2.` });
+      loadSales();
+    }
+  };
+
+
   return (
     <Card>
       <CardHeader>
@@ -284,6 +379,12 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
               <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+              <Button variant="outline" size="sm" onClick={handleCopyFromV1} disabled={importing} className="border-warning/40 bg-warning/10 hover:bg-warning/20 text-warning-foreground">
+                <Copy className="w-4 h-4 mr-1" /> Copiar vendas do V1
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleClearV2} disabled={importing} className="border-destructive/40 hover:bg-destructive/10 text-destructive">
+                <Eraser className="w-4 h-4 mr-1" /> Limpar V2
+              </Button>
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
               </Button>
