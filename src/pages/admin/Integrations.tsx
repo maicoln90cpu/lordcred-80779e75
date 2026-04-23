@@ -10,6 +10,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import MetaConfigCard from '@/components/admin/MetaConfigCard';
+import MetaCredentialsGuide from '@/components/admin/MetaCredentialsGuide';
 import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
 import MetaChipsManager from '@/components/settings/MetaChipsManager';
 import MetaSetupGuide from '@/components/admin/MetaSetupGuide';
@@ -22,6 +23,8 @@ interface ProviderSettings {
   meta_app_id: string | null;
   meta_access_token: string | null;
   meta_verify_token: string | null;
+  meta_app_secret: string | null;
+  meta_webhook_secret: string | null;
   meta_allowed_user_ids: string[];
 }
 
@@ -45,12 +48,14 @@ export default function Integrations() {
     try {
       const { data } = await supabase
         .from('system_settings')
-        .select('id, uazapi_api_url, uazapi_api_key, meta_app_id, meta_access_token, meta_verify_token, meta_allowed_user_ids')
+        .select('id, uazapi_api_url, uazapi_api_key, meta_app_id, meta_access_token, meta_verify_token, meta_app_secret, meta_webhook_secret, meta_allowed_user_ids')
         .limit(1)
         .maybeSingle();
       if (data) {
         setProviderSettings({
           ...data,
+          meta_app_secret: (data as any).meta_app_secret ?? null,
+          meta_webhook_secret: (data as any).meta_webhook_secret ?? null,
           meta_allowed_user_ids: (data as any).meta_allowed_user_ids || [],
         } as unknown as ProviderSettings);
       }
@@ -73,6 +78,8 @@ export default function Integrations() {
         meta_app_id: providerSettings.meta_app_id || null,
         meta_access_token: providerSettings.meta_access_token || null,
         meta_verify_token: providerSettings.meta_verify_token || null,
+        meta_app_secret: providerSettings.meta_app_secret || null,
+        meta_webhook_secret: providerSettings.meta_webhook_secret || null,
         meta_allowed_user_ids: providerSettings.meta_allowed_user_ids || [],
       };
       const { error } = await supabase
@@ -242,12 +249,16 @@ export default function Integrations() {
                       meta_app_id: providerSettings.meta_app_id || '',
                       meta_access_token: providerSettings.meta_access_token || '',
                       meta_verify_token: providerSettings.meta_verify_token || '',
+                      meta_app_secret: providerSettings.meta_app_secret || '',
+                      meta_webhook_secret: providerSettings.meta_webhook_secret || '',
                     }}
                     onChange={(field, value) =>
                       setProviderSettings(s => s ? { ...s, [field]: value } : s)
                     }
                     webhookUrl={metaWebhookUrl}
                   />
+
+                  <MetaCredentialsGuide />
 
                   <MetaUserAccessCard
                     allowedUserIds={providerSettings.meta_allowed_user_ids || []}

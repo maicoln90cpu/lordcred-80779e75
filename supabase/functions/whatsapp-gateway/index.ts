@@ -553,16 +553,16 @@ Deno.serve(async (req) => {
 
     // Route to the correct provider
     if (provider === 'meta') {
-      // Get Meta access token from settings
+      // Get Meta access token — DB priority, then env fallback
       const { data: settings } = await adminClient
         .from('system_settings')
         .select('meta_access_token')
         .limit(1)
         .maybeSingle()
 
-      const metaAccessToken = (settings as any)?.meta_access_token
+      const metaAccessToken = (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
       if (!metaAccessToken) {
-        return jsonResponse({ error: 'Meta access token not configured. Set it in Master Admin.' }, 500)
+        return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)
       }
 
       return handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
