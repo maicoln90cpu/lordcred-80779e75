@@ -1,0 +1,144 @@
+# LordCred — Comissões Parceiros V2 (Sandbox)
+
+> Módulo experimental isolado para validar a **nova fórmula multivariável de Taxas FGTS** sem afetar o módulo V1 em produção.
+> Acesso: `/admin/commissions-v2` (visível apenas para admin/master/manager).
+
+---
+
+## Por que existe?
+
+A fórmula antiga de Taxas FGTS (V1) usava apenas 3 colunas (`bank`, `rate_with_insurance`, `rate_no_insurance`) e aplicava taxa única por banco. As novas regras dos parceiros (LOTUS, HUB, FACTA, Paraná) exigem lookup multivariável (banco + tabela + prazo + faixa de valor + seguro + vigência) — mesma lógica que o CLT já usa.
+
+Em vez de alterar V1 e arriscar quebrar produção, foi criado o **V2 como sandbox isolado**. V1 continua funcionando 100%.
+
+---
+
+## Arquitetura
+
+```
+┌─────────────────────────────────────┐
+│ V1 (/admin/commissions) — produção  │
+│  commission_sales                   │
+│  commission_rates_fgts (3 colunas)  │
+│  commission_rates_clt               │
+│  └─ trigger calculate_commission()  │
+└─────────────────────────────────────┘
+              ↓ (botão "Copiar V1 → V2")
+┌─────────────────────────────────────┐
+│ V2 (/admin/commissions-v2) — sandbox│
+│  commission_sales_v2                │
+│  commission_rates_fgts_v2 (8 colunas) ← NOVA estrutura
+│  commission_rates_clt_v2            │
+│  seller_pix_v2                      │
+│  commission_settings_v2             │
+│  commission_bonus_tiers_v2          │
+│  commission_annual_rewards_v2       │
+│  └─ trigger calculate_commission_v2 │
+│      ├─ FGTS: nova lógica SUMIFS    │
+│      └─ CLT:  mesma lógica do V1    │
+└─────────────────────────────────────┘
+```
+
+## Tabelas espelho (7)
+
+| V1 | V2 | Diferença |
+|---|---|---|
+| `commission_sales` | `commission_sales_v2` | Trigger diferente |
+| `commission_rates_fgts` (3 cols) | `commission_rates_fgts_v2` (8 cols) | **Estrutura nova** |
+| `commission_rates_clt` | `commission_rates_clt_v2` | Idêntica |
+| `seller_pix` | `seller_pix_v2` | Idêntica |
+| `commission_settings` | `commission_settings_v2` | Idêntica |
+| `commission_bonus_tiers` | `commission_bonus_tiers_v2` | Idêntica |
+| `commission_annual_rewards` | `commission_annual_rewards_v2` | Idêntica |
+
+---
+
+## Nova fórmula FGTS — `commission_rates_fgts_v2`
+
+```sql
+CREATE TABLE commission_rates_fgts_v2 (
+  id uuid PRIMARY KEY,
+  effective_date date NOT NULL,
+  bank text NOT NULL,
+  table_key text,           -- LOTUS 1+, HUB Carta na Manga, FACTA GOLD PLUS, etc.
+  term_min int NOT NULL,    -- prazo mínimo (anos)
+  term_max int NOT NULL,    -- prazo máximo (anos)
+  min_value numeric NOT NULL, -- valor mínimo liberado
+  max_value numeric NOT NULL, -- valor máximo liberado
+  has_insurance boolean DEFAULT false,
+  rate numeric NOT NULL,    -- % de comissão
+  obs text
+);
+```
+
+### Trigger `calculate_commission_v2` (lookup)
+
+Para cada venda inserida em `commission_sales_v2`:
+
+1. Se `product = 'FGTS'`: busca em `commission_rates_fgts_v2` por:
+   `bank` + `table_key` + (`term BETWEEN term_min AND term_max`) + (`released_value BETWEEN min_value AND max_value`) + `has_insurance` + `effective_date <= sale_date`
+2. Se `product = 'CLT'`: lógica idêntica ao V1 (busca em `commission_rates_clt_v2`).
+3. Calcula `commission_value = released_value * rate / 100`.
+4. Aplica bônus se atingir threshold.
+
+### 28 taxas pré-populadas
+
+- **LOTUS** (1+, 2+, 3+, 4+, 5+) — com e sem seguro.
+- **HUB** (Carta na Manga, Premium) — faixas de valor.
+- **FACTA GOLD PLUS** — por prazo (1-2, 2-3, 3-5, 5-10 anos).
+- **Paraná** — taxa base por prazo.
+- **Paraná c/ Seguro** — taxa diferenciada.
+
+---
+
+## Botões de gestão (admin/master)
+
+No topo da aba **Base** do V2:
+
+| Botão | Ação |
+|---|---|
+| 📋 **Copiar vendas do V1** | `INSERT INTO commission_sales_v2 SELECT ... FROM commission_sales` em batches de 50. Trigger recalcula com nova fórmula. |
+| 🗑️ **Limpar V2** | `DELETE FROM commission_sales_v2` (apenas vendas, mantém taxas/PIX). |
+
+Confirmação dupla obrigatória. Toast com contagem de vendas processadas.
+
+---
+
+## Dados sincronizados
+
+Já copiados de V1 para V2 (uma vez via migration):
+- ✅ Taxas CLT
+- ✅ PIX dos vendedores
+- ✅ Settings (semana, bônus, meta mensal)
+- ✅ Bonus tiers e annual rewards
+- ❌ Taxas FGTS (V2 usa as 28 novas — estrutura diferente)
+- ❌ Vendas (sob demanda via botão)
+
+---
+
+## Plano de migração futura V2 → produção
+
+Quando V2 for validado:
+
+1. Backup completo de V1.
+2. Renomear tabelas: `commission_sales` → `commission_sales_v1_backup`, `commission_sales_v2` → `commission_sales`.
+3. Renomear trigger e atualizar referências.
+4. Atualizar rotas: `/admin/commissions-v2` → `/admin/commissions`.
+5. Arquivar componentes V1 em `src/components/commissions-archive/`.
+6. Manter backup por 90 dias antes de excluir.
+
+---
+
+## Como usar (passo a passo)
+
+1. Acesse **Comissões Parceiros V2 🧪** no menu.
+2. Aba **Taxas FGTS** → confira as 28 taxas novas.
+3. Aba **Base** → clique **📋 Copiar vendas do V1**.
+4. Aba **Extrato** → compare comissão calculada com V1 (abrir lado a lado).
+5. Aba **Consolidado** → ver totais por vendedor.
+6. Encontrou divergência? Reporte ao dev (não ajuste manualmente em V2).
+
+---
+
+📅 **Atualizado em:** 2026-04-23
+🔄 **Atualizar quando:** mudar estrutura de `_v2`, adicionar/remover banco, migrar V2 → produção.

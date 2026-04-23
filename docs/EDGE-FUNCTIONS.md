@@ -135,3 +135,12 @@ Todas as funções usam `verify_jwt = false` — a validação é feita internam
 - [SECURITY.md](./SECURITY.md) — Auth e segurança
 - [UAZAPI.md](./UAZAPI.md) — Endpoints UazAPI
 - [corban.md](./corban.md) — Integração NewCorban
+
+---
+
+## Atualização 2026-04-23
+
+- Total agora: **18 edge functions** (adicionada `broadcast-sender`).
+- `meta-webhook` e `whatsapp-gateway` passaram a ler credenciais Meta da tabela `system_settings` antes de cair em `Deno.env` (padrão "config via banco com fallback secret"). Ver [SECURITY.md](./SECURITY.md) e [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+📅 Atualizado em: 2026-04-23

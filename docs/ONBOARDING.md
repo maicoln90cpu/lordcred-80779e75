@@ -117,3 +117,31 @@ npx tsc --noEmit   # Type check sem build
 | [INSTRUCOES.md](./INSTRUCOES.md) | Manual de uso (para usuários) |
 | [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) | Motor de cálculo de comissões |
 | [ADR.md](./ADR.md) | Por que decisões foram tomadas |
+
+---
+
+## Comissões Parceiros — V1 vs V2
+
+O projeto tem **dois módulos de Comissões Parceiros** rodando em paralelo:
+
+| Módulo | Rota | Status | Para que serve |
+|---|---|---|---|
+| **V1** | `/admin/commissions` | Produção (não tocar) | Cálculo atual em uso |
+| **V2** | `/admin/commissions-v2` | Sandbox 🧪 | Validar nova fórmula FGTS multivariável |
+
+V2 tem 7 tabelas espelho `_v2` com a **nova estrutura de Taxas FGTS (8 colunas)**. Tudo isolado — V1 não é afetado.
+Para entender a fundo: [COMMISSIONS-V2.md](./COMMISSIONS-V2.md).
+
+---
+
+## Como configurar Meta WhatsApp pela tela
+
+Não precisa mais mexer em secrets para trocar credenciais Meta. Use a tela:
+
+1. **Admin → Integrações → Meta WhatsApp**
+2. Preencha os 5 campos (App ID, App Secret, WABA ID, Phone Number ID, Verify Token)
+3. Salve. As edge functions começam a usar imediatamente.
+
+Manual leigo passo a passo: [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+📅 Atualizado em: 2026-04-23

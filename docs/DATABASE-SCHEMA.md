@@ -128,3 +128,35 @@ conversation_notes.chip_id → chips.id
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura técnica
 - [SECURITY.md](./SECURITY.md) — Práticas de segurança e RLS
 - [EDGE-FUNCTIONS.md](./EDGE-FUNCTIONS.md) — Funções que acessam o banco
+
+---
+
+## Comissões Parceiros V2 (sandbox — espelho)
+
+| Tabela | Diferença vs V1 |
+|---|---|
+| `commission_sales_v2` | Trigger `calculate_commission_v2` (FGTS multivariável) |
+| `commission_rates_fgts_v2` | **8 colunas**: bank, table_key, term_min, term_max, min_value, max_value, has_insurance, rate, effective_date, obs |
+| `commission_rates_clt_v2` | Idêntica ao V1 |
+| `seller_pix_v2` | Idêntica ao V1 |
+| `commission_settings_v2` | Idêntica ao V1 |
+| `commission_bonus_tiers_v2` | Idêntica ao V1 |
+| `commission_annual_rewards_v2` | Idêntica ao V1 |
+
+Documentação completa do V2: [COMMISSIONS-V2.md](./COMMISSIONS-V2.md).
+
+---
+
+## Meta WhatsApp — Colunas em `system_settings`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `meta_app_id` | text | App ID do Meta for Developers |
+| `meta_app_secret` | text | Chave secreta do app |
+| `meta_waba_id` | text | WhatsApp Business Account ID |
+| `meta_phone_number_id` | text | ID do número de telefone |
+| `meta_webhook_verify_token` | text | Token de verificação inventado pelo admin |
+
+Editáveis via tela **Admin → Integrações → Meta WhatsApp**. Edge functions priorizam banco e caem em `Deno.env` se vazio. Detalhes em [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+📅 Atualizado em: 2026-04-23
