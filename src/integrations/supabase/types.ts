@@ -494,7 +494,58 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_annual_rewards_v2: {
+        Row: {
+          created_at: string
+          id: string
+          min_contracts: number
+          reward_description: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          reward_description?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          reward_description?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       commission_bonus_tiers: {
+        Row: {
+          bonus_value: number
+          created_at: string
+          id: string
+          min_contracts: number
+          updated_at: string
+        }
+        Insert: {
+          bonus_value?: number
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          updated_at?: string
+        }
+        Update: {
+          bonus_value?: number
+          created_at?: string
+          id?: string
+          min_contracts?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      commission_bonus_tiers_v2: {
         Row: {
           bonus_value: number
           created_at: string
@@ -557,6 +608,45 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_rates_clt_v2: {
+        Row: {
+          bank: string
+          created_at: string
+          effective_date: string
+          has_insurance: boolean
+          id: string
+          obs: string | null
+          rate: number
+          table_key: string | null
+          term_max: number
+          term_min: number
+        }
+        Insert: {
+          bank: string
+          created_at?: string
+          effective_date: string
+          has_insurance?: boolean
+          id?: string
+          obs?: string | null
+          rate?: number
+          table_key?: string | null
+          term_max?: number
+          term_min?: number
+        }
+        Update: {
+          bank?: string
+          created_at?: string
+          effective_date?: string
+          has_insurance?: boolean
+          id?: string
+          obs?: string | null
+          rate?: number
+          table_key?: string | null
+          term_max?: number
+          term_min?: number
+        }
+        Relationships: []
+      }
       commission_rates_fgts: {
         Row: {
           bank: string
@@ -581,6 +671,51 @@ export type Database = {
           id?: string
           rate_no_insurance?: number
           rate_with_insurance?: number
+        }
+        Relationships: []
+      }
+      commission_rates_fgts_v2: {
+        Row: {
+          bank: string
+          created_at: string
+          effective_date: string
+          has_insurance: boolean
+          id: string
+          max_value: number
+          min_value: number
+          obs: string | null
+          rate: number
+          table_key: string | null
+          term_max: number
+          term_min: number
+        }
+        Insert: {
+          bank: string
+          created_at?: string
+          effective_date: string
+          has_insurance?: boolean
+          id?: string
+          max_value?: number
+          min_value?: number
+          obs?: string | null
+          rate?: number
+          table_key?: string | null
+          term_max?: number
+          term_min?: number
+        }
+        Update: {
+          bank?: string
+          created_at?: string
+          effective_date?: string
+          has_insurance?: boolean
+          id?: string
+          max_value?: number
+          min_value?: number
+          obs?: string | null
+          rate?: number
+          table_key?: string | null
+          term_max?: number
+          term_min?: number
         }
         Relationships: []
       }
@@ -667,7 +802,132 @@ export type Database = {
           },
         ]
       }
+      commission_sales_v2: {
+        Row: {
+          bank: string
+          batch_id: string | null
+          bonus_value: number | null
+          client_birth_date: string | null
+          client_cpf: string | null
+          client_name: string | null
+          client_phone: string | null
+          commission_rate: number | null
+          commission_value: number | null
+          created_at: string
+          created_by: string
+          external_proposal_id: string | null
+          has_insurance: boolean
+          id: string
+          product: string
+          released_value: number
+          sale_date: string
+          seller_id: string
+          table_name: string | null
+          term: number | null
+          updated_at: string
+          week_label: string | null
+        }
+        Insert: {
+          bank: string
+          batch_id?: string | null
+          bonus_value?: number | null
+          client_birth_date?: string | null
+          client_cpf?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          commission_rate?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by: string
+          external_proposal_id?: string | null
+          has_insurance?: boolean
+          id?: string
+          product: string
+          released_value?: number
+          sale_date: string
+          seller_id: string
+          table_name?: string | null
+          term?: number | null
+          updated_at?: string
+          week_label?: string | null
+        }
+        Update: {
+          bank?: string
+          batch_id?: string | null
+          bonus_value?: number | null
+          client_birth_date?: string | null
+          client_cpf?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          commission_rate?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by?: string
+          external_proposal_id?: string | null
+          has_insurance?: boolean
+          id?: string
+          product?: string
+          released_value?: number
+          sale_date?: string
+          seller_id?: string
+          table_name?: string | null
+          term?: number | null
+          updated_at?: string
+          week_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_sales_v2_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_settings: {
+        Row: {
+          bonus_fixed_value: number
+          bonus_mode: string
+          bonus_rate: number
+          bonus_threshold: number | null
+          created_at: string
+          id: string
+          monthly_goal_type: string
+          monthly_goal_value: number
+          payment_day: number
+          updated_at: string
+          week_start_day: number
+        }
+        Insert: {
+          bonus_fixed_value?: number
+          bonus_mode?: string
+          bonus_rate?: number
+          bonus_threshold?: number | null
+          created_at?: string
+          id?: string
+          monthly_goal_type?: string
+          monthly_goal_value?: number
+          payment_day?: number
+          updated_at?: string
+          week_start_day?: number
+        }
+        Update: {
+          bonus_fixed_value?: number
+          bonus_mode?: string
+          bonus_rate?: number
+          bonus_threshold?: number | null
+          created_at?: string
+          id?: string
+          monthly_goal_type?: string
+          monthly_goal_value?: number
+          payment_day?: number
+          updated_at?: string
+          week_start_day?: number
+        }
+        Relationships: []
+      }
+      commission_settings_v2: {
         Row: {
           bonus_fixed_value: number
           bonus_mode: string
@@ -2519,6 +2779,33 @@ export type Database = {
         Relationships: []
       }
       seller_pix: {
+        Row: {
+          created_at: string
+          id: string
+          pix_key: string
+          pix_type: string
+          seller_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pix_key: string
+          pix_type?: string
+          seller_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pix_key?: string
+          pix_type?: string
+          seller_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      seller_pix_v2: {
         Row: {
           created_at: string
           id: string
