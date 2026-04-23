@@ -138,6 +138,7 @@ const navGroups: NavGroupWithChildren[] = [
     items: [
       { label: 'Bancos', icon: Landmark, href: '/admin/bancos', sellerHidden: true },
       { label: 'Comissões Parceiros', icon: DollarSign, href: '/admin/commissions' },
+      { label: 'Comissões Parceiros V2 🧪', icon: DollarSign, href: '/admin/commissions-v2', sellerHidden: true, supportHidden: true },
       { label: 'Parceiros', icon: Users2, href: '/admin/parceiros', sellerHidden: true },
       { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
     ],
