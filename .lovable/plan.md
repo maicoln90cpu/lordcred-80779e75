@@ -1,109 +1,155 @@
 
 
-# Plano: Editar Secrets do Meta no Frontend + Manual Leigo
+# Plano: Sincronizar V1 → V2 + Validar Nova Fórmula FGTS
 
-## Problema atual
+## Objetivo
+1. Criar botão "Copiar vendas do V1 para V2" para comparação lado a lado
+2. Copiar dados das abas **PIX** e **Taxas CLT** do V1 para V2 (uma vez só, agora)
+3. Confirmar que TODAS as abas do V2 já usam a nova fórmula FGTS multivariável
 
-Hoje os 4 secrets do Meta (`META_ACCESS_TOKEN`, `META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_WEBHOOK_SECRET`) estão **fixos no Supabase Secrets** e não podem ser editados pela interface. Você começou a usar uma conta nova e o sistema continua usando a antiga.
+---
 
-Hoje a tela `/admin/integrations` (componente `MetaConfigCard.tsx`) só edita 3 campos salvos na tabela `system_settings`:
-- `meta_app_id`
-- `meta_access_token`
-- `meta_verify_token`
+## Item 1 — Botão "Copiar Vendas V1 → V2"
 
-E mesmo esses 3 **não estão sendo lidos pelas Edge Functions** — elas usam os secrets antigos.
+**Onde:** topo do componente `BaseTab.tsx` do V2 (visível só para Admin/Master)
 
-## O que será feito
+**Comportamento:**
+- Botão laranja "📋 Copiar vendas do V1" com ícone Copy
+- Ao clicar abre confirmação: "Isso vai copiar TODAS as vendas existentes do módulo V1 para o V2. As vendas do V2 serão recalculadas com a NOVA fórmula FGTS. Continuar?"
+- Faz `INSERT INTO commission_sales_v2 SELECT ... FROM commission_sales` (todos os campos: seller_id, sale_date, bank, product, table_name, released_value, term, has_insurance, etc.)
+- O **trigger `calculate_commission_v2`** dispara automaticamente em cada INSERT, recalculando `commission_rate`, `commission_value` e `bonus_value` com a nova fórmula
+- Após copiar: mostra toast "X vendas copiadas e recalculadas com nova fórmula"
+- **Idempotente:** se clicar de novo, mostra aviso "V2 já tem N vendas. Limpar antes? [Sim/Não/Cancelar]"
 
-### 1) Adicionar 2 campos novos na tela `/admin/integrations`
+**Botão extra "🗑️ Limpar V2"** ao lado: deleta tudo de `commission_sales_v2` (volta ao zero).
 
-No card "Credenciais Meta" (`MetaConfigCard.tsx`), adicionar:
-- **App Secret** (campo password) — `meta_app_secret`
-- **Webhook Secret** (campo password) — `meta_webhook_secret`
+---
 
-Total: 5 campos editáveis (App ID, Access Token, Verify Token, App Secret, Webhook Secret).
+## Item 2 — Copiar PIX e Taxas CLT (executado AGORA via insert tool)
 
-### 2) Salvar os 2 novos campos em `system_settings`
+Como são dados (não estrutura), uso o tool de insert para rodar uma vez:
 
-Migration: adicionar colunas `meta_app_secret` e `meta_webhook_secret` na tabela `system_settings` (text, nullable). Apenas Admins/Master poderão ler/editar (RLS já existe).
+```sql
+-- Copiar todos os PIX
+INSERT INTO seller_pix_v2 (seller_id, pix_key, pix_type, holder_name, bank_name)
+SELECT seller_id, pix_key, pix_type, holder_name, bank_name FROM seller_pix
+ON CONFLICT (seller_id) DO NOTHING;
 
-### 3) Fazer as Edge Functions priorizarem o banco antes do secret
+-- Copiar todas as Taxas CLT
+INSERT INTO commission_rates_clt_v2 
+  (effective_date, bank, table_key, term_min, term_max, has_insurance, rate, obs)
+SELECT effective_date, bank, table_key, term_min, term_max, has_insurance, rate, obs
+FROM commission_rates_clt;
 
-Alterar `meta-webhook/index.ts` e `whatsapp-gateway/index.ts` para a seguinte ordem de leitura:
+-- Copiar configurações gerais (semana, bônus)
+INSERT INTO commission_settings_v2 
+  (week_start_day, bonus_threshold, bonus_rate, bonus_mode, bonus_fixed_value)
+SELECT week_start_day, bonus_threshold, bonus_rate, bonus_mode, bonus_fixed_value
+FROM commission_settings LIMIT 1
+ON CONFLICT DO NOTHING;
 
-```text
-1. Tenta ler de system_settings (banco)
-2. Se vazio → cai no Deno.env.get() (secret)
+-- Copiar bonus tiers e annual rewards
+INSERT INTO commission_bonus_tiers_v2 SELECT ... FROM commission_bonus_tiers;
+INSERT INTO commission_annual_rewards_v2 SELECT ... FROM commission_annual_rewards;
 ```
 
-Assim você pode trocar credenciais pelo painel sem redeploy. Quando quiser voltar ao modo "produção segura", basta apagar os campos do banco — o sistema volta a usar os secrets automaticamente.
+**Importante:** Taxas FGTS V2 NÃO serão copiadas do V1 (estrutura é diferente — V2 já tem as 28 taxas pré-populadas no formato novo).
 
-### 4) Adicionar componente "Manual Passo a Passo" abaixo do card
+---
 
-Criar `MetaCredentialsGuide.tsx` — um accordion com 5 cartões, um para cada campo, explicando em linguagem leiga onde achar cada credencial. Resumo:
+## Item 3 — Resposta direta sobre paridade de dados
 
-| Campo | Onde achar (resumo do guia) |
-|---|---|
-| **App ID** | Meta for Developers → Meus Apps → seu app → cabeçalho mostra "ID do App: 123456..." |
-| **Access Token** | Meta Business Suite → Configurações → Usuários do Sistema → criar usuário admin → "Gerar Token" → marcar `whatsapp_business_messaging` + `whatsapp_business_management` → escolher "Sem expiração" |
-| **Verify Token** | É inventado por você (qualquer texto, ex: `lordcred2026`). Cole o MESMO texto aqui e no Meta Webhook |
-| **App Secret** | Meta for Developers → seu app → Configurações → Básico → campo "Chave secreta do app" → clique em "Mostrar" |
-| **Webhook Secret** | Opcional. Usado para validar assinatura HMAC dos webhooks. Se não preencher, o sistema aceita sem validar (menos seguro, mas funciona) |
+### Após executar os 2 passos acima, as abas do V2 terão:
 
-Cada cartão terá:
-- 🎯 Para que serve (1 frase)
-- 📍 Caminho exato no painel Meta (passos numerados)
-- 🖼️ Dica visual ("o campo aparece no canto superior direito…")
-- ⚠️ Erros comuns ("se aparecer EAAB... é token de teste, dura 24h")
-- 🔗 Link direto para a página do Meta
+| Aba V2 | Dados | Comportamento |
+|---|---|---|
+| **Base** | ✅ Mesmas vendas do V1 (após botão "Copiar") | Trigger V2 recalcula tudo com nova fórmula FGTS |
+| **PIX** | ✅ Mesmos PIX do V1 (copiado agora) | Idêntico |
+| **Taxas FGTS** | ⚠️ DIFERENTE — 28 taxas novas (LOTUS, HUB, FACTA, Paraná) com 8 colunas | Nova estrutura |
+| **Taxas CLT** | ✅ Mesmas taxas do V1 (copiado agora) | Idêntico |
+| **Extrato** | ✅ Mesmas vendas, mas comissão FGTS pode mudar | Usa nova fórmula |
+| **Consolidado** | ✅ Mesmos totais por vendedor | Reflete nova fórmula FGTS |
+| **Indicadores** | ✅ Mesmos KPIs | Reflete nova fórmula FGTS |
+| **Metas** | ✅ Mesmas metas | Funciona igual |
+| **Hist. Importações** | ❌ VAZIO no V2 | Logs de import são por módulo |
+
+### Sobre a nova fórmula FGTS no V2 — SIM, está aplicada em 100%:
+
+A fórmula nova mora **dentro do trigger `calculate_commission_v2`** que está anexado à tabela `commission_sales_v2`. Toda vez que uma venda é inserida ou atualizada em V2, ela recalcula:
+
+```text
+Lookup: bank + table_key + term (min/max) + released_value (min/max) + has_insurance + effective_date
+```
+
+**Por isso, TODAS as abas que leem `commission_sales_v2` (Extrato, Consolidado, Indicadores, Metas) automaticamente refletem a nova fórmula.** Não há cálculo no frontend — tudo vem do banco com a comissão já calculada pelo trigger.
+
+### Diferença esperada (exemplos de venda FGTS)
+
+| Cenário | V1 (fórmula antiga) | V2 (fórmula nova) |
+|---|---|---|
+| Lotus 1+, R$ 500, 3 anos, c/ seguro | Taxa única do banco (ex: 18%) | Taxa específica da tabela LOTUS 1+ → 24% |
+| HUB Carta na Manga, R$ 1500, 4 anos | Taxa única (ex: 15%) | Taxa por faixa de valor R$1001-2000 → 18% |
+| FACTA GOLD PLUS 2 anos | Taxa única (ex: 16%) | Taxa específica da tabela 2 anos → 20% |
+| Paraná c/ seguro, 5 anos | Taxa genérica | Taxa específica seguro → 22% |
+| **CLT (qualquer)** | igual ao V2 | **igual ao V1** (sem mudança) |
+
+---
 
 ## Arquitetura final
 
 ```text
-┌──────────────────────────────────┐
-│ Tela /admin/integrations         │
-│  ├─ MetaConfigCard (5 campos)   │
-│  ├─ MetaCredentialsGuide (novo)  │
-│  └─ MetaSetupGuide (existente)   │
-└──────────────────────────────────┘
-              ↓ salva em
-┌──────────────────────────────────┐
-│ system_settings (banco)          │
-│  meta_app_id, meta_access_token, │
-│  meta_verify_token,              │
-│  meta_app_secret (novo),         │
-│  meta_webhook_secret (novo)      │
-└──────────────────────────────────┘
-              ↓ lido por
-┌──────────────────────────────────┐
-│ Edge Functions                   │
-│  1º tenta banco                  │
-│  2º cai em Deno.env (secret)     │
-└──────────────────────────────────┘
+┌─────────────────────────────────────┐
+│ V1 (intacto, em produção)          │
+│  commission_sales                   │
+│  └─ trigger calculate_commission()  │
+└─────────────────────────────────────┘
+              ↓ (copiar via botão)
+┌─────────────────────────────────────┐
+│ V2 (sandbox)                        │
+│  commission_sales_v2                │
+│  └─ trigger calculate_commission_v2 │
+│      ├─ FGTS: nova lógica 8 colunas │
+│      └─ CLT:  mesma lógica do V1    │
+└─────────────────────────────────────┘
 ```
 
+---
+
 ## Vantagens
-- Troca de conta Meta sem precisar mexer em secrets ou redeploy
-- Cada credencial vem com manual leigo embutido
-- Funciona como "modo configuração": preencheu no banco → usa banco; deixou vazio → usa secret de produção
+- Comparação real lado a lado: abrir V1 e V2 e ver diferenças por vendedor/contrato
+- Validação ao vivo das 28 novas taxas com vendas reais já existentes
+- Reversível: botão "Limpar V2" devolve sandbox ao zero quando quiser
 
 ## Desvantagens / Riscos
-- **Segurança**: tokens ficam no banco (mas só Admin/Master enxerga via RLS já existente)
-- **Atenção**: se preencher campo errado no banco, sobrescreve o secret. Para voltar ao secret, precisa apagar o campo (botão "Limpar" será adicionado em cada campo)
+- Comissões em V2 serão **diferentes** do V1 para vendas FGTS (esse é o objetivo, mas precisa estar claro)
+- Se rodar "Copiar" duas vezes sem limpar → vendas duplicadas (bloqueado pelo aviso)
+- Taxas FGTS antigas (`commission_rates_fgts`) **não viram** para V2 — V2 usa as 28 novas
+- Storage do banco: ~2x das vendas (espelho V1+V2)
 
-## Checklist manual (após implementação)
-1. Abrir `/admin/integrations` → ver os 5 campos
-2. Expandir o accordion "Manual Passo a Passo" → ler instruções de cada campo
-3. Colar credenciais da nova conta Meta → Salvar
-4. Clicar "Testar Conexão" → ver Conectado ✅
-5. Cadastrar chip Meta novo → validar Phone Number ID
-6. Mandar mensagem teste
+## Etapas de execução (após aprovação)
+
+1. **INSERT** copiar PIX, Taxas CLT, settings, bonus tiers, annual rewards do V1 para V2 (uma vez, agora)
+2. **Código** adicionar botões "📋 Copiar vendas do V1" e "🗑️ Limpar V2" no `BaseTab.tsx` do V2
+3. **Toast** com contagem de vendas copiadas + aviso de recálculo
+
+## Checklist manual (depois)
+
+1. Abrir `/admin/commissions-v2` → aba **PIX** → ver mesmos PIX do V1 ✅
+2. Aba **Taxas CLT** → ver mesmas taxas do V1 ✅
+3. Aba **Taxas FGTS** → ver as 28 taxas novas (LOTUS/HUB/FACTA/Paraná) ✅
+4. Aba **Base** → clicar "📋 Copiar vendas do V1" → confirmar
+5. Toast aparece "X vendas copiadas e recalculadas"
+6. Aba **Extrato** → ver mesmas vendas, mas comissões FGTS podem ter mudado
+7. Aba **Consolidado** → comparar totais por vendedor com V1
+8. Abrir V1 lado a lado → identificar contratos com diferença
 
 ## Pendências
-- Após tudo funcionar, você decide: deixar no banco (prático) ou limpar campos e voltar a usar secrets (mais seguro)
-- Futuramente: adicionar botão "Mover para Secrets" que limpa o banco e atualiza o secret automaticamente
+- **Decidir depois:** se aprovar V2, criar plano de migração definitiva (renomear V2 → produção, descontinuar V1)
+- **Opcional futuro:** botão "Comparar V1 vs V2" que mostra tabela com diferenças contrato a contrato
 
 ## Prevenção de regressão
-- Mensagem de aviso amarela no topo do card: "⚠️ Modo Configuração: credenciais salvas no banco têm prioridade sobre os secrets de produção. Limpe os campos para voltar aos secrets."
-- Cada campo terá indicador visual (🟢 vindo do banco / 🔵 vindo do secret) para você saber a origem em uso
+- Botão "Copiar" só visível para Admin/Master (não para vendedor)
+- Confirmação dupla antes de copiar/limpar
+- Banner amarelo permanente no V2 reforçando que é sandbox
+- V1 nunca é alterado em nenhuma operação
 
