@@ -112,12 +112,8 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
   }, [user, refreshTrigger]);
 
   const handleAddChip = () => {
-    if (isSeller) {
-      setReconnectInstanceName(null);
-      setConnectDialogOpen(true);
-    } else {
-      navigate('/chips');
-    }
+    setReconnectInstanceName(null);
+    setConnectDialogOpen(true);
   };
 
   const handleReconnectChip = (chip: Chip) => {
