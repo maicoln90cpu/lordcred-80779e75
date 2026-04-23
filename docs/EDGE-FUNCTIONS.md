@@ -123,6 +123,18 @@
 
 ---
 
+## Simulações — V8 Digital (Crédito do Trabalhador CLT)
+
+### `v8-clt-api`
+- **Trigger**: Frontend (admin/master/manager)
+- **Fluxo**: Proxy autenticado para a V8 Digital. Cache de token OAuth em memória (24h, refresh 5min antes de expirar). Ações suportadas:
+  - `get_configs` — lista tabelas/produtos da V8 e atualiza `v8_configs_cache`.
+  - `simulate_one` — fluxo 3-passos (Consult → Authorize → Simulate), calcula margem da empresa (`released_value - amount_to_charge`) e persiste em `v8_simulations`.
+  - `create_batch` / `list_batches` — gerencia lotes em `v8_batches` com processamento paralelo (3 workers) e atualização de progresso via Realtime.
+- **Secrets**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `V8_CLIENT_ID`, `V8_USERNAME`, `V8_PASSWORD`, `V8_AUDIENCE`
+
+---
+
 ## Configuração (`supabase/config.toml`)
 
 Todas as funções usam `verify_jwt = false` — a validação é feita internamente via service role key ou JWT manual do Supabase client.
@@ -140,7 +152,8 @@ Todas as funções usam `verify_jwt = false` — a validação é feita internam
 
 ## Atualização 2026-04-23
 
-- Total agora: **18 edge functions** (adicionada `broadcast-sender`).
+- Total agora: **19 edge functions** (adicionadas `broadcast-sender` e `v8-clt-api`).
 - `meta-webhook` e `whatsapp-gateway` passaram a ler credenciais Meta da tabela `system_settings` antes de cair em `Deno.env` (padrão "config via banco com fallback secret"). Ver [SECURITY.md](./SECURITY.md) e [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+- Novo módulo **Simulador V8 CLT** (`/admin/v8-simulador`) com edge `v8-clt-api` (cache de token OAuth + simulação 3-passos + lotes paralelos).
 
 📅 Atualizado em: 2026-04-23
