@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.broadcast-sender]
 verify_jwt = false
+
+[functions.v8-clt-api]
+verify_jwt = false
