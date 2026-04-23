@@ -117,3 +117,32 @@ USING (user_id = auth.uid() OR is_privileged(auth.uid()));
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura
 - [EDGE-FUNCTIONS.md](./EDGE-FUNCTIONS.md) — Catálogo de funções
 - [CODE-STANDARDS.md](./CODE-STANDARDS.md) — Padrões de código
+
+---
+
+## Padrão "Config via banco com fallback secret"
+
+Aplicado às credenciais Meta WhatsApp (e candidato a outros provedores):
+
+```
+1º Edge Function lê de system_settings (banco) — admin pode editar pela tela
+2º Se vazio, lê de Deno.env.get('META_*') — secret tradicional
+```
+
+### Trade-offs
+
+| Aspecto | Vantagem | Trade-off |
+|---|---|---|
+| Operação | Admin troca credenciais sem redeploy | Credencial visível no banco para roles privileged |
+| Rotação | Imediata via UI | Audit trail obrigatório (registrar quem alterou) |
+| Backup | Inclusão em backup do banco | Backups precisam ser criptografados |
+
+### Mitigações
+- Tela de edição **só visível para admin/master**.
+- `audit_logs` registra alteração de cada campo.
+- Backups Supabase são criptografados em repouso.
+- Fallback secret continua disponível (rede de segurança).
+
+Detalhes operacionais: [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+📅 Atualizado em: 2026-04-23

@@ -17,10 +17,10 @@
 │  │  + RLS   │  │         │  │(WebSocket) │  │        │ │
 │  └──────────┘  └─────────┘  └────────────┘  └────────┘ │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │              Edge Functions (17)                 │   │
+│  │              Edge Functions (18)                 │   │
 │  │  warming-engine │ queue-processor │ uazapi-api   │   │
 │  │  evolution-webhook │ instance-maintenance        │   │
-│  │  chip-health-check │ sync-history                │   │
+│  │  chip-health-check │ sync-history │ broadcast-sender │
 │  │  create-user │ delete-user │ update-user-role    │   │
 │  │  corban-api │ corban-status-sync                 │   │
 │  │  corban-snapshot-cron │ whatsapp-gateway         │   │
@@ -197,3 +197,61 @@ Tabela singleton com campos agrupados:
 - [COMMISSION-REPORTS.md](./COMMISSION-REPORTS.md) — Auditoria de comissões
 - [corban.md](./corban.md) — Integração NewCorban
 - [UAZAPI.md](./UAZAPI.md) — Referência UazAPI
+
+---
+
+## Comissões Parceiros — V1 vs V2 (isolamento)
+
+```
+┌─────────────────────────────┐         ┌─────────────────────────────┐
+│ V1 (produção, intocado)     │         │ V2 (sandbox)                │
+│  /admin/commissions         │         │  /admin/commissions-v2      │
+│  commission_sales           │ ──────▶ │  commission_sales_v2        │
+│  commission_rates_fgts      │ (3 cols)│  commission_rates_fgts_v2   │ (8 cols)
+│  commission_rates_clt       │ ──────▶ │  commission_rates_clt_v2    │
+│  seller_pix                 │ ──────▶ │  seller_pix_v2              │
+│  commission_settings        │ ──────▶ │  commission_settings_v2     │
+│  commission_bonus_tiers     │ ──────▶ │  commission_bonus_tiers_v2  │
+│  commission_annual_rewards  │ ──────▶ │  commission_annual_rewards_v2│
+│  trigger calculate_commission│         │  trigger calculate_commission_v2 │
+└─────────────────────────────┘         └─────────────────────────────┘
+       Lookup FGTS antigo                  Lookup FGTS multivariável
+       (3 colunas)                         (banco+tabela+prazo+valor+seguro)
+```
+
+Botões no V2 (`BaseTab`): **📋 Copiar V1→V2** (insert em batches, trigger recalcula) e **🗑️ Limpar V2** (delete sales).
+
+Detalhes em [COMMISSIONS-V2.md](./COMMISSIONS-V2.md).
+
+---
+
+## Meta WhatsApp — Credenciais editáveis
+
+Padrão "config via banco com fallback secret":
+
+```
+┌──────────────────────────┐
+│ Tela: Admin → Integrações│
+│ → Meta WhatsApp           │
+│ (5 campos editáveis)      │
+└────────────┬──────────────┘
+             ▼
+┌──────────────────────────┐
+│ system_settings (DB)      │
+│ meta_app_id               │
+│ meta_app_secret           │
+│ meta_waba_id              │
+│ meta_phone_number_id      │
+│ meta_webhook_verify_token │
+└────────────┬──────────────┘
+             ▼
+┌──────────────────────────┐
+│ Edge Function lê:         │
+│  1º banco                 │
+│  2º Deno.env (fallback)   │
+└──────────────────────────┘
+```
+
+Permite trocar credenciais sem redeploy. Detalhes em [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+📅 Atualizado em: 2026-04-23

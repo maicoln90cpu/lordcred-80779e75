@@ -1,6 +1,22 @@
 # LordCred — Changelog / Histórico de Mudanças
 
+> Para changelog versionado oficial (SemVer + Keep a Changelog), ver [CHANGELOG.md](./CHANGELOG.md).
+
 ---
+
+## 2026-04-23 — Comissões V2 + Meta editável + Documentação completa
+
+- **Comissões Parceiros V2** (`/admin/commissions-v2`): sandbox isolado com 7 tabelas espelho `_v2`
+- Nova `commission_rates_fgts_v2` com 8 colunas (banco + tabela + prazo + valor + seguro + vigência) — paridade com CLT
+- 28 taxas FGTS pré-populadas: LOTUS, HUB, FACTA GOLD PLUS, Paraná, Paraná c/ Seguro
+- Trigger `calculate_commission_v2` (lookup multivariável SUMIFS-style)
+- Botões "📋 Copiar V1→V2" e "🗑️ Limpar V2" no BaseTab (admin/master)
+- PIX, Taxas CLT, settings, bonus tiers e annual rewards copiados V1→V2 via migration
+- **Tela editável de credenciais Meta WhatsApp** (5 campos) com fallback banco→Deno.env
+- Edge function `broadcast-sender` (totalizando 18)
+- Documentação: criados CHANGELOG, COMMISSIONS-V2, META-WHATSAPP-SETUP, KNOWLEDGE, memocopy
+- Memória reorganizada: Regra de Ouro no topo do Core
+- PDF UazAPI movido da raiz para `docs/`
 
 ## 2026-04-14 — Documentação Completa Atualizada
 

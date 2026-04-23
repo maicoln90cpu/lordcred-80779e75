@@ -58,6 +58,24 @@
 - [x] Etapa 4: Finalização Leads (LeadConfigTab, BatchHistoryTab, LeadExportTab) + useRealtimeSubscription
 - [x] Documentação completa atualizada (12 documentos)
 
+## Fase 5 — Comissões V2 + Meta Editável 🧪 Em validação (Abr 2026)
+
+- [x] Sandbox `/admin/commissions-v2` com 7 tabelas espelho `_v2`
+- [x] Nova `commission_rates_fgts_v2` (8 colunas) + trigger `calculate_commission_v2`
+- [x] 28 taxas FGTS pré-populadas (LOTUS, HUB, FACTA, Paraná)
+- [x] Botões "Copiar V1→V2" e "Limpar V2"
+- [x] Tela editável Meta WhatsApp (5 campos) com fallback banco→env
+- [x] Edge function `broadcast-sender` (18ª)
+- [ ] Validação de divergências V1 vs V2 (usuário/auditoria)
+- [ ] Migração V2 → produção (renomear tabelas, arquivar V1)
+- [ ] Descontinuar V1 após 90 dias de backup
+
+## Fase 6 — Próximas (planejamento)
+
+- [ ] CI: validador automático de links nos docs
+- [ ] Badge de testes/versão automática no README
+- [ ] Comparador automático V1 vs V2 (diferenças por contrato)
+
 ## Fase 5 — Escala 📋 Planejado (Q3 2026)
 
 - [x] Disparos em massa (broadcasts) com controle de taxa

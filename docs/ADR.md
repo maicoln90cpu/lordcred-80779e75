@@ -130,3 +130,55 @@ Página (~200 linhas) = orquestrador
 - [SYSTEM-DESIGN.md](./SYSTEM-DESIGN.md) — Arquitetura atual
 - [SECURITY.md](./SECURITY.md) — Decisões de segurança
 - [HISTORICO-EVOLUTION-CLEANUP.md](./HISTORICO-EVOLUTION-CLEANUP.md) — Detalhes da ADR-001
+
+---
+
+## ADR-007: Sandbox V2 isolado para Comissões Parceiros
+
+**Data**: Abril 2026
+**Status**: Aceito
+
+**Contexto**: Novas regras de Taxas FGTS (LOTUS, HUB, FACTA, Paraná) exigem lookup multivariável (banco + tabela + prazo + faixa de valor + seguro). A estrutura atual de `commission_rates_fgts` (3 colunas) não suporta. Alterar diretamente arrisca quebrar produção.
+
+**Decisão**: Criar 7 tabelas espelho `_v2` com nova estrutura + trigger `calculate_commission_v2`. V1 permanece intocado.
+
+**Alternativas consideradas**:
+- Alterar V1 com migração de dados (rejeitado: risco alto, sem reversibilidade fácil)
+- Feature flag em runtime no V1 (rejeitado: complica leitura do código)
+- Branch separada do projeto (rejeitado: sem comparação lado a lado em produção)
+
+**Consequências**:
+- (+) V1 nunca é afetado
+- (+) Comparação real lado a lado com vendas copiadas
+- (+) Reversível: limpar V2 a qualquer momento
+- (-) Storage 2x para dados em sandbox
+- (-) Migração futura V2→produção exige planejamento
+
+> Detalhes em [COMMISSIONS-V2.md](./COMMISSIONS-V2.md)
+
+---
+
+## ADR-008: Credenciais Meta WhatsApp editáveis pela UI
+
+**Data**: Abril 2026
+**Status**: Aceito
+
+**Contexto**: Credenciais Meta (5 campos) ficavam apenas em `Deno.env` (Supabase Secrets). Trocá-las exigia redeploy e acesso de dev — não escalável para operação.
+
+**Decisão**: Salvar credenciais em `system_settings` editáveis por admin/master. Edge functions leem **primeiro do banco**, com fallback para `Deno.env`.
+
+**Alternativas consideradas**:
+- Manter só em secrets (rejeitado: operação travada)
+- Vault dedicado (rejeitado: overkill, sem ganho real)
+- Apenas no banco (rejeitado: perderíamos rede de segurança em caso de banco vazio)
+
+**Consequências**:
+- (+) Admin troca credenciais sem dev/redeploy
+- (+) Fallback secret garante continuidade
+- (+) Audit log registra alterações
+- (-) Credencial visível para roles privileged no banco
+- (-) Backup do banco precisa estar criptografado
+
+> Detalhes operacionais em [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md) e trade-offs em [SECURITY.md](./SECURITY.md)
+
+📅 Atualizado em: 2026-04-23

@@ -226,3 +226,40 @@ Políticas RLS usam `is_privileged()` (SECURITY DEFINER) que retorna `true` para
 - [corban.md](./corban.md) — Integração NewCorban
 - [UAZAPI.md](./UAZAPI.md) — Referência de endpoints
 - [PENDENCIAS.md](./PENDENCIAS.md) — Changelog
+
+---
+
+## Comissões Parceiros V2 (sandbox de teste 🧪)
+
+O sistema tem agora **dois módulos de Comissões Parceiros**:
+
+- **Comissões Parceiros** (V1): em produção. Use para o dia a dia.
+- **Comissões Parceiros V2 🧪**: sandbox para testar a nova fórmula de Taxas FGTS. **Não usa para pagar ninguém ainda** — só para conferir cálculos.
+
+### Como usar V2 para teste
+
+1. Menu lateral → **Comissões Parceiros V2 🧪**
+2. Aba **Taxas FGTS** → veja as 28 taxas novas (LOTUS, HUB, FACTA, Paraná)
+3. Aba **Base** → clique **📋 Copiar vendas do V1**
+4. Vai aparecer "✅ Cópia concluída — X vendas processadas"
+5. Aba **Extrato** → veja as mesmas vendas com a comissão recalculada pela nova fórmula
+6. Compare com V1 lado a lado (abrir as duas abas no navegador)
+
+### Quando V2 estiver validado
+
+Vamos planejar uma migração definitiva (V2 vira produção, V1 vira backup). Esse passo só acontece com sua aprovação.
+
+---
+
+## Configurar Meta WhatsApp Business
+
+Agora as credenciais da Meta (5 campos) podem ser editadas direto pela tela, sem precisar chamar dev:
+
+1. **Admin → Integrações → Meta WhatsApp**
+2. Preencha os 5 campos (instruções completas em [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md))
+3. Clique **Salvar** e depois **Testar Conexão**
+4. ✅ Pronto
+
+Se em algum momento o campo ficar em branco, o sistema continua funcionando usando os valores antigos guardados em segurança (fallback automático).
+
+📅 Atualizado em: 2026-04-23

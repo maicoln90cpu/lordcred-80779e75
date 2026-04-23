@@ -63,7 +63,21 @@ supabase/
 └── functions/        # 17 Edge Functions (Deno)
 ```
 
-## Edge Functions (17)
+## Módulos de Comissão (3 isolados)
+
+| Módulo | Rota | Status |
+|---|---|---|
+| **Auditoria** | `/admin/commission-reports` | Produção — 11 abas, cálculo SUMIFS |
+| **Parceiros V1** | `/admin/commissions` | Produção — fórmula FGTS antiga (3 cols) |
+| **Parceiros V2** 🧪 | `/admin/commissions-v2` | Sandbox — nova fórmula FGTS multivariável (8 cols) com 28 taxas pré-populadas (LOTUS, HUB, FACTA, Paraná) |
+
+Detalhes do V2: [docs/COMMISSIONS-V2.md](docs/COMMISSIONS-V2.md). V1 permanece intocado durante validação.
+
+## Meta WhatsApp Business (credenciais editáveis)
+
+Tela **Admin → Integrações → Meta WhatsApp** permite editar 5 campos (App ID, App Secret, WABA ID, Phone Number ID, Verify Token) sem redeploy. Edge functions leem do banco com fallback para `Deno.env`. Manual: [docs/META-WHATSAPP-SETUP.md](docs/META-WHATSAPP-SETUP.md).
+
+## Edge Functions (18)
 
 | Função | Descrição |
 |---|---|
@@ -84,6 +98,7 @@ supabase/
 | `corban-snapshot-cron` | Snapshot periódico de propostas |
 | `clicksign-api` | Proxy para ClickSign API |
 | `clicksign-webhook` | Receptor de webhooks ClickSign |
+| `broadcast-sender` | Envio em massa com rate limiting (texto, imagem, documento) |
 
 ## Roles
 

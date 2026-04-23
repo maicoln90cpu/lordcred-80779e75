@@ -10,6 +10,7 @@ LordCred é uma plataforma de aquecimento inteligente de chips WhatsApp com func
 - **Operador de Chips**: Gerencia múltiplos números WhatsApp, monitora aquecimento
 - **Vendedor**: Usa WhatsApp como canal principal de vendas, gerencia leads atribuídos
 - **Auditor de Comissões**: Cruza planilhas de produção com regras de comissão (CLT/FGTS)
+- **Admin testando nova fórmula FGTS (V2)**: Valida o sandbox de Comissões Parceiros V2 comparando com V1 antes de migrar para produção
 - **Suporte**: Atende tickets, cria vendedores, opera ferramentas operacionais
 
 ## Métricas de Sucesso
