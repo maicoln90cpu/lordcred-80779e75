@@ -1,6 +1,6 @@
 # LordCred — Database Schema
 
-> 40+ tabelas PostgreSQL com RLS habilitado em todas. Organizado por domínio.
+> 47+ tabelas PostgreSQL com RLS habilitado em todas. Organizado por domínio.
 
 ---
 

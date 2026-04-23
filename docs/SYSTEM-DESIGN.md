@@ -17,10 +17,10 @@
 │  │  + RLS   │  │         │  │(WebSocket) │  │        │ │
 │  └──────────┘  └─────────┘  └────────────┘  └────────┘ │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │              Edge Functions (17)                 │   │
+│  │              Edge Functions (18)                 │   │
 │  │  warming-engine │ queue-processor │ uazapi-api   │   │
 │  │  evolution-webhook │ instance-maintenance        │   │
-│  │  chip-health-check │ sync-history                │   │
+│  │  chip-health-check │ sync-history │ broadcast-sender │
 │  │  create-user │ delete-user │ update-user-role    │   │
 │  │  corban-api │ corban-status-sync                 │   │
 │  │  corban-snapshot-cron │ whatsapp-gateway         │   │
