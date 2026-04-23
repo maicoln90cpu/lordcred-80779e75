@@ -41,7 +41,8 @@ import {
   DollarSign,
   FileBarChart,
   Send,
-  Globe
+  Globe,
+  Calculator
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -141,6 +142,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Comissões Parceiros V2 🧪', icon: DollarSign, href: '/admin/commissions-v2', sellerHidden: true, supportHidden: true },
       { label: 'Parceiros', icon: Users2, href: '/admin/parceiros', sellerHidden: true },
       { label: 'Relat. Comissões', icon: FileBarChart, href: '/admin/commission-reports', sellerHidden: true },
+      { label: 'Simulador V8 CLT', icon: Calculator, href: '/admin/v8-simulador' },
     ],
   },
   {
