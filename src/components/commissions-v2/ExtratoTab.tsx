@@ -29,19 +29,19 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   useEffect(() => { loadSales(); loadMonthlyGoal(); loadAnnualRewards(); }, []);
 
   const loadAnnualRewards = async () => {
-    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    const { data } = await supabase.from('commission_annual_rewards_v2' as any).select('*').order('sort_order', { ascending: true });
     if (data) setAnnualRewards(data as any as AnnualReward[]);
   };
 
   const loadSales = async () => {
     setLoading(true);
-    const { data } = await supabase.from('commission_sales').select('*').order('sale_date', { ascending: false });
+    const { data } = await supabase.from('commission_sales_v2').select('*').order('sale_date', { ascending: false });
     if (data) setSales(data as unknown as CommissionSale[]);
     setLoading(false);
   };
 
   const loadMonthlyGoal = async () => {
-    const { data } = await supabase.from('commission_settings').select('monthly_goal_value, monthly_goal_type').limit(1).single();
+    const { data } = await supabase.from('commission_settings_v2').select('monthly_goal_value, monthly_goal_type').limit(1).single();
     if (data) setMonthlyGoal({ value: (data as any).monthly_goal_value ?? 0, type: (data as any).monthly_goal_type ?? 'contratos' });
   };
 

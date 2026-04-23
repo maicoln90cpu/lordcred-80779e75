@@ -30,7 +30,7 @@ export default function RatesFGTSTab() {
 
   const loadRates = async () => {
     setLoading(true);
-    const { data } = await supabase.from('commission_rates_fgts').select('*').order('effective_date', { ascending: false });
+    const { data } = await supabase.from('commission_rates_fgts_v2').select('*').order('effective_date', { ascending: false });
     if (data) setRates(data as unknown as RateFGTS[]);
     setLoading(false);
   };
@@ -56,9 +56,9 @@ export default function RatesFGTSTab() {
     };
     let error;
     if (editing) {
-      ({ error } = await supabase.from('commission_rates_fgts').update(payload as any).eq('id', editing.id));
+      ({ error } = await supabase.from('commission_rates_fgts_v2').update(payload as any).eq('id', editing.id));
     } else {
-      ({ error } = await supabase.from('commission_rates_fgts').insert(payload as any));
+      ({ error } = await supabase.from('commission_rates_fgts_v2').insert(payload as any));
     }
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'Taxa salva' }); setDialogOpen(false); loadRates(); }
@@ -66,7 +66,7 @@ export default function RatesFGTSTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta taxa?')) return;
-    await supabase.from('commission_rates_fgts').delete().eq('id', id);
+    await supabase.from('commission_rates_fgts_v2').delete().eq('id', id);
     toast({ title: 'Taxa excluída' }); loadRates();
   };
 
@@ -113,7 +113,7 @@ export default function RatesFGTSTab() {
   const confirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const { error } = await supabase.from('commission_rates_fgts').insert(importPreview as any);
+    const { error } = await supabase.from('commission_rates_fgts_v2').insert(importPreview as any);
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
     setImporting(false);

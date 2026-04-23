@@ -31,7 +31,7 @@ export default function RatesCLTTab() {
 
   const loadRates = async () => {
     setLoading(true);
-    const { data } = await supabase.from('commission_rates_clt').select('*').order('effective_date', { ascending: false });
+    const { data } = await supabase.from('commission_rates_clt_v2').select('*').order('effective_date', { ascending: false });
     if (data) setRates(data as unknown as RateCLT[]);
     setLoading(false);
   };
@@ -63,9 +63,9 @@ export default function RatesCLTTab() {
     };
     let error;
     if (editing) {
-      ({ error } = await supabase.from('commission_rates_clt').update(payload as any).eq('id', editing.id));
+      ({ error } = await supabase.from('commission_rates_clt_v2').update(payload as any).eq('id', editing.id));
     } else {
-      ({ error } = await supabase.from('commission_rates_clt').insert(payload as any));
+      ({ error } = await supabase.from('commission_rates_clt_v2').insert(payload as any));
     }
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'Taxa salva' }); setDialogOpen(false); loadRates(); }
@@ -73,7 +73,7 @@ export default function RatesCLTTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir?')) return;
-    await supabase.from('commission_rates_clt').delete().eq('id', id);
+    await supabase.from('commission_rates_clt_v2').delete().eq('id', id);
     toast({ title: 'Excluída' }); loadRates();
   };
 
@@ -125,7 +125,7 @@ export default function RatesCLTTab() {
   const confirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const { error } = await supabase.from('commission_rates_clt').insert(importPreview as any);
+    const { error } = await supabase.from('commission_rates_clt_v2').insert(importPreview as any);
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
     setImporting(false);

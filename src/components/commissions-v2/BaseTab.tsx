@@ -40,7 +40,7 @@ const BASE_COLUMNS = [
 ];
 
 function getDefaultVisibleCols(): string[] {
-  const saved = localStorage.getItem('comm_base_visible_cols');
+  const saved = localStorage.getItem('comm_v2_base_visible_cols');
   if (saved) { try { return JSON.parse(saved); } catch {} }
   return BASE_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
 }
@@ -68,7 +68,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   const toggleCol = (key: string) => {
     setVisibleCols(prev => {
       const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
-      localStorage.setItem('comm_base_visible_cols', JSON.stringify(next));
+      localStorage.setItem('comm_v2_base_visible_cols', JSON.stringify(next));
       return next;
     });
   };
@@ -84,7 +84,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   const loadSales = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('commission_sales')
+      .from('commission_sales_v2')
       .select('*')
       .order('sale_date', { ascending: false })
       .limit(500);
@@ -150,9 +150,9 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
     };
     let error;
     if (editingSale) {
-      ({ error } = await supabase.from('commission_sales').update(payload as any).eq('id', editingSale.id));
+      ({ error } = await supabase.from('commission_sales_v2').update(payload as any).eq('id', editingSale.id));
     } else {
-      ({ error } = await supabase.from('commission_sales').insert(payload as any));
+      ({ error } = await supabase.from('commission_sales_v2').insert(payload as any));
     }
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
@@ -165,7 +165,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta venda?')) return;
-    const { error } = await supabase.from('commission_sales').delete().eq('id', id);
+    const { error } = await supabase.from('commission_sales_v2').delete().eq('id', id);
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'Venda excluída' }); loadSales(); }
   };
@@ -243,7 +243,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       let errors = 0;
       for (let i = 0; i < payloads.length; i += batchSize) {
         const batch = payloads.slice(i, i + batchSize);
-        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        const { error } = await supabase.from('commission_sales_v2').insert(batch as any);
         if (error) { console.error('Batch error:', error); errors += batch.length; }
       }
       if (batchId && errors > 0) {

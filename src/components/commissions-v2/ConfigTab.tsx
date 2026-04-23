@@ -38,7 +38,7 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
   useEffect(() => { loadSettings(); loadTiers(); }, []);
 
   const loadSettings = async () => {
-    const { data } = await supabase.from('commission_settings').select('*').limit(1).single();
+    const { data } = await supabase.from('commission_settings_v2').select('*').limit(1).single();
     if (data) {
       setWeekStartDay((data as any).week_start_day ?? 5);
       setPaymentDay((data as any).payment_day ?? 4);
@@ -53,16 +53,16 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
   };
 
   const loadTiers = async () => {
-    const { data } = await supabase.from('commission_bonus_tiers' as any).select('*').order('min_contracts', { ascending: true });
+    const { data } = await supabase.from('commission_bonus_tiers_v2' as any).select('*').order('min_contracts', { ascending: true });
     if (data) setTiers(data as any as BonusTier[]);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data: existing } = await supabase.from('commission_settings').select('id').limit(1).single();
+      const { data: existing } = await supabase.from('commission_settings_v2').select('id').limit(1).single();
       if (existing) {
-        const { error } = await supabase.from('commission_settings').update({
+        const { error } = await supabase.from('commission_settings_v2').update({
           week_start_day: weekStartDay, payment_day: paymentDay,
           bonus_threshold: bonusThreshold ? parseFloat(bonusThreshold) : null,
           bonus_rate: parseFloat(bonusRate) || 0, bonus_mode: bonusMode,
@@ -85,9 +85,9 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
     if (!minC || !bonusV) { toast({ title: 'Preencha contratos e valor', variant: 'destructive' }); return; }
     let error;
     if (editingTier) {
-      ({ error } = await supabase.from('commission_bonus_tiers' as any).update({ min_contracts: minC, bonus_value: bonusV } as any).eq('id', editingTier.id));
+      ({ error } = await supabase.from('commission_bonus_tiers_v2' as any).update({ min_contracts: minC, bonus_value: bonusV } as any).eq('id', editingTier.id));
     } else {
-      ({ error } = await supabase.from('commission_bonus_tiers' as any).insert({ min_contracts: minC, bonus_value: bonusV } as any));
+      ({ error } = await supabase.from('commission_bonus_tiers_v2' as any).insert({ min_contracts: minC, bonus_value: bonusV } as any));
     }
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'Faixa salva' }); setTierDialogOpen(false); loadTiers(); }
@@ -95,7 +95,7 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
 
   const handleDeleteTier = async (id: string) => {
     if (!confirm('Excluir esta faixa?')) return;
-    await supabase.from('commission_bonus_tiers' as any).delete().eq('id', id);
+    await supabase.from('commission_bonus_tiers_v2' as any).delete().eq('id', id);
     toast({ title: 'Faixa excluída' }); loadTiers();
   };
 
@@ -254,7 +254,7 @@ function AnnualRewardsSection() {
   useEffect(() => { loadRewards(); }, []);
 
   const loadRewards = async () => {
-    const { data } = await supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true });
+    const { data } = await supabase.from('commission_annual_rewards_v2' as any).select('*').order('sort_order', { ascending: true });
     if (data) setRewards(data as any as AnnualReward[]);
   };
 
@@ -263,10 +263,10 @@ function AnnualRewardsSection() {
     if (!minC || !form.reward_description.trim()) { toast({ title: 'Preencha todos os campos', variant: 'destructive' }); return; }
     let error;
     if (editing) {
-      ({ error } = await supabase.from('commission_annual_rewards' as any).update({ min_contracts: minC, reward_description: form.reward_description.trim() } as any).eq('id', editing.id));
+      ({ error } = await supabase.from('commission_annual_rewards_v2' as any).update({ min_contracts: minC, reward_description: form.reward_description.trim() } as any).eq('id', editing.id));
     } else {
       const nextOrder = rewards.length > 0 ? Math.max(...rewards.map(r => r.sort_order)) + 1 : 1;
-      ({ error } = await supabase.from('commission_annual_rewards' as any).insert({ min_contracts: minC, reward_description: form.reward_description.trim(), sort_order: nextOrder } as any));
+      ({ error } = await supabase.from('commission_annual_rewards_v2' as any).insert({ min_contracts: minC, reward_description: form.reward_description.trim(), sort_order: nextOrder } as any));
     }
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'Premiação salva' }); setDialogOpen(false); loadRewards(); }
@@ -274,7 +274,7 @@ function AnnualRewardsSection() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta premiação?')) return;
-    await supabase.from('commission_annual_rewards' as any).delete().eq('id', id);
+    await supabase.from('commission_annual_rewards_v2' as any).delete().eq('id', id);
     toast({ title: 'Premiação excluída' }); loadRewards();
   };
 
@@ -340,8 +340,8 @@ function AnnualProgressSection({ profiles, getSellerName }: { profiles: Profile[
     setLoading(true);
     const year = new Date().getFullYear();
     const [rewardsRes, salesRes] = await Promise.all([
-      supabase.from('commission_annual_rewards' as any).select('*').order('sort_order', { ascending: true }),
-      supabase.from('commission_sales').select('seller_id, id').gte('sale_date', `${year}-01-01T00:00:00`).lte('sale_date', `${year}-12-31T23:59:59`),
+      supabase.from('commission_annual_rewards_v2' as any).select('*').order('sort_order', { ascending: true }),
+      supabase.from('commission_sales_v2').select('seller_id, id').gte('sale_date', `${year}-01-01T00:00:00`).lte('sale_date', `${year}-12-31T23:59:59`),
     ]);
     if (rewardsRes.data) setRewards(rewardsRes.data as any as AnnualReward[]);
     if (salesRes.data) {

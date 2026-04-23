@@ -33,7 +33,7 @@ export default function PixTab({ profiles, getSellerName, isAdmin, userId }: Pix
 
   const loadPix = async () => {
     setLoading(true);
-    const { data } = await supabase.from('seller_pix').select('*').order('created_at');
+    const { data } = await supabase.from('seller_pix_v2').select('*').order('created_at');
     if (data) setPixList(data as unknown as SellerPix[]);
     setLoading(false);
   };
@@ -45,15 +45,15 @@ export default function PixTab({ profiles, getSellerName, isAdmin, userId }: Pix
     if (!form.pix_key) { toast({ title: 'Informe a chave PIX', variant: 'destructive' }); return; }
     const payload = { seller_id: form.seller_id, pix_key: form.pix_key, pix_type: form.pix_type };
     let error;
-    if (editing) { ({ error } = await supabase.from('seller_pix').update(payload as any).eq('id', editing.id)); }
-    else { ({ error } = await supabase.from('seller_pix').insert(payload as any)); }
+    if (editing) { ({ error } = await supabase.from('seller_pix_v2').update(payload as any).eq('id', editing.id)); }
+    else { ({ error } = await supabase.from('seller_pix_v2').insert(payload as any)); }
     if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     else { toast({ title: 'PIX salvo' }); setDialogOpen(false); loadPix(); }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta chave PIX?')) return;
-    await supabase.from('seller_pix').delete().eq('id', id);
+    await supabase.from('seller_pix_v2').delete().eq('id', id);
     toast({ title: 'PIX excluído' }); loadPix();
   };
 

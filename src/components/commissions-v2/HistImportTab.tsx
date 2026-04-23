@@ -78,7 +78,7 @@ export default function HistImportTab({ userId, profiles, getSellerName }: HistI
       let errors = 0;
       for (let i = 0; i < payloads.length; i += 50) {
         const batch = payloads.slice(i, i + 50);
-        const { error } = await supabase.from('commission_sales').insert(batch as any);
+        const { error } = await supabase.from('commission_sales_v2').insert(batch as any);
         if (error) { console.error('Batch error:', error); errors += batch.length; }
       }
       if (batchId && errors > 0) await supabase.from('import_batches' as any).update({ row_count: payloads.length - errors } as any).eq('id', batchId);

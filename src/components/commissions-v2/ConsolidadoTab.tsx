@@ -23,8 +23,8 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
 
   useEffect(() => {
     Promise.all([
-      supabase.from('commission_sales').select('*').order('sale_date', { ascending: false }),
-      supabase.from('seller_pix').select('*'),
+      supabase.from('commission_sales_v2').select('*').order('sale_date', { ascending: false }),
+      supabase.from('seller_pix_v2').select('*'),
     ]).then(([salesRes, pixRes]) => {
       if (salesRes.data) setSales(salesRes.data as unknown as CommissionSale[]);
       if (pixRes.data) setPixList(pixRes.data as unknown as SellerPix[]);
