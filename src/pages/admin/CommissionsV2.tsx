@@ -40,9 +40,9 @@ export default function CommissionsV2() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <Alert className="border-yellow-500/50 bg-yellow-500/10">
-          <FlaskConical className="h-4 w-4 text-yellow-500" />
-          <AlertDescription className="text-yellow-200">
+        <Alert className="border-warning/50 bg-warning/10">
+          <FlaskConical className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-warning-foreground">
             <strong>🧪 Ambiente de Teste (V2)</strong> — alterações aqui não afetam o módulo "Comissões Parceiros" oficial.
             Dados, taxas e configurações são totalmente isolados.
           </AlertDescription>
@@ -51,7 +51,7 @@ export default function CommissionsV2() {
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold">Comissões Parceiros V2</h1>
-          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-warning/20 text-warning border border-warning/40">
             SANDBOX
           </span>
           <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
