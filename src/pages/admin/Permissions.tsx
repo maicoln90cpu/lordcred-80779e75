@@ -49,6 +49,10 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   bank_credentials: 'Credenciais de acesso aos bancos parceiros',
   partners: 'CRM de gestão de parceiros comerciais',
   contract_template: 'Template global de contratos de parceiros',
+  broadcasts: 'Disparos em massa de mensagens WhatsApp',
+  commissions_v2: 'Comissões de parceiros (versão 2 — sandbox)',
+  v8_simulador: 'Simulador V8 CLT para cálculo de propostas',
+  integrations: 'Configurações de integrações WhatsApp (UazAPI / Meta)',
 };
 
 interface FeaturePermission {
