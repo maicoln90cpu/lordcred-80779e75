@@ -1,6 +1,6 @@
 # LordCred — Database Schema
 
-> 47+ tabelas PostgreSQL com RLS habilitado em todas. Organizado por domínio.
+> 50+ tabelas PostgreSQL com RLS habilitado em todas. Organizado por domínio.
 
 ---
 
@@ -158,5 +158,19 @@ Documentação completa do V2: [COMMISSIONS-V2.md](./COMMISSIONS-V2.md).
 | `meta_webhook_verify_token` | text | Token de verificação inventado pelo admin |
 
 Editáveis via tela **Admin → Integrações → Meta WhatsApp**. Edge functions priorizam banco e caem em `Deno.env` se vazio. Detalhes em [META-WHATSAPP-SETUP.md](./META-WHATSAPP-SETUP.md).
+
+---
+
+## Simulador V8 CLT (Crédito do Trabalhador)
+
+| Tabela | Descrição | Colunas-chave |
+|---|---|---|
+| `v8_configs_cache` | Cache de tabelas/produtos retornados pela V8 | id, config_key, config_label, raw_data, synced_at |
+| `v8_simulations` | Simulações individuais persistidas | id, batch_id, cpf, table_id, released_value, installments, installment_value, company_margin, amount_to_charge, status, raw_response (JSONB), created_by |
+| `v8_batches` | Lotes de simulação em massa | id, name, total_cpfs, processed_count, success_count, failed_count, status, created_by |
+
+- Edge function: `v8-clt-api` (cache OAuth 24h + 3 workers paralelos).
+- RLS: vendedor vê apenas seus lotes/simulações; gestor (privileged) vê tudo.
+- Realtime habilitado em `v8_batches` e `v8_simulations` para progresso ao vivo.
 
 📅 Atualizado em: 2026-04-23

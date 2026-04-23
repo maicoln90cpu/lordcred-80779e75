@@ -65,8 +65,11 @@ Tabela `user_roles` (NUNCA em profiles ou localStorage). Funções SECURITY DEFI
 9. Edge functions retornam `200 {success:false, fallback:true}` em erros.
 10. Funções que acessam roles → SECURITY DEFINER.
 
-## Edge Functions (18)
-warming-engine, queue-processor, evolution-webhook (UazAPI), uazapi-api, whatsapp-gateway (Meta), meta-webhook, instance-maintenance, chip-health-check, sync-history, create-user, delete-user, update-user-role, corban-api, corban-status-sync, corban-snapshot-cron, clicksign-api, clicksign-webhook, broadcast-sender. Catálogo: `docs/EDGE-FUNCTIONS.md`.
+## Edge Functions (19)
+warming-engine, queue-processor, evolution-webhook (UazAPI), uazapi-api, whatsapp-gateway (Meta), meta-webhook, instance-maintenance, chip-health-check, sync-history, create-user, delete-user, update-user-role, corban-api, corban-status-sync, corban-snapshot-cron, clicksign-api, clicksign-webhook, broadcast-sender, v8-clt-api. Catálogo: `docs/EDGE-FUNCTIONS.md`.
+
+## Simulador V8 CLT (`/admin/v8-simulador`)
+Integração com V8 Digital (Crédito do Trabalhador). 3 tabelas: `v8_configs_cache`, `v8_simulations`, `v8_batches`. Edge `v8-clt-api` com cache OAuth (24h), fluxo 3-passos (Consult → Authorize → Simulate), 3 workers paralelos e Realtime de progresso. Secrets: `V8_CLIENT_ID`, `V8_USERNAME`, `V8_PASSWORD`, `V8_AUDIENCE`. RLS: vendedor vê só os próprios; privilegiados veem tudo.
 
 ## Tabelas (47+, RLS em todas)
 **Core**: chips, message_queue, message_history, message_templates, message_shortcuts, system_settings, external_numbers.

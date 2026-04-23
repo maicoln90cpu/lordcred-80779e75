@@ -5,6 +5,21 @@
 
 ---
 
+## [2.2.0] — 2026-04-23
+
+### Added
+- **Módulo Simulador V8 CLT** (`/admin/v8-simulador`) — integração com a V8 Digital (Crédito do Trabalhador) para simulações em lote.
+- 3 novas tabelas: `v8_configs_cache`, `v8_simulations`, `v8_batches` (RLS por vendedor + privilegiados).
+- Edge function `v8-clt-api` (totalizando **19 edge functions**) com cache de token OAuth (24h, refresh 5min antes), fluxo 3-passos (Consult → Authorize → Simulate), processamento paralelo (3 workers) e progresso via Realtime.
+- 4 novos secrets: `V8_CLIENT_ID`, `V8_USERNAME`, `V8_PASSWORD`, `V8_AUDIENCE`.
+- Frontend modular: `pages/admin/V8Simulador.tsx`, `components/v8/*`, `hooks/useV8Configs`, `hooks/useV8Batches`, `lib/v8Parser.ts` (parser TSV/CSV de CPFs).
+- Item "Simulador V8 CLT" no grupo Financeiro da sidebar.
+
+### Notes
+- Banner "🧪 Integração em validação" exibido na tela enquanto o módulo é testado com dados reais.
+
+---
+
 ## [2.1.0] — 2026-04-23
 
 ### Added
@@ -80,5 +95,5 @@
 
 ---
 
-📅 **Atualizado em:** 2026-04-23
+📅 **Atualizado em:** 2026-04-23 (v2.2.0 — Simulador V8 CLT)
 🔄 **Atualizar quando:** lançar nova versão minor/major, adicionar/remover edge function, alterar schema.
