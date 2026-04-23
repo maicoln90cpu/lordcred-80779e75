@@ -1,81 +1,109 @@
 
 
-# Plano: Corrigir Erro de Contrato + Filtro Ativo/Inativo em Usuários
+# Plano: Editar Secrets do Meta no Frontend + Manual Leigo
 
----
+## Problema atual
 
-## PROBLEMA 1: Erro ao gerar contrato
+Hoje os 4 secrets do Meta (`META_ACCESS_TOKEN`, `META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_WEBHOOK_SECRET`) estão **fixos no Supabase Secrets** e não podem ser editados pela interface. Você começou a usar uma conta nova e o sistema continua usando a antiga.
 
-**O que acontece**: Ao salvar dados do parceiro na aba "Representante Legal", o sistema tenta gravar campos como `endereco_rep_bairro`, `endereco_rep_rua`, `endereco_rep_numero`, etc. na tabela `partners`, mas **essas colunas não existem no banco de dados**.
+Hoje a tela `/admin/integrations` (componente `MetaConfigCard.tsx`) só edita 3 campos salvos na tabela `system_settings`:
+- `meta_app_id`
+- `meta_access_token`
+- `meta_verify_token`
 
-O código em `PartnerDetail.tsx` usa esses campos no formulário e tenta fazer `supabase.from('partners').update(updates)` com todos os campos — incluindo os que não existem. O Supabase retorna o erro: *"Could not find the 'endereco_rep_bairro' column"*.
+E mesmo esses 3 **não estão sendo lidos pelas Edge Functions** — elas usam os secrets antigos.
 
-**Colunas que faltam na tabela `partners`** (8 colunas do endereço do Representante Legal + 1 CEP PJ):
+## O que será feito
+
+### 1) Adicionar 2 campos novos na tela `/admin/integrations`
+
+No card "Credenciais Meta" (`MetaConfigCard.tsx`), adicionar:
+- **App Secret** (campo password) — `meta_app_secret`
+- **Webhook Secret** (campo password) — `meta_webhook_secret`
+
+Total: 5 campos editáveis (App ID, Access Token, Verify Token, App Secret, Webhook Secret).
+
+### 2) Salvar os 2 novos campos em `system_settings`
+
+Migration: adicionar colunas `meta_app_secret` e `meta_webhook_secret` na tabela `system_settings` (text, nullable). Apenas Admins/Master poderão ler/editar (RLS já existe).
+
+### 3) Fazer as Edge Functions priorizarem o banco antes do secret
+
+Alterar `meta-webhook/index.ts` e `whatsapp-gateway/index.ts` para a seguinte ordem de leitura:
 
 ```text
-endereco_rep_rua       (text)
-endereco_rep_numero    (text)
-endereco_rep_complemento (text)
-endereco_rep_bairro    (text)
-endereco_rep_municipio (text)
-endereco_rep_uf        (text)
-endereco_rep_cep       (text)
+1. Tenta ler de system_settings (banco)
+2. Se vazio → cai no Deno.env.get() (secret)
 ```
 
-**Solução**: Criar migração SQL adicionando as 7 colunas faltantes à tabela `partners`.
+Assim você pode trocar credenciais pelo painel sem redeploy. Quando quiser voltar ao modo "produção segura", basta apagar os campos do banco — o sistema volta a usar os secrets automaticamente.
 
----
+### 4) Adicionar componente "Manual Passo a Passo" abaixo do card
 
-## PROBLEMA 2: Filtro Ativo/Inativo em Usuários
+Criar `MetaCredentialsGuide.tsx` — um accordion com 5 cartões, um para cada campo, explicando em linguagem leiga onde achar cada credencial. Resumo:
 
-**Como está hoje**: A tabela já tem o campo `is_blocked` e mostra "Ativo" ou "Bloqueado" por usuário, mas **não existe filtro** para mostrar apenas ativos ou inativos. Todos aparecem misturados.
+| Campo | Onde achar (resumo do guia) |
+|---|---|
+| **App ID** | Meta for Developers → Meus Apps → seu app → cabeçalho mostra "ID do App: 123456..." |
+| **Access Token** | Meta Business Suite → Configurações → Usuários do Sistema → criar usuário admin → "Gerar Token" → marcar `whatsapp_business_messaging` + `whatsapp_business_management` → escolher "Sem expiração" |
+| **Verify Token** | É inventado por você (qualquer texto, ex: `lordcred2026`). Cole o MESMO texto aqui e no Meta Webhook |
+| **App Secret** | Meta for Developers → seu app → Configurações → Básico → campo "Chave secreta do app" → clique em "Mostrar" |
+| **Webhook Secret** | Opcional. Usado para validar assinatura HMAC dos webhooks. Se não preencher, o sistema aceita sem validar (menos seguro, mas funciona) |
 
-**Como ficará**:
+Cada cartão terá:
+- 🎯 Para que serve (1 frase)
+- 📍 Caminho exato no painel Meta (passos numerados)
+- 🖼️ Dica visual ("o campo aparece no canto superior direito…")
+- ⚠️ Erros comuns ("se aparecer EAAB... é token de teste, dura 24h")
+- 🔗 Link direto para a página do Meta
+
+## Arquitetura final
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Gerenciar Usuários                      [Ativos ▼] [+ Novo]│
-│                                                             │
-│  Opções do filtro:                                          │
-│  • Ativos (padrão ao abrir)                                 │
-│  • Inativos (bloqueados)                                    │
-│  • Todos                                                    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────┐
+│ Tela /admin/integrations         │
+│  ├─ MetaConfigCard (5 campos)   │
+│  ├─ MetaCredentialsGuide (novo)  │
+│  └─ MetaSetupGuide (existente)   │
+└──────────────────────────────────┘
+              ↓ salva em
+┌──────────────────────────────────┐
+│ system_settings (banco)          │
+│  meta_app_id, meta_access_token, │
+│  meta_verify_token,              │
+│  meta_app_secret (novo),         │
+│  meta_webhook_secret (novo)      │
+└──────────────────────────────────┘
+              ↓ lido por
+┌──────────────────────────────────┐
+│ Edge Functions                   │
+│  1º tenta banco                  │
+│  2º cai em Deno.env (secret)     │
+└──────────────────────────────────┘
 ```
 
----
+## Vantagens
+- Troca de conta Meta sem precisar mexer em secrets ou redeploy
+- Cada credencial vem com manual leigo embutido
+- Funciona como "modo configuração": preencheu no banco → usa banco; deixou vazio → usa secret de produção
 
-## IMPLEMENTAÇÃO EM 2 ETAPAS
+## Desvantagens / Riscos
+- **Segurança**: tokens ficam no banco (mas só Admin/Master enxerga via RLS já existente)
+- **Atenção**: se preencher campo errado no banco, sobrescreve o secret. Para voltar ao secret, precisa apagar o campo (botão "Limpar" será adicionado em cada campo)
 
-### Etapa 1 — Migração SQL (colunas do Representante Legal)
+## Checklist manual (após implementação)
+1. Abrir `/admin/integrations` → ver os 5 campos
+2. Expandir o accordion "Manual Passo a Passo" → ler instruções de cada campo
+3. Colar credenciais da nova conta Meta → Salvar
+4. Clicar "Testar Conexão" → ver Conectado ✅
+5. Cadastrar chip Meta novo → validar Phone Number ID
+6. Mandar mensagem teste
 
-Criar migração com:
-```sql
-ALTER TABLE public.partners
-  ADD COLUMN IF NOT EXISTS endereco_rep_rua text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_numero text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_complemento text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_bairro text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_municipio text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_uf text,
-  ADD COLUMN IF NOT EXISTS endereco_rep_cep text;
-```
+## Pendências
+- Após tudo funcionar, você decide: deixar no banco (prático) ou limpar campos e voltar a usar secrets (mais seguro)
+- Futuramente: adicionar botão "Mover para Secrets" que limpa o banco e atualiza o secret automaticamente
 
-**Risco**: Zero — são colunas opcionais (nullable) adicionadas sem alterar dados existentes.
-
-### Etapa 2 — Filtro Ativo/Inativo na página de Usuários
-
-**Arquivos editados**: `src/pages/admin/Users.tsx` + `src/components/admin/UsersTable.tsx`
-
-1. **Users.tsx**: Adicionar estado `statusFilter` com valor padrão `'active'`. Filtrar `users` antes de passar ao `UsersTable`:
-   - `active` → `!is_blocked`
-   - `blocked` → `is_blocked`
-   - `all` → sem filtro
-
-2. **UsersTable.tsx**: Receber prop `statusFilter` + `onStatusFilterChange`. Renderizar um `<Select>` ao lado do título do card com opções "Ativos", "Inativos" e "Todos".
-
-**Vantagens**:
-- Administrador vê apenas quem está ativo por padrão (menos poluição visual)
-- Pode alternar para ver bloqueados quando precisar
-- Usa o campo `is_blocked` já existente — sem necessidade de nova coluna
+## Prevenção de regressão
+- Mensagem de aviso amarela no topo do card: "⚠️ Modo Configuração: credenciais salvas no banco têm prioridade sobre os secrets de produção. Limpe os campos para voltar aos secrets."
+- Cada campo terá indicador visual (🟢 vindo do banco / 🔵 vindo do secret) para você saber a origem em uso
 
