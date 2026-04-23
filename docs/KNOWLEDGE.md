@@ -52,6 +52,18 @@ Tabela `user_roles` (NUNCA em profiles ou localStorage). Funções SECURITY DEFI
 - Hook `useFeaturePermissions` (cache 5min + realtime).
 - Master e admin sempre liberados; manager liberado exceto `permissions`.
 - Sem config = aberto a todos.
+- **Grupos espelham o sidebar** (`DashboardLayout.tsx`): Aquecimento, Comunicação, Corban, CRM, Equipe, Ferramentas, Financeiro, Integrações, Operações, Sistema.
+- **Feature keys ativas (~37)**:
+  - *Aquecimento*: `settings_warming`, `dashboard`, `chips`, `warming_reports`
+  - *Comunicação*: `internal_chat`, `tickets`
+  - *Corban*: `corban_dashboard`, `corban_propostas`, `corban_fgts`, `corban_assets`, `corban_config`, `seller_propostas`, `seller_fgts`
+  - *CRM*: `whatsapp`
+  - *Equipe*: `users`, `leads`, `kanban`, `performance`, `product_info`
+  - *Ferramentas*: `remote_assistance`, `links`, `audit_logs`, `permissions`
+  - *Financeiro*: `commissions`, `commissions_v2`, `commission_reports`, `partners`, `bank_credentials`, `contract_template`, `v8_simulador`
+  - *Integrações*: `integrations`
+  - *Operações*: `broadcasts`, `queue`, `chip_monitor`, `quick_replies`, `templates`, `webhooks`
+  - *Sistema*: `master_admin`
 
 ## Convenções obrigatórias
 1. Cores: SEMPRE tokens HSL semânticos. Nunca hardcoded.

@@ -5,7 +5,26 @@
 
 ---
 
+## [2.3.0] — 2026-04-23
+
+### Added
+- **4 novas feature keys** sincronizadas em `feature_permissions` e `master_feature_toggles`: `broadcasts`, `commissions_v2`, `v8_simulador`, `integrations`.
+- Tooltips descritivos para os 4 novos módulos em `/admin/permissions`.
+
+### Changed
+- **Reagrupamento de permissões/módulos** alinhado ao menu lateral:
+  - `v8_simulador`, `bank_credentials`, `contract_template` → **Financeiro**
+  - `webhooks` → **Operações**
+  - `audit_logs`, `permissions` → **Ferramentas**
+  - `users` → **Equipe**
+  - `integrations` → **Administração**
+- **`/whatsapp` botão "+"**: agora abre `ChipConnectDialog` direto para todos os perfis (Master, Admin, Gerente, Suporte, Vendedor) em vez de redirecionar Master/Admin/Gerente/Suporte para `/chips`.
+- Rótulos padronizados entre `feature_permissions` e `master_feature_toggles`.
+
+---
+
 ## [2.2.0] — 2026-04-23
+
 
 ### Added
 - **Módulo Simulador V8 CLT** (`/admin/v8-simulador`) — integração com a V8 Digital (Crédito do Trabalhador) para simulações em lote.
