@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { Plus, Smartphone, WifiOff, Loader2, ChevronDown, Settings, QrCode, Trash2, RefreshCw, History, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,9 +68,8 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [chipToRename, setChipToRename] = useState<Chip | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const { user, isSeller } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   const fetchChips = async () => {
     if (!user) return;
@@ -112,12 +111,8 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
   }, [user, refreshTrigger]);
 
   const handleAddChip = () => {
-    if (isSeller) {
-      setReconnectInstanceName(null);
-      setConnectDialogOpen(true);
-    } else {
-      navigate('/chips');
-    }
+    setReconnectInstanceName(null);
+    setConnectDialogOpen(true);
   };
 
   const handleReconnectChip = (chip: Chip) => {
