@@ -1,6 +1,6 @@
 # LordCred — Edge Functions Catalog
 
-> 18 Edge Functions (Deno runtime). Todas com `verify_jwt = false` no config.toml.
+> 19 Edge Functions (Deno runtime). Todas com `verify_jwt = false` no config.toml.
 > Autenticação validada internamente via Supabase service role key ou JWT manual.
 
 ---
