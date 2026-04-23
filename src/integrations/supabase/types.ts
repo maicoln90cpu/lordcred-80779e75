@@ -3302,6 +3302,222 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_batches: {
+        Row: {
+          completed_at: string | null
+          config_id: string | null
+          config_name: string | null
+          created_at: string
+          created_by: string
+          failure_count: number
+          id: string
+          installments: number | null
+          name: string
+          pending_count: number
+          status: string
+          success_count: number
+          total_count: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          config_id?: string | null
+          config_name?: string | null
+          created_at?: string
+          created_by: string
+          failure_count?: number
+          id?: string
+          installments?: number | null
+          name: string
+          pending_count?: number
+          status?: string
+          success_count?: number
+          total_count?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          config_id?: string | null
+          config_name?: string | null
+          created_at?: string
+          created_by?: string
+          failure_count?: number
+          id?: string
+          installments?: number | null
+          name?: string
+          pending_count?: number
+          status?: string
+          success_count?: number
+          total_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      v8_configs_cache: {
+        Row: {
+          bank_name: string | null
+          config_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          max_term: number | null
+          max_value: number | null
+          min_term: number | null
+          min_value: number | null
+          name: string
+          product_type: string | null
+          raw_data: Json | null
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          bank_name?: string | null
+          config_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_term?: number | null
+          max_value?: number | null
+          min_term?: number | null
+          min_value?: number | null
+          name: string
+          product_type?: string | null
+          raw_data?: Json | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          bank_name?: string | null
+          config_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_term?: number | null
+          max_value?: number | null
+          min_term?: number | null
+          min_value?: number | null
+          name?: string
+          product_type?: string | null
+          raw_data?: Json | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      v8_margin_config: {
+        Row: {
+          created_at: string
+          id: string
+          margin_percent: number
+          notes: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          margin_percent?: number
+          notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          margin_percent?: number
+          notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      v8_simulations: {
+        Row: {
+          amount_to_charge: number | null
+          batch_id: string
+          birth_date: string | null
+          company_margin: number | null
+          config_id: string | null
+          config_name: string | null
+          cpf: string
+          created_at: string
+          created_by: string
+          error_message: string | null
+          id: string
+          installment_value: number | null
+          installments: number | null
+          interest_rate: number | null
+          name: string | null
+          processed_at: string | null
+          raw_response: Json | null
+          released_value: number | null
+          status: string
+          total_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount_to_charge?: number | null
+          batch_id: string
+          birth_date?: string | null
+          company_margin?: number | null
+          config_id?: string | null
+          config_name?: string | null
+          cpf: string
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          id?: string
+          installment_value?: number | null
+          installments?: number | null
+          interest_rate?: number | null
+          name?: string | null
+          processed_at?: string | null
+          raw_response?: Json | null
+          released_value?: number | null
+          status?: string
+          total_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount_to_charge?: number | null
+          batch_id?: string
+          birth_date?: string | null
+          company_margin?: number | null
+          config_id?: string | null
+          config_name?: string | null
+          cpf?: string
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          id?: string
+          installment_value?: number | null
+          installments?: number | null
+          interest_rate?: number | null
+          name?: string | null
+          processed_at?: string | null
+          raw_response?: Json | null
+          released_value?: number | null
+          status?: string
+          total_value?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v8_simulations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batch_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v8_simulations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warming_messages: {
         Row: {
           content: string
@@ -3453,7 +3669,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v8_batch_summary: {
+        Row: {
+          avg_released: number | null
+          completed_at: string | null
+          config_name: string | null
+          created_at: string | null
+          created_by: string | null
+          failure_count: number | null
+          id: string | null
+          installments: number | null
+          name: string | null
+          pending_count: number | null
+          status: string | null
+          success_count: number | null
+          success_rate: number | null
+          total_count: number | null
+          total_margin: number | null
+          total_released: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       auto_match_corban_sellers: { Args: never; Returns: Json }
@@ -3568,6 +3804,14 @@ export type Database = {
       }
       update_own_profile: {
         Args: { _avatar_url?: string; _name?: string }
+        Returns: undefined
+      }
+      v8_increment_batch_failure: {
+        Args: { _batch_id: string }
+        Returns: undefined
+      }
+      v8_increment_batch_success: {
+        Args: { _batch_id: string }
         Returns: undefined
       }
     }
