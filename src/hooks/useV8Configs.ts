@@ -4,9 +4,16 @@ import { toast } from 'sonner';
 
 export interface V8Config {
   id: string;
-  v8_config_id: string;
-  label: string;
-  raw: any;
+  config_id: string;
+  name: string;
+  bank_name: string | null;
+  product_type: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  min_term: number | null;
+  max_term: number | null;
+  is_active: boolean;
+  raw_data: any;
   synced_at: string;
 }
 
@@ -20,8 +27,9 @@ export function useV8Configs() {
     const { data, error } = await supabase
       .from('v8_configs_cache')
       .select('*')
-      .order('label', { ascending: true });
-    if (!error && data) setConfigs(data as V8Config[]);
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+    if (!error && data) setConfigs(data as unknown as V8Config[]);
     setLoading(false);
   }, []);
 

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
 
@@ -25,19 +24,18 @@ function BatchDetail({ batchId }: { batchId: string }) {
           {simulations.map((s) => (
             <tr key={s.id} className="border-t">
               <td className="px-2 py-1 font-mono">{s.cpf}</td>
-              <td className="px-2 py-1">{s.nome || '—'}</td>
+              <td className="px-2 py-1">{s.name || '—'}</td>
               <td className="px-2 py-1">
                 <Badge
                   variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
-                  className={s.status === 'success' ? 'bg-green-600' : ''}
                 >
                   {s.status}
                 </Badge>
               </td>
-              <td className="px-2 py-1 text-right">{s.valor_liberado != null ? `R$ ${s.valor_liberado.toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.valor_parcela != null ? `R$ ${s.valor_parcela.toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.margem_empresa != null ? `R$ ${s.margem_empresa.toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.valor_a_cobrar != null ? `R$ ${s.valor_a_cobrar.toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -75,10 +73,10 @@ export default function V8HistoricoTab() {
                   <div className="flex-1">
                     <div className="font-medium text-sm">{b.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {b.config_label || b.config_id} • {b.parcelas}x • {new Date(b.created_at).toLocaleString('pt-BR')}
+                      {b.config_name || b.config_id} • {b.installments}x • {new Date(b.created_at).toLocaleString('pt-BR')}
                     </div>
                   </div>
-                  <Badge variant={b.status === 'completed' ? 'default' : 'secondary'} className={b.status === 'completed' ? 'bg-green-600' : ''}>
+                  <Badge variant={b.status === 'completed' ? 'default' : 'secondary'}>
                     {b.status}
                   </Badge>
                   <Badge variant="outline">{b.success_count}/{b.total_count} ok</Badge>

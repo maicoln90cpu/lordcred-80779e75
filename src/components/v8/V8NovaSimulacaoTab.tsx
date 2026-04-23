@@ -50,7 +50,7 @@ export default function V8NovaSimulacaoTab() {
     }
 
     setRunning(true);
-    const cfgLabel = configs.find((c) => c.v8_config_id === configId)?.label;
+    const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
 
     try {
       const { data, error } = await supabase.functions.invoke('v8-clt-api', {
@@ -72,16 +72,14 @@ export default function V8NovaSimulacaoTab() {
       setActiveBatchId(batchId);
       toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando...`);
 
-      // Buscar IDs das simulações criadas
       const { data: sims } = await supabase
         .from('v8_simulations')
-        .select('id, cpf, nome, data_nascimento')
+        .select('id, cpf, name, birth_date')
         .eq('batch_id', batchId)
         .order('created_at', { ascending: true });
 
       if (!sims) throw new Error('Falha ao carregar simulações');
 
-      // Disparar simulações em paralelo (concorrência limitada)
       let idx = 0;
       const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
         while (idx < sims.length) {
@@ -93,8 +91,8 @@ export default function V8NovaSimulacaoTab() {
                 action: 'simulate_one',
                 params: {
                   cpf: sim.cpf,
-                  nome: sim.nome,
-                  data_nascimento: sim.data_nascimento,
+                  nome: sim.name,
+                  data_nascimento: sim.birth_date,
                   config_id: configId,
                   parcelas,
                   batch_id: batchId,
@@ -150,8 +148,8 @@ export default function V8NovaSimulacaoTab() {
                     </SelectItem>
                   )}
                   {configs.map((c) => (
-                    <SelectItem key={c.v8_config_id} value={c.v8_config_id}>
-                      {c.label}
+                    <SelectItem key={c.config_id} value={c.config_id}>
+                      {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -213,7 +211,7 @@ export default function V8NovaSimulacaoTab() {
             <div className="flex justify-between text-sm">
               <span>{done} / {total} ({pct}%)</span>
               <div className="flex gap-2">
-                <Badge variant="default" className="bg-green-600">{success} ok</Badge>
+                <Badge variant="default">{success} ok</Badge>
                 <Badge variant="destructive">{failed} falha</Badge>
               </div>
             </div>
@@ -237,15 +235,14 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1">
                         <Badge
                           variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
-                          className={s.status === 'success' ? 'bg-green-600' : ''}
                         >
                           {s.status}
                         </Badge>
                       </td>
-                      <td className="px-2 py-1 text-right">{s.valor_liberado != null ? `R$ ${s.valor_liberado.toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 text-right">{s.valor_parcela != null ? `R$ ${s.valor_parcela.toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 text-right">{s.margem_empresa != null ? `R$ ${s.margem_empresa.toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 text-right">{s.valor_a_cobrar != null ? `R$ ${s.valor_a_cobrar.toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
