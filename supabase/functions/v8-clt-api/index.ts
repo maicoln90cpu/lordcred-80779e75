@@ -11,24 +11,18 @@ const corsHeaders = {
 const V8_BASE = "https://bff.v8sistema.com";
 const V8_AUTH = "https://auth.v8sistema.com";
 
-// ============ Token cache (in-memory) ============
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getV8Token(): Promise<string> {
   const now = Date.now();
-  if (cachedToken && cachedToken.expiresAt > now + 5 * 60 * 1000) {
-    return cachedToken.token;
-  }
+  if (cachedToken && cachedToken.expiresAt > now + 5 * 60 * 1000) return cachedToken.token;
 
   const clientId = Deno.env.get("V8_CLIENT_ID");
   const username = Deno.env.get("V8_USERNAME");
   const password = Deno.env.get("V8_PASSWORD");
   const audience = Deno.env.get("V8_AUDIENCE");
-
   if (!clientId || !username || !password || !audience) {
-    throw new Error(
-      "V8 credentials missing. Configure V8_CLIENT_ID / V8_USERNAME / V8_PASSWORD / V8_AUDIENCE"
-    );
+    throw new Error("V8 credentials missing");
   }
 
   const body = new URLSearchParams({
@@ -45,12 +39,10 @@ async function getV8Token(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
-
   if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`V8 auth failed: ${resp.status} - ${errText}`);
+    const err = await resp.text();
+    throw new Error(`V8 auth failed: ${resp.status} - ${err}`);
   }
-
   const json = await resp.json();
   const token = json.access_token as string;
   const expiresIn = (json.expires_in as number) || 86400;
@@ -58,15 +50,13 @@ async function getV8Token(): Promise<string> {
   return token;
 }
 
-async function v8Fetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function v8Fetch(path: string, init: RequestInit = {}) {
   const token = await getV8Token();
   const headers = new Headers(init.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
   headers.set("Content-Type", "application/json");
   return fetch(`${V8_BASE}${path}`, { ...init, headers });
 }
-
-// ============ Actions ============
 
 async function actionGetConfigs(supabase: any) {
   const resp = await v8Fetch("/products/clt/configs", { method: "GET" });
@@ -77,21 +67,28 @@ async function actionGetConfigs(supabase: any) {
   const data = await resp.json();
   const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
 
-  // Cache configs in DB
   if (Array.isArray(configs) && configs.length > 0) {
-    const rows = configs.map((c: any) => ({
-      v8_config_id: String(c.id ?? c.configId ?? c.code ?? ""),
-      label: String(c.name ?? c.label ?? c.description ?? "Sem nome"),
-      raw: c,
-      synced_at: new Date().toISOString(),
-    }));
-
-    // Upsert by v8_config_id
-    for (const row of rows) {
-      if (!row.v8_config_id) continue;
+    for (const c of configs) {
+      const config_id = String(c.id ?? c.configId ?? c.code ?? "");
+      if (!config_id) continue;
       await supabase
         .from("v8_configs_cache")
-        .upsert(row, { onConflict: "v8_config_id" });
+        .upsert(
+          {
+            config_id,
+            name: String(c.name ?? c.label ?? c.description ?? "Sem nome"),
+            bank_name: c.bank ?? c.bankName ?? null,
+            product_type: c.productType ?? c.product ?? "clt",
+            min_value: c.minValue ?? null,
+            max_value: c.maxValue ?? null,
+            min_term: c.minTerm ?? c.minInstallments ?? null,
+            max_term: c.maxTerm ?? c.maxInstallments ?? null,
+            is_active: true,
+            raw_data: c,
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: "config_id" }
+        );
     }
   }
 
@@ -101,24 +98,17 @@ async function actionGetConfigs(supabase: any) {
 interface SimulateInput {
   cpf: string;
   nome?: string;
-  data_nascimento?: string; // dd/mm/yyyy
+  data_nascimento?: string;
   config_id: string;
   parcelas: number;
   batch_id?: string;
   simulation_id?: string;
 }
 
-async function actionSimulateOne(
-  supabase: any,
-  input: SimulateInput,
-  userId: string
-) {
+async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
-  if (cpf.length !== 11) {
-    return { success: false, error: "CPF inválido" };
-  }
+  if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
 
-  // 1) Consult
   const consultBody = {
     document: cpf,
     name: input.nome ?? null,
@@ -129,7 +119,6 @@ async function actionSimulateOne(
     body: JSON.stringify(consultBody),
   });
   const consultJson = await consultResp.json().catch(() => ({}));
-
   if (!consultResp.ok) {
     return {
       success: false,
@@ -139,13 +128,11 @@ async function actionSimulateOne(
     };
   }
 
-  // 2) Authorize
   const authResp = await v8Fetch("/products/clt/authorize", {
     method: "POST",
     body: JSON.stringify({ document: cpf }),
   });
   const authJson = await authResp.json().catch(() => ({}));
-
   if (!authResp.ok) {
     return {
       success: false,
@@ -155,18 +142,15 @@ async function actionSimulateOne(
     };
   }
 
-  // 3) Simulate
-  const simBody = {
-    document: cpf,
-    configId: input.config_id,
-    installments: input.parcelas,
-  };
   const simResp = await v8Fetch("/products/clt/simulate", {
     method: "POST",
-    body: JSON.stringify(simBody),
+    body: JSON.stringify({
+      document: cpf,
+      configId: input.config_id,
+      installments: input.parcelas,
+    }),
   });
   const simJson = await simResp.json().catch(() => ({}));
-
   if (!simResp.ok) {
     return {
       success: false,
@@ -176,36 +160,38 @@ async function actionSimulateOne(
     };
   }
 
-  // Extract values from sim response (best-effort, store raw for audit)
   const result = simJson?.data ?? simJson;
-  const valor_liberado =
-    Number(result?.netAmount ?? result?.releasedValue ?? result?.valorLiberado ?? 0);
-  const valor_parcela =
-    Number(result?.installmentAmount ?? result?.parcelValue ?? result?.valorParcela ?? 0);
-  const taxa_juros =
-    Number(result?.interestRate ?? result?.rate ?? result?.taxa ?? 0);
-  const valor_total =
-    Number(result?.totalAmount ?? result?.valorTotal ?? valor_parcela * input.parcelas);
+  const released_value = Number(
+    result?.netAmount ?? result?.releasedValue ?? result?.valorLiberado ?? 0
+  );
+  const installment_value = Number(
+    result?.installmentAmount ?? result?.parcelValue ?? result?.valorParcela ?? 0
+  );
+  const interest_rate = Number(
+    result?.interestRate ?? result?.rate ?? result?.taxa ?? 0
+  );
+  const total_value = Number(
+    result?.totalAmount ?? result?.valorTotal ?? installment_value * input.parcelas
+  );
 
-  // Margem da empresa
   const { data: marginRow } = await supabase
     .from("v8_margin_config")
     .select("margin_percent")
     .limit(1)
     .maybeSingle();
   const marginPct = Number(marginRow?.margin_percent ?? 5);
-  const margem_empresa = Number((valor_liberado * marginPct / 100).toFixed(2));
-  const valor_a_cobrar = Number((valor_liberado - margem_empresa).toFixed(2));
+  const company_margin = Number(((released_value * marginPct) / 100).toFixed(2));
+  const amount_to_charge = Number((released_value - company_margin).toFixed(2));
 
   return {
     success: true,
     data: {
-      valor_liberado,
-      valor_parcela,
-      taxa_juros,
-      valor_total,
-      margem_empresa,
-      valor_a_cobrar,
+      released_value,
+      installment_value,
+      interest_rate,
+      total_value,
+      company_margin,
+      amount_to_charge,
       raw_response: { consult: consultJson, authorize: authJson, simulate: simJson },
     },
   };
@@ -225,9 +211,7 @@ async function actionCreateBatch(
   const validRows = (payload.rows || []).filter(
     (r) => (r.cpf || "").replace(/\D/g, "").length === 11
   );
-  if (validRows.length === 0) {
-    return { success: false, error: "Nenhum CPF válido" };
-  }
+  if (validRows.length === 0) return { success: false, error: "Nenhum CPF válido" };
 
   const { data: batch, error: batchErr } = await supabase
     .from("v8_batches")
@@ -235,24 +219,22 @@ async function actionCreateBatch(
       name: payload.name,
       created_by: userId,
       config_id: payload.config_id,
-      config_label: payload.config_label ?? null,
-      parcelas: payload.parcelas,
+      config_name: payload.config_label ?? null,
+      installments: payload.parcelas,
       total_count: validRows.length,
       pending_count: validRows.length,
       status: "processing",
-      started_at: new Date().toISOString(),
     })
     .select()
     .single();
-
   if (batchErr) return { success: false, error: batchErr.message };
 
   const sims = validRows.map((r) => ({
     batch_id: batch.id,
     created_by: userId,
     cpf: r.cpf.replace(/\D/g, ""),
-    nome: r.nome ?? null,
-    data_nascimento: r.data_nascimento ?? null,
+    name: r.nome ?? null,
+    birth_date: r.data_nascimento ?? null,
     status: "pending",
   }));
 
@@ -274,12 +256,8 @@ async function actionListBatches(supabase: any, userId: string, isPriv: boolean)
   return { success: true, data };
 }
 
-// ============ Server ============
-
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -310,7 +288,6 @@ serve(async (req) => {
     }
     const userId = claimsData.claims.sub as string;
 
-    // Check privilege
     const { data: privData } = await supabase.rpc("is_privileged", { _user_id: userId });
     const isPriv = !!privData;
 
@@ -323,8 +300,7 @@ serve(async (req) => {
         result = await actionGetConfigs(supabase);
         break;
       case "simulate_one":
-        result = await actionSimulateOne(supabase, params, userId);
-        // Persist result if linked to a simulation row
+        result = await actionSimulateOne(supabase, params);
         if (params?.simulation_id) {
           if (result.success) {
             await supabase
@@ -332,18 +308,18 @@ serve(async (req) => {
               .update({
                 status: "success",
                 config_id: params.config_id,
-                parcelas: params.parcelas,
-                valor_liberado: result.data.valor_liberado,
-                valor_parcela: result.data.valor_parcela,
-                taxa_juros: result.data.taxa_juros,
-                valor_total: result.data.valor_total,
-                margem_empresa: result.data.margem_empresa,
-                valor_a_cobrar: result.data.valor_a_cobrar,
-                raw_response: result.data.raw_response,
+                config_name: params.config_label ?? null,
+                installments: params.parcelas,
+                released_value: (result as any).data.released_value,
+                installment_value: (result as any).data.installment_value,
+                interest_rate: (result as any).data.interest_rate,
+                total_value: (result as any).data.total_value,
+                company_margin: (result as any).data.company_margin,
+                amount_to_charge: (result as any).data.amount_to_charge,
+                raw_response: (result as any).data.raw_response,
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
-
             if (params.batch_id) {
               await supabase.rpc("v8_increment_batch_success", {
                 _batch_id: params.batch_id,
@@ -359,7 +335,6 @@ serve(async (req) => {
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
-
             if (params.batch_id) {
               await supabase.rpc("v8_increment_batch_failure", {
                 _batch_id: params.batch_id,
@@ -386,10 +361,7 @@ serve(async (req) => {
     console.error("v8-clt-api error:", err);
     return new Response(
       JSON.stringify({ success: false, error: err?.message || String(err) }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
