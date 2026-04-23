@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const token = url.searchParams.get('hub.verify_token')
     const challenge = url.searchParams.get('hub.challenge')
 
-    // Get verify token from settings
+    // Get verify token from settings (DB priority, then env fallback)
     const { data: settings } = await adminClient
       .from('system_settings')
       .select('meta_verify_token')
@@ -59,8 +59,13 @@ Deno.serve(async (req) => {
     const rawBody = await req.text()
     const payload = JSON.parse(rawBody)
 
-    // Verify signature (if webhook secret is configured)
-    const webhookSecret = Deno.env.get('META_WEBHOOK_SECRET')
+    // Verify signature — DB priority, then env fallback
+    const { data: secretRow } = await adminClient
+      .from('system_settings')
+      .select('meta_webhook_secret')
+      .limit(1)
+      .maybeSingle()
+    const webhookSecret = (secretRow as any)?.meta_webhook_secret || Deno.env.get('META_WEBHOOK_SECRET')
     if (webhookSecret) {
       const signature = req.headers.get('x-hub-signature-256')
       if (signature) {
