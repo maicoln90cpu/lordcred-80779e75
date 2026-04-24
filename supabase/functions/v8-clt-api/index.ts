@@ -393,6 +393,13 @@ serve(async (req) => {
           userEmail,
           targetTable: "v8_configs_cache",
           details: {
+            request_payload: { action: "get_configs" },
+            response_payload: {
+              success: !!(result as any)?.success,
+              count: Array.isArray((result as any)?.data) ? (result as any).data.length : 0,
+              data: (result as any)?.data ?? null,
+              error: (result as any)?.error ?? null,
+            },
             count: Array.isArray((result as any)?.data) ? (result as any).data.length : 0,
             error: (result as any)?.error ?? null,
           },
@@ -409,6 +416,22 @@ serve(async (req) => {
           targetTable: "v8_simulations",
           targetId: params?.simulation_id ?? null,
           details: {
+            request_payload: {
+              action: "simulate_one",
+              cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+              nome: params?.nome ?? null,
+              config_id: params?.config_id ?? null,
+              config_label: params?.config_label ?? null,
+              parcelas: params?.parcelas ?? null,
+              batch_id: params?.batch_id ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              step: (result as any)?.step ?? null,
+              error: (result as any)?.error ?? null,
+              data: (result as any)?.data ?? null,
+              raw: (result as any)?.raw ?? null,
+            },
             cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
