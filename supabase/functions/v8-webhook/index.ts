@@ -127,7 +127,7 @@ serve(async (req) => {
   let processError: string | null = null;
   try {
     if (consultId) {
-      const internalStatus = mapV8StatusToInternal(v8Status);
+      const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
       const updates: Record<string, unknown> = {
         raw_response: payload,
         processed_at: new Date().toISOString(),
