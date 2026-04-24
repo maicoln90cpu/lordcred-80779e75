@@ -86,6 +86,8 @@ export default function V8NovaSimulacaoTab() {
           const myIdx = idx++;
           const sim = sims[myIdx];
           try {
+            // Recupera tokens extras (gênero/telefone) parseados na hora da colagem
+            const parsedRow = rows.find((r) => r.cpf === sim.cpf);
             await supabase.functions.invoke('v8-clt-api', {
               body: {
                 action: 'simulate_one',
@@ -93,6 +95,8 @@ export default function V8NovaSimulacaoTab() {
                   cpf: sim.cpf,
                   nome: sim.name,
                   data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
                   config_id: configId,
                   parcelas,
                   batch_id: batchId,
