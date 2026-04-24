@@ -190,13 +190,15 @@ export default function V8ConsultasTab() {
   async function handleReplayPending() {
     setReplaying(true);
     try {
+      // Limite 200 por clique para caber dentro do timeout de 150s da edge function.
+      // O usuário pode clicar várias vezes até zerar a fila.
       const { data, error } = await supabase.functions.invoke('v8-webhook', {
-        body: { action: 'replay_pending', limit: 500 },
+        body: { action: 'replay_pending', limit: 200 },
       });
       if (error) throw error;
       if (data?.ok) {
         toast.success(
-          `Reprocessados: ${data.success} sucesso, ${data.failed} sem ação. Total lido: ${data.total}.`,
+          `Reprocessados: ${data.success} sucesso, ${data.failed} sem ação. Total lido: ${data.total}. Clique de novo se ainda houver pendentes.`,
         );
       } else {
         toast.error(data?.error || 'Não foi possível reprocessar os webhooks pendentes.');
