@@ -147,13 +147,13 @@ function normalizeGender(input?: string): "male" | "female" {
   return "male";
 }
 
-/** Sanitiza telefone para apenas dígitos; retorna {areaCode, number} com fallback 11/999999999. */
-function normalizePhone(input?: string): { areaCode: string; number: string } {
+/** Sanitiza telefone para apenas dígitos; retorna {areaCode, phoneNumber} com fallback 11/999999999. */
+function normalizePhone(input?: string): { areaCode: string; phoneNumber: string } {
   const digits = (input || "").replace(/\D/g, "");
   if (digits.length >= 10) {
-    return { areaCode: digits.slice(0, 2), number: digits.slice(2) };
+    return { areaCode: digits.slice(0, 2), phoneNumber: digits.slice(2) };
   }
-  return { areaCode: "11", number: "999999999" };
+  return { areaCode: "11", phoneNumber: "999999999" };
 }
 
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
