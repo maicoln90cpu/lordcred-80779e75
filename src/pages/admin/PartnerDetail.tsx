@@ -264,7 +264,7 @@ export default function PartnerDetail() {
                 <CardHeader><CardTitle className="text-lg">📋 Captação</CardTitle></CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <PartnerSelectField label="Tipo de Captação" field="captacao_tipo" value={form.captacao_tipo} onChange={updateField} options={[{ value: 'indicacao', label: 'Indicação' }, { value: 'redes_sociais', label: 'Redes Sociais' }, { value: 'anuncio', label: 'Anúncio' }, { value: 'organico', label: 'Orgânico' }, { value: 'evento', label: 'Evento' }, { value: 'outro', label: 'Outro' }]} />
+                    <PartnerSelectField label="Tipo de Captação" field="captacao_tipo" value={form.captacao_tipo} onChange={updateField} options={CAPTACAO_TIPOS} />
                     <PartnerField label="Indicado por" field="indicado_por" value={form.indicado_por} onChange={updateField} placeholder="Quem indicou" />
                     <PartnerField label="Idade" field="idade" value={form.idade} onChange={updateField} placeholder="30" type="number" />
                   </div>
