@@ -26,6 +26,8 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const phonePending = hasPendingPhone(candidate);
+
   return (
     <div
       draggable
@@ -45,10 +47,10 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
           <h4 className="text-sm font-semibold text-foreground truncate leading-tight">
             {candidate.full_name}
           </h4>
-          {candidate.phone && (
+          {candidate.phone && !phonePending && (
             <div className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
               <Phone className="w-3 h-3" />
-              <span className="truncate">{formatPhone(candidate.phone)}</span>
+              <span className="truncate">{formatBrazilianPhone(candidate.phone)}</span>
             </div>
           )}
         </div>
@@ -70,6 +72,15 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
         {candidate.resume_url && (
           <Badge variant="secondary" className="text-[10px] py-0 h-5 gap-1">
             <FileText className="w-2.5 h-2.5" /> CV
+          </Badge>
+        )}
+        {phonePending && (
+          <Badge
+            variant="outline"
+            className="text-[10px] py-0 h-5 gap-1 border-amber-400/60 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+            title="Telefone ausente ou inválido — atualize antes de contatar"
+          >
+            <AlertTriangle className="w-2.5 h-2.5" /> Tel pendente
           </Badge>
         )}
       </div>
