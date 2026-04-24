@@ -13,6 +13,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
+import {
+  getV8ErrorHeadline,
+  getV8ErrorMeta,
+  getV8ErrorSecondary,
+  stringifyV8Payload,
+} from '@/lib/v8ErrorPresentation';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -398,7 +404,46 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 whitespace-pre-line">{s.error_message || (s.status === 'pending' ? 'Aguardando retorno da V8' : '—')}</td>
+                      <td className="px-2 py-1 align-top">
+                        {s.status === 'pending' ? (
+                          <span className="text-muted-foreground">Aguardando retorno da V8</span>
+                        ) : s.error_message || s.raw_response ? (
+                          <div className="space-y-1">
+                            <div className="whitespace-pre-line font-medium">
+                              {getV8ErrorHeadline(s.raw_response, s.error_message) || 'Falha sem detalhe retornado'}
+                            </div>
+                            {getV8ErrorSecondary(s.raw_response) && (
+                              <div className="whitespace-pre-line text-muted-foreground">
+                                {getV8ErrorSecondary(s.raw_response)}
+                              </div>
+                            )}
+                            {(getV8ErrorMeta(s.raw_response).step || getV8ErrorMeta(s.raw_response).kind) && (
+                              <div className="text-[11px] text-muted-foreground">
+                                {getV8ErrorMeta(s.raw_response).step ? `etapa: ${getV8ErrorMeta(s.raw_response).step}` : null}
+                                {getV8ErrorMeta(s.raw_response).step && getV8ErrorMeta(s.raw_response).kind ? ' • ' : null}
+                                {getV8ErrorMeta(s.raw_response).kind ? `tipo: ${getV8ErrorMeta(s.raw_response).kind}` : null}
+                              </div>
+                            )}
+                            {getV8ErrorMeta(s.raw_response).guidance && (
+                              <div className="whitespace-pre-line text-[11px] text-muted-foreground">
+                                {getV8ErrorMeta(s.raw_response).guidance}
+                              </div>
+                            )}
+                            {stringifyV8Payload(s.raw_response) && (
+                              <details className="rounded border border-border bg-muted/30 p-2">
+                                <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+                                  Ver payload bruto
+                                </summary>
+                                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
+                                  {stringifyV8Payload(s.raw_response)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
