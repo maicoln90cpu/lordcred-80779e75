@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
-import { analyzeV8Paste, parseV8Paste } from '@/lib/v8Parser';
+import { analyzeV8Paste } from '@/lib/v8Parser';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const MAX_CONCURRENCY = 3;
@@ -243,7 +243,7 @@ export default function V8NovaSimulacaoTab() {
               </p>
               <p>⚠️ <strong>CPF e data de nascimento são obrigatórios</strong> — a V8 rejeita simulação sem data.</p>
               <p className="pt-1 font-medium text-foreground">
-                {parseV8Paste(pasteText).length} CPFs válidos detectados
+                {pasteAnalysis.rows.length} CPFs válidos detectados
               </p>
               {invalidDateIssue && (
                 <p className="font-medium text-destructive">
