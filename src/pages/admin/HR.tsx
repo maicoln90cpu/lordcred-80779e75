@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserPlus, Users2, Settings as SettingsIcon } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
+import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
 import { useHRCandidates } from '@/hooks/useHRCandidates';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -40,9 +41,10 @@ export default function HR() {
           </TabsList>
 
           <TabsContent value="candidates">
-            <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-              <p className="text-sm">Aba do Kanban — implementada na Etapa 5.</p>
-            </div>
+            <HRCandidatesTab
+              onCandidateClick={(c) => console.log('Abrir candidato (Etapa 6):', c.id)}
+              onCreateClick={() => console.log('Criar candidato (Etapa 6)')}
+            />
           </TabsContent>
 
           <TabsContent value="partners">
