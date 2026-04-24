@@ -91,11 +91,39 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     if (bucket === 'hr-photos') {
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
-    } else {
-      const { data, error: urlErr } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 30);
-      if (urlErr) throw urlErr;
-      return data.signedUrl;
     }
+    // hr-resumes: salvamos APENAS o path. URL assinada é gerada sob demanda
+    // pelo componente ResumeLink (1h de validade), evitando links que expiram após 30 dias.
+    return path;
+  };
+
+  // Componente interno: gera URL assinada na hora de abrir o currículo
+  const ResumeLink = ({ path }: { path: string }) => {
+    const [opening, setOpening] = useState(false);
+    const open = async () => {
+      setOpening(true);
+      try {
+        const { data, error } = await supabase.storage
+          .from('hr-resumes')
+          .createSignedUrl(path, 60 * 60); // 1 hora
+        if (error) throw error;
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      } catch (err: any) {
+        toast({ title: 'Erro ao abrir currículo', description: err.message, variant: 'destructive' });
+      } finally {
+        setOpening(false);
+      }
+    };
+    return (
+      <button
+        onClick={open}
+        disabled={opening}
+        className="flex-1 flex items-center gap-2 text-sm text-primary hover:underline truncate text-left"
+      >
+        {opening ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
+        Ver currículo
+      </button>
+    );
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,10 +300,15 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
                 <Label className="text-xs">Currículo (PDF/DOC)</Label>
                 <div className="flex items-center gap-2">
                   {form.resume_url ? (
-                    <a href={form.resume_url} target="_blank" rel="noreferrer"
-                       className="flex-1 flex items-center gap-2 text-sm text-primary hover:underline truncate">
-                      <FileText className="w-4 h-4 shrink-0" /> Ver currículo
-                    </a>
+                    form.resume_url.startsWith('http') ? (
+                      // Legado: candidatos antigos têm URL assinada salva diretamente
+                      <a href={form.resume_url} target="_blank" rel="noreferrer"
+                         className="flex-1 flex items-center gap-2 text-sm text-primary hover:underline truncate">
+                        <FileText className="w-4 h-4 shrink-0" /> Ver currículo (legado)
+                      </a>
+                    ) : (
+                      <ResumeLink path={form.resume_url} />
+                    )
                   ) : (
                     <span className="flex-1 text-xs text-muted-foreground">Nenhum CV anexado</span>
                   )}
