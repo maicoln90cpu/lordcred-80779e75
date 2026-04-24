@@ -21,6 +21,17 @@ export interface V8OperationSummary {
   createdAt: string | null;
 }
 
+export interface V8ConsultSummary {
+  consultId: string;
+  status: string | null;
+  name: string | null;
+  documentNumber: string | null;
+  title: string | null;
+  detail: string | null;
+  createdAt: string | null;
+  raw: any;
+}
+
 export interface V8OperationDetail {
   id: string;
   status: string | null;
@@ -70,6 +81,7 @@ interface ListOperationsParams {
 
 export function useV8Operations() {
   const [operations, setOperations] = useState<V8OperationSummary[]>([]);
+  const [consults, setConsults] = useState<V8ConsultSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedOperation, setSelectedOperation] = useState<V8OperationDetail | null>(null);
@@ -120,13 +132,38 @@ export function useV8Operations() {
     }
   }, []);
 
+  const loadConsults = useCallback(async ({ startDate, endDate, limit = 200, page = 1, search = '' }: ListOperationsParams & { search?: string }) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: {
+          action: 'list_consults',
+          params: { startDate, endDate, limit, page, provider: 'QI', documentNumber: search, search },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.user_message || data?.title || data?.detail || data?.message || data?.error || 'Falha ao consultar consultas ativas');
+
+      setConsults(Array.isArray(data.data) ? (data.data as V8ConsultSummary[]) : []);
+      return { success: true, total: Array.isArray(data.data) ? data.data.length : 0 };
+    } catch (err: any) {
+      setConsults([]);
+      return { success: false, error: err?.message || String(err) };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     operations,
+    consults,
     loading,
     detailLoading,
     selectedOperation,
     setSelectedOperation,
     loadOperations,
+    loadConsults,
     loadOperationDetail,
   };
 }

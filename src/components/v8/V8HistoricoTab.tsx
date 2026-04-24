@@ -24,6 +24,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
             <th className="px-2 py-1 text-right">Parcela</th>
             <th className="px-2 py-1 text-right">Margem</th>
             <th className="px-2 py-1 text-right">A cobrar</th>
+            <th className="px-2 py-1 text-center">Tentativas</th>
             <th className="px-2 py-1 text-left">Motivo / payload</th>
           </tr>
         </thead>
@@ -43,6 +44,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
               <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
               <td className="px-2 py-1 align-top">
                 {s.error_message || s.raw_response ? (
                   <div className="space-y-1">

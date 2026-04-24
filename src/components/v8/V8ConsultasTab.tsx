@@ -94,11 +94,13 @@ export default function V8ConsultasTab() {
 
   const {
     operations,
+    consults,
     loading,
     detailLoading,
     selectedOperation,
     setSelectedOperation,
     loadOperations,
+    loadConsults,
     loadOperationDetail,
   } = useV8Operations();
 
@@ -124,6 +126,21 @@ export default function V8ConsultasTab() {
     });
   }, [operations, searchTerm]);
 
+  const filteredConsults = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+    if (!search) return consults;
+
+    const digits = search.replace(/\D/g, '');
+    return consults.filter((consult) => {
+      const name = String(consult.name || '').toLowerCase();
+      const cpf = String(consult.documentNumber || '').replace(/\D/g, '');
+      const title = String(consult.title || '').toLowerCase();
+      const detail = String(consult.detail || '').toLowerCase();
+
+      return name.includes(search) || title.includes(search) || detail.includes(search) || (digits.length > 0 && cpf.includes(digits));
+    });
+  }, [consults, searchTerm]);
+
   async function handleSearch() {
     if (startDate > endDate) {
       toast.error('A data inicial não pode ser maior que a data final');
@@ -137,12 +154,25 @@ export default function V8ConsultasTab() {
       page: 1,
     });
 
+    const consultResult = await loadConsults({
+      startDate: toRangeBoundary(startDate, 'start'),
+      endDate: toRangeBoundary(endDate, 'end'),
+      limit: 200,
+      page: 1,
+      search: searchTerm,
+    });
+
     if (!result.success) {
       toast.error(result.error || 'Não foi possível consultar as propostas');
       return;
     }
 
-    toast.success(`${result.total} proposta(s) carregada(s)`);
+    if (!consultResult.success) {
+      toast.error(consultResult.error || 'Não foi possível consultar consultas ativas');
+      return;
+    }
+
+    toast.success(`${result.total} proposta(s) e ${consultResult.total} consulta(s) carregada(s)`);
   }
 
   async function handleOpenDetails(operationId: string) {
@@ -223,6 +253,49 @@ export default function V8ConsultasTab() {
                         Ver detalhes
                       </Button>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Consultas ativas / já existentes fora das operações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[860px] text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Nome</th>
+                  <th className="px-3 py-2 text-left">CPF</th>
+                  <th className="px-3 py-2 text-left">Título</th>
+                  <th className="px-3 py-2 text-left">Detalhe</th>
+                  <th className="px-3 py-2 text-left">Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!loading && filteredConsults.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                      Nenhuma consulta ativa ou já existente encontrada para o período informado.
+                    </td>
+                  </tr>
+                )}
+                {filteredConsults.map((consult) => (
+                  <tr key={consult.consultId || `${consult.documentNumber}-${consult.createdAt}`} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      <Badge variant="outline">{consult.status || '—'}</Badge>
+                    </td>
+                    <td className="px-3 py-2">{consult.name || '—'}</td>
+                    <td className="px-3 py-2 font-mono">{formatCpf(consult.documentNumber)}</td>
+                    <td className="px-3 py-2">{consult.title || '—'}</td>
+                    <td className="px-3 py-2 whitespace-pre-line">{consult.detail || '—'}</td>
+                    <td className="px-3 py-2">{formatDateTime(consult.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -236,6 +236,7 @@ type V8OperationListParams = {
   page?: number;
   provider?: string;
   documentNumber?: string;
+  search?: string;
 };
 
 export function buildOperationListQuery(params: V8OperationListParams = {}) {
@@ -245,6 +246,7 @@ export function buildOperationListQuery(params: V8OperationListParams = {}) {
 
   if (params.startDate) query.set("startDate", params.startDate);
   if (params.endDate) query.set("endDate", params.endDate);
+  if (params.search) query.set("search", String(params.search).trim());
   if (Number.isFinite(params.limit) && Number(params.limit) > 0) {
     query.set("limit", String(Math.trunc(Number(params.limit))));
   }
@@ -287,6 +289,63 @@ async function actionListOperations(params: V8OperationListParams = {}) {
     success: true,
     data: filteredOperations,
     total: filteredOperations.length,
+  };
+}
+
+async function actionListConsults(params: V8OperationListParams = {}) {
+  const query = buildOperationListQuery({
+    ...params,
+    search: params.search ?? params.documentNumber,
+  });
+  const resp = await v8Fetch(`${V8_PATHS.consult}?${query}`, { method: "GET" });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('list_consults', {
+      ...err,
+      raw: err.parsed ?? err.rawText,
+    });
+  }
+
+  const json = await resp.json().catch(() => ([]));
+  const consults = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json?.items)
+        ? json.items
+        : Array.isArray(json?.consults)
+          ? json.consults
+          : [];
+
+  const cpfFilter = String(params.documentNumber || "").replace(/\D/g, "");
+  const textFilter = String(params.search || "").trim().toLowerCase();
+  const filteredConsults = consults.filter((item: any) => {
+    const document = String(
+      item?.documentNumber ?? item?.document_number ?? item?.borrowerDocumentNumber ?? ""
+    ).replace(/\D/g, "");
+    const name = String(
+      item?.name ?? item?.borrowerName ?? item?.signerName ?? item?.customer_name ?? ""
+    ).toLowerCase();
+
+    const matchesCpf = !cpfFilter || document === cpfFilter || document.includes(cpfFilter);
+    const matchesText = !textFilter || name.includes(textFilter) || document.includes(textFilter.replace(/\D/g, ""));
+    return matchesCpf && matchesText;
+  }).map((item: any) => ({
+    consultId: String(item?.id ?? item?.consult_id ?? item?.consultId ?? ""),
+    status: item?.status ?? null,
+    name: item?.name ?? item?.borrowerName ?? item?.signerName ?? item?.customer_name ?? null,
+    documentNumber: item?.documentNumber ?? item?.document_number ?? item?.borrowerDocumentNumber ?? null,
+    title: item?.title ?? item?.error_title ?? null,
+    detail: item?.detail ?? item?.description ?? item?.message ?? item?.reason ?? null,
+    createdAt: item?.created_at ?? item?.createdAt ?? item?.updated_at ?? null,
+    raw: item,
+  }));
+
+  return {
+    success: true,
+    data: filteredConsults,
+    total: filteredConsults.length,
   };
 }
 
@@ -962,6 +1021,15 @@ const handler = async (req: Request) => {
           },
         });
         if (params?.simulation_id) {
+          await supabase
+            .from("v8_simulations")
+            .update({
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              last_step: (result as any)?.step ?? 'simulate_one',
+            })
+            .eq("id", params.simulation_id);
+
           if (result.success) {
             await supabase
               .from("v8_simulations")
@@ -980,6 +1048,7 @@ const handler = async (req: Request) => {
                 raw_response: (result as any).data.raw_response,
                 v8_simulation_id: (result as any).data.simulation_id ?? null,
                 consult_id: (result as any).data.consult_id ?? null,
+                last_step: 'simulate',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1003,6 +1072,7 @@ const handler = async (req: Request) => {
                   payload: (result as any).raw ?? null,
                 },
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
+                last_step: (result as any).step ?? 'consult_status',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1020,6 +1090,7 @@ const handler = async (req: Request) => {
                   guidance: (result as any).guidance ?? null,
                   payload: (result as any).raw ?? null,
                 },
+                last_step: (result as any).step ?? 'simulate_one',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1082,6 +1153,35 @@ const handler = async (req: Request) => {
               page: params?.page ?? null,
               provider: params?.provider ?? "QI",
               documentNumber: params?.documentNumber ? String(params.documentNumber).replace(/\d(?=\d{4})/g, "*") : null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              total: (result as any)?.total ?? 0,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+          },
+        });
+        break;
+      case "list_consults":
+        result = await actionListConsults(params);
+        await writeAuditLog(supabase, {
+          action: "v8_list_consults",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_consults",
+          details: {
+            request_payload: {
+              action: "list_consults",
+              startDate: params?.startDate ?? null,
+              endDate: params?.endDate ?? null,
+              limit: params?.limit ?? null,
+              page: params?.page ?? null,
+              provider: params?.provider ?? "QI",
+              documentNumber: params?.documentNumber ? String(params.documentNumber).replace(/\d(?=\d{4})/g, "*") : null,
+              search: params?.search ?? null,
             },
             response_payload: {
               success: !!(result as any)?.success,
