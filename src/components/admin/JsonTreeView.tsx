@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { ChevronRight, ChevronDown, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -87,7 +87,10 @@ function TreeNode({ keyName, value, depth, defaultExpanded, maxDepth }: {
   );
 }
 
-export function JsonTreeView({ data, rootName, defaultExpanded = true, maxDepth = 3 }: JsonTreeViewProps) {
+export const JsonTreeView = forwardRef<HTMLDivElement, JsonTreeViewProps>(function JsonTreeView(
+  { data, rootName, defaultExpanded = true, maxDepth = 3 },
+  ref,
+) {
   // Try to parse string data
   let parsed = data;
   if (typeof data === 'string') {
@@ -100,7 +103,7 @@ export function JsonTreeView({ data, rootName, defaultExpanded = true, maxDepth 
   };
 
   return (
-    <div className="relative group">
+    <div ref={ref} className="relative group">
       <button
         onClick={handleCopy}
         className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-muted hover:bg-muted/80"
@@ -119,4 +122,4 @@ export function JsonTreeView({ data, rootName, defaultExpanded = true, maxDepth 
       </div>
     </div>
   );
-}
+});

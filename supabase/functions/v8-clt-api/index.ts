@@ -93,6 +93,28 @@ async function v8FetchWithRetry(
   return lastResp as Response;
 }
 
+async function readUpstreamErrorBody(resp: Response) {
+  const rawText = await resp.text().catch(() => "");
+  try {
+    const parsed = rawText ? JSON.parse(rawText) : null;
+    return {
+      rawText,
+      parsed,
+      message:
+        parsed?.message ||
+        parsed?.error ||
+        rawText ||
+        `Status ${resp.status}`,
+    };
+  } catch {
+    return {
+      rawText,
+      parsed: null,
+      message: rawText || `Status ${resp.status}`,
+    };
+  }
+}
+
 async function actionGetConfigs(supabase: any) {
   const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
@@ -308,24 +330,27 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
 
   // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
   const simulationBody = buildSimulationBody(input, consultId);
-  const simResp = await v8Fetch(V8_PATHS.simulate, {
+  const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
   });
-  const simJson = await simResp.json().catch(() => ({}));
   if (!simResp.ok) {
+    const simError = await readUpstreamErrorBody(simResp);
     return {
       success: false,
       step: "simulate",
-      error: simJson?.message || `Status ${simResp.status}`,
+      error: simError.message,
       raw: {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
-        simulate: simJson,
+        simulate: simError.parsed,
+        simulate_text: simError.rawText || null,
+        simulate_status: simResp.status,
       },
     };
   }
+  const simJson = await simResp.json().catch(() => ({}));
 
   const result = simJson?.data ?? simJson;
   // V8 (Crédito do Trabalhador) — resposta oficial usa disbursement_option.
