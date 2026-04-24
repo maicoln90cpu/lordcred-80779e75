@@ -135,34 +135,12 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader className="space-y-3 pb-2">
-            <div className="flex items-start gap-3">
-              <div className="relative">
-                <Avatar className="w-16 h-16">
-                  <AvatarImage src={form.photo_url || undefined} alt={candidate.full_name} />
-                  <AvatarFallback className="text-lg">{getInitials(candidate.full_name)}</AvatarFallback>
-                </Avatar>
-                <button
-                  onClick={() => photoInputRef.current?.click()}
-                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:scale-105 transition-transform"
-                  title="Trocar foto"
-                  disabled={uploadingPhoto}
-                >
-                  {uploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-                </button>
-                <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={handlePhotoChange} />
-              </div>
-              <div className="flex-1 min-w-0 pt-1">
-                <SheetTitle className="text-left text-xl truncate">{candidate.full_name}</SheetTitle>
-                <SheetDescription className="text-left flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="text-[10px]">
-                    {candidate.type === 'partner' ? 'Parceiro' : 'CLT'}
-                  </Badge>
-                  <span className="text-xs">
-                    {STATUS_OPTIONS.find(s => s.value === candidate.kanban_status)?.label}
-                  </span>
-                </SheetDescription>
-              </div>
-            </div>
+            <CandidateHeader
+              candidate={candidate}
+              photoUrl={form.photo_url}
+              uploading={uploadingPhoto}
+              onPhotoSelected={handlePhotoUpload}
+            />
           </SheetHeader>
 
           <Tabs defaultValue="info" className="mt-4 space-y-4">
