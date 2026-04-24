@@ -110,22 +110,71 @@ async function readUpstreamErrorBody(resp: Response) {
   const rawText = await resp.text().catch(() => "");
   try {
     const parsed = rawText ? JSON.parse(rawText) : null;
+    const title = parsed?.title ?? null;
+    const detail = parsed?.detail ?? null;
+    const message = parsed?.message ?? null;
+    const error = parsed?.error ?? null;
     return {
       rawText,
       parsed,
-      message:
-        parsed?.message ||
-        parsed?.error ||
-        rawText ||
-        `Status ${resp.status}`,
+      title,
+      detail,
+      message,
+      error,
+      status: resp.status,
+      userMessage: formatV8UserMessage({ title, detail, message, error, status: resp.status, rawText }),
     };
   } catch {
     return {
       rawText,
       parsed: null,
-      message: rawText || `Status ${resp.status}`,
+      title: null,
+      detail: null,
+      message: null,
+      error: null,
+      status: resp.status,
+      userMessage: formatV8UserMessage({ rawText, status: resp.status }),
     };
   }
+}
+
+type V8HumanErrorInput = {
+  title?: string | null;
+  detail?: string | null;
+  message?: string | null;
+  error?: string | null;
+  status?: number | null;
+  rawText?: string | null;
+};
+
+export function formatV8UserMessage(input: V8HumanErrorInput) {
+  const title = String(input.title || '').trim();
+  const detail = String(input.detail || '').trim();
+  const message = String(input.message || '').trim();
+  const error = String(input.error || '').trim();
+  const rawText = String(input.rawText || '').trim();
+  const status = Number(input.status);
+
+  const primary = title || detail || message || error || rawText || (Number.isFinite(status) ? `Status HTTP ${status}` : 'Erro inesperado na V8');
+  const secondaryCandidates = [detail, message, error, rawText].filter((item) => item && item !== primary);
+  const secondary = secondaryCandidates[0] || '';
+
+  if (secondary) return `${primary}\n${secondary}`;
+  return primary;
+}
+
+function buildV8ErrorResult(step: string, source: Record<string, any> = {}) {
+  return {
+    success: false,
+    step,
+    title: source.title ?? null,
+    detail: source.detail ?? null,
+    message: source.message ?? null,
+    error: source.error ?? source.userMessage ?? 'Erro inesperado na V8',
+    status: source.status ?? null,
+    user_message: source.userMessage ?? formatV8UserMessage(source),
+    raw: source.raw ?? source.parsed ?? null,
+  };
 }
 
 type V8OperationListParams = {
@@ -160,12 +209,10 @@ async function actionListOperations(params: V8OperationListParams = {}) {
 
   if (!resp.ok) {
     const err = await readUpstreamErrorBody(resp);
-    return {
-      success: false,
-      error: err.message,
-      title: err.parsed?.title ?? null,
+    return buildV8ErrorResult('list_operations', {
+      ...err,
       raw: err.parsed ?? err.rawText,
-    };
+    });
   }
 
   const json = await resp.json().catch(() => ([]));
@@ -200,12 +247,10 @@ async function actionGetOperation(operationId?: string) {
   const resp = await v8Fetch(V8_PATHS.operationDetail(safeOperationId), { method: "GET" });
   if (!resp.ok) {
     const err = await readUpstreamErrorBody(resp);
-    return {
-      success: false,
-      error: err.message,
-      title: err.parsed?.title ?? null,
+    return buildV8ErrorResult('get_operation', {
+      ...err,
       raw: err.parsed ?? err.rawText,
-    };
+    });
   }
 
   const json = await resp.json().catch(() => ({}));
@@ -425,12 +470,14 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
     lastPayload = statusJson;
 
     if (!statusResp.ok) {
-      return {
-        success: false,
-        step: "consult_status",
-        error: statusJson?.message || statusJson?.error || `Status ${statusResp.status}`,
+      return buildV8ErrorResult('consult_status', {
+        title: statusJson?.title ?? null,
+        detail: statusJson?.detail ?? null,
+        message: statusJson?.message ?? null,
+        error: statusJson?.error ?? null,
+        status: statusResp.status,
         raw: statusJson,
-      };
+      });
     }
 
     const records = Array.isArray(statusJson?.data) ? statusJson.data : Array.isArray(statusJson) ? statusJson : [];
@@ -448,12 +495,13 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
         return { success: true, data: consultRow };
       }
       if (consultStatus === "FAILED" || consultStatus === "REJECTED") {
-        return {
-          success: false,
-          step: "consult_status",
-          error: String(consultRow?.description || `Consulta retornou ${consultStatus}`),
+        return buildV8ErrorResult('consult_status', {
+          title: consultRow?.title ?? null,
+          detail: consultRow?.description ?? null,
+          message: consultRow?.message ?? null,
+          error: consultRow?.error ?? `Consulta retornou ${consultStatus}`,
           raw: consultRow,
-        };
+        });
       }
       console.log(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} status=${consultStatus}`);
     }
@@ -463,12 +511,11 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
     }
   }
 
-  return {
-    success: false,
-    step: "consult_status",
-    error: "Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.",
+  return buildV8ErrorResult('consult_status', {
+    detail: 'Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.',
+    status: 202,
     raw: lastPayload,
-  };
+  });
 }
 
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
@@ -504,12 +551,14 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_CONSULT, "consult");
   const consultJson = await consultResp.json().catch(() => ({}));
   if (!consultResp.ok) {
-    return {
-      success: false,
-      step: "consult",
-      error: consultJson?.message || consultJson?.error || `Status ${consultResp.status}`,
+    return buildV8ErrorResult('consult', {
+      title: consultJson?.title ?? null,
+      detail: consultJson?.detail ?? null,
+      message: consultJson?.message ?? null,
+      error: consultJson?.error ?? null,
+      status: consultResp.status,
       raw: consultJson,
-    };
+    });
   }
   const consultData = consultJson?.data ?? consultJson;
   const consultId = String(
@@ -530,28 +579,40 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
-    return {
-      success: false,
-      step: "authorize",
-      error: authJson?.detail || authJson?.message || authJson?.error || `Status ${authResp.status}`,
+    return buildV8ErrorResult('authorize', {
+      title: authJson?.title ?? null,
+      detail: authJson?.detail ?? null,
+      message: authJson?.message ?? null,
+      error: authJson?.error ?? null,
+      status: authResp.status,
       raw: { consult: consultJson, authorize: authJson },
-    };
+    });
   }
 
   const consultStatusResult = await waitForConsultReady(supabase, consultId, cpf);
   if (!consultStatusResult.success) {
-    return {
-      success: false,
-      step: "consult_status",
-      error: consultStatusResult.error,
+    const failedConsultStatus = consultStatusResult as {
+      title?: string | null;
+      detail?: string | null;
+      message?: string | null;
+      error?: string | null;
+      status?: number | null;
+      raw?: any;
+    };
+    return buildV8ErrorResult('consult_status', {
+      title: failedConsultStatus.title ?? null,
+      detail: failedConsultStatus.detail ?? null,
+      message: failedConsultStatus.message ?? null,
+      error: failedConsultStatus.error ?? null,
+      status: failedConsultStatus.status ?? null,
       raw: {
         consult: consultJson,
         authorize: authJson,
-        consult_status: consultStatusResult.raw,
+        consult_status: failedConsultStatus.raw,
       },
-    };
+    });
   }
-  const consultStatusData = consultStatusResult.data;
+  const consultStatusData = (consultStatusResult as { success: true; data: any }).data;
 
   // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
   const simulationBody = buildSimulationBodyWithValue(input, consultId);
@@ -561,20 +622,18 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_SIMULATE, "simulate");
   if (!simResp.ok) {
     const simError = await readUpstreamErrorBody(simResp);
-    return {
-      success: false,
-      step: "simulate",
-      error: simError.message,
+    return buildV8ErrorResult('simulate', {
+      ...simError,
       raw: {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
-          consult_status: consultStatusData,
+        consult_status: consultStatusData,
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
       },
-    };
+    });
   }
   const simJson = await simResp.json().catch(() => ({}));
 
@@ -825,6 +884,9 @@ const handler = async (req: Request) => {
             response_payload: {
               success: !!(result as any)?.success,
               step: (result as any)?.step ?? null,
+              title: (result as any)?.title ?? null,
+              detail: (result as any)?.detail ?? null,
+              user_message: (result as any)?.user_message ?? null,
               error: (result as any)?.error ?? null,
               data: (result as any)?.data ?? null,
               raw: (result as any)?.raw ?? null,
@@ -875,7 +937,7 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: "pending",
-                error_message: String((result as any).error || "Consulta ainda em análise"),
+                error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
                 raw_response: (result as any).raw ?? null,
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
                 processed_at: new Date().toISOString(),
@@ -886,7 +948,7 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: "failed",
-                error_message: String((result as any).error || "Erro desconhecido"),
+                error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
                 raw_response: (result as any).raw ?? null,
                 processed_at: new Date().toISOString(),
               })

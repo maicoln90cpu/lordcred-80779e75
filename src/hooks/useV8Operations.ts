@@ -85,7 +85,7 @@ export function useV8Operations() {
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.title || data?.error || 'Falha ao consultar propostas');
+      if (!data?.success) throw new Error(data?.user_message || data?.title || data?.detail || data?.message || data?.error || 'Falha ao consultar propostas');
 
       setOperations(Array.isArray(data.data) ? (data.data as V8OperationSummary[]) : []);
       return { success: true, total: Array.isArray(data.data) ? data.data.length : 0 };
@@ -108,7 +108,7 @@ export function useV8Operations() {
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.title || data?.error || 'Falha ao carregar detalhes da operação');
+      if (!data?.success) throw new Error(data?.user_message || data?.title || data?.detail || data?.message || data?.error || 'Falha ao carregar detalhes da operação');
 
       setSelectedOperation((data.data ?? null) as V8OperationDetail | null);
       return { success: true };
