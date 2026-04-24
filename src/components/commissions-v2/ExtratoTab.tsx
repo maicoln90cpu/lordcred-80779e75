@@ -129,6 +129,44 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const totalComm = filtered.reduce((a, s) => a + s.commission_value, 0);
   const fmt = fmtBRL;
 
+  // ---- Comparação inteligente: período atual vs anterior
+  // Se há semanas filtradas → compara com mesmo nº de semanas anteriores.
+  // Sem semanas → compara mês corrente vs mês anterior.
+  // Filtros de vendedor e produto se aplicam aos DOIS períodos (comparação justa).
+  const prevPeriodSales = useMemo(() => {
+    const baseFilter = (s: CommissionSale) => {
+      if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
+      if (productFilter !== 'all' && s.product !== productFilter) return false;
+      return true;
+    };
+
+    if (weekFilters.length > 0) {
+      const prevWeeks = getPreviousWeekLabels(weekFilters, weeks as string[]);
+      if (prevWeeks.length === 0) return [];
+      return sales.filter((s) => baseFilter(s) && prevWeeks.includes(s.week_label || ''));
+    }
+    return filterPreviousMonthSales(sales.filter(baseFilter));
+  }, [sales, weekFilters, sellerFilter, productFilter, weeks]);
+
+  const currentReferenceSales = useMemo(() => {
+    // Quando não há filtro de semana, "atual" = mês corrente (não TODAS as vendas)
+    if (weekFilters.length > 0) return filtered;
+    const baseFilter = (s: CommissionSale) => {
+      if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
+      if (productFilter !== 'all' && s.product !== productFilter) return false;
+      return true;
+    };
+    return filterCurrentMonthSales(sales.filter(baseFilter));
+  }, [sales, weekFilters, sellerFilter, productFilter, filtered]);
+
+  const currentTotals = useMemo(() => computeKpiTotals(currentReferenceSales), [currentReferenceSales]);
+  const prevTotals = useMemo(() => computeKpiTotals(prevPeriodSales), [prevPeriodSales]);
+
+  const comparisonLabel = weekFilters.length > 0
+    ? (weekFilters.length === 1 ? 'vs semana anterior' : `vs ${weekFilters.length} semanas anteriores`)
+    : 'vs mês anterior';
+
+
   return (
     <Card>
       <CardHeader>
