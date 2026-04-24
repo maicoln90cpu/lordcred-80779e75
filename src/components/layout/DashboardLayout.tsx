@@ -42,7 +42,8 @@ import {
   FileBarChart,
   Send,
   Globe,
-  Calculator
+  Calculator,
+  UserPlus
 } from 'lucide-react';
 import logoExtended from '@/assets/logo-new.png';
 import { useAuth } from '@/contexts/AuthContext';
@@ -122,6 +123,7 @@ const navGroups: NavGroupWithChildren[] = [
       { label: 'Kanban', icon: Columns3, href: '/admin/kanban', sellerHidden: true },
       { label: 'Leads', icon: FileSpreadsheet, href: '/admin/leads', sellerHidden: true },
       { label: 'Performance', icon: BarChart3, href: '/admin/performance', sellerHidden: true, supportHidden: true },
+      { label: 'RH', icon: UserPlus, href: '/admin/hr', sellerHidden: true, supportHidden: true },
       { label: 'Usuários', icon: Users, href: '/admin/users', sellerHidden: true },
     ],
   },
