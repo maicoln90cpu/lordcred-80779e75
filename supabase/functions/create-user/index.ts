@@ -239,6 +239,16 @@ Deno.serve(async (req) => {
         .eq('user_id', newUser.user.id)
     }
 
+    await writeAuditLog(adminClient, {
+      action: 'user_created',
+      category: 'users',
+      success: true,
+      userId,
+      targetTable: 'profiles',
+      targetId: newUser.user?.id ?? null,
+      details: { email, role: validRole, by_role: callerRole, name: name || null },
+    })
+
     return new Response(
       JSON.stringify({ 
         success: true, 
