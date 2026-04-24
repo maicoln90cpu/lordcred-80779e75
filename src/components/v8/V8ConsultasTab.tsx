@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, FileSearch, Loader2 } from 'lucide-react';
+import { CalendarIcon, FileSearch, Loader2, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { useV8Operations } from '@/hooks/useV8Operations';
+import { supabase } from '@/integrations/supabase/client';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
