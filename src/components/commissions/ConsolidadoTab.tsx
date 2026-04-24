@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Download } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
@@ -18,6 +19,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const { sort, toggle } = useSortState();
 
@@ -32,8 +34,37 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
     });
   }, []);
 
-  const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
-  const filtered = weekFilters.length === 0 ? sales : sales.filter(s => weekFilters.includes(s.week_label || ''));
+  // Meses disponíveis (a partir de sale_date), formato yyyy-MM
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach(s => { if (s.sale_date) set.add(s.sale_date.slice(0, 7)); });
+    return [...set].sort().reverse();
+  }, [sales]);
+
+  // Semanas válidas dado o mês selecionado
+  const weeks = useMemo(() => {
+    const filteredSales = monthFilter === 'all'
+      ? sales
+      : sales.filter(s => s.sale_date && s.sale_date.slice(0, 7) === monthFilter);
+    return [...new Set(filteredSales.map(s => s.week_label).filter(Boolean))].sort().reverse() as string[];
+  }, [sales, monthFilter]);
+
+  // Reset semanas inválidas ao trocar mês
+  useEffect(() => {
+    setWeekFilters(prev => prev.filter(w => weeks.includes(w)));
+  }, [weeks]);
+
+  const monthBaseSales = monthFilter === 'all'
+    ? sales
+    : sales.filter(s => s.sale_date && s.sale_date.slice(0, 7) === monthFilter);
+  const filtered = weekFilters.length === 0 ? monthBaseSales : monthBaseSales.filter(s => weekFilters.includes(s.week_label || ''));
+
+  const monthLabel = (ym: string) => {
+    const [y, m] = ym.split('-');
+    const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    return `${names[Number(m) - 1]}/${y}`;
+  };
+
 
   const sellerIds = [...new Set(filtered.map(s => s.seller_id))];
   const sellerData = sellerIds.map(sid => {
@@ -75,7 +106,20 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
         </div>
-        <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64 mt-2" />
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os meses</SelectItem>
+              {monthOptions.map(m => (
+                <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <WeekMultiSelect weeks={weeks} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64" />
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : sellerData.length === 0 ? (
