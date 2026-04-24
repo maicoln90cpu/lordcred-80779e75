@@ -14,6 +14,36 @@ import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 
+function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
+  const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+
+  if (simulation.status === 'failed' && errorKind === 'active_consult') {
+    return 'consulta ativa';
+  }
+  if (simulation.status === 'failed' && errorKind === 'existing_proposal') {
+    return 'proposta existente';
+  }
+  if (simulation.status === 'failed' && errorKind === 'temporary_v8') {
+    return 'instável';
+  }
+  if (simulation.status === 'failed' && errorKind === 'invalid_data') {
+    return 'dados inválidos';
+  }
+  if (simulation.status === 'pending') {
+    return 'em análise';
+  }
+  return simulation.status;
+}
+
+function getSimulationStatusVariant(simulation: { status: string; raw_response: any }) {
+  const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+
+  if (simulation.status === 'success') return 'default' as const;
+  if (simulation.status === 'pending') return 'secondary' as const;
+  if (simulation.status === 'failed' && errorKind === 'active_consult') return 'outline' as const;
+  return 'destructive' as const;
+}
+
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const MAX_CONCURRENCY = 3;
 
@@ -359,16 +389,16 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 font-mono">{s.cpf}</td>
                       <td className="px-2 py-1">
                         <Badge
-                          variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
+                          variant={getSimulationStatusVariant(s)}
                         >
-                          {s.status}
+                          {getSimulationStatusLabel(s)}
                         </Badge>
                       </td>
                       <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1">{s.error_message || (s.status === 'pending' ? 'Aguardando retorno da V8' : '—')}</td>
+                      <td className="px-2 py-1 whitespace-pre-line">{s.error_message || (s.status === 'pending' ? 'Aguardando retorno da V8' : '—')}</td>
                     </tr>
                   ))}
                 </tbody>

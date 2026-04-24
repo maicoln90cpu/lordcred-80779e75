@@ -163,16 +163,68 @@ export function formatV8UserMessage(input: V8HumanErrorInput) {
   return primary;
 }
 
+function detectV8ErrorKind(input: Record<string, any> = {}) {
+  const haystack = [
+    input.title,
+    input.detail,
+    input.message,
+    input.error,
+    input.rawText,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (haystack.includes('já existe uma consulta ativa') || haystack.includes('ja existe uma consulta ativa')) {
+    return 'active_consult';
+  }
+  if (haystack.includes('ainda em análise') || haystack.includes('ainda em analise')) {
+    return 'analysis_pending';
+  }
+  if (haystack.includes('operation') && haystack.includes('already') || haystack.includes('proposta já existente') || haystack.includes('proposta ja existente')) {
+    return 'existing_proposal';
+  }
+  if (Number(input.status) >= 500) {
+    return 'temporary_v8';
+  }
+  if (Number(input.status) >= 400) {
+    return 'invalid_data';
+  }
+  return 'unknown';
+}
+
+function formatV8Guidance(kind: string) {
+  switch (kind) {
+    case 'active_consult':
+      return 'Já existe consulta ativa para este CPF na V8.\nConsulte as operações existentes ou aguarde a análise em andamento.';
+    case 'analysis_pending':
+      return 'A consulta ainda está em análise na V8.\nAguarde um pouco e tente novamente em instantes.';
+    case 'existing_proposal':
+      return 'Já existe proposta para este cliente na V8.\nConsulte as operações existentes antes de tentar uma nova simulação.';
+    case 'temporary_v8':
+      return 'A V8 está com instabilidade temporária.\nTente novamente em alguns minutos.';
+    case 'invalid_data':
+      return 'A V8 recusou os dados enviados.\nRevise CPF, data de nascimento, tabela e valor informado.';
+    default:
+      return '';
+  }
+}
+
 function buildV8ErrorResult(step: string, source: Record<string, any> = {}) {
+  const kind = source.kind ?? detectV8ErrorKind(source);
+  const baseMessage = source.userMessage ?? formatV8UserMessage(source);
+  const guidance = formatV8Guidance(kind);
   return {
     success: false,
     step,
+    kind,
     title: source.title ?? null,
     detail: source.detail ?? null,
     message: source.message ?? null,
     error: source.error ?? source.userMessage ?? 'Erro inesperado na V8',
     status: source.status ?? null,
-    user_message: source.userMessage ?? formatV8UserMessage(source),
+    guidance,
+    user_message: guidance ? `${baseMessage}\n${guidance}` : baseMessage,
     raw: source.raw ?? source.parsed ?? null,
   };
 }
@@ -884,8 +936,10 @@ const handler = async (req: Request) => {
             response_payload: {
               success: !!(result as any)?.success,
               step: (result as any)?.step ?? null,
+              kind: (result as any)?.kind ?? null,
               title: (result as any)?.title ?? null,
               detail: (result as any)?.detail ?? null,
+              guidance: (result as any)?.guidance ?? null,
               user_message: (result as any)?.user_message ?? null,
               error: (result as any)?.error ?? null,
               data: (result as any)?.data ?? null,
@@ -900,7 +954,9 @@ const handler = async (req: Request) => {
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
             simulation_mode: params?.simulation_mode ?? null,
+            kind: (result as any)?.kind ?? null,
             step: (result as any)?.step ?? null,
+            guidance: (result as any)?.guidance ?? null,
             error: (result as any)?.error ?? null,
             released_value: (result as any)?.data?.released_value ?? null,
           },
@@ -938,7 +994,14 @@ const handler = async (req: Request) => {
               .update({
                 status: "pending",
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
-                raw_response: (result as any).raw ?? null,
+                raw_response: {
+                  kind: (result as any).kind ?? null,
+                  step: (result as any).step ?? null,
+                  title: (result as any).title ?? null,
+                  detail: (result as any).detail ?? null,
+                  guidance: (result as any).guidance ?? null,
+                  payload: (result as any).raw ?? null,
+                },
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
                 processed_at: new Date().toISOString(),
               })
@@ -949,7 +1012,14 @@ const handler = async (req: Request) => {
               .update({
                 status: "failed",
                 error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
-                raw_response: (result as any).raw ?? null,
+                raw_response: {
+                  kind: (result as any).kind ?? null,
+                  step: (result as any).step ?? null,
+                  title: (result as any).title ?? null,
+                  detail: (result as any).detail ?? null,
+                  guidance: (result as any).guidance ?? null,
+                  payload: (result as any).raw ?? null,
+                },
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
