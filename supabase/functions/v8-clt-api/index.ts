@@ -723,9 +723,11 @@ serve(async (req) => {
               config_id: params?.config_id ?? null,
               config_label: params?.config_label ?? null,
               parcelas: params?.parcelas ?? null,
+              simulation_mode: params?.simulation_mode ?? null,
+              simulation_value: params?.simulation_value ?? null,
               simulation_payload:
-                params?.config_id && params?.parcelas
-                  ? buildSimulationBody(params, "<consult_id>")
+                params?.config_id && params?.parcelas && params?.simulation_mode && params?.simulation_value
+                  ? buildSimulationBodyWithValue(params, "<consult_id>")
                   : null,
               batch_id: params?.batch_id ?? null,
             },
@@ -744,6 +746,7 @@ serve(async (req) => {
             cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
+            simulation_mode: params?.simulation_mode ?? null,
             step: (result as any)?.step ?? null,
             error: (result as any)?.error ?? null,
             released_value: (result as any)?.data?.released_value ?? null,
@@ -776,6 +779,17 @@ serve(async (req) => {
                 _batch_id: params.batch_id,
               });
             }
+          } else if ((result as any)?.step === "consult_status") {
+            await supabase
+              .from("v8_simulations")
+              .update({
+                status: "pending",
+                error_message: String((result as any).error || "Consulta ainda em análise"),
+                raw_response: (result as any).raw ?? null,
+                consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", params.simulation_id);
           } else {
             await supabase
               .from("v8_simulations")
