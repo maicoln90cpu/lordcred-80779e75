@@ -2835,6 +2835,7 @@ export type Database = {
       partners: {
         Row: {
           aceitou: string | null
+          auto_user_id: string | null
           aviso_previo_dias: number | null
           captacao_parceiro: string | null
           captacao_tipo: string | null
@@ -2887,6 +2888,7 @@ export type Database = {
         }
         Insert: {
           aceitou?: string | null
+          auto_user_id?: string | null
           aviso_previo_dias?: number | null
           captacao_parceiro?: string | null
           captacao_tipo?: string | null
@@ -2939,6 +2941,7 @@ export type Database = {
         }
         Update: {
           aceitou?: string | null
+          auto_user_id?: string | null
           aviso_previo_dias?: number | null
           captacao_parceiro?: string | null
           captacao_tipo?: string | null
@@ -3121,6 +3124,7 @@ export type Database = {
           id: string
           is_blocked: boolean
           max_chips: number
+          must_change_password: boolean
           name: string | null
           phone: string | null
           updated_at: string
@@ -3134,6 +3138,7 @@ export type Database = {
           id?: string
           is_blocked?: boolean
           max_chips?: number
+          must_change_password?: boolean
           name?: string | null
           phone?: string | null
           updated_at?: string
@@ -3147,6 +3152,7 @@ export type Database = {
           id?: string
           is_blocked?: boolean
           max_chips?: number
+          must_change_password?: boolean
           name?: string | null
           phone?: string | null
           updated_at?: string
@@ -3373,6 +3379,7 @@ export type Database = {
           auto_phase_progression: boolean
           batch_pause_seconds: number
           batch_size: number
+          commission_name_match_threshold: number
           consecutive_message_limit: number
           contract_template: string | null
           cooldown_after_error: number
@@ -3429,6 +3436,7 @@ export type Database = {
           auto_phase_progression?: boolean
           batch_pause_seconds?: number
           batch_size?: number
+          commission_name_match_threshold?: number
           consecutive_message_limit?: number
           contract_template?: string | null
           cooldown_after_error?: number
@@ -3485,6 +3493,7 @@ export type Database = {
           auto_phase_progression?: boolean
           batch_pause_seconds?: number
           batch_size?: number
+          commission_name_match_threshold?: number
           consecutive_message_limit?: number
           contract_template?: string | null
           cooldown_after_error?: number
@@ -4230,6 +4239,15 @@ export type Database = {
       }
       is_privileged: { Args: { _user_id?: string }; Returns: boolean }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
+      match_seller_by_name: {
+        Args: { _name: string; _threshold?: number }
+        Returns: {
+          ambiguous: boolean
+          name: string
+          score: number
+          user_id: string
+        }[]
+      }
       reset_daily_message_count: { Args: never; Returns: undefined }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
