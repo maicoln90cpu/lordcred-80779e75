@@ -10,7 +10,8 @@ const corsHeaders = {
 };
 
 const V8_BASE = "https://bff.v8sistema.com";
-const V8_AUTH = "https://auth.v8sistema.com";
+// Auth oficial conforme docs.v8sistema.com — endpoint OAuth roda no domínio api.v8digital.com
+const V8_AUTH = "https://api.v8digital.com";
 
 // Endpoints oficiais V8 — Crédito do Trabalhador (CLT) usa /private-consignment/*
 const V8_PATHS = {
