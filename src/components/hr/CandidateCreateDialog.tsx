@@ -73,7 +73,19 @@ export function CandidateCreateDialog({ open, onOpenChange }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Telefone *</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="55119..." maxLength={20} />
+              <Input
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="(11) 99999-9999"
+                maxLength={20}
+                className={phone && !phoneCheck.valid ? 'border-destructive focus-visible:ring-destructive' : ''}
+              />
+              {phone && !phoneCheck.valid && (
+                <p className="text-[11px] text-destructive">{phoneCheck.reason}</p>
+              )}
+              {phone && phoneCheck.valid && (
+                <p className="text-[11px] text-muted-foreground">+{phoneCheck.e164}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Idade</Label>
