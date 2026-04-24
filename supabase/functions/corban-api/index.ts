@@ -294,6 +294,7 @@ Deno.serve(async (req) => {
         user_id: userId, user_email: userEmail, action: 'corban_rawProxy',
         target_table: 'corban_api',
         details: {
+          category: 'corban',
           request_payload: { url: proxyUrl, method: 'POST', body: proxyBody },
           response_payload: { status_code: proxyResp.status, body: proxyText.substring(0, 5000) },
           success: proxyResp.ok,
@@ -466,6 +467,7 @@ Deno.serve(async (req) => {
         action: `corban_${action}`,
         target_table: 'corban_api',
         details: {
+          category: 'corban',
           request_payload: { url: apiUrl, method: 'POST', action, params: params || {}, body: { ...corbanBody, auth: '***REDACTED***' } },
           response_payload: { status_code: corbanResponse.status, body: responseText.substring(0, 5000) },
           success: false,
@@ -486,6 +488,7 @@ Deno.serve(async (req) => {
       action: `corban_${action}`,
       target_table: 'corban_api',
       details: {
+        category: 'corban',
         request_payload: { url: apiUrl, method: 'POST', action, params: params || {}, body: { ...corbanBody, auth: '***REDACTED***' } },
         response_payload: { status_code: corbanResponse.status, body: responseText.substring(0, 5000) },
         success: corbanResponse.ok,
