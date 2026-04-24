@@ -102,8 +102,11 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         patch.score_cultura = scoreCul;
         patch.score_energia = scoreEng;
       }
+      const questionTextById = new Map(stageQuestions.map(q => [q.id, q.text]));
       const answerRows = Object.entries(answers).map(([question_id, answer]) => ({
-        question_id, answer,
+        question_id,
+        answer,
+        question_text_snapshot: questionTextById.get(question_id) ?? null,
       }));
       await saveInterview(patch, answerRows);
       onSaved?.();
