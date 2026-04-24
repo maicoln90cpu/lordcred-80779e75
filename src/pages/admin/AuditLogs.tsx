@@ -430,10 +430,13 @@ export default function AuditLogs() {
                         const logStatus = getLogStatus(log);
                         const statusInfo = statusConfig[logStatus];
                         const StatusIcon = statusInfo.icon;
+                        const origin = getOrigin(log);
+                        const originInfo = originConfig[origin];
+                        const OriginIcon = originInfo.icon;
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
-                            <TableCell className="text-sm">{log.user_email || '—'}</TableCell>
+                            <TableCell className="text-sm">{log.user_email || <span className="text-muted-foreground italic">automático</span>}</TableCell>
                             <TableCell>
                               <Badge className={cn('text-xs', actionInfo.className)}>{actionInfo.label}</Badge>
                             </TableCell>
@@ -441,6 +444,12 @@ export default function AuditLogs() {
                               <Badge className={cn('text-xs gap-1', statusInfo.className)}>
                                 <StatusIcon className="w-3 h-3" />
                                 {statusInfo.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn('text-xs gap-1', originInfo.className)}>
+                                <OriginIcon className="w-3 h-3" />
+                                {originInfo.label}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-mono">{log.target_table || '—'}</TableCell>
