@@ -50,6 +50,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   const [scoreEng, setScoreEng] = useState(5);
   const [saving, setSaving] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
 
   // Load existing data when interview changes
