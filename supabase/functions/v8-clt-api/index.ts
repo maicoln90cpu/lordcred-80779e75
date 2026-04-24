@@ -165,7 +165,7 @@ interface SimulateInput {
 }
 
 /** Converte data dd/mm/aaaa ou yyyy-mm-dd para o formato aceito pela V8 (yyyy-mm-dd). */
-function normalizeBirthDate(input?: string): string | null {
+export function normalizeBirthDate(input?: string): string | null {
   if (!input) return null;
   const s = input.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -175,19 +175,39 @@ function normalizeBirthDate(input?: string): string | null {
 }
 
 /** Normaliza gênero para o enum esperado pela V8 ("male" | "female"). */
-function normalizeGender(input?: string): "male" | "female" {
+export function normalizeGender(input?: string): "male" | "female" {
   const g = (input || "").trim().toLowerCase();
   if (g.startsWith("f") || g === "feminino" || g === "female") return "female";
   return "male";
 }
 
 /** Sanitiza telefone para apenas dígitos; retorna {areaCode, phoneNumber} com fallback 11/999999999. */
-function normalizePhone(input?: string): { areaCode: string; phoneNumber: string } {
+export function normalizePhone(input?: string): { areaCode: string; phoneNumber: string } {
   const digits = (input || "").replace(/\D/g, "");
   if (digits.length >= 10) {
     return { areaCode: digits.slice(0, 2), phoneNumber: digits.slice(2) };
   }
   return { areaCode: "11", phoneNumber: "999999999" };
+}
+
+/** Monta o payload de /consult conforme spec V8 (Crédito do Trabalhador). Função pura — testável. */
+export function buildConsultBody(input: SimulateInput) {
+  const cpf = (input.cpf || "").replace(/\D/g, "");
+  const birthDate = normalizeBirthDate(input.data_nascimento);
+  const phone = normalizePhone(input.telefone);
+  return {
+    borrowerDocumentNumber: cpf,
+    gender: normalizeGender(input.genero),
+    birthDate,
+    signerName: (input.nome || "").trim(),
+    signerEmail: input.email?.trim() || `${cpf}@lordcred.temp`,
+    signerPhone: {
+      countryCode: "55",
+      areaCode: phone.areaCode,
+      phoneNumber: phone.phoneNumber,
+    },
+    provider: "QI",
+  };
 }
 
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
@@ -202,21 +222,8 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     return { success: false, step: "consult", error: "Nome do cliente é obrigatório (mínimo 3 caracteres)" };
   }
 
-  // 1) Consult — payload completo conforme docs.v8sistema.com (Crédito Privado CLT)
-  const phone = normalizePhone(input.telefone);
-  const consultBody = {
-    borrowerDocumentNumber: cpf,
-    gender: normalizeGender(input.genero),
-    birthDate,
-    signerName: input.nome.trim(),
-    signerEmail: input.email?.trim() || `${cpf}@lordcred.temp`,
-    signerPhone: {
-      countryCode: "55",
-      areaCode: phone.areaCode,
-      phoneNumber: phone.phoneNumber,
-    },
-    provider: "QI",
-  };
+  // 1) Consult — builder testável
+  const consultBody = buildConsultBody(input);
 
   const consultResp = await v8Fetch(V8_PATHS.consult, {
     method: "POST",
