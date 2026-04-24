@@ -1861,6 +1861,7 @@ export type Database = {
           kanban_status: string
           notes: string | null
           phone: string
+          phone_normalized: string | null
           photo_url: string | null
           resume_url: string | null
           type: string
@@ -1875,6 +1876,7 @@ export type Database = {
           kanban_status?: string
           notes?: string | null
           phone: string
+          phone_normalized?: string | null
           photo_url?: string | null
           resume_url?: string | null
           type?: string
@@ -1889,6 +1891,7 @@ export type Database = {
           kanban_status?: string
           notes?: string | null
           phone?: string
+          phone_normalized?: string | null
           photo_url?: string | null
           resume_url?: string | null
           type?: string
@@ -2096,6 +2099,7 @@ export type Database = {
           mei_informed: boolean | null
           observations: string | null
           phone: string
+          phone_normalized: string | null
           referred_by: string | null
           sent_link: boolean | null
           updated_at: string
@@ -2115,6 +2119,7 @@ export type Database = {
           mei_informed?: boolean | null
           observations?: string | null
           phone: string
+          phone_normalized?: string | null
           referred_by?: string | null
           sent_link?: boolean | null
           updated_at?: string
@@ -2134,6 +2139,7 @@ export type Database = {
           mei_informed?: boolean | null
           observations?: string | null
           phone?: string
+          phone_normalized?: string | null
           referred_by?: string | null
           sent_link?: boolean | null
           updated_at?: string

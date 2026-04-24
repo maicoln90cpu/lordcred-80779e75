@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import { validateBrazilianPhone, digitsOnly } from '@/lib/phoneUtils';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type HRKanbanStatus =
   | 'new_resume'
@@ -64,6 +65,9 @@ export function useHRCandidates() {
   const { toast } = useToast();
   const [candidates, setCandidates] = useState<HRCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  // Lookup mutável do estado atual para uso dentro do handler de realtime
+  const candidatesRef = useRef<HRCandidate[]>([]);
+  candidatesRef.current = candidates;
 
   const fetchCandidates = useCallback(async () => {
     try {
@@ -85,17 +89,69 @@ export function useHRCandidates() {
     fetchCandidates();
   }, [fetchCandidates]);
 
-  useRealtimeSubscription(
-    () => { fetchCandidates(); },
-    { table: 'hr_candidates', event: '*', debounceMs: 150 }
-  );
+  // === Realtime subscription dedicada (canal único e estável por instância) ===
+  useEffect(() => {
+    const channel = supabase
+      .channel(`hr_candidates_changes_${Math.random().toString(36).slice(2, 9)}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'hr_candidates' },
+        (payload: RealtimePostgresChangesPayload<HRCandidate>) => {
+          const next = payload.new as HRCandidate;
+          if (!next?.id) return;
+          setCandidates(prev => {
+            if (prev.some(c => c.id === next.id)) return prev;
+            return [next, ...prev];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'hr_candidates' },
+        (payload: RealtimePostgresChangesPayload<HRCandidate>) => {
+          const next = payload.new as HRCandidate;
+          if (!next?.id) return;
+          setCandidates(prev => prev.map(c => (c.id === next.id ? { ...c, ...next } : c)));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'hr_candidates' },
+        (payload: RealtimePostgresChangesPayload<HRCandidate>) => {
+          const old = payload.old as Partial<HRCandidate>;
+          if (!old?.id) return;
+          setCandidates(prev => prev.filter(c => c.id !== old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // Vazio — canal fica vivo enquanto a instância existir
+  }, []);
 
   const createCandidate = useCallback(async (input: Partial<HRCandidate>) => {
+    // Validação de telefone (E.164/BR) antes de bater no banco
+    const phoneCheck = validateBrazilianPhone(input.phone);
+    if (!phoneCheck.valid) {
+      const msg = phoneCheck.reason ?? 'Telefone inválido';
+      toast({ title: 'Telefone inválido', description: msg, variant: 'destructive' });
+      throw new Error(msg);
+    }
+    // Prevenção de duplicata em memória (UX rápido — banco também tem índice único)
+    const dupe = candidatesRef.current.find(c => digitsOnly(c.phone) === phoneCheck.normalized);
+    if (dupe) {
+      const msg = `Já existe candidato com este telefone: ${dupe.full_name}`;
+      toast({ title: 'Candidato duplicado', description: msg, variant: 'destructive' });
+      throw new Error(msg);
+    }
+
     const { data, error } = await (supabase as any)
       .from('hr_candidates')
       .insert({
         full_name: input.full_name,
-        phone: input.phone,
+        phone: phoneCheck.normalized,
         age: input.age ?? null,
         cpf: input.cpf ?? null,
         photo_url: input.photo_url ?? null,
@@ -107,10 +163,18 @@ export function useHRCandidates() {
       .select()
       .single();
     if (error) {
-      toast({ title: 'Erro ao criar candidato', description: error.message, variant: 'destructive' });
+      // Trata violação de UNIQUE do banco
+      const isUnique = error.code === '23505' || /unique/i.test(error.message || '');
+      toast({
+        title: isUnique ? 'Candidato duplicado' : 'Erro ao criar candidato',
+        description: isUnique
+          ? 'Já existe um candidato com este telefone.'
+          : error.message,
+        variant: 'destructive',
+      });
       throw error;
     }
-    // Optimistic insert: aparece imediatamente sem esperar o realtime
+    // Insere local imediatamente (realtime confirma; o filtro evita duplicar)
     setCandidates(prev => {
       if (prev.some(c => c.id === (data as HRCandidate).id)) return prev;
       return [data as HRCandidate, ...prev];
@@ -127,7 +191,6 @@ export function useHRCandidates() {
       .update(patch)
       .eq('id', id);
     if (error) {
-      // Reverter via refetch em caso de falha
       toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
       fetchCandidates();
       throw error;
@@ -153,7 +216,7 @@ export function useHRCandidates() {
       await supabase.storage.from('hr-resumes').remove([candidate.resume_url]).catch(() => {});
     }
 
-    // Optimistic remove local
+    // Optimistic remove local — realtime confirma para outras instâncias
     setCandidates(prev => prev.filter(c => c.id !== id));
     const { error } = await (supabase as any).from('hr_candidates').delete().eq('id', id);
     if (error) {

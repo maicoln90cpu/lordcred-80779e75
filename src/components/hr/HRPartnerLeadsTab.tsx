@@ -3,15 +3,18 @@ import { useHRPartnerLeads, type HRPartnerLead, type HRMeetingStatus, type HRAcq
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Trash2, Phone, Users2 } from 'lucide-react';
+import { Plus, Search, Trash2, Phone, Users2, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { validateBrazilianPhone, hasPendingPhone, formatBrazilianPhone } from '@/lib/phoneUtils';
 
 const MEETING_STATUS: { value: HRMeetingStatus; label: string; color: string }[] = [
   { value: 'called', label: 'Chamada feita', color: 'text-amber-600' },
@@ -24,12 +27,7 @@ const SOURCE_OPTIONS: { value: HRAcquisitionSource; label: string }[] = [
   { value: 'referral', label: 'Indicação' },
 ];
 
-function formatPhone(p: string) {
-  const d = (p || '').replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return p;
-}
+// formatPhone movido para src/lib/phoneUtils.ts (formatBrazilianPhone)
 
 export function HRPartnerLeadsTab() {
   const { leads, loading, createLead, updateLead, deleteLead } = useHRPartnerLeads();
@@ -63,12 +61,21 @@ export function HRPartnerLeadsTab() {
     mei: leads.filter((l) => l.mei_informed).length,
   }), [leads]);
 
+  const { toast } = useToast();
+  const newPhoneCheck = validateBrazilianPhone(newPhone);
+
   const handleQuickCreate = async () => {
-    if (!newName.trim() || !newPhone.trim()) return;
-    await createLead({ full_name: newName.trim(), phone: newPhone.replace(/\D/g, '') });
-    setNewName('');
-    setNewPhone('');
-    setCreating(false);
+    if (!newName.trim()) return;
+    if (!newPhoneCheck.valid) {
+      toast({ title: 'Telefone inválido', description: newPhoneCheck.reason, variant: 'destructive' });
+      return;
+    }
+    try {
+      await createLead({ full_name: newName.trim(), phone: newPhoneCheck.normalized });
+      setNewName('');
+      setNewPhone('');
+      setCreating(false);
+    } catch { /* hook trata toast */ }
   };
 
   const handlePatch = (id: string, patch: Partial<HRPartnerLead>) => {
@@ -211,16 +218,28 @@ function PartnerRow({ lead, onPatch, onDelete }: RowProps) {
   const [cpf, setCpf] = useState(lead.cpf ?? '');
 
   const meetingStatus = MEETING_STATUS.find((s) => s.value === lead.meeting_status);
+  const phonePending = hasPendingPhone(lead);
 
   return (
     <TableRow>
       <TableCell>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== lead.full_name && onPatch(lead.id, { full_name: name })}
-          className="h-8"
-        />
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => name !== lead.full_name && onPatch(lead.id, { full_name: name })}
+            className="h-8"
+          />
+          {phonePending && (
+            <Badge
+              variant="outline"
+              className="text-[10px] py-0 h-5 gap-1 border-warning/60 bg-warning/10 text-warning shrink-0"
+              title="Telefone ausente ou inválido — atualize antes de contatar"
+            >
+              <AlertTriangle className="w-2.5 h-2.5" /> Tel pendente
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-1">
@@ -229,10 +248,10 @@ function PartnerRow({ lead, onPatch, onDelete }: RowProps) {
             onChange={(e) => setPhone(e.target.value)}
             onBlur={() => phone !== lead.phone && onPatch(lead.id, { phone: phone.replace(/\D/g, '') })}
             className="h-8 font-mono text-xs"
-            placeholder={formatPhone(lead.phone)}
+            placeholder={formatBrazilianPhone(lead.phone)}
           />
           <a href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" title="Abrir WhatsApp">
-            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+            <Phone className="w-3.5 h-3.5 text-success" />
           </a>
         </div>
       </TableCell>

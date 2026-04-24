@@ -1,8 +1,9 @@
 import { memo, DragEvent } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Phone, FileText, User } from 'lucide-react';
+import { Phone, FileText, User, AlertTriangle } from 'lucide-react';
 import type { HRCandidate } from '@/hooks/useHRCandidates';
+import { formatBrazilianPhone, hasPendingPhone } from '@/lib/phoneUtils';
 
 interface Props {
   candidate: HRCandidate;
@@ -19,18 +20,13 @@ function getInitials(name: string) {
     .join('') || '?';
 }
 
-function formatPhone(phone: string) {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  return phone;
-}
-
 export default memo(function CandidateCard({ candidate, columnColor, onClick }: Props) {
   const handleDragStart = (e: DragEvent) => {
     e.dataTransfer.setData('text/plain', candidate.id);
     e.dataTransfer.effectAllowed = 'move';
   };
+
+  const phonePending = hasPendingPhone(candidate);
 
   return (
     <div
@@ -51,10 +47,10 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
           <h4 className="text-sm font-semibold text-foreground truncate leading-tight">
             {candidate.full_name}
           </h4>
-          {candidate.phone && (
+          {candidate.phone && !phonePending && (
             <div className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
               <Phone className="w-3 h-3" />
-              <span className="truncate">{formatPhone(candidate.phone)}</span>
+              <span className="truncate">{formatBrazilianPhone(candidate.phone)}</span>
             </div>
           )}
         </div>
@@ -76,6 +72,15 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
         {candidate.resume_url && (
           <Badge variant="secondary" className="text-[10px] py-0 h-5 gap-1">
             <FileText className="w-2.5 h-2.5" /> CV
+          </Badge>
+        )}
+        {phonePending && (
+          <Badge
+            variant="outline"
+            className="text-[10px] py-0 h-5 gap-1 border-warning/60 bg-warning/10 text-warning"
+            title="Telefone ausente ou inválido — atualize antes de contatar"
+          >
+            <AlertTriangle className="w-2.5 h-2.5" /> Tel pendente
           </Badge>
         )}
       </div>
