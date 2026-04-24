@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { writeAuditLog } from "../_shared/auditLog.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -106,6 +107,16 @@ Deno.serve(async (req) => {
         )
       }
 
+      await writeAuditLog(adminClient, {
+        action: 'user_password_reset',
+        category: 'users',
+        success: true,
+        userId,
+        targetTable: 'auth.users',
+        targetId: targetUserId,
+        details: { by_role: callerRole },
+      })
+
       return new Response(
         JSON.stringify({ success: true, message: 'Password reset successfully' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -152,6 +163,16 @@ Deno.serve(async (req) => {
         .from('profiles')
         .update({ email: newEmail })
         .eq('user_id', targetUserId)
+
+      await writeAuditLog(adminClient, {
+        action: 'user_email_updated',
+        category: 'users',
+        success: true,
+        userId,
+        targetTable: 'profiles',
+        targetId: targetUserId,
+        details: { new_email: newEmail, by_role: callerRole },
+      })
 
       return new Response(
         JSON.stringify({ success: true, message: 'Email updated successfully' }),
@@ -217,6 +238,16 @@ Deno.serve(async (req) => {
         .update({ created_by: userId, name: name || null })
         .eq('user_id', newUser.user.id)
     }
+
+    await writeAuditLog(adminClient, {
+      action: 'user_created',
+      category: 'users',
+      success: true,
+      userId,
+      targetTable: 'profiles',
+      targetId: newUser.user?.id ?? null,
+      details: { email, role: validRole, by_role: callerRole, name: name || null },
+    })
 
     return new Response(
       JSON.stringify({ 

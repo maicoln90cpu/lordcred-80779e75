@@ -29,25 +29,80 @@ interface AuditLog {
   created_at: string;
 }
 
-const actionLabels: Record<string, { label: string; className: string }> = {
-  profile_created: { label: 'Perfil Criado', className: 'bg-green-500/20 text-green-400' },
-  profile_updated: { label: 'Perfil Atualizado', className: 'bg-blue-500/20 text-blue-400' },
-  profile_deleted: { label: 'Perfil Excluído', className: 'bg-destructive/20 text-destructive' },
-  role_created: { label: 'Role Criada', className: 'bg-green-500/20 text-green-400' },
-  role_updated: { label: 'Role Alterada', className: 'bg-orange-500/20 text-orange-400' },
-  role_deleted: { label: 'Role Excluída', className: 'bg-destructive/20 text-destructive' },
-  chip_created: { label: 'Chip Criado', className: 'bg-green-500/20 text-green-400' },
-  chip_deleted: { label: 'Chip Excluído', className: 'bg-destructive/20 text-destructive' },
-  settings_updated: { label: 'Config Alterada', className: 'bg-yellow-500/20 text-yellow-400' },
-  ticket_created: { label: 'Ticket Criado', className: 'bg-green-500/20 text-green-400' },
-  ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400' },
-  clicksign_contract_generated: { label: 'Contrato Gerado', className: 'bg-green-500/20 text-green-400' },
-  clicksign_resend_notification: { label: 'Contrato Reenviado', className: 'bg-orange-500/20 text-orange-400' },
-  clicksign_webhook_signed: { label: 'Contrato Assinado', className: 'bg-green-500/20 text-green-400' },
-  partner_created: { label: 'Parceiro Criado', className: 'bg-green-500/20 text-green-400' },
-  partner_updated: { label: 'Parceiro Atualizado', className: 'bg-blue-500/20 text-blue-400' },
-  partner_deleted: { label: 'Parceiro Excluído', className: 'bg-destructive/20 text-destructive' },
+type AuditCategory =
+  | 'whatsapp'
+  | 'broadcasts'
+  | 'leads'
+  | 'commissions'
+  | 'corban'
+  | 'contracts'
+  | 'simulator'
+  | 'hr'
+  | 'users'
+  | 'settings'
+  | 'system';
+
+const categoryLabels: Record<AuditCategory | 'all', string> = {
+  all: 'Todas as categorias',
+  whatsapp: 'WhatsApp / Chips',
+  broadcasts: 'Disparos (Broadcasts)',
+  leads: 'Leads',
+  commissions: 'Comissões',
+  corban: 'Corban',
+  contracts: 'Contratos (ClickSign)',
+  simulator: 'Simulador V8',
+  hr: 'RH',
+  users: 'Usuários',
+  settings: 'Configurações',
+  system: 'Sistema',
 };
+
+const actionLabels: Record<string, { label: string; className: string; category: AuditCategory }> = {
+  // Users / profiles
+  profile_created: { label: 'Perfil Criado', className: 'bg-green-500/20 text-green-400', category: 'users' },
+  profile_updated: { label: 'Perfil Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'users' },
+  profile_deleted: { label: 'Perfil Excluído', className: 'bg-destructive/20 text-destructive', category: 'users' },
+  role_created: { label: 'Role Criada', className: 'bg-green-500/20 text-green-400', category: 'users' },
+  role_updated: { label: 'Role Alterada', className: 'bg-orange-500/20 text-orange-400', category: 'users' },
+  role_deleted: { label: 'Role Excluída', className: 'bg-destructive/20 text-destructive', category: 'users' },
+  user_created: { label: 'Usuário Criado', className: 'bg-green-500/20 text-green-400', category: 'users' },
+  user_deleted: { label: 'Usuário Excluído', className: 'bg-destructive/20 text-destructive', category: 'users' },
+  user_role_updated: { label: 'Role Atualizada', className: 'bg-orange-500/20 text-orange-400', category: 'users' },
+  user_password_reset: { label: 'Senha Redefinida', className: 'bg-yellow-500/20 text-yellow-400', category: 'users' },
+  user_email_updated: { label: 'E-mail Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'users' },
+  // WhatsApp / chips
+  chip_created: { label: 'Chip Criado', className: 'bg-green-500/20 text-green-400', category: 'whatsapp' },
+  chip_deleted: { label: 'Chip Excluído', className: 'bg-destructive/20 text-destructive', category: 'whatsapp' },
+  // Settings
+  settings_updated: { label: 'Config Alterada', className: 'bg-yellow-500/20 text-yellow-400', category: 'settings' },
+  // Tickets (system / ops)
+  ticket_created: { label: 'Ticket Criado', className: 'bg-green-500/20 text-green-400', category: 'system' },
+  ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'system' },
+  // Contracts
+  clicksign_contract_generated: { label: 'Contrato Gerado', className: 'bg-green-500/20 text-green-400', category: 'contracts' },
+  clicksign_resend_notification: { label: 'Contrato Reenviado', className: 'bg-orange-500/20 text-orange-400', category: 'contracts' },
+  clicksign_webhook_signed: { label: 'Contrato Assinado', className: 'bg-green-500/20 text-green-400', category: 'contracts' },
+  // Partners (commissions area)
+  partner_created: { label: 'Parceiro Criado', className: 'bg-green-500/20 text-green-400', category: 'commissions' },
+  partner_updated: { label: 'Parceiro Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'commissions' },
+  partner_deleted: { label: 'Parceiro Excluído', className: 'bg-destructive/20 text-destructive', category: 'commissions' },
+  // Simulator V8
+  v8_get_configs: { label: 'V8 — Atualizar Tabelas', className: 'bg-blue-500/20 text-blue-400', category: 'simulator' },
+  v8_simulate_one: { label: 'V8 — Simulação', className: 'bg-green-500/20 text-green-400', category: 'simulator' },
+  v8_create_batch: { label: 'V8 — Lote Criado', className: 'bg-green-500/20 text-green-400', category: 'simulator' },
+  // HR
+  hr_notifications_run: { label: 'RH — Disparo Notificações', className: 'bg-blue-500/20 text-blue-400', category: 'hr' },
+  // Broadcasts
+  broadcast_run: { label: 'Disparo Executado', className: 'bg-blue-500/20 text-blue-400', category: 'broadcasts' },
+};
+
+function getCategory(log: AuditLog): AuditCategory {
+  // Prefer explicit category from edge function helper
+  const fromDetails = log.details?.category as AuditCategory | undefined;
+  if (fromDetails && fromDetails in categoryLabels) return fromDetails;
+  // Fallback to action mapping
+  return actionLabels[log.action]?.category ?? 'system';
+}
 
 type LogStatus = 'success' | 'error' | 'info';
 
@@ -113,6 +168,7 @@ export default function AuditLogs() {
   const [hasMore, setHasMore] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | AuditCategory>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | LogStatus>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
@@ -155,7 +211,8 @@ export default function AuditLogs() {
       (log.target_table?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     const matchesStatus = filterStatus === 'all' || getLogStatus(log) === filterStatus;
-    return matchesSearch && matchesAction && matchesStatus;
+    const matchesCategory = filterCategory === 'all' || getCategory(log) === filterCategory;
+    return matchesSearch && matchesAction && matchesStatus && matchesCategory;
   });
   const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
@@ -260,6 +317,16 @@ export default function AuditLogs() {
                   className="pl-9"
                 />
               </div>
+              <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as 'all' | AuditCategory)}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filtrar categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(categoryLabels) as Array<keyof typeof categoryLabels>).map(k => (
+                    <SelectItem key={k} value={k}>{categoryLabels[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={filterAction} onValueChange={setFilterAction}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filtrar ação" />

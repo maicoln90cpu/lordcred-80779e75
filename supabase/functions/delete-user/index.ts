@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { writeAuditLog } from '../_shared/auditLog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -114,6 +115,17 @@ Deno.serve(async (req) => {
     // Always clean up profile and role data
     await adminClient.from('user_roles').delete().eq('user_id', userId);
     await adminClient.from('profiles').delete().eq('user_id', userId);
+
+    await writeAuditLog(adminClient, {
+      action: 'user_deleted',
+      category: 'users',
+      success: true,
+      userId: caller.id,
+      userEmail: caller.email ?? null,
+      targetTable: 'profiles',
+      targetId: userId,
+      details: { deleted_user_id: userId, deleted_role: targetRole?.role ?? null },
+    });
 
     return new Response(
       JSON.stringify({ success: true, message: 'User deleted successfully' }),

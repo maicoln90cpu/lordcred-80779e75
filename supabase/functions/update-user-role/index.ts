@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { writeAuditLog } from '../_shared/auditLog.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -85,6 +86,16 @@ Deno.serve(async (req) => {
     if (updateError) {
       throw updateError
     }
+
+    await writeAuditLog(adminClient, {
+      action: 'user_role_updated',
+      category: 'users',
+      success: true,
+      userId: requesterId,
+      targetTable: 'user_roles',
+      targetId: targetUserId,
+      details: { new_role: newRole, by_role: requesterRole?.role ?? null },
+    })
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { writeAuditLog } from "../_shared/auditLog.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -348,6 +349,20 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    await writeAuditLog(adminClient, {
+      action: 'broadcast_run',
+      category: 'broadcasts',
+      success: true,
+      targetTable: 'broadcast_campaigns',
+      targetId: campaignId ?? null,
+      details: {
+        campaigns: campaigns.length,
+        processed: totalProcessed,
+        failed: totalFailed,
+        skipped: totalSkipped,
+      },
+    })
 
     return new Response(
       JSON.stringify({ ok: true, processed: totalProcessed, failed: totalFailed, skipped: totalSkipped }),

@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { writeAuditLog } from "../_shared/auditLog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -294,13 +295,44 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { action, params } = body;
 
+    const userEmail = userData.user.email ?? null;
+
     let result;
     switch (action) {
       case "get_configs":
         result = await actionGetConfigs(supabase);
+        await writeAuditLog(supabase, {
+          action: "v8_get_configs",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_configs_cache",
+          details: {
+            count: Array.isArray((result as any)?.data) ? (result as any).data.length : 0,
+            error: (result as any)?.error ?? null,
+          },
+        });
         break;
       case "simulate_one":
         result = await actionSimulateOne(supabase, params);
+        await writeAuditLog(supabase, {
+          action: "v8_simulate_one",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_simulations",
+          targetId: params?.simulation_id ?? null,
+          details: {
+            cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+            config_id: params?.config_id ?? null,
+            parcelas: params?.parcelas ?? null,
+            step: (result as any)?.step ?? null,
+            error: (result as any)?.error ?? null,
+            released_value: (result as any)?.data?.released_value ?? null,
+          },
+        });
         if (params?.simulation_id) {
           if (result.success) {
             await supabase
@@ -345,6 +377,19 @@ serve(async (req) => {
         break;
       case "create_batch":
         result = await actionCreateBatch(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_create_batch",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: (result as any)?.data?.batch_id ?? null,
+          details: {
+            total: (result as any)?.data?.total ?? null,
+            error: (result as any)?.error ?? null,
+          },
+        });
         break;
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);

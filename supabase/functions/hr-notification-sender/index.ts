@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4"
+import { writeAuditLog } from "../_shared/auditLog.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -234,6 +235,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    await writeAuditLog(admin, {
+      action: 'hr_notifications_run',
+      category: 'hr',
+      success: true,
+      targetTable: 'hr_notifications',
+      details: { processed: pending.length, sent, failed },
+    })
+
     return jsonResponse({
       success: true,
       processed: pending.length,
@@ -242,6 +251,20 @@ Deno.serve(async (req) => {
     })
   } catch (e) {
     console.error('[hr-notification-sender] fatal:', e)
+    try {
+      const admin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      )
+      await writeAuditLog(admin, {
+        action: 'hr_notifications_run',
+        category: 'hr',
+        success: false,
+        targetTable: 'hr_notifications',
+        details: { error: (e as Error).message || 'unknown error' },
+      })
+    } catch { /* ignore */ }
     // Never return 500 — keeps cron from failing loudly
     return jsonResponse({ success: false, error: (e as Error).message || 'unknown error' })
   }
