@@ -84,20 +84,28 @@ async function actionGetConfigs(supabase: any) {
       const config_id = String(c.id ?? c.configId ?? c.uuid ?? c.code ?? "");
       if (!config_id) continue;
       const fin = c.financial ?? c.financialConditions ?? {};
+      // V8 (Crédito do Trabalhador) retorna o nome em "slug" no payload flat.
+      // Fallbacks adicionais cobrem versões antigas e variações por provider.
+      const displayName = String(
+        c.slug ?? c.name ?? c.label ?? c.description ?? c.product_name ?? "Sem nome"
+      );
+      const isInsured = c.is_insured === true || c.isInsured === true;
       await supabase
         .from("v8_configs_cache")
         .upsert(
           {
             config_id,
-            name: String(c.name ?? c.label ?? c.description ?? "Sem nome"),
-            bank_name: fin.bank ?? c.bank ?? c.bankName ?? null,
+            name: displayName,
+            bank_name: fin.bank ?? c.bank ?? c.bankName ?? c.provider ?? null,
             product_type: c.productType ?? c.product ?? "clt",
-            min_value: fin.minValue ?? c.minValue ?? null,
-            max_value: fin.maxValue ?? c.maxValue ?? null,
-            min_term: fin.minTerm ?? c.minTerm ?? c.minInstallments ?? null,
-            max_term: fin.maxTerm ?? c.maxTerm ?? c.maxInstallments ?? null,
+            min_value: fin.minValue ?? c.minValue ?? c.min_value ?? null,
+            max_value: fin.maxValue ?? c.maxValue ?? c.max_value ?? null,
+            min_term:
+              fin.minTerm ?? c.minTerm ?? c.minInstallments ?? c.min_installments ?? null,
+            max_term:
+              fin.maxTerm ?? c.maxTerm ?? c.maxInstallments ?? c.max_installments ?? null,
             is_active: c.active !== false,
-            raw_data: c,
+            raw_data: { ...c, _is_insured: isInsured },
             synced_at: new Date().toISOString(),
           },
           { onConflict: "config_id" }
