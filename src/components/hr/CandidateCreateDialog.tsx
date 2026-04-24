@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useHRCandidates } from '@/hooks/useHRCandidates';
+import { validateBrazilianPhone } from '@/lib/phoneUtils';
 
 interface Props {
   open: boolean;
@@ -26,20 +27,22 @@ export function CandidateCreateDialog({ open, onOpenChange }: Props) {
     setFullName(''); setPhone(''); setType('clt'); setAge('');
   };
 
+  const phoneCheck = validateBrazilianPhone(phone);
+
   const handleSave = async () => {
     if (fullName.trim().length < 2) {
       toast({ title: 'Nome inválido', description: 'Mínimo 2 caracteres.', variant: 'destructive' });
       return;
     }
-    if (!phone.trim()) {
-      toast({ title: 'Telefone obrigatório', variant: 'destructive' });
+    if (!phoneCheck.valid) {
+      toast({ title: 'Telefone inválido', description: phoneCheck.reason, variant: 'destructive' });
       return;
     }
     setSaving(true);
     try {
       await createCandidate({
         full_name: fullName.trim().slice(0, 150),
-        phone: phone.trim().slice(0, 20),
+        phone: phoneCheck.normalized,
         type,
         age: age ? Math.max(16, Math.min(99, parseInt(age, 10))) : null,
         kanban_status: 'new_resume',
