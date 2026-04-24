@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-24 — Entrega A: Sino Corban funcional (trigger + backfill)
+
+- **Função `corban_classify_status(text)`**: classifica statuses Corban em `'aprovado'`, `'pago'` ou `NULL`. Cobre variações reais do banco (APROVADA, Aprovado, Integrada, CadastradaComSucesso, PAGO, CONTRATO PAGO, PagamentoConfirmado).
+- **Trigger `notify_corban_terminal_status()`**: dispara em INSERT/UPDATE de `corban_propostas_snapshot` quando o status entra em estado terminal (aprovado ou pago). Resolve o vendedor via `corban_seller_mapping` e cria registro em `corban_notifications` com tipo `proposta_aprovada` ou `proposta_paga`. Não duplica entre transições do mesmo estado.
+- **Backfill de 30 dias**: 2.781 notificações criadas (2.670 aprovações + 111 pagamentos) para 11 vendedores mapeados, "ressuscitando" o sino que estava silencioso há 13 dias.
+- ⚠️ **Pendência detectada**: `corban-snapshot-cron` parou em 11/abr (último `updated_at` no snapshot). Precisa ser investigado em entrega separada — o trigger só ajuda quando o snapshot é atualizado.
+
 ## 2026-04-23 — Comissões V2 + Meta editável + Documentação completa
 
 - **Comissões Parceiros V2** (`/admin/commissions-v2`): sandbox isolado com 7 tabelas espelho `_v2`
