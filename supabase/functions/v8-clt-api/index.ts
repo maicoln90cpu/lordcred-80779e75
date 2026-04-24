@@ -212,6 +212,8 @@ export interface SimulateInput {
   telefone?: string;
   config_id: string;
   parcelas: number;
+  simulation_mode?: "disbursed_amount" | "installment_face_value";
+  simulation_value?: number;
   batch_id?: string;
   simulation_id?: string;
 }
@@ -298,6 +300,86 @@ export function buildSimulationBody(input: Pick<SimulateInput, "config_id" | "pa
   };
 }
 
+function buildSimulationBodyWithValue(
+  input: Pick<SimulateInput, "config_id" | "parcelas" | "simulation_mode" | "simulation_value">,
+  consultId: string,
+) {
+  const base = buildSimulationBody(input, consultId) as Record<string, unknown>;
+  if (input.simulation_mode === "installment_face_value") {
+    base.installment_face_value = Number(input.simulation_value);
+  } else {
+    base.disbursed_amount = Number(input.simulation_value);
+  }
+  return base;
+}
+
+async function waitForConsultReady(supabase: any, consultId: string, cpf: string) {
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 60 * 60 * 1000);
+  const searchValue = cpf.replace(/\D/g, "");
+  let lastPayload: any = null;
+
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    const query = new URLSearchParams({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      limit: "50",
+      page: "1",
+      provider: "QI",
+      search: searchValue,
+    });
+
+    const statusResp = await v8Fetch(`${V8_PATHS.consult}?${query.toString()}`, { method: "GET" });
+    const statusJson = await statusResp.json().catch(() => ({}));
+    lastPayload = statusJson;
+
+    if (!statusResp.ok) {
+      return {
+        success: false,
+        step: "consult_status",
+        error: statusJson?.message || statusJson?.error || `Status ${statusResp.status}`,
+        raw: statusJson,
+      };
+    }
+
+    const records = Array.isArray(statusJson?.data) ? statusJson.data : Array.isArray(statusJson) ? statusJson : [];
+    const consultRow = records.find((row: any) => {
+      const rowId = String(row?.id ?? row?.consult_id ?? row?.consultId ?? "");
+      const rowDocument = String(row?.documentNumber ?? row?.borrowerDocumentNumber ?? "").replace(/\D/g, "");
+      return rowId === consultId || rowDocument === searchValue;
+    });
+
+    if (!consultRow) {
+      console.error(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} not found in listing`);
+    } else {
+      const consultStatus = String(consultRow?.status ?? "").toUpperCase();
+      if (consultStatus === "SUCCESS") {
+        return { success: true, data: consultRow };
+      }
+      if (consultStatus === "FAILED" || consultStatus === "REJECTED") {
+        return {
+          success: false,
+          step: "consult_status",
+          error: String(consultRow?.description || `Consulta retornou ${consultStatus}`),
+          raw: consultRow,
+        };
+      }
+      console.log(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} status=${consultStatus}`);
+    }
+
+    if (attempt < 6) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  return {
+    success: false,
+    step: "consult_status",
+    error: "Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.",
+    raw: lastPayload,
+  };
+}
+
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
@@ -314,6 +396,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }
   if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
     return { success: false, step: "simulate", error: "number_of_installments inválido" };
+  }
+  if (!["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""))) {
+    return { success: false, step: "simulate", error: "Escolha o tipo da simulação (valor liberado ou valor da parcela)" };
+  }
+  if (!Number.isFinite(Number(input.simulation_value)) || Number(input.simulation_value) <= 0) {
+    return { success: false, step: "simulate", error: "Informe um valor de simulação válido" };
   }
 
   // 1) Consult — builder testável
@@ -348,7 +436,6 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   // 2) Authorize — passa consult_id na URL
   const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
-    body: JSON.stringify({}),
   }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
@@ -360,8 +447,23 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     };
   }
 
+  const consultStatusResult = await waitForConsultReady(supabase, consultId, cpf);
+  if (!consultStatusResult.success) {
+    return {
+      success: false,
+      step: "consult_status",
+      error: consultStatusResult.error,
+      raw: {
+        consult: consultJson,
+        authorize: authJson,
+        consult_status: consultStatusResult.raw,
+      },
+    };
+  }
+  const consultStatusData = consultStatusResult.data;
+
   // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
-  const simulationBody = buildSimulationBody(input, consultId);
+  const simulationBody = buildSimulationBodyWithValue(input, consultId);
   const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
@@ -376,6 +478,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
+          consult_status: consultStatusData,
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
@@ -462,6 +565,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
+        consult_status: consultStatusData,
         simulate: simJson,
       },
     },
@@ -537,7 +641,7 @@ async function actionListBatches(supabase: any, userId: string, isPriv: boolean)
   return { success: true, data };
 }
 
-serve(async (req) => {
+const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -619,9 +723,11 @@ serve(async (req) => {
               config_id: params?.config_id ?? null,
               config_label: params?.config_label ?? null,
               parcelas: params?.parcelas ?? null,
+              simulation_mode: params?.simulation_mode ?? null,
+              simulation_value: params?.simulation_value ?? null,
               simulation_payload:
-                params?.config_id && params?.parcelas
-                  ? buildSimulationBody(params, "<consult_id>")
+                params?.config_id && params?.parcelas && params?.simulation_mode && params?.simulation_value
+                  ? buildSimulationBodyWithValue(params, "<consult_id>")
                   : null,
               batch_id: params?.batch_id ?? null,
             },
@@ -640,6 +746,7 @@ serve(async (req) => {
             cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
+            simulation_mode: params?.simulation_mode ?? null,
             step: (result as any)?.step ?? null,
             error: (result as any)?.error ?? null,
             released_value: (result as any)?.data?.released_value ?? null,
@@ -672,6 +779,17 @@ serve(async (req) => {
                 _batch_id: params.batch_id,
               });
             }
+          } else if ((result as any)?.step === "consult_status") {
+            await supabase
+              .from("v8_simulations")
+              .update({
+                status: "pending",
+                error_message: String((result as any).error || "Consulta ainda em análise"),
+                raw_response: (result as any).raw ?? null,
+                consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", params.simulation_id);
           } else {
             await supabase
               .from("v8_simulations")
@@ -738,4 +856,8 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+};
+
+if (import.meta.main) {
+  serve(handler);
+}

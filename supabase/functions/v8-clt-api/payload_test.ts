@@ -131,3 +131,18 @@ Deno.test("buildSimulationBody monta payload oficial da V8", () => {
   assert(!("configId" in body));
   assert(!("installments" in body));
 });
+
+Deno.test("buildSimulationBody segue contrato mínimo sem valores opcionais", () => {
+  const body = buildSimulationBody(
+    {
+      config_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      parcelas: 36,
+    },
+    "consult-xyz",
+  );
+
+  assertEquals(body.consult_id, "consult-xyz");
+  assertEquals(body.number_of_installments, 36);
+  assert(!("disbursed_amount" in body));
+  assert(!("installment_face_value" in body));
+});

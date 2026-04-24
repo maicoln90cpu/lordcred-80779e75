@@ -22,6 +22,8 @@ export default function V8NovaSimulacaoTab() {
   const [batchName, setBatchName] = useState('');
   const [configId, setConfigId] = useState('');
   const [parcelas, setParcelas] = useState(24);
+  const [simulationMode, setSimulationMode] = useState<'disbursed_amount' | 'installment_face_value'>('disbursed_amount');
+  const [simulationValue, setSimulationValue] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -89,9 +91,15 @@ export default function V8NovaSimulacaoTab() {
       toast.error('Dê um nome ao lote');
       return;
     }
+    if (!Number.isFinite(Number(simulationValue.replace(',', '.'))) || Number(simulationValue.replace(',', '.')) <= 0) {
+      toast.error('Informe um valor válido para a simulação');
+      return;
+    }
 
     setRunning(true);
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
+    const normalizedSimulationValue = Number(simulationValue.replace(',', '.'));
+    let pendingCount = 0;
 
     try {
       const { data, error } = await supabase.functions.invoke('v8-clt-api', {
@@ -140,11 +148,19 @@ export default function V8NovaSimulacaoTab() {
                   telefone: parsedRow?.telefone,
                   config_id: configId,
                   parcelas,
+                  simulation_mode: simulationMode,
+                  simulation_value: normalizedSimulationValue,
                   batch_id: batchId,
                   simulation_id: sim.id,
                 },
               },
             });
+            const { data: latestSim } = await supabase
+              .from('v8_simulations')
+              .select('status')
+              .eq('id', sim.id)
+              .maybeSingle();
+            if (latestSim?.status === 'pending') pendingCount += 1;
           } catch (err) {
             console.error('Sim err', sim.cpf, err);
           }
@@ -152,7 +168,11 @@ export default function V8NovaSimulacaoTab() {
       });
 
       await Promise.all(workers);
-      toast.success('Lote concluído!');
+      if (pendingCount > 0) {
+        toast.warning(`Lote enviado. ${pendingCount} consulta(s) ainda estão em análise na V8.`);
+      } else {
+        toast.success('Lote concluído!');
+      }
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
     } finally {
@@ -222,6 +242,33 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Tipo da simulação</Label>
+              <Select value={simulationMode} onValueChange={(value: 'disbursed_amount' | 'installment_face_value') => setSimulationMode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
+                  <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
+              <Input
+                inputMode="decimal"
+                placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
+                value={simulationValue}
+                onChange={(e) => setSimulationValue(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                A V8 exige um valor-base para calcular a simulação. Sem isso ela tende a recusar ou devolver erro.
+              </p>
+            </div>
+          </div>
+
           <div>
             <Label>Dados dos clientes (1 por linha)</Label>
             <Textarea
@@ -253,6 +300,11 @@ export default function V8NovaSimulacaoTab() {
               {!invalidDateIssue && blockingIssues.length > 0 && (
                 <p className="font-medium text-destructive">
                   Existem {blockingIssues.length} linha(s) em formato não aceito. Corrija antes de iniciar o lote.
+                </p>
+              )}
+              {pasteText.trim().length > 0 && blockingIssues.length === 0 && (
+                <p>
+                  Se alguma linha ficar como <strong>pending</strong>, isso significa que a consulta ainda está em análise na V8 e não deve ser tratada como falha definitiva.
                 </p>
               )}
             </div>
@@ -298,6 +350,7 @@ export default function V8NovaSimulacaoTab() {
                     <th className="px-2 py-1 text-right">Parcela</th>
                     <th className="px-2 py-1 text-right">Margem</th>
                     <th className="px-2 py-1 text-right">A cobrar</th>
+                    <th className="px-2 py-1 text-left">Observação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,6 +368,7 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1">{s.error_message || (s.status === 'pending' ? 'Aguardando retorno da V8' : '—')}</td>
                     </tr>
                   ))}
                 </tbody>
