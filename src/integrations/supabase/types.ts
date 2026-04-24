@@ -3853,7 +3853,7 @@ export type Database = {
         Row: {
           amount_to_charge: number | null
           attempt_count: number
-          batch_id: string
+          batch_id: string | null
           birth_date: string | null
           company_margin: number | null
           config_id: string | null
@@ -3861,12 +3861,13 @@ export type Database = {
           consult_id: string | null
           cpf: string
           created_at: string
-          created_by: string
+          created_by: string | null
           error_message: string | null
           id: string
           installment_value: number | null
           installments: number | null
           interest_rate: number | null
+          is_orphan: boolean
           last_attempt_at: string | null
           last_step: string | null
           last_webhook_at: string | null
@@ -3884,7 +3885,7 @@ export type Database = {
         Insert: {
           amount_to_charge?: number | null
           attempt_count?: number
-          batch_id: string
+          batch_id?: string | null
           birth_date?: string | null
           company_margin?: number | null
           config_id?: string | null
@@ -3892,12 +3893,13 @@ export type Database = {
           consult_id?: string | null
           cpf: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           error_message?: string | null
           id?: string
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          is_orphan?: boolean
           last_attempt_at?: string | null
           last_step?: string | null
           last_webhook_at?: string | null
@@ -3915,7 +3917,7 @@ export type Database = {
         Update: {
           amount_to_charge?: number | null
           attempt_count?: number
-          batch_id?: string
+          batch_id?: string | null
           birth_date?: string | null
           company_margin?: number | null
           config_id?: string | null
@@ -3923,12 +3925,13 @@ export type Database = {
           consult_id?: string | null
           cpf?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           error_message?: string | null
           id?: string
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          is_orphan?: boolean
           last_attempt_at?: string | null
           last_step?: string | null
           last_webhook_at?: string | null
