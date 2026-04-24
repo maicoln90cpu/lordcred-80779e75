@@ -50,6 +50,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   const [scoreEng, setScoreEng] = useState(5);
   const [saving, setSaving] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
 
   // Load existing data when interview changes
@@ -246,12 +247,30 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
       <div className="flex justify-between items-center pt-1 gap-2">
         <Button
           variant="outline"
-          onClick={() => setLinkDialogOpen(true)}
-          disabled={!interview?.id}
+          onClick={async () => {
+            // Auto-create an empty interview record if none exists, so the link dialog can attach a token to it
+            if (!interview?.id) {
+              try {
+                setGeneratingLink(true);
+                await saveInterview({ stage }, []);
+                // saveInterview triggers refetch; the dialog will pick up the new interview.id on next render
+                toast({ title: 'Entrevista criada', description: 'Agora você pode gerar o link público.' });
+                // small delay to ensure refetch finished and interview state populated
+                setTimeout(() => setLinkDialogOpen(true), 350);
+              } catch (err: any) {
+                toast({ title: 'Erro ao preparar link', description: err.message, variant: 'destructive' });
+              } finally {
+                setGeneratingLink(false);
+              }
+            } else {
+              setLinkDialogOpen(true);
+            }
+          }}
+          disabled={generatingLink}
           className="gap-2"
-          title={!interview?.id ? 'Salve a entrevista para gerar link' : 'Gerar link público'}
+          title={!interview?.id ? 'Cria a entrevista vazia e abre o gerador de link' : 'Gerar link público'}
         >
-          <Link2 className="w-4 h-4" />
+          {generatingLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
           Link público E{stage}
         </Button>
         <Button onClick={handleSave} disabled={saving} className="gap-2">

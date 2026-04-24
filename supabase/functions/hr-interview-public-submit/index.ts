@@ -136,6 +136,24 @@ Deno.serve(async (req) => {
       .update({ used_at: new Date().toISOString() })
       .eq("id", tokenRow.id);
 
+    // Fire-and-forget: notify the HR group channel in internal chat.
+    // The token row carries created_by — use it as message author when available.
+    try {
+      const { data: tokenFull } = await supabase
+        .from("hr_interview_tokens")
+        .select("created_by")
+        .eq("id", tokenRow.id)
+        .maybeSingle();
+
+      await supabase.rpc("hr_notify_interview_submitted", {
+        _candidate_id: tokenRow.candidate_id,
+        _stage: tokenRow.stage,
+        _author_id: tokenFull?.created_by ?? null,
+      });
+    } catch (notifyErr) {
+      console.warn("hr_notify_interview_submitted failed:", notifyErr);
+    }
+
     return new Response(
       JSON.stringify({ success: true, saved: sanitized.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
