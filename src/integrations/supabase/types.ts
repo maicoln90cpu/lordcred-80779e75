@@ -1906,6 +1906,7 @@ export type Database = {
           id: string
           interview_id: string
           question_id: string
+          question_text_snapshot: string | null
         }
         Insert: {
           answer?: string | null
@@ -1913,6 +1914,7 @@ export type Database = {
           id?: string
           interview_id: string
           question_id: string
+          question_text_snapshot?: string | null
         }
         Update: {
           answer?: string | null
@@ -1920,6 +1922,7 @@ export type Database = {
           id?: string
           interview_id?: string
           question_id?: string
+          question_text_snapshot?: string | null
         }
         Relationships: [
           {

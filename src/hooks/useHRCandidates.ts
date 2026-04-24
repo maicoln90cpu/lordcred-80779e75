@@ -59,6 +59,7 @@ export interface HRAnswer {
   interview_id: string;
   question_id: string;
   answer: string | null;
+  question_text_snapshot: string | null;
 }
 
 export function useHRCandidates() {
@@ -298,7 +299,7 @@ export function useHRInterviews(candidateId: string | null) {
 
   const saveInterview = useCallback(async (
     interview: Partial<HRInterview> & { stage: 1 | 2 },
-    answers: { question_id: string; answer: string }[],
+    answers: { question_id: string; answer: string; question_text_snapshot?: string }[],
   ) => {
     if (!candidateId) throw new Error('Sem candidato');
     const payload: any = {
@@ -338,7 +339,12 @@ export function useHRInterviews(candidateId: string | null) {
       await (supabase as any).from('hr_interview_answers').delete().eq('interview_id', interviewId);
       const rows = answers
         .filter(a => a.answer && a.answer.trim().length > 0)
-        .map(a => ({ interview_id: interviewId, question_id: a.question_id, answer: a.answer }));
+        .map(a => ({
+          interview_id: interviewId,
+          question_id: a.question_id,
+          answer: a.answer,
+          question_text_snapshot: a.question_text_snapshot ?? null,
+        }));
       if (rows.length > 0) {
         const { error } = await (supabase as any).from('hr_interview_answers').insert(rows);
         if (error) throw error;

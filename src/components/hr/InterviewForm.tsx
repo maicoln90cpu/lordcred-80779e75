@@ -5,7 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, Save, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useHRInterviews, type HRCandidate, type HRInterview } from '@/hooks/useHRCandidates';
 
@@ -37,6 +39,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   );
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [snapshots, setSnapshots] = useState<Record<string, string | null>>({});
   const [observations, setObservations] = useState('');
   const [result, setResult] = useState<string>('pending');
   const [attended, setAttended] = useState<string>('yes');
@@ -49,6 +52,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   useEffect(() => {
     if (!interview) {
       setAnswers({});
+      setSnapshots({});
       setObservations('');
       setResult('pending');
       setAttended('yes');
@@ -67,8 +71,13 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
     }
     fetchAnswers(interview.id).then(rows => {
       const map: Record<string, string> = {};
-      rows.forEach(r => { if (r.answer) map[r.question_id] = r.answer; });
+      const snapMap: Record<string, string | null> = {};
+      rows.forEach(r => {
+        if (r.answer) map[r.question_id] = r.answer;
+        snapMap[r.question_id] = r.question_text_snapshot ?? null;
+      });
       setAnswers(map);
+      setSnapshots(snapMap);
     }).catch(() => { /* silent */ });
   }, [interview, stage, fetchAnswers]);
 
@@ -93,8 +102,11 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         patch.score_cultura = scoreCul;
         patch.score_energia = scoreEng;
       }
+      const questionTextById = new Map(stageQuestions.map(q => [q.id, q.text]));
       const answerRows = Object.entries(answers).map(([question_id, answer]) => ({
-        question_id, answer,
+        question_id,
+        answer,
+        question_text_snapshot: questionTextById.get(question_id) ?? null,
       }));
       await saveInterview(patch, answerRows);
       onSaved?.();
@@ -176,21 +188,43 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
       {stageQuestions.length > 0 && (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Perguntas</h4>
-          {stageQuestions.map(q => (
-            <div key={q.id} className="space-y-1.5">
-              <Label className="text-xs leading-snug">
-                <span className="text-muted-foreground mr-1">{q.order_num}.</span>
-                {q.text}
-              </Label>
-              <Textarea
-                value={answers[q.id] || ''}
-                onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                placeholder="Resposta..."
-                rows={2}
-                maxLength={2000}
-              />
-            </div>
-          ))}
+          {stageQuestions.map(q => {
+            const snap = snapshots[q.id];
+            const wasEdited = !!snap && snap.trim() !== q.text.trim();
+            return (
+              <div key={q.id} className="space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <Label className="text-xs leading-snug flex-1">
+                    <span className="text-muted-foreground mr-1">{q.order_num}.</span>
+                    {q.text}
+                  </Label>
+                  {wasEdited && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] py-0 h-5 border-warning/50 text-warning">
+                            <Pencil className="w-2.5 h-2.5" />
+                            pergunta editada
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs">
+                          <p className="text-xs font-semibold mb-1">Texto original (no momento da resposta):</p>
+                          <p className="text-xs text-muted-foreground">{snap}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                <Textarea
+                  value={answers[q.id] || ''}
+                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                  placeholder="Resposta..."
+                  rows={2}
+                  maxLength={2000}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
