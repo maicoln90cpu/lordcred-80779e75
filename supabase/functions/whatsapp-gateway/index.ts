@@ -1,9 +1,27 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4"
+import { writeAuditLog } from '../_shared/auditLog.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
+
+// Administrative actions that should be audit-logged.
+// High-volume actions (send-message, fetch-*, mark-read, etc.) are intentionally excluded
+// to avoid log bloat — those are tracked separately via message_history / webhook_logs.
+const ADMIN_AUDIT_ACTIONS = new Set([
+  'create-instance',
+  'delete-instance',
+  'disconnect-instance',
+  'get-qrcode',
+  'sync-templates',
+  'set-profile-name',
+  'set-profile-picture',
+  'set-privacy',
+  'update-business-profile',
+  'block-contact',
+  'delete-chat',
+])
 
 function jsonResponse(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
