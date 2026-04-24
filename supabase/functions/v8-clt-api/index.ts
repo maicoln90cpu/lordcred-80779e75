@@ -110,22 +110,71 @@ async function readUpstreamErrorBody(resp: Response) {
   const rawText = await resp.text().catch(() => "");
   try {
     const parsed = rawText ? JSON.parse(rawText) : null;
+    const title = parsed?.title ?? null;
+    const detail = parsed?.detail ?? null;
+    const message = parsed?.message ?? null;
+    const error = parsed?.error ?? null;
     return {
       rawText,
       parsed,
-      message:
-        parsed?.message ||
-        parsed?.error ||
-        rawText ||
-        `Status ${resp.status}`,
+      title,
+      detail,
+      message,
+      error,
+      status: resp.status,
+      userMessage: formatV8UserMessage({ title, detail, message, error, status: resp.status, rawText }),
     };
   } catch {
     return {
       rawText,
       parsed: null,
-      message: rawText || `Status ${resp.status}`,
+      title: null,
+      detail: null,
+      message: null,
+      error: null,
+      status: resp.status,
+      userMessage: formatV8UserMessage({ rawText, status: resp.status }),
     };
   }
+}
+
+type V8HumanErrorInput = {
+  title?: string | null;
+  detail?: string | null;
+  message?: string | null;
+  error?: string | null;
+  status?: number | null;
+  rawText?: string | null;
+};
+
+export function formatV8UserMessage(input: V8HumanErrorInput) {
+  const title = String(input.title || '').trim();
+  const detail = String(input.detail || '').trim();
+  const message = String(input.message || '').trim();
+  const error = String(input.error || '').trim();
+  const rawText = String(input.rawText || '').trim();
+  const status = Number(input.status);
+
+  const primary = title || detail || message || error || rawText || (Number.isFinite(status) ? `Status HTTP ${status}` : 'Erro inesperado na V8');
+  const secondaryCandidates = [detail, message, error, rawText].filter((item) => item && item !== primary);
+  const secondary = secondaryCandidates[0] || '';
+
+  if (secondary) return `${primary}\n${secondary}`;
+  return primary;
+}
+
+function buildV8ErrorResult(step: string, source: Record<string, any> = {}) {
+  return {
+    success: false,
+    step,
+    title: source.title ?? null,
+    detail: source.detail ?? null,
+    message: source.message ?? null,
+    error: source.error ?? source.userMessage ?? 'Erro inesperado na V8',
+    status: source.status ?? null,
+    user_message: source.userMessage ?? formatV8UserMessage(source),
+    raw: source.raw ?? source.parsed ?? null,
+  };
 }
 
 type V8OperationListParams = {
@@ -160,12 +209,10 @@ async function actionListOperations(params: V8OperationListParams = {}) {
 
   if (!resp.ok) {
     const err = await readUpstreamErrorBody(resp);
-    return {
-      success: false,
-      error: err.message,
-      title: err.parsed?.title ?? null,
+    return buildV8ErrorResult('list_operations', {
+      ...err,
       raw: err.parsed ?? err.rawText,
-    };
+    });
   }
 
   const json = await resp.json().catch(() => ([]));
@@ -200,12 +247,10 @@ async function actionGetOperation(operationId?: string) {
   const resp = await v8Fetch(V8_PATHS.operationDetail(safeOperationId), { method: "GET" });
   if (!resp.ok) {
     const err = await readUpstreamErrorBody(resp);
-    return {
-      success: false,
-      error: err.message,
-      title: err.parsed?.title ?? null,
+    return buildV8ErrorResult('get_operation', {
+      ...err,
       raw: err.parsed ?? err.rawText,
-    };
+    });
   }
 
   const json = await resp.json().catch(() => ({}));
