@@ -234,6 +234,16 @@ export function buildConsultBody(input: SimulateInput) {
   };
 }
 
+/** Monta o payload oficial de /simulation conforme documentação V8. */
+export function buildSimulationBody(input: Pick<SimulateInput, "config_id" | "parcelas">, consultId: string) {
+  return {
+    consult_id: consultId,
+    config_id: input.config_id,
+    number_of_installments: input.parcelas,
+    provider: "QI",
+  };
+}
+
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
@@ -244,6 +254,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }
   if (!input.nome || input.nome.trim().length < 3) {
     return { success: false, step: "consult", error: "Nome do cliente é obrigatório (mínimo 3 caracteres)" };
+  }
+  if (!input.config_id?.trim()) {
+    return { success: false, step: "simulate", error: "config_id é obrigatório" };
+  }
+  if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
+    return { success: false, step: "simulate", error: "number_of_installments inválido" };
   }
 
   // 1) Consult — builder testável
@@ -290,15 +306,11 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     };
   }
 
-  // 3) Simulate — referencia consult_id, configId e provider QI
+  // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
+  const simulationBody = buildSimulationBody(input, consultId);
   const simResp = await v8Fetch(V8_PATHS.simulate, {
     method: "POST",
-    body: JSON.stringify({
-      consult_id: consultId,
-      configId: input.config_id,
-      installments: input.parcelas,
-      provider: "QI",
-    }),
+    body: JSON.stringify(simulationBody),
   });
   const simJson = await simResp.json().catch(() => ({}));
   if (!simResp.ok) {
@@ -306,7 +318,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       success: false,
       step: "simulate",
       error: simJson?.message || `Status ${simResp.status}`,
-      raw: { consult: consultJson, authorize: authJson, simulate: simJson },
+      raw: {
+        upstream_request: { consult: consultBody, simulation: simulationBody },
+        consult: consultJson,
+        authorize: authJson,
+        simulate: simJson,
+      },
     };
   }
 
@@ -320,12 +337,13 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     null;
 
   const simulationId = String(
-    result?.id ?? result?.simulation_id ?? result?.simulationId ?? ""
+    result?.id_simulation ?? result?.simulation_id ?? result?.simulationId ?? result?.id ?? ""
   );
 
   const released_value = Number(
     dispOpt?.final_disbursement_amount ??
       dispOpt?.finalDisbursementAmount ??
+      result?.disbursement_amount ??
       dispOpt?.net_amount ??
       result?.netAmount ??
       result?.releasedValue ??
@@ -333,6 +351,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       0
   );
   const installment_value = Number(
+    result?.installment_value ??
     dispOpt?.installment_amount ??
       dispOpt?.installmentAmount ??
       result?.installmentAmount ??
@@ -341,6 +360,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       0
   );
   const interest_rate = Number(
+    result?.monthly_interest_rate ??
     dispOpt?.monthly_interest_rate ??
       dispOpt?.interest_rate ??
       result?.interestRate ??
@@ -349,6 +369,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       0
   );
   const total_value = Number(
+    result?.operation_amount ??
     dispOpt?.total_amount ??
       dispOpt?.totalAmount ??
       result?.totalAmount ??
@@ -380,7 +401,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       company_margin,
       margem_valor,
       amount_to_charge,
-      raw_response: { consult: consultJson, authorize: authJson, simulate: simJson },
+      raw_response: {
+        upstream_request: { consult: consultBody, simulation: simulationBody },
+        consult: consultJson,
+        authorize: authJson,
+        simulate: simJson,
+      },
     },
   };
 }
@@ -526,6 +552,10 @@ serve(async (req) => {
               config_id: params?.config_id ?? null,
               config_label: params?.config_label ?? null,
               parcelas: params?.parcelas ?? null,
+              simulation_payload:
+                params?.config_id && params?.parcelas
+                  ? buildSimulationBody(params, "<consult_id>")
+                  : null,
               batch_id: params?.batch_id ?? null,
             },
             response_payload: {
