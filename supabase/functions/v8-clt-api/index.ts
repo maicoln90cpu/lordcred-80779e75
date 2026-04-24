@@ -397,6 +397,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
     return { success: false, step: "simulate", error: "number_of_installments inválido" };
   }
+  if (!["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""))) {
+    return { success: false, step: "simulate", error: "Escolha o tipo da simulação (valor liberado ou valor da parcela)" };
+  }
+  if (!Number.isFinite(Number(input.simulation_value)) || Number(input.simulation_value) <= 0) {
+    return { success: false, step: "simulate", error: "Informe um valor de simulação válido" };
+  }
 
   // 1) Consult — builder testável
   const consultBody = buildConsultBody(input);
@@ -430,7 +436,6 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   // 2) Authorize — passa consult_id na URL
   const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
-    body: JSON.stringify({}),
   }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
@@ -442,8 +447,23 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     };
   }
 
+  const consultStatusResult = await waitForConsultReady(supabase, consultId, cpf);
+  if (!consultStatusResult.success) {
+    return {
+      success: false,
+      step: "consult_status",
+      error: consultStatusResult.error,
+      raw: {
+        consult: consultJson,
+        authorize: authJson,
+        consult_status: consultStatusResult.raw,
+      },
+    };
+  }
+  const consultStatusData = consultStatusResult.data;
+
   // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
-  const simulationBody = buildSimulationBody(input, consultId);
+  const simulationBody = buildSimulationBodyWithValue(input, consultId);
   const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
@@ -458,6 +478,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
+          consult_status: consultStatusData,
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
@@ -544,6 +565,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
+        consult_status: consultStatusData,
         simulate: simJson,
       },
     },
