@@ -173,17 +173,25 @@ export default function V8NovaSimulacaoTab() {
           </div>
 
           <div>
-            <Label>CPFs (1 por linha — formatos: CPF | CPF Nome | CPF Nome dd/mm/aaaa)</Label>
+            <Label>CPFs (1 por linha)</Label>
             <Textarea
               rows={8}
-              placeholder={`12345678901\n98765432100\tMaria Silva\t15/03/1985`}
+              placeholder={`39364073800 Maicon Douglas 06/08/1990\n98765432100 Maria Silva 15/03/1985\n12345678901`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               className="font-mono text-xs"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              {parseV8Paste(pasteText).length} CPFs válidos detectados
-            </p>
+            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+              <p>
+                <strong>Formatos aceitos</strong> (separadores: espaço, tab, vírgula ou ponto-e-vírgula):
+              </p>
+              <p>• <code>CPF Nome Sobrenome dd/mm/aaaa</code> ← recomendado (V8 exige nome + nascimento)</p>
+              <p>• <code>CPF;Nome Sobrenome;dd/mm/aaaa</code></p>
+              <p>• <code>CPF</code> sozinho — a consulta falhará sem nome e data de nascimento</p>
+              <p className="pt-1 font-medium text-foreground">
+                {parseV8Paste(pasteText).length} CPFs válidos detectados
+              </p>
+            </div>
           </div>
 
           <Button onClick={handleStart} disabled={running} size="lg" className="w-full">
