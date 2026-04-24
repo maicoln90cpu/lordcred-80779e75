@@ -69,6 +69,30 @@ async function v8Fetch(path: string, init: RequestInit = {}) {
   return fetch(`${V8_BASE}${path}`, { ...init, headers });
 }
 
+/**
+ * Faz fetch com retry exponencial para erros 5xx (instabilidade upstream V8/QI).
+ * Tenta até `maxAttempts` vezes (padrão 3) com backoff 500ms / 1500ms.
+ * Erros 4xx NÃO são retentados (são problemas de payload do cliente).
+ */
+async function v8FetchWithRetry(
+  path: string,
+  init: RequestInit = {},
+  maxAttempts = 3
+): Promise<Response> {
+  let lastResp: Response | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await v8Fetch(path, init);
+    if (resp.status < 500) return resp;
+    lastResp = resp;
+    if (attempt < maxAttempts) {
+      const delay = attempt === 1 ? 500 : 1500;
+      console.log(`[v8FetchWithRetry] ${path} status ${resp.status} — retry ${attempt}/${maxAttempts - 1} em ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return lastResp as Response;
+}
+
 async function actionGetConfigs(supabase: any) {
   const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
