@@ -632,6 +632,11 @@ serve(async (req) => {
               data: (result as any)?.data ?? null,
               raw: (result as any)?.raw ?? null,
             },
+            retry_limits: {
+              consult: MAX_RETRIES_CONSULT,
+              authorize: MAX_RETRIES_AUTHORIZE,
+              simulate: MAX_RETRIES_SIMULATE,
+            },
             cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
