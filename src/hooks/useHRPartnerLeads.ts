@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import { validateBrazilianPhone, digitsOnly } from '@/lib/phoneUtils';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type HRMeetingStatus = 'called' | 'include_next' | 'scheduled';
 export type HRAcquisitionSource = 'interview' | 'referral';
@@ -30,6 +31,8 @@ export function useHRPartnerLeads() {
   const { toast } = useToast();
   const [leads, setLeads] = useState<HRPartnerLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const leadsRef = useRef<HRPartnerLead[]>([]);
+  leadsRef.current = leads;
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -48,17 +51,67 @@ export function useHRPartnerLeads() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  useRealtimeSubscription(
-    () => { fetchLeads(); },
-    { table: 'hr_partner_leads', event: '*', debounceMs: 150 }
-  );
+  // === Realtime: subscrição dedicada com handlers granulares ===
+  useEffect(() => {
+    const channel = supabase
+      .channel(`hr_partner_leads_changes_${Math.random().toString(36).slice(2, 9)}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'hr_partner_leads' },
+        (payload: RealtimePostgresChangesPayload<HRPartnerLead>) => {
+          const next = payload.new as HRPartnerLead;
+          if (!next?.id) return;
+          setLeads(prev => {
+            if (prev.some(l => l.id === next.id)) return prev;
+            return [next, ...prev];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'hr_partner_leads' },
+        (payload: RealtimePostgresChangesPayload<HRPartnerLead>) => {
+          const next = payload.new as HRPartnerLead;
+          if (!next?.id) return;
+          setLeads(prev => prev.map(l => (l.id === next.id ? { ...l, ...next } : l)));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'hr_partner_leads' },
+        (payload: RealtimePostgresChangesPayload<HRPartnerLead>) => {
+          const old = payload.old as Partial<HRPartnerLead>;
+          if (!old?.id) return;
+          setLeads(prev => prev.filter(l => l.id !== old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const createLead = useCallback(async (input: Partial<HRPartnerLead>) => {
+    // Validação de telefone E.164/BR
+    const phoneCheck = validateBrazilianPhone(input.phone);
+    if (!phoneCheck.valid) {
+      const msg = phoneCheck.reason ?? 'Telefone inválido';
+      toast({ title: 'Telefone inválido', description: msg, variant: 'destructive' });
+      throw new Error(msg);
+    }
+    const dupe = leadsRef.current.find(l => digitsOnly(l.phone) === phoneCheck.normalized);
+    if (dupe) {
+      const msg = `Já existe parceiro com este telefone: ${dupe.full_name}`;
+      toast({ title: 'Parceiro duplicado', description: msg, variant: 'destructive' });
+      throw new Error(msg);
+    }
+
     const { data, error } = await (supabase as any)
       .from('hr_partner_leads')
       .insert({
         full_name: input.full_name,
-        phone: input.phone,
+        phone: phoneCheck.normalized,
         age: input.age ?? null,
         cpf: input.cpf ?? null,
         interview_date: input.interview_date ?? null,
@@ -75,10 +128,14 @@ export function useHRPartnerLeads() {
       .select()
       .single();
     if (error) {
-      toast({ title: 'Erro ao criar lead', description: error.message, variant: 'destructive' });
+      const isUnique = error.code === '23505' || /unique/i.test(error.message || '');
+      toast({
+        title: isUnique ? 'Parceiro duplicado' : 'Erro ao criar lead',
+        description: isUnique ? 'Já existe um parceiro com este telefone.' : error.message,
+        variant: 'destructive',
+      });
       throw error;
     }
-    // Optimistic insert local
     setLeads(prev => {
       if (prev.some(l => l.id === (data as HRPartnerLead).id)) return prev;
       return [data as HRPartnerLead, ...prev];

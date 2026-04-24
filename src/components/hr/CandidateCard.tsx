@@ -1,8 +1,9 @@
 import { memo, DragEvent } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Phone, FileText, User } from 'lucide-react';
+import { Phone, FileText, User, AlertTriangle } from 'lucide-react';
 import type { HRCandidate } from '@/hooks/useHRCandidates';
+import { formatBrazilianPhone, hasPendingPhone } from '@/lib/phoneUtils';
 
 interface Props {
   candidate: HRCandidate;
@@ -17,13 +18,6 @@ function getInitials(name: string) {
     .slice(0, 2)
     .map(n => n[0]?.toUpperCase() ?? '')
     .join('') || '?';
-}
-
-function formatPhone(phone: string) {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  return phone;
 }
 
 export default memo(function CandidateCard({ candidate, columnColor, onClick }: Props) {
