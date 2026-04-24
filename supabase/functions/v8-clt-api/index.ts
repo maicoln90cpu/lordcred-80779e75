@@ -249,7 +249,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   // 1) Consult — builder testável
   const consultBody = buildConsultBody(input);
 
-  const consultResp = await v8Fetch(V8_PATHS.consult, {
+  const consultResp = await v8FetchWithRetry(V8_PATHS.consult, {
     method: "POST",
     body: JSON.stringify(consultBody),
   });
