@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { parseV8Paste } from '@/lib/v8Parser';
 
-const PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
+const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const MAX_CONCURRENCY = 3;
 
 export default function V8NovaSimulacaoTab() {
@@ -27,6 +27,38 @@ export default function V8NovaSimulacaoTab() {
   const [running, setRunning] = useState(false);
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
+
+  const selectedConfig = useMemo(
+    () => configs.find((c) => c.config_id === configId) ?? null,
+    [configs, configId],
+  );
+
+  const parcelOptions = useMemo(() => {
+    const rawOptions = Array.isArray(selectedConfig?.raw_data?.number_of_installments)
+      ? selectedConfig.raw_data.number_of_installments
+          .map((value: string | number) => Number(value))
+          .filter((value: number) => Number.isInteger(value) && value > 0)
+      : [];
+
+    if (rawOptions.length > 0) {
+      return Array.from(new Set(rawOptions)).sort((a, b) => a - b);
+    }
+
+    if (selectedConfig?.min_term != null && selectedConfig?.max_term != null) {
+      const ranged = DEFAULT_PARCEL_OPTIONS.filter(
+        (value) => value >= Number(selectedConfig.min_term) && value <= Number(selectedConfig.max_term),
+      );
+      if (ranged.length > 0) return ranged;
+    }
+
+    return DEFAULT_PARCEL_OPTIONS;
+  }, [selectedConfig]);
+
+  useEffect(() => {
+    if (parcelOptions.length > 0 && !parcelOptions.includes(parcelas)) {
+      setParcelas(parcelOptions[0]);
+    }
+  }, [parcelOptions, parcelas]);
 
   const total = simulations.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
@@ -166,13 +198,18 @@ export default function V8NovaSimulacaoTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PARCEL_OPTIONS.map((p) => (
+                  {parcelOptions.map((p) => (
                     <SelectItem key={p} value={String(p)}>
                       {p}x
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedConfig
+                  ? `Parcelas disponíveis nesta tabela: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
+                  : 'Selecione uma tabela para ver apenas as parcelas realmente aceitas pela V8.'}
+              </p>
             </div>
           </div>
 
