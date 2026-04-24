@@ -403,6 +403,7 @@ export default function AuditLogs() {
                           { key: 'user_email', label: 'Usuário' },
                           { key: 'action', label: 'Ação' },
                           { key: '_status', label: 'Status' },
+                          { key: '_origin', label: 'Origem' },
                           { key: 'target_table', label: 'Tabela' },
                           { key: 'target_id', label: 'ID Alvo' },
                         ].map(col => {
