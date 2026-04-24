@@ -69,6 +69,9 @@ export interface V8Simulation {
   amount_to_charge: number | null;
   error_message: string | null;
   error_kind?: string | null;
+  attempt_count?: number | null;
+  last_attempt_at?: string | null;
+  last_step?: string | null;
   raw_response: any;
   processed_at: string | null;
   created_at: string;
