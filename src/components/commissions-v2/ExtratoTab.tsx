@@ -148,13 +148,26 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
           </Select>
           <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
         </div>
-        <div className="flex gap-4 mt-2">
-          <Badge variant="outline">Contratos: {filtered.length}</Badge>
-          <Badge variant="outline">Liberado: {fmt(totalValue)}</Badge>
-          <Badge variant="secondary">Comissão: {fmt(totalComm)}</Badge>
-        </div>
       </CardHeader>
       <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="p-4 border rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground">Propostas</p>
+            <p className="text-2xl font-bold mt-1">{filtered.length}</p>
+          </div>
+          <div className="p-4 border rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground">Total Liberado</p>
+            <p className="text-2xl font-bold mt-1">{fmt(totalValue)}</p>
+          </div>
+          <div className="p-4 border rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground">Comissão</p>
+            <p className="text-2xl font-bold mt-1 text-primary">{fmt(totalComm)}</p>
+          </div>
+          <div className="p-4 border rounded-lg bg-card">
+            <p className="text-xs text-muted-foreground">Ticket Médio</p>
+            <p className="text-2xl font-bold mt-1">{fmt(filtered.length > 0 ? totalValue / filtered.length : 0)}</p>
+          </div>
+        </div>
         {monthlyProgress && (
           <div className="mb-4 p-4 border rounded-lg bg-muted/30">
             <div className="flex items-center justify-between mb-2">
