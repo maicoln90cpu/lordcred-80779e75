@@ -110,20 +110,29 @@ export function useHRCandidates() {
       toast({ title: 'Erro ao criar candidato', description: error.message, variant: 'destructive' });
       throw error;
     }
+    // Optimistic insert: aparece imediatamente sem esperar o realtime
+    setCandidates(prev => {
+      if (prev.some(c => c.id === (data as HRCandidate).id)) return prev;
+      return [data as HRCandidate, ...prev];
+    });
     toast({ title: 'Candidato criado' });
     return data as HRCandidate;
   }, [toast]);
 
   const updateCandidate = useCallback(async (id: string, patch: Partial<HRCandidate>) => {
+    // Optimistic update local
+    setCandidates(prev => prev.map(c => (c.id === id ? { ...c, ...patch } as HRCandidate : c)));
     const { error } = await (supabase as any)
       .from('hr_candidates')
       .update(patch)
       .eq('id', id);
     if (error) {
+      // Reverter via refetch em caso de falha
       toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+      fetchCandidates();
       throw error;
     }
-  }, [toast]);
+  }, [toast, fetchCandidates]);
 
   const moveCandidate = useCallback(async (id: string, status: HRKanbanStatus) => {
     await updateCandidate(id, { kanban_status: status });
