@@ -1,17 +1,25 @@
 /**
  * Parser para colagem de CPFs no Simulador V8 CLT.
- * Aceita TSV/CSV/linhas simples nos formatos:
+ * Aceita TSV/CSV/linhas com espaços nos formatos:
  *   CPF
- *   CPF\tNome
- *   CPF\tNome\tdd/mm/aaaa
+ *   CPF Nome
+ *   CPF Nome dd/mm/aaaa
  *   CPF;Nome;dd/mm/aaaa
  *   CPF,Nome,dd/mm/aaaa
+ *   CPF\tNome\tdd/mm/aaaa
+ *
+ * Estratégia: extrai CPF (11 dígitos) sempre da primeira posição da linha,
+ * detecta data (dd/mm/aaaa ou yyyy-mm-dd) em qualquer posição posterior,
+ * e o que sobrar entre eles vira o nome.
  */
 export interface V8ParsedRow {
   cpf: string;
   nome?: string;
   data_nascimento?: string;
 }
+
+const DATE_BR = /\b(\d{2}\/\d{2}\/\d{4})\b/;
+const DATE_ISO = /\b(\d{4}-\d{2}-\d{2})\b/;
 
 export function parseV8Paste(input: string): V8ParsedRow[] {
   const lines = input
@@ -21,20 +29,46 @@ export function parseV8Paste(input: string): V8ParsedRow[] {
 
   const rows: V8ParsedRow[] = [];
   for (const line of lines) {
-    const parts = line.split(/\t|;|,/).map((p) => p.trim());
+    // Tenta primeiro separadores estruturados (tab, ;, ,)
+    let parts = line.split(/\t|;|,/).map((p) => p.trim()).filter(Boolean);
+
+    // Se não houve separadores, divide por espaços (formato "CPF NOME SOBRENOME DATA")
+    if (parts.length === 1) {
+      parts = line.split(/\s+/).filter(Boolean);
+    }
+
+    // CPF sempre é o primeiro token (apenas dígitos, 11 chars)
     const cpfRaw = (parts[0] || '').replace(/\D/g, '');
     if (cpfRaw.length !== 11) continue;
+
     const row: V8ParsedRow = { cpf: cpfRaw };
-    if (parts[1]) row.nome = parts[1];
-    if (parts[2]) {
-      // Aceita dd/mm/yyyy ou yyyy-mm-dd
-      const d = parts[2];
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) row.data_nascimento = d;
-      else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-        const [y, m, day] = d.split('-');
-        row.data_nascimento = `${day}/${m}/${y}`;
+
+    // Procura data em qualquer parte (dd/mm/aaaa ou yyyy-mm-dd)
+    let dateStr: string | undefined;
+    let dateIdx = -1;
+    for (let i = 1; i < parts.length; i++) {
+      const brM = parts[i].match(DATE_BR);
+      const isoM = parts[i].match(DATE_ISO);
+      if (brM) {
+        dateStr = brM[1];
+        dateIdx = i;
+        break;
+      }
+      if (isoM) {
+        const [y, m, d] = isoM[1].split('-');
+        dateStr = `${d}/${m}/${y}`;
+        dateIdx = i;
+        break;
       }
     }
+    if (dateStr) row.data_nascimento = dateStr;
+
+    // Nome: tudo entre CPF e data (ou tudo após CPF se sem data)
+    const nameTokens =
+      dateIdx > 0 ? parts.slice(1, dateIdx) : parts.slice(1);
+    const nome = nameTokens.join(' ').trim();
+    if (nome) row.nome = nome;
+
     rows.push(row);
   }
   return rows;
