@@ -555,7 +555,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                             </SelectTrigger>
                             <SelectContent>
                               {sellers
-                                .filter((s: any) => s.user_id !== sellerId)
+                                .filter((s: any) => s.user_id !== sellerId && activeSellerIds.has(s.user_id))
                                 .map((s: any) => (
                                   <SelectItem key={s.user_id} value={s.user_id}>
                                     {s.name || s.email}
