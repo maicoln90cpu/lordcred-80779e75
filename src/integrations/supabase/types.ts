@@ -4088,6 +4088,7 @@ export type Database = {
           vendedor: string
         }[]
       }
+      cleanup_audit_logs: { Args: never; Returns: undefined }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       create_direct_channel: {
         Args: { _channel_name: string; _target_user_id: string }
