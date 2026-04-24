@@ -109,6 +109,16 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
         [], // no answers yet
       );
 
+      // 1b) Atualiza kanban_status do candidato (item 12.14)
+      const targetStatus = stage === 1 ? 'scheduled_e1' : 'scheduled_e2';
+      const { error: kanbanErr } = await supabase
+        .from('hr_candidates')
+        .update({ kanban_status: targetStatus })
+        .eq('id', candidate.id);
+      if (kanbanErr) {
+        console.warn('Falha ao atualizar kanban_status:', kanbanErr.message);
+      }
+
       // 2) Schedule notifications if requested and chip selected
       if ((notifyCandidate || effectiveNotifyInterviewer) && chipId && interviewId) {
         if (!settings) {

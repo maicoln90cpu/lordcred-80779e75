@@ -141,7 +141,15 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Compareceu?</Label>
-          <Select value={attended} onValueChange={setAttended}>
+          <Select
+            value={attended}
+            onValueChange={(v) => {
+              setAttended(v);
+              // Auto-Reprovado quando marcar "não compareceu" (item 11.5)
+              if (v === 'no') setResult('rejected');
+              else if (result === 'rejected' && attended === 'no') setResult('pending');
+            }}
+          >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="yes">Sim, compareceu</SelectItem>
@@ -151,7 +159,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label>Resultado</Label>
-          <Select value={result} onValueChange={setResult}>
+          <Select value={result} onValueChange={setResult} disabled={attended === 'no'}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {RESULT_OPTIONS.map(o => (
@@ -159,10 +167,21 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
               ))}
             </SelectContent>
           </Select>
+          {attended === 'no' && (
+            <p className="text-[10px] text-muted-foreground">
+              Resultado fixado em <span className="font-medium text-destructive">Reprovado</span> automaticamente.
+            </p>
+          )}
         </div>
       </div>
 
-      {stage === 1 && (
+      {attended === 'no' && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-muted-foreground">
+          ❌ Candidato não compareceu. Perguntas e avaliação foram ocultadas. Use as observações abaixo para registrar detalhes (motivo, reagendamento, etc.).
+        </div>
+      )}
+
+      {stage === 1 && attended === 'yes' && (
         <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold">Avaliação (1 a 10)</h4>
@@ -190,7 +209,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         </div>
       )}
 
-      {stageQuestions.length > 0 && (
+      {stageQuestions.length > 0 && attended === 'yes' && (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Perguntas</h4>
           {stageQuestions.map(q => {
