@@ -82,10 +82,16 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   });
 
   const { data: sellers = [] } = useQuery({
-    queryKey: ['sellers-list'],
+    queryKey: ['sellers-list-with-blocked'],
     queryFn: async () => {
-      const { data } = await supabase.rpc('get_visible_profiles');
-      return (data || []) as unknown as { user_id: string; name: string; email: string }[];
+      const [rpcRes, blockedRes] = await Promise.all([
+        supabase.rpc('get_visible_profiles'),
+        supabase.from('profiles').select('user_id, is_blocked'),
+      ]);
+      const blockedMap = new Map<string, boolean>();
+      (blockedRes.data || []).forEach((p: any) => blockedMap.set(p.user_id, !!p.is_blocked));
+      const list = (rpcRes.data || []) as unknown as { user_id: string; name: string; email: string }[];
+      return list.map(s => ({ ...s, is_blocked: blockedMap.get(s.user_id) ?? false })) as Array<{ user_id: string; name: string; email: string; is_blocked: boolean }>;
     }
   });
 
@@ -110,6 +116,20 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     if (globalTeam === 'all') return null;
     return new Set(teamMembers.filter(m => m.team_id === globalTeam).map(m => m.user_id));
   }, [globalTeam, teamMembers]);
+
+  // Set de vendedores válidos para a UI:
+  // - existe em profiles (via RPC get_visible_profiles)
+  // - não está bloqueado
+  // - se filtro de equipe ativo, é membro da equipe
+  const activeSellerIds = useMemo(() => {
+    const set = new Set<string>();
+    sellers.forEach((s: any) => {
+      if (s.is_blocked) return;
+      if (teamFilteredUserIds && !teamFilteredUserIds.has(s.user_id)) return;
+      set.add(s.user_id);
+    });
+    return set;
+  }, [sellers, teamFilteredUserIds]);
 
   const getSellerName = (userId: string) => {
     const s = sellers.find((s: any) => s.user_id === userId);
@@ -168,19 +188,22 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       filteredMap.get(l.assigned_to)!.push(l);
     });
 
-    // Unir todos os sellers que existem em qualquer dos dois maps
+    // Unir todos os sellers que existem em qualquer dos dois maps,
+    // mas filtrar apenas os ativos (existem, não bloqueados, da equipe selecionada)
     const allSellerIds = new Set([...totalMap.keys(), ...filteredMap.keys()]);
 
-    return Array.from(allSellerIds).map((sellerId) => {
-      const total = totalMap.get(sellerId) || 0;
-      const leads = filteredMap.get(sellerId) || [];
-      const totalFiltrado = leads.length;
-      const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
-      const pctContacted = totalFiltrado > 0 ? Math.round((contacted / totalFiltrado) * 100) : 0;
-      const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
-      return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
-    });
-  }, [allLeads, globalFiltered]);
+    return Array.from(allSellerIds)
+      .filter(sellerId => activeSellerIds.has(sellerId))
+      .map((sellerId) => {
+        const total = totalMap.get(sellerId) || 0;
+        const leads = filteredMap.get(sellerId) || [];
+        const totalFiltrado = leads.length;
+        const contacted = leads.filter((l: any) => l.status && l.status !== 'pendente').length;
+        const pctContacted = totalFiltrado > 0 ? Math.round((contacted / totalFiltrado) * 100) : 0;
+        const lastUpdate = leads.reduce((max: string, l: any) => l.updated_at > max ? l.updated_at : max, '');
+        return { sellerId, total, contacted, pctContacted, totalFiltrado, lastUpdate };
+      });
+  }, [allLeads, globalFiltered, activeSellerIds]);
 
   const { sort, toggle } = useSortState();
 
@@ -532,7 +555,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                             </SelectTrigger>
                             <SelectContent>
                               {sellers
-                                .filter((s: any) => s.user_id !== sellerId)
+                                .filter((s: any) => s.user_id !== sellerId && activeSellerIds.has(s.user_id))
                                 .map((s: any) => (
                                   <SelectItem key={s.user_id} value={s.user_id}>
                                     {s.name || s.email}
