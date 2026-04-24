@@ -65,9 +65,7 @@ export default function HR() {
 
           {isAdmin && (
             <TabsContent value="settings">
-              <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-                <p className="text-sm">Configurações de timers e templates — implementadas na Etapa 8.</p>
-              </div>
+              <HRSettingsTab />
             </TabsContent>
           )}
         </Tabs>
