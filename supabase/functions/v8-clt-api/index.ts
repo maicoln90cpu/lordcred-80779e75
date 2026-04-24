@@ -591,20 +591,28 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
 
   const consultStatusResult = await waitForConsultReady(supabase, consultId, cpf);
   if (!consultStatusResult.success) {
+    const failedConsultStatus = consultStatusResult as {
+      title?: string | null;
+      detail?: string | null;
+      message?: string | null;
+      error?: string | null;
+      status?: number | null;
+      raw?: any;
+    };
     return buildV8ErrorResult('consult_status', {
-      title: (consultStatusResult as any)?.title ?? null,
-      detail: (consultStatusResult as any)?.detail ?? null,
-      message: (consultStatusResult as any)?.message ?? null,
-      error: (consultStatusResult as any)?.error ?? null,
-      status: (consultStatusResult as any)?.status ?? null,
+      title: failedConsultStatus.title ?? null,
+      detail: failedConsultStatus.detail ?? null,
+      message: failedConsultStatus.message ?? null,
+      error: failedConsultStatus.error ?? null,
+      status: failedConsultStatus.status ?? null,
       raw: {
         consult: consultJson,
         authorize: authJson,
-        consult_status: consultStatusResult.raw,
+        consult_status: failedConsultStatus.raw,
       },
     });
   }
-  const consultStatusData = consultStatusResult.data;
+  const consultStatusData = (consultStatusResult as { success: true; data: any }).data;
 
   // 3) Simulate — payload oficial V8: consult_id + config_id + number_of_installments + provider
   const simulationBody = buildSimulationBodyWithValue(input, consultId);
@@ -876,6 +884,9 @@ const handler = async (req: Request) => {
             response_payload: {
               success: !!(result as any)?.success,
               step: (result as any)?.step ?? null,
+              title: (result as any)?.title ?? null,
+              detail: (result as any)?.detail ?? null,
+              user_message: (result as any)?.user_message ?? null,
               error: (result as any)?.error ?? null,
               data: (result as any)?.data ?? null,
               raw: (result as any)?.raw ?? null,
@@ -926,7 +937,7 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: "pending",
-                error_message: String((result as any).error || "Consulta ainda em análise"),
+                error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
                 raw_response: (result as any).raw ?? null,
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
                 processed_at: new Date().toISOString(),
@@ -937,7 +948,7 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: "failed",
-                error_message: String((result as any).error || "Erro desconhecido"),
+                error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
                 raw_response: (result as any).raw ?? null,
                 processed_at: new Date().toISOString(),
               })
