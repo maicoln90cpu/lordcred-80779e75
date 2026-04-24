@@ -470,12 +470,14 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
     lastPayload = statusJson;
 
     if (!statusResp.ok) {
-      return {
-        success: false,
-        step: "consult_status",
-        error: statusJson?.message || statusJson?.error || `Status ${statusResp.status}`,
+      return buildV8ErrorResult('consult_status', {
+        title: statusJson?.title ?? null,
+        detail: statusJson?.detail ?? null,
+        message: statusJson?.message ?? null,
+        error: statusJson?.error ?? null,
+        status: statusResp.status,
         raw: statusJson,
-      };
+      });
     }
 
     const records = Array.isArray(statusJson?.data) ? statusJson.data : Array.isArray(statusJson) ? statusJson : [];
@@ -493,12 +495,13 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
         return { success: true, data: consultRow };
       }
       if (consultStatus === "FAILED" || consultStatus === "REJECTED") {
-        return {
-          success: false,
-          step: "consult_status",
-          error: String(consultRow?.description || `Consulta retornou ${consultStatus}`),
+        return buildV8ErrorResult('consult_status', {
+          title: consultRow?.title ?? null,
+          detail: consultRow?.description ?? null,
+          message: consultRow?.message ?? null,
+          error: consultRow?.error ?? `Consulta retornou ${consultStatus}`,
           raw: consultRow,
-        };
+        });
       }
       console.log(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} status=${consultStatus}`);
     }
@@ -508,12 +511,11 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
     }
   }
 
-  return {
-    success: false,
-    step: "consult_status",
-    error: "Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.",
+  return buildV8ErrorResult('consult_status', {
+    detail: 'Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.',
+    status: 202,
     raw: lastPayload,
-  };
+  });
 }
 
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
@@ -549,12 +551,14 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_CONSULT, "consult");
   const consultJson = await consultResp.json().catch(() => ({}));
   if (!consultResp.ok) {
-    return {
-      success: false,
-      step: "consult",
-      error: consultJson?.message || consultJson?.error || `Status ${consultResp.status}`,
+    return buildV8ErrorResult('consult', {
+      title: consultJson?.title ?? null,
+      detail: consultJson?.detail ?? null,
+      message: consultJson?.message ?? null,
+      error: consultJson?.error ?? null,
+      status: consultResp.status,
       raw: consultJson,
-    };
+    });
   }
   const consultData = consultJson?.data ?? consultJson;
   const consultId = String(
@@ -575,26 +579,30 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
-    return {
-      success: false,
-      step: "authorize",
-      error: authJson?.detail || authJson?.message || authJson?.error || `Status ${authResp.status}`,
+    return buildV8ErrorResult('authorize', {
+      title: authJson?.title ?? null,
+      detail: authJson?.detail ?? null,
+      message: authJson?.message ?? null,
+      error: authJson?.error ?? null,
+      status: authResp.status,
       raw: { consult: consultJson, authorize: authJson },
-    };
+    });
   }
 
   const consultStatusResult = await waitForConsultReady(supabase, consultId, cpf);
   if (!consultStatusResult.success) {
-    return {
-      success: false,
-      step: "consult_status",
-      error: consultStatusResult.error,
+    return buildV8ErrorResult('consult_status', {
+      title: (consultStatusResult as any)?.title ?? null,
+      detail: (consultStatusResult as any)?.detail ?? null,
+      message: (consultStatusResult as any)?.message ?? null,
+      error: (consultStatusResult as any)?.error ?? null,
+      status: (consultStatusResult as any)?.status ?? null,
       raw: {
         consult: consultJson,
         authorize: authJson,
         consult_status: consultStatusResult.raw,
       },
-    };
+    });
   }
   const consultStatusData = consultStatusResult.data;
 
@@ -606,20 +614,18 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }, MAX_RETRIES_SIMULATE, "simulate");
   if (!simResp.ok) {
     const simError = await readUpstreamErrorBody(simResp);
-    return {
-      success: false,
-      step: "simulate",
-      error: simError.message,
+    return buildV8ErrorResult('simulate', {
+      ...simError,
       raw: {
         upstream_request: { consult: consultBody, simulation: simulationBody },
         consult: consultJson,
         authorize: authJson,
-          consult_status: consultStatusData,
+        consult_status: consultStatusData,
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
       },
-    };
+    });
   }
   const simJson = await simResp.json().catch(() => ({}));
 
