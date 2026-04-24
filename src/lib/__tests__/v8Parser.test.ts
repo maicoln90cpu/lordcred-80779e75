@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseV8Paste, parseConcatenated } from '../v8Parser';
+import { analyzeV8Paste, parseV8Paste, parseConcatenated } from '../v8Parser';
 
 describe('parseV8Paste', () => {
   it('(a) CPF nome data com espaços', () => {
@@ -101,5 +101,28 @@ describe('parseConcatenated', () => {
     expect(r).not.toBeNull();
     expect(r!.cpf).toBe('39364073800');
     expect(r!.data_nascimento).toBe('06/08/1990');
+  });
+});
+
+describe('analyzeV8Paste', () => {
+  it('aponta data inválida como bloqueio', () => {
+    const result = analyzeV8Paste('39364073800 Maicon 31/02/1990');
+    expect(result.rows).toHaveLength(0);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].code).toBe('invalid_date');
+  });
+
+  it('aponta linha sem data como bloqueio', () => {
+    const result = analyzeV8Paste('39364073800 Maicon Douglas');
+    expect(result.rows).toHaveLength(0);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].code).toBe('missing_birth_date');
+  });
+
+  it('mantém linhas válidas e marca só as inválidas', () => {
+    const result = analyzeV8Paste(['39364073800 Joao 06/08/1990', 'linha inválida'].join('\n'));
+    expect(result.rows).toHaveLength(1);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].code).toBe('invalid_format');
   });
 });

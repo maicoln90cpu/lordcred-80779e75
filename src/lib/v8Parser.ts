@@ -28,6 +28,21 @@ export interface V8ParsedRow {
   telefone?: string;
 }
 
+export type V8PasteIssueCode = 'invalid_format' | 'invalid_date' | 'missing_birth_date';
+
+export interface V8PasteIssue {
+  lineNumber: number;
+  raw: string;
+  code: V8PasteIssueCode;
+  message: string;
+}
+
+export interface V8PasteAnalysis {
+  rows: V8ParsedRow[];
+  issues: V8PasteIssue[];
+  totalLines: number;
+}
+
 const DATE_BR = /^(\d{2}\/\d{2}\/\d{4})$/;
 const DATE_ISO = /^(\d{4}-\d{2}-\d{2})$/;
 const GENDER_TOKENS = new Set([
@@ -51,6 +66,129 @@ function isDateToken(t: string): string | null {
     return `${d}/${m}/${y}`;
   }
   return null;
+}
+
+function isRealDate(day: number, month: number, year: number): boolean {
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return false;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function hasInvalidDateLikeToken(line: string): boolean {
+  const matches = line.match(/\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}/g) ?? [];
+
+  return matches.some((token) => {
+    if (DATE_BR.test(token)) {
+      const [day, month, year] = token.split('/').map(Number);
+      return !isRealDate(day, month, year);
+    }
+
+    if (DATE_ISO.test(token)) {
+      const [year, month, day] = token.split('-').map(Number);
+      return !isRealDate(day, month, year);
+    }
+
+    return false;
+  });
+}
+
+function parseV8Line(line: string): V8ParsedRow | null {
+  let parts = line.split(/\t|;|,/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 1) {
+    parts = line.split(/\s+/).filter(Boolean);
+  }
+
+  const firstPart = parts[0] || '';
+  const hasLettersAndDigits = /[A-Za-zÀ-ÿ]/.test(firstPart) && /\d/.test(firstPart);
+  if (hasLettersAndDigits) {
+    const concat = parseConcatenated(line);
+    if (concat) return concat;
+  }
+
+  const cpfRaw = (parts[0] || '').replace(/\D/g, '');
+  if (cpfRaw.length === 11) {
+    const row: V8ParsedRow = { cpf: cpfRaw };
+    const nameTokens: string[] = [];
+
+    for (let i = 1; i < parts.length; i++) {
+      const tok = parts[i];
+      const date = isDateToken(tok);
+      if (date && !row.data_nascimento) {
+        row.data_nascimento = date;
+        continue;
+      }
+      const gen = isGenderToken(tok);
+      if (gen && !row.genero) {
+        row.genero = gen;
+        continue;
+      }
+      const phone = isPhoneToken(tok);
+      if (phone && !row.telefone) {
+        row.telefone = phone;
+        continue;
+      }
+      nameTokens.push(tok);
+    }
+
+    const nome = nameTokens.join(' ').trim();
+    if (nome) row.nome = nome;
+    return row;
+  }
+
+  return parseConcatenated(line);
+}
+
+export function analyzeV8Paste(input: string): V8PasteAnalysis {
+  const lines = input
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const rows: V8ParsedRow[] = [];
+  const issues: V8PasteIssue[] = [];
+
+  lines.forEach((line, index) => {
+    if (hasInvalidDateLikeToken(line)) {
+      issues.push({
+        lineNumber: index + 1,
+        raw: line,
+        code: 'invalid_date',
+        message: 'Data inválida. Use uma data real em dd/mm/aaaa ou yyyy-mm-dd.',
+      });
+      return;
+    }
+
+    const parsed = parseV8Line(line);
+    if (!parsed) {
+      issues.push({
+        lineNumber: index + 1,
+        raw: line,
+        code: 'invalid_format',
+        message: 'Formato não reconhecido. Inclua pelo menos CPF e data de nascimento.',
+      });
+      return;
+    }
+
+    if (!parsed.data_nascimento) {
+      issues.push({
+        lineNumber: index + 1,
+        raw: line,
+        code: 'missing_birth_date',
+        message: 'Linha sem data de nascimento. A V8 exige este campo.',
+      });
+      return;
+    }
+
+    rows.push(parsed);
+  });
+
+  return { rows, issues, totalLines: lines.length };
 }
 
 function isGenderToken(t: string): 'M' | 'F' | null {
@@ -117,61 +255,9 @@ export function parseV8Paste(input: string): V8ParsedRow[] {
 
   const rows: V8ParsedRow[] = [];
   for (const line of lines) {
-    let parts = line.split(/\t|;|,/).map((p) => p.trim()).filter(Boolean);
-    if (parts.length === 1) {
-      parts = line.split(/\s+/).filter(Boolean);
-    }
-
-    // Heurística: se a primeira parte mistura letras E dígitos (ex.: "39364073800MAICON"
-    // ou "MARIA1044251247308"), trata-se de formato concatenado — tenta esse path antes.
-    const firstPart = parts[0] || '';
-    const hasLettersAndDigits = /[A-Za-zÀ-ÿ]/.test(firstPart) && /\d/.test(firstPart);
-    if (hasLettersAndDigits) {
-      const concat = parseConcatenated(line);
-      if (concat) {
-        rows.push(concat);
-        continue;
-      }
-    }
-
-    const cpfRaw = (parts[0] || '').replace(/\D/g, '');
-
-    // Caso 1: formato com separadores e CPF na primeira posição.
-    if (cpfRaw.length === 11) {
-      const row: V8ParsedRow = { cpf: cpfRaw };
-      const nameTokens: string[] = [];
-
-      for (let i = 1; i < parts.length; i++) {
-        const tok = parts[i];
-        const date = isDateToken(tok);
-        if (date && !row.data_nascimento) {
-          row.data_nascimento = date;
-          continue;
-        }
-        const gen = isGenderToken(tok);
-        if (gen && !row.genero) {
-          row.genero = gen;
-          continue;
-        }
-        const phone = isPhoneToken(tok);
-        if (phone && !row.telefone) {
-          row.telefone = phone;
-          continue;
-        }
-        nameTokens.push(tok);
-      }
-
-      const nome = nameTokens.join(' ').trim();
-      if (nome) row.nome = nome;
-
-      rows.push(row);
-      continue;
-    }
-
-    // Caso 2: linha concatenada (NOME+CPF+DATA sem separadores).
-    const concat = parseConcatenated(line);
-    if (concat) {
-      rows.push(concat);
+    const parsed = parseV8Line(line);
+    if (parsed) {
+      rows.push(parsed);
       continue;
     }
     // Senão, descarta a linha (CPF inválido).
