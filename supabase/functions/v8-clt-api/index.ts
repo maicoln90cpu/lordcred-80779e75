@@ -554,6 +554,7 @@ serve(async (req) => {
                 company_margin: (result as any).data.company_margin,
                 amount_to_charge: (result as any).data.amount_to_charge,
                 raw_response: (result as any).data.raw_response,
+                v8_simulation_id: (result as any).data.simulation_id ?? null,
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
