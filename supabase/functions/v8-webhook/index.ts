@@ -46,7 +46,7 @@ function mapV8StatusToInternal(v8Status?: string): string | null {
  * Retorna { processed, action, processError }.
  */
 async function processV8Payload(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   payload: Record<string, unknown>,
   url: URL,
 ): Promise<{ processed: boolean; action: string; processError: string | null }> {
