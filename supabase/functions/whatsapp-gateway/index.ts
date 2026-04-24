@@ -569,6 +569,34 @@ Deno.serve(async (req) => {
 
     console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}, shared=${isSharedChip}, user=${userId}`)
 
+    const shouldAudit = ADMIN_AUDIT_ACTIONS.has(action)
+    const startedAt = Date.now()
+
+    // Helper to log admin actions only.
+    const logAdmin = async (success: boolean, statusCode: number, extra?: Record<string, unknown>) => {
+      if (!shouldAudit) return
+      try {
+        const userEmail = (claimsData.claims as any)?.email as string | undefined
+        await writeAuditLog(adminClient, {
+          action: `whatsapp_${action.replace(/-/g, '_')}`,
+          category: 'whatsapp',
+          success,
+          userId,
+          userEmail: userEmail ?? null,
+          targetTable: 'chips',
+          targetId: chip?.id ?? null,
+          details: {
+            provider,
+            chip_id: chipId ?? null,
+            instance_name: chip?.instance_name ?? body.instanceName ?? null,
+            status_code: statusCode,
+            duration_ms: Date.now() - startedAt,
+            ...(extra || {}),
+          },
+        })
+      } catch { /* non-critical */ }
+    }
+
     // Route to the correct provider
     if (provider === 'meta') {
       // Get Meta access token — DB priority, then env fallback
@@ -580,10 +608,16 @@ Deno.serve(async (req) => {
 
       const metaAccessToken = (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
       if (!metaAccessToken) {
+        await logAdmin(false, 500, { error_message: 'Meta access token not configured' })
         return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)
       }
 
-      return handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
+      const metaResp = await handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
+      // Read body to capture success flag without consuming the response
+      let parsedBody: any = {}
+      try { parsedBody = await metaResp.clone().json() } catch { /* ignore */ }
+      await logAdmin(parsedBody?.success !== false && metaResp.ok, metaResp.status, parsedBody?.error ? { error_message: parsedBody.error } : undefined)
+      return metaResp
     }
 
     // Provider is 'uazapi' — proxy to the existing uazapi-api function
@@ -625,6 +659,7 @@ Deno.serve(async (req) => {
       } catch { /* non-critical audit */ }
     }
 
+    await logAdmin(proxyResp.ok && proxyData?.success !== false, proxyResp.status, proxyData?.error ? { error_message: proxyData.error } : undefined)
     return jsonResponse(proxyData, proxyResp.status)
 
   } catch (error: any) {
