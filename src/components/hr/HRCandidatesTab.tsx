@@ -8,25 +8,9 @@ import { useHRInterviewsMap } from '@/hooks/useHRInterviewsMap';
 import CandidateCard from './CandidateCard';
 import { HRFiltersBar, DEFAULT_FILTERS, type HRFilters } from './HRFiltersBar';
 import { filterCandidates } from '@/lib/hrFilters';
+import { HR_COLUMNS, hrColor } from './hrColumns';
 
-interface ColumnDef {
-  id: HRKanbanStatus;
-  name: string;
-  color: string;
-}
-
-const COLUMNS: ColumnDef[] = [
-  { id: 'new_resume', name: 'Currículos novos', color: '#3b82f6' },
-  { id: 'contacted', name: 'Contatados', color: '#06b6d4' },
-  { id: 'scheduled_e1', name: 'E1 agendada', color: '#f59e0b' },
-  { id: 'done_e1', name: 'E1 realizada', color: '#eab308' },
-  { id: 'scheduled_e2', name: 'E2 agendada', color: '#8b5cf6' },
-  { id: 'done_e2', name: 'E2 realizada', color: '#a855f7' },
-  { id: 'approved', name: 'Aprovados', color: '#10b981' },
-  { id: 'rejected', name: 'Reprovados', color: '#ef4444' },
-  { id: 'doubt', name: 'Dúvida', color: '#6b7280' },
-  { id: 'became_partner', name: 'Virou parceiro', color: '#ec4899' },
-];
+const COLUMNS = HR_COLUMNS;
 
 interface Props {
   onCandidateClick?: (candidate: HRCandidate) => void;

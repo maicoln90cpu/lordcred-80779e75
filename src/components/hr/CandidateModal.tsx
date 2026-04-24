@@ -2,25 +2,21 @@ import { useState, useEffect, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  Calendar, Camera, FileText, Loader2, Save, Trash2, UserPlus, Upload,
-} from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useHRCandidates, type HRCandidate, type HRKanbanStatus } from '@/hooks/useHRCandidates';
 import { InterviewForm } from './InterviewForm';
 import { ScheduleModal } from './ScheduleModal';
+import { CandidateActions } from './CandidateActions';
+import { CandidateResumeField } from './CandidateResumeField';
 import { validateBrazilianPhone, formatBrazilianPhone } from '@/lib/phoneUtils';
+import { HR_COLUMNS } from './hrColumns';
 
 interface Props {
   open: boolean;
@@ -28,18 +24,7 @@ interface Props {
   candidate: HRCandidate | null;
 }
 
-const STATUS_OPTIONS: { value: HRKanbanStatus; label: string }[] = [
-  { value: 'new_resume', label: 'Currículo novo' },
-  { value: 'contacted', label: 'Contatado' },
-  { value: 'scheduled_e1', label: 'E1 agendada' },
-  { value: 'done_e1', label: 'E1 realizada' },
-  { value: 'scheduled_e2', label: 'E2 agendada' },
-  { value: 'done_e2', label: 'E2 realizada' },
-  { value: 'approved', label: 'Aprovado' },
-  { value: 'rejected', label: 'Reprovado' },
-  { value: 'doubt', label: 'Dúvida' },
-  { value: 'became_partner', label: 'Virou parceiro' },
-];
+const STATUS_OPTIONS = HR_COLUMNS.map(c => ({ value: c.id, label: c.name }));
 
 function getInitials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]?.toUpperCase() ?? '').join('') || '?';
@@ -49,7 +34,6 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
   const { toast } = useToast();
   const { updateCandidate, deleteCandidate, moveToPartner } = useHRCandidates();
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<Partial<HRCandidate>>({});
   const [saving, setSaving] = useState(false);
@@ -75,8 +59,9 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
 
   if (!candidate) return null;
 
-  // Validação ao vivo do telefone (aceita vazio para permitir limpar campo)
-  const phoneCheck = form.phone ? validateBrazilianPhone(form.phone) : { valid: true, normalized: '', e164: '', reason: undefined as string | undefined };
+  const phoneCheck = form.phone
+    ? validateBrazilianPhone(form.phone)
+    : { valid: true, normalized: '', e164: '', reason: undefined as string | undefined };
 
   const handleSave = async () => {
     if (form.phone && !phoneCheck.valid) {
@@ -85,7 +70,6 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     }
     setSaving(true);
     try {
-      // Persiste telefone normalizado (sem 55, apenas DDD+número) — sistema adiciona 55 quando precisar enviar
       const payload = { ...form, phone: form.phone ? phoneCheck.normalized : form.phone };
       await updateCandidate(candidate.id, payload);
       toast({ title: 'Candidato atualizado' });
@@ -102,38 +86,7 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
     }
-    // hr-resumes: salvamos APENAS o path. URL assinada é gerada sob demanda
-    // pelo componente ResumeLink (1h de validade), evitando links que expiram após 30 dias.
-    return path;
-  };
-
-  // Componente interno: gera URL assinada na hora de abrir o currículo
-  const ResumeLink = ({ path }: { path: string }) => {
-    const [opening, setOpening] = useState(false);
-    const open = async () => {
-      setOpening(true);
-      try {
-        const { data, error } = await supabase.storage
-          .from('hr-resumes')
-          .createSignedUrl(path, 60 * 60); // 1 hora
-        if (error) throw error;
-        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-      } catch (err: any) {
-        toast({ title: 'Erro ao abrir currículo', description: err.message, variant: 'destructive' });
-      } finally {
-        setOpening(false);
-      }
-    };
-    return (
-      <button
-        onClick={open}
-        disabled={opening}
-        className="flex-1 flex items-center gap-2 text-sm text-primary hover:underline truncate text-left"
-      >
-        {opening ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
-        Ver currículo
-      </button>
-    );
+    return path; // hr-resumes guarda apenas path; URL assinada gerada sob demanda
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,9 +109,7 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     }
   };
 
-  const handleResumeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleResumeUpload = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
       toast({ title: 'Currículo muito grande', description: 'Máximo 10 MB.', variant: 'destructive' });
       return;
@@ -172,7 +123,6 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       toast({ title: 'Erro ao enviar CV', description: err.message, variant: 'destructive' });
     } finally {
       setUploadingResume(false);
-      if (resumeInputRef.current) resumeInputRef.current.value = '';
     }
   };
 
@@ -315,74 +265,21 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-                <Label className="text-xs">Currículo (PDF/DOC)</Label>
-                <div className="flex items-center gap-2">
-                  {form.resume_url ? (
-                    form.resume_url.startsWith('http') ? (
-                      // Legado: candidatos antigos têm URL assinada salva diretamente
-                      <a href={form.resume_url} target="_blank" rel="noreferrer"
-                         className="flex-1 flex items-center gap-2 text-sm text-primary hover:underline truncate">
-                        <FileText className="w-4 h-4 shrink-0" /> Ver currículo (legado)
-                      </a>
-                    ) : (
-                      <ResumeLink path={form.resume_url} />
-                    )
-                  ) : (
-                    <span className="flex-1 text-xs text-muted-foreground">Nenhum CV anexado</span>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => resumeInputRef.current?.click()} disabled={uploadingResume}>
-                    {uploadingResume ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
-                    {form.resume_url ? 'Trocar' : 'Enviar'}
-                  </Button>
-                  <input
-                    ref={resumeInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf"
-                    hidden
-                    onChange={handleResumeChange}
-                  />
-                </div>
-              </div>
+              <CandidateResumeField
+                resumeUrl={form.resume_url}
+                uploading={uploadingResume}
+                onFileSelected={handleResumeUpload}
+              />
 
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar dados
-                </Button>
-                <Button variant="outline" onClick={() => setScheduleStage(1)} className="gap-1.5">
-                  <Calendar className="w-4 h-4" /> Agendar E1
-                </Button>
-                <Button variant="outline" onClick={() => setScheduleStage(2)} className="gap-1.5">
-                  <Calendar className="w-4 h-4" /> Agendar E2
-                </Button>
-                {candidate.kanban_status === 'approved' && candidate.type === 'partner' && (
-                  <Button variant="secondary" onClick={handleMoveToPartner} className="gap-1.5">
-                    <UserPlus className="w-4 h-4" /> Mover para Parceiros
-                  </Button>
-                )}
-                <div className="ml-auto">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" className="gap-1.5">
-                        <Trash2 className="w-4 h-4" /> Excluir
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remover candidato?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta ação removerá <b>{candidate.full_name}</b> e todas as entrevistas/respostas associadas. Não pode ser desfeito.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>Remover</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
+              <CandidateActions
+                candidate={candidate}
+                saving={saving}
+                onSave={handleSave}
+                onScheduleE1={() => setScheduleStage(1)}
+                onScheduleE2={() => setScheduleStage(2)}
+                onMoveToPartner={handleMoveToPartner}
+                onDelete={handleDelete}
+              />
             </TabsContent>
 
             <TabsContent value="e1">
