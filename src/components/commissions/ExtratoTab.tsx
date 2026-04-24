@@ -86,7 +86,32 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
     return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', currentReward: currentReward?.reward_description || null, remaining, pct };
   }, [sales, sellerFilter, isAdmin, userId, annualRewards]);
 
-  const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
+  const weeks = useMemo(() => [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse(), [sales]);
+
+  // Cascata: se há semanas selecionadas, vendedores disponíveis são apenas os que venderam nessas semanas
+  const availableSellerIds = useMemo(() => {
+    if (weekFilters.length === 0) return null; // null = todos
+    const ids = new Set<string>();
+    sales.forEach(s => {
+      if (weekFilters.includes(s.week_label || '')) ids.add(s.seller_id);
+    });
+    return ids;
+  }, [sales, weekFilters]);
+
+  const visibleProfiles = useMemo(() => {
+    if (!availableSellerIds) return profiles;
+    return profiles.filter(p => availableSellerIds.has(p.user_id));
+  }, [profiles, availableSellerIds]);
+
+  // Reset sellerFilter se vendedor escolhido não vendeu nas semanas selecionadas
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (sellerFilter === 'all') return;
+    if (availableSellerIds && !availableSellerIds.has(sellerFilter)) {
+      setSellerFilter('all');
+    }
+  }, [availableSellerIds, sellerFilter, isAdmin]);
+
   const filtered = sales.filter(s => {
     if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
@@ -108,7 +133,7 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               <SelectTrigger className="w-full sm:w-52"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os vendedores</SelectItem>
-                {[...profiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => (
+                {[...visibleProfiles].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(p => (
                   <SelectItem key={p.user_id} value={p.user_id}>{p.name || p.email}</SelectItem>
                 ))}
               </SelectContent>
