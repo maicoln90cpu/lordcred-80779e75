@@ -188,6 +188,7 @@ export default function V8NovaSimulacaoTab() {
                   simulation_value: normalizedSimulationValue,
                   batch_id: batchId,
                   simulation_id: sim.id,
+                  attempt_count: Number((sim as any).attempt_count ?? 0) + 1,
                 },
               },
             });
@@ -386,6 +387,7 @@ export default function V8NovaSimulacaoTab() {
                     <th className="px-2 py-1 text-right">Parcela</th>
                     <th className="px-2 py-1 text-right">Margem</th>
                     <th className="px-2 py-1 text-right">A cobrar</th>
+                    <th className="px-2 py-1 text-center">Tentativas</th>
                     <th className="px-2 py-1 text-left">Observação</th>
                   </tr>
                 </thead>
@@ -404,6 +406,7 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+                      <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
                       <td className="px-2 py-1 align-top">
                         {s.status === 'pending' ? (
                           <span className="text-muted-foreground">Aguardando retorno da V8</span>
