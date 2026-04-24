@@ -970,7 +970,9 @@ async function actionRegisterWebhooks(supabase: any) {
 }
 
 
+const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
 
   try {
     const authHeader = req.headers.get("Authorization");
