@@ -10,8 +10,9 @@ const corsHeaders = {
 };
 
 const V8_BASE = "https://bff.v8sistema.com";
-// Auth oficial conforme docs.v8sistema.com — endpoint OAuth roda no domínio api.v8digital.com
-const V8_AUTH = "https://api.v8digital.com";
+// Auth oficial — Auth0 da V8 Sistema. Validado em 2026-04-24 via DNS+probe (302 -> /).
+// Doc menciona "api.v8digital.com" mas esse host está fora do ar; o Auth0 tenant ativo é auth.v8sistema.com.
+const V8_AUTH = "https://auth.v8sistema.com";
 
 // Endpoints oficiais V8 — Crédito do Trabalhador (CLT) usa /private-consignment/*
 const V8_PATHS = {
