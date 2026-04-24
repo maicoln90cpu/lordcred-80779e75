@@ -654,7 +654,7 @@ Deno.serve(async (req) => {
             }
             attempt++
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error sending message (attempt ${attempt + 1}):`, error)
           
           if (attempt >= MAX_RETRIES) {
@@ -694,7 +694,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Warming engine error:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),

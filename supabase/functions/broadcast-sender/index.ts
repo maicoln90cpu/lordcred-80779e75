@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
             batchFailed++
             totalFailed++
           }
-        } catch (err) {
+        } catch (err: any) {
           await adminClient
             .from('broadcast_recipients')
             .update({ status: 'failed', error_message: err.message || 'Network error' })
@@ -368,7 +368,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ ok: true, processed: totalProcessed, failed: totalFailed, skipped: totalSkipped }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error('Broadcast sender error:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),

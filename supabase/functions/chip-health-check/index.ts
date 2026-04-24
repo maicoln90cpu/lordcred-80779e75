@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
           }
 
           connected++
-          results.push({ chipId: chip.id, instanceName: chip.instance_name, oldStatus: chip.status, newStatus: 'connected', failCount: 0, unstable: isUnstable })
+          results.push({ chipId: chip.id, instanceName: chip.instance_name, oldStatus: chip.status, newStatus: 'connected', failCount: 0, unstable: isUnstable } as any)
         } else {
           // Failure: increment counter, only mark disconnected after STRIKE_THRESHOLD
           const newFailCount = (chip.health_fail_count || 0) + 1

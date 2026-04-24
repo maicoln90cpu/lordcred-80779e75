@@ -44,7 +44,7 @@ async function logWebhook(adminClient: any, chipId: string | null, instanceName:
       status_code: statusCode,
       processing_result: result,
     })
-  } catch (e) {
+  } catch (e: any) {
     console.error('Failed to log webhook:', e)
   }
 }
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       if (!payload.message.fromMe) {
         try {
           await detectBroadcastReply(adminClient, chip, payload)
-        } catch (e) {
+        } catch (e: any) {
           console.error('Broadcast reply detection error:', e)
         }
       }
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       // ── Broadcast delivery status cross-reference ──
       try {
         await updateBroadcastDeliveryStatus(adminClient, payload)
-      } catch (e) {
+      } catch (e: any) {
         console.error('Broadcast delivery status error:', e)
       }
     } else if (eventType === 'connection.update' || payload.event === 'connection.update') {
@@ -138,13 +138,13 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Webhook error:', error)
     // Try to log even on error
     try {
       const rawBody = error.message || 'Internal error'
       await logWebhook(adminClient, null, null, 'error', { error: rawBody }, 500, rawBody)
-    } catch (_) {}
+    } catch (_: any) {}
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -244,13 +244,13 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
         .like('remote_jid', '%@lid')
 
       if (lidConvos && lidConvos.length > 0) {
-        const match = lidConvos.filter(c => c.contact_name === contactName)
+        const match = lidConvos.filter((c: any) => c.contact_name === contactName)
         if (match.length === 1) {
           console.log(`Auto-correcting: deleting @lid conv ${match[0].remote_jid} (duplicate of ${remoteJid})`)
           await adminClient.from('conversations').delete().eq('id', match[0].id)
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Auto-correct LID cleanup error:', e)
     }
   }

@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
         rawChats = extractArray(chatsResponse)
         console.log(`[sync-history] /chat/find returned ${rawChats.length} total chats`)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[sync-history] Failed to fetch chats:', e)
     }
 
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
               chat._resolvedPic = details.imagePreview || details.image || null
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error(`[sync-history] /chat/details failed for ${rawJid}:`, e)
         }
         await delay(API_DELAY_MS)
@@ -393,12 +393,11 @@ Deno.serve(async (req) => {
       if (rawJid.includes('@lid') && canonicalJid !== rawJid) {
         console.log(`[sync-history] Migrating messages from ${rawJid} -> ${canonicalJid}`)
         // Update messages stored with @lid to use canonical phone JID
-        const { count: migratedCount } = await adminClient
+        const { count: migratedCount } = await (adminClient
           .from('message_history')
-          .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null })
+          .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null }, { count: 'exact' } as any)
           .eq('chip_id', chipId)
-          .eq('remote_jid', rawJid)
-          .select('*', { count: 'exact', head: true })
+          .eq('remote_jid', rawJid) as any)
         if (migratedCount && migratedCount > 0) {
           console.log(`[sync-history] Migrated ${migratedCount} messages from ${rawJid} to ${canonicalJid}`)
         }
@@ -487,7 +486,7 @@ Deno.serve(async (req) => {
             syncedMessages += rows.length
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(`[sync-history] Failed to sync messages for ${canonicalJid}:`, e)
       }
 
@@ -519,7 +518,7 @@ Deno.serve(async (req) => {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[sync-history] Fatal error:', error)
     return new Response(JSON.stringify({ error: error.message, hasMore: false }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
