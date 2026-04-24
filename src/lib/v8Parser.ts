@@ -122,6 +122,18 @@ export function parseV8Paste(input: string): V8ParsedRow[] {
       parts = line.split(/\s+/).filter(Boolean);
     }
 
+    // Heurística: se a primeira parte mistura letras E dígitos (ex.: "39364073800MAICON"
+    // ou "MARIA1044251247308"), trata-se de formato concatenado — tenta esse path antes.
+    const firstPart = parts[0] || '';
+    const hasLettersAndDigits = /[A-Za-zÀ-ÿ]/.test(firstPart) && /\d/.test(firstPart);
+    if (hasLettersAndDigits) {
+      const concat = parseConcatenated(line);
+      if (concat) {
+        rows.push(concat);
+        continue;
+      }
+    }
+
     const cpfRaw = (parts[0] || '').replace(/\D/g, '');
 
     // Caso 1: formato com separadores e CPF na primeira posição.
