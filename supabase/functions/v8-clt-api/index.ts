@@ -150,7 +150,7 @@ async function actionGetConfigs(supabase: any) {
   return { success: true, data: configs };
 }
 
-interface SimulateInput {
+export interface SimulateInput {
   cpf: string;
   nome?: string;
   data_nascimento?: string;
