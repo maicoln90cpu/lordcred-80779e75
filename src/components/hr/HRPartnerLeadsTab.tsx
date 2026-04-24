@@ -218,16 +218,28 @@ function PartnerRow({ lead, onPatch, onDelete }: RowProps) {
   const [cpf, setCpf] = useState(lead.cpf ?? '');
 
   const meetingStatus = MEETING_STATUS.find((s) => s.value === lead.meeting_status);
+  const phonePending = hasPendingPhone(lead);
 
   return (
     <TableRow>
       <TableCell>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== lead.full_name && onPatch(lead.id, { full_name: name })}
-          className="h-8"
-        />
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => name !== lead.full_name && onPatch(lead.id, { full_name: name })}
+            className="h-8"
+          />
+          {phonePending && (
+            <Badge
+              variant="outline"
+              className="text-[10px] py-0 h-5 gap-1 border-warning/60 bg-warning/10 text-warning shrink-0"
+              title="Telefone ausente ou inválido — atualize antes de contatar"
+            >
+              <AlertTriangle className="w-2.5 h-2.5" /> Tel pendente
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-1">
@@ -236,10 +248,10 @@ function PartnerRow({ lead, onPatch, onDelete }: RowProps) {
             onChange={(e) => setPhone(e.target.value)}
             onBlur={() => phone !== lead.phone && onPatch(lead.id, { phone: phone.replace(/\D/g, '') })}
             className="h-8 font-mono text-xs"
-            placeholder={formatPhone(lead.phone)}
+            placeholder={formatBrazilianPhone(lead.phone)}
           />
           <a href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" title="Abrir WhatsApp">
-            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+            <Phone className="w-3.5 h-3.5 text-success" />
           </a>
         </div>
       </TableCell>
