@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useHRCandidates, type HRCandidate, type HRKanbanStatus } from '@/hooks/useHRCandidates';
 import { InterviewForm } from './InterviewForm';
 import { ScheduleModal } from './ScheduleModal';
+import { validateBrazilianPhone, formatBrazilianPhone } from '@/lib/phoneUtils';
 
 interface Props {
   open: boolean;
@@ -74,10 +75,19 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
 
   if (!candidate) return null;
 
+  // Validação ao vivo do telefone (aceita vazio para permitir limpar campo)
+  const phoneCheck = form.phone ? validateBrazilianPhone(form.phone) : { valid: true, normalized: '', e164: '', reason: undefined as string | undefined };
+
   const handleSave = async () => {
+    if (form.phone && !phoneCheck.valid) {
+      toast({ title: 'Telefone inválido', description: phoneCheck.reason, variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
-      await updateCandidate(candidate.id, form);
+      // Persiste telefone normalizado (sem 55, apenas DDD+número) — sistema adiciona 55 quando precisar enviar
+      const payload = { ...form, phone: form.phone ? phoneCheck.normalized : form.phone };
+      await updateCandidate(candidate.id, payload);
       toast({ title: 'Candidato atualizado' });
     } catch { /* hook handles toast */ }
     finally { setSaving(false); }
@@ -237,9 +247,18 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
                   <Input
                     value={form.phone || ''}
                     onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-                    placeholder="55119..."
+                    placeholder="(11) 99999-9999"
                     maxLength={20}
+                    className={form.phone && !phoneCheck.valid ? 'border-destructive focus-visible:ring-destructive' : ''}
                   />
+                  {form.phone && !phoneCheck.valid && (
+                    <p className="text-[11px] text-destructive">{phoneCheck.reason}</p>
+                  )}
+                  {form.phone && phoneCheck.valid && phoneCheck.e164 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatBrazilianPhone(phoneCheck.normalized)} → +{phoneCheck.e164}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>CPF</Label>

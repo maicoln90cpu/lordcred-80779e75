@@ -157,7 +157,7 @@ export default function BlacklistManager({ open, onOpenChange }: Props) {
                 <Input
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  placeholder="5511999998888"
+                  placeholder="(11) 99999-8888"
                 />
               </div>
               <div className="flex-1">

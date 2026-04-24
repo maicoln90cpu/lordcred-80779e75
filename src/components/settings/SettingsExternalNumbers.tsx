@@ -31,7 +31,7 @@ export default function SettingsExternalNumbers({ externalNumbers, newPhone, set
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
-          <Input placeholder="Número (ex: 5511999999999)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} className="flex-1" />
+          <Input placeholder="Ex: (11) 99999-9999" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} className="flex-1" />
           <Input placeholder="Nome/Descrição (opcional)" value={newName} onChange={(e) => setNewName(e.target.value)} className="flex-1" />
           <Button onClick={onAdd} className="shrink-0"><Plus className="w-4 h-4 mr-2" />Adicionar</Button>
         </div>

@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { validateBrazilianPhone } from '@/lib/phoneUtils';
 
 interface MyProfilePanelProps {
   className?: string;
@@ -75,24 +76,29 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
 
   const handleSavePhone = async () => {
     if (!user) return;
-    // Aceita vazio (limpa) ou string com apenas dígitos. Formato esperado: 5511999999999.
-    const cleaned = editPhone.replace(/\D/g, '');
-    if (cleaned && (cleaned.length < 10 || cleaned.length > 15)) {
-      toast({
-        title: 'Telefone inválido',
-        description: 'Use apenas dígitos com DDI + DDD + número (ex: 5511999999999).',
-        variant: 'destructive',
-      });
-      return;
+    // Aceita vazio (limpa) ou normaliza via validateBrazilianPhone (aceita com/sem 55).
+    let phoneToSave = '';
+    if (editPhone.trim()) {
+      const check = validateBrazilianPhone(editPhone);
+      if (!check.valid) {
+        toast({
+          title: 'Telefone inválido',
+          description: check.reason || 'Use o formato (11) 99999-9999.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Salvamos no formato E.164 (com 55) — compatível com sistema legado de envios.
+      phoneToSave = check.e164;
     }
     setIsSavingPhone(true);
     try {
       const { error } = await (supabase as any)
         .from('profiles')
-        .update({ phone: cleaned || null })
+        .update({ phone: phoneToSave || null })
         .eq('user_id', user.id);
       if (error) throw error;
-      setProfile(prev => prev ? { ...prev, phone: cleaned || null } : prev);
+      setProfile(prev => prev ? { ...prev, phone: phoneToSave || null } : prev);
       setIsEditingPhone(false);
       toast({ title: 'Telefone atualizado' });
     } catch (error: any) {
@@ -240,7 +246,7 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
                   value={editPhone}
                   onChange={e => setEditPhone(e.target.value)}
                   className="h-8 text-sm"
-                  placeholder="5511999999999"
+                  placeholder="(11) 99999-9999"
                   autoFocus
                   onKeyDown={e => e.key === 'Enter' && handleSavePhone()}
                 />
@@ -265,7 +271,7 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
               </div>
             )}
             <p className="text-[10px] text-muted-foreground mt-1">
-              Apenas dígitos com DDI + DDD (ex: 5511999999999). Usado para receber lembretes de entrevistas de RH.
+              Digite com DDD (ex: (11) 99999-9999). O código do país (55) é adicionado automaticamente. Usado para lembretes de entrevistas de RH.
             </p>
           </div>
         </div>

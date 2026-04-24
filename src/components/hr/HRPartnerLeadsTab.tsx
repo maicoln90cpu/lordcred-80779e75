@@ -151,7 +151,7 @@ export function HRPartnerLeadsTab() {
             </div>
             <div className="w-[180px]">
               <label className="text-xs text-muted-foreground">Telefone</label>
-              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="11999999999" />
+              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="(11) 99999-9999" />
             </div>
             <Button onClick={handleQuickCreate} disabled={!newName.trim() || !newPhone.trim()}>Adicionar</Button>
             <Button variant="ghost" onClick={() => setCreating(false)}>Cancelar</Button>

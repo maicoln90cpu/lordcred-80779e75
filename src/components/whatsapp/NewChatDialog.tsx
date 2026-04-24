@@ -49,13 +49,13 @@ export default function NewChatDialog({ open, onOpenChange, onStartChat }: NewCh
           </TabsList>
           <TabsContent value="number" className="space-y-3 mt-3">
             <Input
-              placeholder="Ex: 5511999999999"
+              placeholder="Ex: (11) 99999-9999"
               value={number}
               onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))}
               onKeyDown={(e) => { if (e.key === 'Enter' && number.length >= 10) onStartChat(number); }}
               autoFocus
             />
-            <p className="text-xs text-muted-foreground">Digite o número completo com DDD e código do país (ex: 55 para Brasil)</p>
+            <p className="text-xs text-muted-foreground">Digite com DDD (ex: 11999999999). O código do país (55) é adicionado automaticamente.</p>
             <DialogFooter>
               <Button disabled={number.length < 10} onClick={() => onStartChat(number)}>Iniciar conversa</Button>
             </DialogFooter>
