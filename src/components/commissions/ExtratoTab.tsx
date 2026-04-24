@@ -130,6 +130,38 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const totalComm = filtered.reduce((a, s) => a + s.commission_value, 0);
   const fmt = fmtBRL;
 
+  // ---- Comparação inteligente: período atual vs anterior
+  const prevPeriodSales = useMemo(() => {
+    const baseFilter = (s: CommissionSale) => {
+      if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
+      if (productFilter !== 'all' && s.product !== productFilter) return false;
+      return true;
+    };
+    if (weekFilters.length > 0) {
+      const prevWeeks = getPreviousWeekLabels(weekFilters, weeks as string[]);
+      if (prevWeeks.length === 0) return [];
+      return sales.filter((s) => baseFilter(s) && prevWeeks.includes(s.week_label || ''));
+    }
+    return filterPreviousMonthSales(sales.filter(baseFilter));
+  }, [sales, weekFilters, sellerFilter, productFilter, weeks]);
+
+  const currentReferenceSales = useMemo(() => {
+    if (weekFilters.length > 0) return filtered;
+    const baseFilter = (s: CommissionSale) => {
+      if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
+      if (productFilter !== 'all' && s.product !== productFilter) return false;
+      return true;
+    };
+    return filterCurrentMonthSales(sales.filter(baseFilter));
+  }, [sales, weekFilters, sellerFilter, productFilter, filtered]);
+
+  const currentTotals = useMemo(() => computeKpiTotals(currentReferenceSales), [currentReferenceSales]);
+  const prevTotals = useMemo(() => computeKpiTotals(prevPeriodSales), [prevPeriodSales]);
+
+  const comparisonLabel = weekFilters.length > 0
+    ? (weekFilters.length === 1 ? 'vs semana anterior' : `vs ${weekFilters.length} semanas anteriores`)
+    : 'vs mês anterior';
+
   return (
     <Card>
       <CardHeader>
