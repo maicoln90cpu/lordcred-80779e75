@@ -187,6 +187,27 @@ export default function V8ConsultasTab() {
     setDetailsOpen(true);
   }
 
+  async function handleReplayPending() {
+    setReplaying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-webhook', {
+        body: { action: 'replay_pending', limit: 500 },
+      });
+      if (error) throw error;
+      if (data?.ok) {
+        toast.success(
+          `Reprocessados: ${data.success} sucesso, ${data.failed} sem ação. Total lido: ${data.total}.`,
+        );
+      } else {
+        toast.error(data?.error || 'Não foi possível reprocessar os webhooks pendentes.');
+      }
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || err}`);
+    } finally {
+      setReplaying(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
