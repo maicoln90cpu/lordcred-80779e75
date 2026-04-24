@@ -212,6 +212,8 @@ export interface SimulateInput {
   telefone?: string;
   config_id: string;
   parcelas: number;
+  simulation_mode?: "disbursed_amount" | "installment_face_value";
+  simulation_value?: number;
   batch_id?: string;
   simulation_id?: string;
 }
@@ -295,6 +297,86 @@ export function buildSimulationBody(input: Pick<SimulateInput, "config_id" | "pa
     config_id: input.config_id,
     number_of_installments: input.parcelas,
     provider: "QI",
+  };
+}
+
+function buildSimulationBodyWithValue(
+  input: Pick<SimulateInput, "config_id" | "parcelas" | "simulation_mode" | "simulation_value">,
+  consultId: string,
+) {
+  const base = buildSimulationBody(input, consultId) as Record<string, unknown>;
+  if (input.simulation_mode === "installment_face_value") {
+    base.installment_face_value = Number(input.simulation_value);
+  } else {
+    base.disbursed_amount = Number(input.simulation_value);
+  }
+  return base;
+}
+
+async function waitForConsultReady(supabase: any, consultId: string, cpf: string) {
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 60 * 60 * 1000);
+  const searchValue = cpf.replace(/\D/g, "");
+  let lastPayload: any = null;
+
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    const query = new URLSearchParams({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      limit: "50",
+      page: "1",
+      provider: "QI",
+      search: searchValue,
+    });
+
+    const statusResp = await v8Fetch(`${V8_PATHS.consult}?${query.toString()}`, { method: "GET" });
+    const statusJson = await statusResp.json().catch(() => ({}));
+    lastPayload = statusJson;
+
+    if (!statusResp.ok) {
+      return {
+        success: false,
+        step: "consult_status",
+        error: statusJson?.message || statusJson?.error || `Status ${statusResp.status}`,
+        raw: statusJson,
+      };
+    }
+
+    const records = Array.isArray(statusJson?.data) ? statusJson.data : Array.isArray(statusJson) ? statusJson : [];
+    const consultRow = records.find((row: any) => {
+      const rowId = String(row?.id ?? row?.consult_id ?? row?.consultId ?? "");
+      const rowDocument = String(row?.documentNumber ?? row?.borrowerDocumentNumber ?? "").replace(/\D/g, "");
+      return rowId === consultId || rowDocument === searchValue;
+    });
+
+    if (!consultRow) {
+      console.error(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} not found in listing`);
+    } else {
+      const consultStatus = String(consultRow?.status ?? "").toUpperCase();
+      if (consultStatus === "SUCCESS") {
+        return { success: true, data: consultRow };
+      }
+      if (consultStatus === "FAILED" || consultStatus === "REJECTED") {
+        return {
+          success: false,
+          step: "consult_status",
+          error: String(consultRow?.description || `Consulta retornou ${consultStatus}`),
+          raw: consultRow,
+        };
+      }
+      console.log(`[v8ConsultStatus] attempt=${attempt}/6 consult_id=${consultId} status=${consultStatus}`);
+    }
+
+    if (attempt < 6) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  return {
+    success: false,
+    step: "consult_status",
+    error: "Consulta ainda em análise na V8. Aguarde e tente novamente em instantes.",
+    raw: lastPayload,
   };
 }
 
