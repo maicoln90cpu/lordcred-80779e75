@@ -93,6 +93,7 @@ export default function V8ConsultasTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [replaying, setReplaying] = useState(false);
 
   const {
     operations,
