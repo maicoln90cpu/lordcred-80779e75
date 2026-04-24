@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Search, Eye, Shield, Clock, Send, Terminal, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { Loader2, Search, Eye, Shield, Clock, Send, Terminal, CheckCircle2, XCircle, Info, Cpu, User } from 'lucide-react';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -120,6 +120,18 @@ const statusConfig: Record<LogStatus, { label: string; icon: typeof CheckCircle2
   info: { label: 'Info', icon: Info, className: 'bg-muted text-muted-foreground' },
 };
 
+type LogOrigin = 'system' | 'user';
+
+function getOrigin(log: AuditLog): LogOrigin {
+  // Sem user_id = ação automática (cron, webhook, edge function sem usuário)
+  return log.user_id ? 'user' : 'system';
+}
+
+const originConfig: Record<LogOrigin, { label: string; icon: typeof Cpu; className: string }> = {
+  system: { label: 'Sistema', icon: Cpu, className: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  user: { label: 'Usuário', icon: User, className: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+};
+
 function extractFallbackRequest(details: any): Record<string, any> | null {
   if (!details || details.request_payload) return null;
   const keys = ['partner_id', 'partner_name', 'partner_email', 'envelope_id', 'action', 'file_name', 'signer_email'];
@@ -170,6 +182,7 @@ export default function AuditLogs() {
   const [filterAction, setFilterAction] = useState('all');
   const [filterCategory, setFilterCategory] = useState<'all' | AuditCategory>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | LogStatus>('all');
+  const [filterOrigin, setFilterOrigin] = useState<'all' | LogOrigin>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
@@ -212,7 +225,8 @@ export default function AuditLogs() {
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     const matchesStatus = filterStatus === 'all' || getLogStatus(log) === filterStatus;
     const matchesCategory = filterCategory === 'all' || getCategory(log) === filterCategory;
-    return matchesSearch && matchesAction && matchesStatus && matchesCategory;
+    const matchesOrigin = filterOrigin === 'all' || getOrigin(log) === filterOrigin;
+    return matchesSearch && matchesAction && matchesStatus && matchesCategory && matchesOrigin;
   });
   const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
@@ -357,6 +371,20 @@ export default function AuditLogs() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterOrigin} onValueChange={(v) => setFilterOrigin(v as 'all' | LogOrigin)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filtrar origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toda origem</SelectItem>
+                  <SelectItem value="system">
+                    <span className="flex items-center gap-1.5"><Cpu className="w-3 h-3 text-blue-400" /> Sistema</span>
+                  </SelectItem>
+                  <SelectItem value="user">
+                    <span className="flex items-center gap-1.5"><User className="w-3 h-3 text-purple-400" /> Usuário</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
                 {filteredLogs.length} de {logs.length} registros
@@ -375,6 +403,7 @@ export default function AuditLogs() {
                           { key: 'user_email', label: 'Usuário' },
                           { key: 'action', label: 'Ação' },
                           { key: '_status', label: 'Status' },
+                          { key: '_origin', label: 'Origem' },
                           { key: 'target_table', label: 'Tabela' },
                           { key: 'target_id', label: 'ID Alvo' },
                         ].map(col => {
@@ -401,10 +430,13 @@ export default function AuditLogs() {
                         const logStatus = getLogStatus(log);
                         const statusInfo = statusConfig[logStatus];
                         const StatusIcon = statusInfo.icon;
+                        const origin = getOrigin(log);
+                        const originInfo = originConfig[origin];
+                        const OriginIcon = originInfo.icon;
                         return (
                           <TableRow key={log.id}>
                             <TableCell className="text-xs font-mono whitespace-nowrap">{formatDate(log.created_at)}</TableCell>
-                            <TableCell className="text-sm">{log.user_email || '—'}</TableCell>
+                            <TableCell className="text-sm">{log.user_email || <span className="text-muted-foreground italic">automático</span>}</TableCell>
                             <TableCell>
                               <Badge className={cn('text-xs', actionInfo.className)}>{actionInfo.label}</Badge>
                             </TableCell>
@@ -412,6 +444,12 @@ export default function AuditLogs() {
                               <Badge className={cn('text-xs gap-1', statusInfo.className)}>
                                 <StatusIcon className="w-3 h-3" />
                                 {statusInfo.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn('text-xs gap-1', originInfo.className)}>
+                                <OriginIcon className="w-3 h-3" />
+                                {originInfo.label}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-mono">{log.target_table || '—'}</TableCell>
