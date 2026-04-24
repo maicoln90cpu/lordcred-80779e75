@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
+import {
+  getV8ErrorHeadline,
+  getV8ErrorMeta,
+  getV8ErrorSecondary,
+  stringifyV8Payload,
+} from '@/lib/v8ErrorPresentation';
 
 function BatchDetail({ batchId }: { batchId: string }) {
   const { simulations } = useV8BatchSimulations(batchId);
@@ -18,6 +24,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
             <th className="px-2 py-1 text-right">Parcela</th>
             <th className="px-2 py-1 text-right">Margem</th>
             <th className="px-2 py-1 text-right">A cobrar</th>
+            <th className="px-2 py-1 text-left">Motivo / payload</th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +43,44 @@ function BatchDetail({ batchId }: { batchId: string }) {
               <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+              <td className="px-2 py-1 align-top">
+                {s.error_message || s.raw_response ? (
+                  <div className="space-y-1">
+                    <div className="whitespace-pre-line font-medium">
+                      {getV8ErrorHeadline(s.raw_response, s.error_message) || 'Sem detalhe informado'}
+                    </div>
+                    {getV8ErrorSecondary(s.raw_response) && (
+                      <div className="whitespace-pre-line text-muted-foreground">
+                        {getV8ErrorSecondary(s.raw_response)}
+                      </div>
+                    )}
+                    {(getV8ErrorMeta(s.raw_response).step || getV8ErrorMeta(s.raw_response).kind) && (
+                      <div className="text-[11px] text-muted-foreground">
+                        {getV8ErrorMeta(s.raw_response).step ? `etapa: ${getV8ErrorMeta(s.raw_response).step}` : null}
+                        {getV8ErrorMeta(s.raw_response).step && getV8ErrorMeta(s.raw_response).kind ? ' • ' : null}
+                        {getV8ErrorMeta(s.raw_response).kind ? `tipo: ${getV8ErrorMeta(s.raw_response).kind}` : null}
+                      </div>
+                    )}
+                    {getV8ErrorMeta(s.raw_response).guidance && (
+                      <div className="whitespace-pre-line text-[11px] text-muted-foreground">
+                        {getV8ErrorMeta(s.raw_response).guidance}
+                      </div>
+                    )}
+                    {stringifyV8Payload(s.raw_response) && (
+                      <details className="rounded border border-border bg-muted/30 p-2">
+                        <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+                          Ver payload bruto
+                        </summary>
+                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
+                          {stringifyV8Payload(s.raw_response)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
