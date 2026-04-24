@@ -59,6 +59,7 @@ export interface HRAnswer {
   interview_id: string;
   question_id: string;
   answer: string | null;
+  question_text_snapshot: string | null;
 }
 
 export function useHRCandidates() {
