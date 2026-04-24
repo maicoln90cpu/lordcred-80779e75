@@ -77,7 +77,7 @@ export default memo(function CandidateCard({ candidate, columnColor, onClick }: 
         {phonePending && (
           <Badge
             variant="outline"
-            className="text-[10px] py-0 h-5 gap-1 border-amber-400/60 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+            className="text-[10px] py-0 h-5 gap-1 border-warning/60 bg-warning/10 text-warning"
             title="Telefone ausente ou inválido — atualize antes de contatar"
           >
             <AlertTriangle className="w-2.5 h-2.5" /> Tel pendente
