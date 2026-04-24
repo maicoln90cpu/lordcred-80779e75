@@ -626,6 +626,7 @@ async function generateAndSend(partnerId: string, userId: string) {
     target_table: 'partners',
     target_id: partnerId,
     details: {
+      category: 'contracts',
       success: true,
       request_payload: { partner_id: partnerId, partner_name: partner.nome, partner_email: partner.email, file_name: fileName },
       response_payload: { envelope_id: envelopeId, document_id: documentId, signer_id: signerId, status: 'pendente_parceiro' },
@@ -740,6 +741,7 @@ async function resendNotification(partnerId: string, userId: string) {
     target_table: 'partners',
     target_id: partnerId,
     details: {
+      category: 'contracts',
       success: notifiedCount > 0,
       request_payload: { partner_id: partnerId, envelope_id: partner.envelope_id, action: 'resend_notification' },
       response_payload: { notified: notifiedCount, signers_total: signers.length, partner_name: partner.nome },
