@@ -201,11 +201,14 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
               <Switch id="notif-cand" checked={notifyCandidate} onCheckedChange={setNotifyCandidate} />
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="notif-int" className="text-sm font-medium cursor-pointer">
+              <Label htmlFor="notif-int" className="text-sm font-medium cursor-pointer text-muted-foreground">
                 Notificar entrevistador (WhatsApp)
               </Label>
-              <Switch id="notif-int" checked={notifyInterviewer} onCheckedChange={setNotifyInterviewer} />
+              <Switch id="notif-int" checked={notifyInterviewer} onCheckedChange={setNotifyInterviewer} disabled />
             </div>
+            <p className="text-[10px] text-muted-foreground -mt-1.5">
+              Cadastro de telefone do entrevistador será adicionado em uma próxima etapa.
+            </p>
 
             {(notifyCandidate || notifyInterviewer) && (
               <div className="space-y-1.5 pt-1.5 border-t border-border/60">
