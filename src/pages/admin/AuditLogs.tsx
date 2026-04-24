@@ -120,6 +120,18 @@ const statusConfig: Record<LogStatus, { label: string; icon: typeof CheckCircle2
   info: { label: 'Info', icon: Info, className: 'bg-muted text-muted-foreground' },
 };
 
+type LogOrigin = 'system' | 'user';
+
+function getOrigin(log: AuditLog): LogOrigin {
+  // Sem user_id = ação automática (cron, webhook, edge function sem usuário)
+  return log.user_id ? 'user' : 'system';
+}
+
+const originConfig: Record<LogOrigin, { label: string; icon: typeof Cpu; className: string }> = {
+  system: { label: 'Sistema', icon: Cpu, className: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  user: { label: 'Usuário', icon: User, className: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+};
+
 function extractFallbackRequest(details: any): Record<string, any> | null {
   if (!details || details.request_payload) return null;
   const keys = ['partner_id', 'partner_name', 'partner_email', 'envelope_id', 'action', 'file_name', 'signer_email'];
