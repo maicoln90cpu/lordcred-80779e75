@@ -1,16 +1,24 @@
 /**
  * Parser para colagem de CPFs no Simulador V8 CLT.
- * Aceita TSV/CSV/linhas com espaços. Tokens reconhecidos automaticamente
- * em qualquer ordem após o CPF:
+ *
+ * Suporta múltiplos formatos por linha:
+ *   1) Tokens separados por TAB / `;` / `,` / espaço — em qualquer ordem após o CPF:
+ *        39364073800 Maicon Douglas 06/08/1990 M 11999998888
+ *        39364073800;Maria Silva;15/03/1985;F;(11) 98888-7777
+ *
+ *   2) CPF puro:
+ *        39364073800
+ *
+ *   3) **Formato concatenado** (sem separadores), como exportado por alguns ERPs:
+ *        DANIEL ALYSSON BARBOSA DA SILVA1044251247308/05/1992
+ *      Reconhece: NOME (letras+espaços) + CPF (11 dígitos) + DATA (dd/mm/aaaa
+ *      ou yyyy-mm-dd) — em qualquer ordem entre si.
+ *
+ * Tokens reconhecidos automaticamente:
  *   - DATA: dd/mm/aaaa ou yyyy-mm-dd
  *   - GÊNERO: M, F, masculino, feminino, male, female
- *   - TELEFONE: bloco com 10 ou 11 dígitos (com ou sem máscara)
+ *   - TELEFONE: bloco com 10 ou 11 dígitos
  *   - NOME: tudo que sobrar (juntado com espaços)
- *
- * Exemplos válidos:
- *   39364073800 Maicon Douglas 06/08/1990 M 11999998888
- *   39364073800;Maria Silva;15/03/1985;F;(11) 98888-7777
- *   39364073800
  */
 export interface V8ParsedRow {
   cpf: string;
@@ -58,6 +66,49 @@ function isPhoneToken(t: string): string | null {
   return null;
 }
 
+/**
+ * Tenta extrair { cpf, nome?, data_nascimento? } de uma linha sem separadores
+ * onde os campos vêm "colados".
+ *
+ * Estratégia: procura uma data (dd/mm/aaaa ou yyyy-mm-dd) e uma sequência de
+ * exatamente 11 dígitos contíguos no mesmo bloco. O que sobra é o nome
+ * (sequência de letras + espaços + acentos).
+ *
+ * Retorna `null` se não for possível identificar CPF.
+ */
+export function parseConcatenated(line: string): V8ParsedRow | null {
+  // Detecta data primeiro (BR ou ISO) em qualquer posição.
+  const dateBrMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+  const dateIsoMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
+  let data_nascimento: string | undefined;
+  let lineNoDate = line;
+  if (dateBrMatch) {
+    data_nascimento = dateBrMatch[1];
+    lineNoDate = line.replace(dateBrMatch[0], ' ');
+  } else if (dateIsoMatch) {
+    const [y, m, d] = dateIsoMatch[1].split('-');
+    data_nascimento = `${d}/${m}/${y}`;
+    lineNoDate = line.replace(dateIsoMatch[0], ' ');
+  }
+
+  // Procura sequência de 11 dígitos contíguos (CPF cru, sem máscara).
+  const cpfMatch = lineNoDate.match(/(\d{11})/);
+  if (!cpfMatch) return null;
+  const cpf = cpfMatch[1];
+
+  // O que sobra (sem CPF e sem data) é o nome.
+  const nome = lineNoDate
+    .replace(cpfMatch[0], ' ')
+    .replace(/[^A-Za-zÀ-ÿ\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const row: V8ParsedRow = { cpf };
+  if (nome) row.nome = nome;
+  if (data_nascimento) row.data_nascimento = data_nascimento;
+  return row;
+}
+
 export function parseV8Paste(input: string): V8ParsedRow[] {
   const lines = input
     .split(/\r?\n/)
@@ -72,35 +123,46 @@ export function parseV8Paste(input: string): V8ParsedRow[] {
     }
 
     const cpfRaw = (parts[0] || '').replace(/\D/g, '');
-    if (cpfRaw.length !== 11) continue;
 
-    const row: V8ParsedRow = { cpf: cpfRaw };
-    const nameTokens: string[] = [];
+    // Caso 1: formato com separadores e CPF na primeira posição.
+    if (cpfRaw.length === 11) {
+      const row: V8ParsedRow = { cpf: cpfRaw };
+      const nameTokens: string[] = [];
 
-    for (let i = 1; i < parts.length; i++) {
-      const tok = parts[i];
-      const date = isDateToken(tok);
-      if (date && !row.data_nascimento) {
-        row.data_nascimento = date;
-        continue;
+      for (let i = 1; i < parts.length; i++) {
+        const tok = parts[i];
+        const date = isDateToken(tok);
+        if (date && !row.data_nascimento) {
+          row.data_nascimento = date;
+          continue;
+        }
+        const gen = isGenderToken(tok);
+        if (gen && !row.genero) {
+          row.genero = gen;
+          continue;
+        }
+        const phone = isPhoneToken(tok);
+        if (phone && !row.telefone) {
+          row.telefone = phone;
+          continue;
+        }
+        nameTokens.push(tok);
       }
-      const gen = isGenderToken(tok);
-      if (gen && !row.genero) {
-        row.genero = gen;
-        continue;
-      }
-      const phone = isPhoneToken(tok);
-      if (phone && !row.telefone) {
-        row.telefone = phone;
-        continue;
-      }
-      nameTokens.push(tok);
+
+      const nome = nameTokens.join(' ').trim();
+      if (nome) row.nome = nome;
+
+      rows.push(row);
+      continue;
     }
 
-    const nome = nameTokens.join(' ').trim();
-    if (nome) row.nome = nome;
-
-    rows.push(row);
+    // Caso 2: linha concatenada (NOME+CPF+DATA sem separadores).
+    const concat = parseConcatenated(line);
+    if (concat) {
+      rows.push(concat);
+      continue;
+    }
+    // Senão, descarta a linha (CPF inválido).
   }
   return rows;
 }
