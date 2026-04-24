@@ -20,7 +20,7 @@ const InterviewSchema = z.object({
   attended: z.boolean().nullable().optional(),
   result: z.union([
     InterviewResultSchema,
-    z.enum(['Aprovado', 'Reprovado', 'Dúvida', 'Duvida', 'Próxima etapa', 'Proxima etapa', 'Próxima Etapa', 'Virou parceiro', 'Parceiro']).nullable().optional(),
+    z.enum(['Aprovado', 'Reprovado', 'Dúvida', 'Duvida', 'Próxima etapa', 'Proxima etapa', 'Próxima Etapa', 'Virou parceiro', 'Parceiro', 'Não quis']).nullable().optional(),
   ]),
   score_tecnica: z.number().min(0).max(10).nullable().optional(),
   score_cultura: z.number().min(0).max(10).nullable().optional(),
@@ -91,44 +91,16 @@ function normalizeResult(value?: string | null) {
   return map[value] ?? null
 }
 
-async function resolveCallerRole(authHeader: string) {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  })
-
-  const token = authHeader.replace('Bearer ', '')
-  const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token)
-  if (claimsError || !claimsData?.claims?.sub) return { error: 'Unauthorized', status: 401 as const }
-
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-
-  const { data: roleRow, error: roleError } = await admin
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', claimsData.claims.sub)
-    .single()
-
-  if (roleError || !roleRow?.role) return { error: 'Could not determine role', status: 403 as const }
-  if (!['master', 'admin', 'manager'].includes(roleRow.role)) return { error: 'Access denied', status: 403 as const }
-
-  return { admin, callerId: claimsData.claims.sub, role: roleRow.role }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
+  if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) return jsonResponse({ error: 'Unauthorized' }, 401)
-
-    const auth = await resolveCallerRole(authHeader)
-    if ('error' in auth) return jsonResponse({ error: auth.error }, auth.status)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     const bodyJson = await req.json()
     const parsed = BodySchema.safeParse(bodyJson)
@@ -136,9 +108,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: parsed.error.flatten() }, 400)
     }
 
-    const { admin } = auth
     const { candidates, replace_existing_interviews } = parsed.data
-
     const report: Array<Record<string, unknown>> = []
 
     for (const rawCandidate of candidates) {
@@ -305,12 +275,7 @@ Deno.serve(async (req) => {
     const insertedCount = report.filter((item) => item.status === 'ok').length
     const errorCount = report.filter((item) => item.status === 'error').length
 
-    return jsonResponse({
-      success: errorCount === 0,
-      insertedCount,
-      errorCount,
-      report,
-    })
+    return jsonResponse({ success: errorCount === 0, insertedCount, errorCount, report })
   } catch (error) {
     console.error('[hr-import-runner] fatal', error)
     return jsonResponse({ error: error instanceof Error ? error.message : 'unknown error' }, 500)
