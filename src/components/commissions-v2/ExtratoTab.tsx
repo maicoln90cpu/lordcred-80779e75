@@ -198,21 +198,30 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <div className="p-4 border rounded-lg bg-card">
             <p className="text-xs text-muted-foreground">Propostas</p>
-            <p className="text-2xl font-bold mt-1">{filtered.length}</p>
+            <p className="text-2xl font-bold mt-1">{currentTotals.count}</p>
+            <KpiDelta current={currentTotals.count} previous={prevTotals.count} comparisonLabel={comparisonLabel} />
           </div>
           <div className="p-4 border rounded-lg bg-card">
             <p className="text-xs text-muted-foreground">Total Liberado</p>
-            <p className="text-2xl font-bold mt-1">{fmt(totalValue)}</p>
+            <p className="text-2xl font-bold mt-1">{fmt(currentTotals.totalValue)}</p>
+            <KpiDelta current={currentTotals.totalValue} previous={prevTotals.totalValue} comparisonLabel={comparisonLabel} />
           </div>
           <div className="p-4 border rounded-lg bg-card">
             <p className="text-xs text-muted-foreground">Comissão</p>
-            <p className="text-2xl font-bold mt-1 text-primary">{fmt(totalComm)}</p>
+            <p className="text-2xl font-bold mt-1 text-primary">{fmt(currentTotals.totalComm)}</p>
+            <KpiDelta current={currentTotals.totalComm} previous={prevTotals.totalComm} comparisonLabel={comparisonLabel} />
           </div>
           <div className="p-4 border rounded-lg bg-card">
             <p className="text-xs text-muted-foreground">Ticket Médio</p>
-            <p className="text-2xl font-bold mt-1">{fmt(filtered.length > 0 ? totalValue / filtered.length : 0)}</p>
+            <p className="text-2xl font-bold mt-1">{fmt(currentTotals.ticket)}</p>
+            <KpiDelta current={currentTotals.ticket} previous={prevTotals.ticket} comparisonLabel={comparisonLabel} />
           </div>
         </div>
+        {weekFilters.length === 0 && (
+          <p className="text-[11px] text-muted-foreground -mt-2 mb-3 italic">
+            📅 Mostrando totais do mês corrente (sem filtro de semana). A tabela abaixo mostra todos os registros.
+          </p>
+        )}
         {monthlyProgress && (
           <div className="mb-4 p-4 border rounded-lg bg-muted/30">
             <div className="flex items-center justify-between mb-2">
