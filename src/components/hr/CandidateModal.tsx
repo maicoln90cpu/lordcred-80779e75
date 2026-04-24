@@ -24,14 +24,9 @@ interface Props {
 
 const STATUS_OPTIONS = HR_COLUMNS.map(c => ({ value: c.id, label: c.name }));
 
-function getInitials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]?.toUpperCase() ?? '').join('') || '?';
-}
-
 export function CandidateModal({ open, onOpenChange, candidate }: Props) {
   const { toast } = useToast();
   const { updateCandidate, deleteCandidate, moveToPartner } = useHRCandidates();
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<Partial<HRCandidate>>({});
   const [saving, setSaving] = useState(false);
