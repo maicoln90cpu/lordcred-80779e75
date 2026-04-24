@@ -7,9 +7,11 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, Save, Pencil } from 'lucide-react';
+import { Loader2, Save, Pencil, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useHRInterviews, type HRCandidate, type HRInterview } from '@/hooks/useHRCandidates';
+import { PublicInterviewLinkDialog } from './PublicInterviewLinkDialog';
+
 
 interface Props {
   candidate: HRCandidate;
@@ -47,6 +49,8 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   const [scoreCul, setScoreCul] = useState(5);
   const [scoreEng, setScoreEng] = useState(5);
   const [saving, setSaving] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+
 
   // Load existing data when interview changes
   useEffect(() => {
@@ -239,12 +243,32 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         />
       </div>
 
-      <div className="flex justify-end pt-1">
+      <div className="flex justify-between items-center pt-1 gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setLinkDialogOpen(true)}
+          disabled={!interview?.id}
+          className="gap-2"
+          title={!interview?.id ? 'Salve a entrevista para gerar link' : 'Gerar link público'}
+        >
+          <Link2 className="w-4 h-4" />
+          Link público E{stage}
+        </Button>
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Salvar E{stage}
         </Button>
       </div>
+
+      <PublicInterviewLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        interviewId={interview?.id}
+        candidateId={candidate.id}
+        candidateName={candidate.full_name}
+        candidatePhone={candidate.phone}
+        stage={stage}
+      />
     </div>
   );
 }

@@ -21,6 +21,8 @@ const Messages = lazy(() => import("./pages/Messages"));
 const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const Landing = lazy(() => import("./pages/Landing"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const PublicInterview = lazy(() => import("./pages/PublicInterview"));
+
 
 // Admin pages
 const Users = lazy(() => import("./pages/admin/Users"));
@@ -79,6 +81,7 @@ const App = () => (
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 <Route path="/landing" element={<Landing />} />
+                <Route path="/entrevista/:token" element={<PublicInterview />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
