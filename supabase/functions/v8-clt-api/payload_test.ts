@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildConsultBody,
+  buildOperationListQuery,
   buildSimulationBody,
   normalizeBirthDate,
   normalizeGender,
@@ -145,4 +146,19 @@ Deno.test("buildSimulationBody segue contrato mínimo sem valores opcionais", ()
   assertEquals(body.number_of_installments, 36);
   assert(!("disbursed_amount" in body));
   assert(!("installment_face_value" in body));
+});
+
+Deno.test("buildOperationListQuery monta query oficial de listagem de operações", () => {
+  const query = buildOperationListQuery({
+    startDate: "2025-08-14T00:00:00.000Z",
+    endDate: "2025-08-14T20:00:00.000Z",
+    limit: 1,
+    page: 2,
+    provider: "QI",
+  });
+
+  assertEquals(
+    query,
+    "provider=QI&startDate=2025-08-14T00%3A00%3A00.000Z&endDate=2025-08-14T20%3A00%3A00.000Z&limit=1&page=2",
+  );
 });

@@ -20,6 +20,8 @@ const V8_PATHS = {
   consult: "/private-consignment/consult",
   authorize: (consultId: string) => `/private-consignment/consult/${consultId}/authorize`,
   simulate: "/private-consignment/simulation",
+  operations: "/private-consignment/operation",
+  operationDetail: (operationId: string) => `/private-consignment/operation/${operationId}`,
 };
 
 const MAX_RETRIES_CONSULT = 3;
@@ -124,6 +126,90 @@ async function readUpstreamErrorBody(resp: Response) {
       message: rawText || `Status ${resp.status}`,
     };
   }
+}
+
+type V8OperationListParams = {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  page?: number;
+  provider?: string;
+  documentNumber?: string;
+};
+
+export function buildOperationListQuery(params: V8OperationListParams = {}) {
+  const query = new URLSearchParams();
+  const provider = (params.provider || "QI").trim() || "QI";
+  query.set("provider", provider);
+
+  if (params.startDate) query.set("startDate", params.startDate);
+  if (params.endDate) query.set("endDate", params.endDate);
+  if (Number.isFinite(params.limit) && Number(params.limit) > 0) {
+    query.set("limit", String(Math.trunc(Number(params.limit))));
+  }
+  if (Number.isFinite(params.page) && Number(params.page) > 0) {
+    query.set("page", String(Math.trunc(Number(params.page))));
+  }
+
+  return query.toString();
+}
+
+async function actionListOperations(params: V8OperationListParams = {}) {
+  const query = buildOperationListQuery(params);
+  const resp = await v8Fetch(`${V8_PATHS.operations}?${query}`, { method: "GET" });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return {
+      success: false,
+      error: err.message,
+      title: err.parsed?.title ?? null,
+      raw: err.parsed ?? err.rawText,
+    };
+  }
+
+  const json = await resp.json().catch(() => ([]));
+  const operations = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json?.items)
+        ? json.items
+        : Array.isArray(json?.operations)
+          ? json.operations
+          : [];
+
+  const cpfFilter = (params.documentNumber || "").replace(/\D/g, "");
+  const filteredOperations = cpfFilter
+    ? operations.filter((item: any) => String(item?.documentNumber ?? item?.document_number ?? "").replace(/\D/g, "") === cpfFilter)
+    : operations;
+
+  return {
+    success: true,
+    data: filteredOperations,
+    total: filteredOperations.length,
+  };
+}
+
+async function actionGetOperation(operationId?: string) {
+  const safeOperationId = String(operationId || "").trim();
+  if (!safeOperationId) {
+    return { success: false, error: "operationId é obrigatório" };
+  }
+
+  const resp = await v8Fetch(V8_PATHS.operationDetail(safeOperationId), { method: "GET" });
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return {
+      success: false,
+      error: err.message,
+      title: err.parsed?.title ?? null,
+      raw: err.parsed ?? err.rawText,
+    };
+  }
+
+  const json = await resp.json().catch(() => ({}));
+  return { success: true, data: json?.data ?? json };
 }
 
 async function actionGetConfigs(supabase: any) {
@@ -845,6 +931,57 @@ const handler = async (req: Request) => {
         break;
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
+        break;
+      case "list_operations":
+        result = await actionListOperations(params);
+        await writeAuditLog(supabase, {
+          action: "v8_list_operations",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations",
+          details: {
+            request_payload: {
+              action: "list_operations",
+              startDate: params?.startDate ?? null,
+              endDate: params?.endDate ?? null,
+              limit: params?.limit ?? null,
+              page: params?.page ?? null,
+              provider: params?.provider ?? "QI",
+              documentNumber: params?.documentNumber ? String(params.documentNumber).replace(/\d(?=\d{4})/g, "*") : null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              total: (result as any)?.total ?? 0,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+          },
+        });
+        break;
+      case "get_operation":
+        result = await actionGetOperation(params?.operationId);
+        await writeAuditLog(supabase, {
+          action: "v8_get_operation",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "get_operation",
+              operationId: params?.operationId ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+          },
+        });
         break;
       default:
         result = { success: false, error: `Ação desconhecida: ${action}` };
