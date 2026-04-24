@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
-import { parseV8Paste } from '@/lib/v8Parser';
+import { analyzeV8Paste, parseV8Paste } from '@/lib/v8Parser';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const MAX_CONCURRENCY = 3;
@@ -27,6 +27,11 @@ export default function V8NovaSimulacaoTab() {
   const [running, setRunning] = useState(false);
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
+  const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
+  const invalidDateIssue = pasteAnalysis.issues.find((issue) => issue.code === 'invalid_date');
+  const blockingIssues = pasteAnalysis.issues.filter(
+    (issue) => issue.code === 'invalid_date' || issue.code === 'invalid_format' || issue.code === 'missing_birth_date',
+  );
 
   const selectedConfig = useMemo(
     () => configs.find((c) => c.config_id === configId) ?? null,
@@ -67,9 +72,13 @@ export default function V8NovaSimulacaoTab() {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   async function handleStart() {
-    const rows = parseV8Paste(pasteText);
+    const rows = pasteAnalysis.rows;
     if (rows.length === 0) {
       toast.error('Cole pelo menos 1 CPF válido');
+      return;
+    }
+    if (blockingIssues.length > 0) {
+      toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de enviar o lote`);
       return;
     }
     if (!configId) {
@@ -236,10 +245,20 @@ export default function V8NovaSimulacaoTab() {
               <p className="pt-1 font-medium text-foreground">
                 {parseV8Paste(pasteText).length} CPFs válidos detectados
               </p>
+              {invalidDateIssue && (
+                <p className="font-medium text-destructive">
+                  Linha {invalidDateIssue.lineNumber}: {invalidDateIssue.message}
+                </p>
+              )}
+              {!invalidDateIssue && blockingIssues.length > 0 && (
+                <p className="font-medium text-destructive">
+                  Existem {blockingIssues.length} linha(s) em formato não aceito. Corrija antes de iniciar o lote.
+                </p>
+              )}
             </div>
           </div>
 
-          <Button onClick={handleStart} disabled={running} size="lg" className="w-full">
+          <Button onClick={handleStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
             {running ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
