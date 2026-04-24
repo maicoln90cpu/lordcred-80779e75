@@ -1,14 +1,24 @@
+import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserPlus, Users2, Settings as SettingsIcon } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
 import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
-import { useHRCandidates } from '@/hooks/useHRCandidates';
+import { CandidateModal } from '@/components/hr/CandidateModal';
+import { CandidateCreateDialog } from '@/components/hr/CandidateCreateDialog';
+import { useHRCandidates, type HRCandidate } from '@/hooks/useHRCandidates';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function HR() {
   const { candidates, loading } = useHRCandidates();
   const { isAdmin } = useAuth();
+  const [selected, setSelected] = useState<HRCandidate | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  // Keep "selected" in sync with realtime updates so the open Sheet shows fresh data
+  const liveSelected = selected
+    ? candidates.find(c => c.id === selected.id) ?? selected
+    : null;
 
   return (
     <DashboardLayout>
@@ -42,8 +52,8 @@ export default function HR() {
 
           <TabsContent value="candidates">
             <HRCandidatesTab
-              onCandidateClick={(c) => console.log('Abrir candidato (Etapa 6):', c.id)}
-              onCreateClick={() => console.log('Criar candidato (Etapa 6)')}
+              onCandidateClick={setSelected}
+              onCreateClick={() => setCreateOpen(true)}
             />
           </TabsContent>
 
@@ -61,6 +71,17 @@ export default function HR() {
             </TabsContent>
           )}
         </Tabs>
+
+        <CandidateModal
+          open={!!selected}
+          onOpenChange={(o) => !o && setSelected(null)}
+          candidate={liveSelected}
+        />
+
+        <CandidateCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+        />
       </div>
     </DashboardLayout>
   );
