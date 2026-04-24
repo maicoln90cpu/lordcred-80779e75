@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, FileSearch, Loader2 } from 'lucide-react';
@@ -91,6 +91,7 @@ export default function V8ConsultasTab() {
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const {
     operations,
@@ -104,9 +105,7 @@ export default function V8ConsultasTab() {
     loadOperationDetail,
   } = useV8Operations();
 
-  useEffect(() => {
-    void handleSearch();
-  }, []);
+  // Não auto-fetch — requisição manual evita custo desnecessário com a V8
 
   const filteredOperations = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -146,6 +145,8 @@ export default function V8ConsultasTab() {
       toast.error('A data inicial não pode ser maior que a data final');
       return;
     }
+
+    setHasSearched(true);
 
     const result = await loadOperations({
       startDate: toRangeBoundary(startDate, 'start'),
@@ -229,7 +230,15 @@ export default function V8ConsultasTab() {
                 </tr>
               </thead>
               <tbody>
-                {!loading && filteredOperations.length === 0 && (
+                {!loading && !hasSearched && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                      Defina o período e clique em <strong>Buscar propostas</strong> para carregar os dados da V8.
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && hasSearched && filteredOperations.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
                       Nenhuma proposta encontrada para o período informado.
@@ -279,7 +288,15 @@ export default function V8ConsultasTab() {
                 </tr>
               </thead>
               <tbody>
-                {!loading && filteredConsults.length === 0 && (
+                {!loading && !hasSearched && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                      Defina o período e clique em <strong>Buscar propostas</strong> para carregar consultas ativas.
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && hasSearched && filteredConsults.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
                       Nenhuma consulta ativa ou já existente encontrada para o período informado.
