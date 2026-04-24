@@ -197,8 +197,7 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
           </div>
 
           {(() => {
-            const selectedInterviewer = interviewers.find(i => i.user_id === interviewerId);
-            const interviewerHasPhone = !!selectedInterviewer?.phone;
+            const interviewerHasPhone = interviewerCanBeNotified;
             return (
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -225,7 +224,7 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
               />
             </div>
             {interviewerId && !interviewerHasPhone && (
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 -mt-1.5">
+              <p className="text-[10px] text-warning -mt-1.5">
                 Este entrevistador não tem telefone WhatsApp cadastrado em "Meu Perfil".
               </p>
             )}
