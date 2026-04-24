@@ -994,7 +994,14 @@ const handler = async (req: Request) => {
               .update({
                 status: "pending",
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
-                raw_response: (result as any).raw ?? null,
+                raw_response: {
+                  kind: (result as any).kind ?? null,
+                  step: (result as any).step ?? null,
+                  title: (result as any).title ?? null,
+                  detail: (result as any).detail ?? null,
+                  guidance: (result as any).guidance ?? null,
+                  payload: (result as any).raw ?? null,
+                },
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
                 processed_at: new Date().toISOString(),
               })
@@ -1005,7 +1012,14 @@ const handler = async (req: Request) => {
               .update({
                 status: "failed",
                 error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
-                raw_response: (result as any).raw ?? null,
+                raw_response: {
+                  kind: (result as any).kind ?? null,
+                  step: (result as any).step ?? null,
+                  title: (result as any).title ?? null,
+                  detail: (result as any).detail ?? null,
+                  guidance: (result as any).guidance ?? null,
+                  payload: (result as any).raw ?? null,
+                },
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
