@@ -69,7 +69,12 @@ async function v8Fetch(path: string, init: RequestInit = {}) {
   const token = await getV8Token();
   const headers = new Headers(init.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
-  headers.set("Content-Type", "application/json");
+  const hasBody = init.body != null;
+  if (hasBody) {
+    headers.set("Content-Type", "application/json");
+  } else {
+    headers.delete("Content-Type");
+  }
   return fetch(`${V8_BASE}${path}`, { ...init, headers });
 }
 
@@ -442,7 +447,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     return {
       success: false,
       step: "authorize",
-      error: authJson?.message || `Status ${authResp.status}`,
+      error: authJson?.detail || authJson?.message || authJson?.error || `Status ${authResp.status}`,
       raw: { consult: consultJson, authorize: authJson },
     };
   }
