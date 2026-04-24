@@ -4,7 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Plus } from 'lucide-react';
 import { useHRCandidates, type HRCandidate, type HRKanbanStatus } from '@/hooks/useHRCandidates';
+import { useHRInterviewsMap } from '@/hooks/useHRInterviewsMap';
 import CandidateCard from './CandidateCard';
+import { HRFiltersBar, DEFAULT_FILTERS, type HRFilters } from './HRFiltersBar';
+import { filterCandidates } from '@/lib/hrFilters';
 
 interface ColumnDef {
   id: HRKanbanStatus;
@@ -32,18 +35,15 @@ interface Props {
 
 export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
   const { candidates, loading, moveCandidate } = useHRCandidates();
+  const { map: interviewsMap } = useHRInterviewsMap();
   const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<HRFilters>(DEFAULT_FILTERS);
   const [dragOverColumn, setDragOverColumn] = useState<HRKanbanStatus | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter(c =>
-      c.full_name.toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q) ||
-      (c.cpf || '').toLowerCase().includes(q),
-    );
-  }, [candidates, search]);
+  const filtered = useMemo(
+    () => filterCandidates(candidates, filters, interviewsMap, search),
+    [candidates, filters, interviewsMap, search],
+  );
 
   const byColumn = useMemo(() => {
     const map = new Map<HRKanbanStatus, HRCandidate[]>();
@@ -78,8 +78,8 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 max-w-sm min-w-[220px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, telefone ou CPF..."
@@ -88,8 +88,12 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
             className="pl-8 h-9"
           />
         </div>
+        <HRFiltersBar value={filters} onChange={setFilters} />
         <div className="ml-auto text-xs text-muted-foreground">
           {filtered.length} candidato{filtered.length === 1 ? '' : 's'}
+          {filtered.length !== candidates.length && (
+            <span className="text-muted-foreground/60"> de {candidates.length}</span>
+          )}
         </div>
         <Button size="sm" onClick={() => onCreateClick?.()} className="gap-1.5">
           <Plus className="w-4 h-4" /> Novo candidato
