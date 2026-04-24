@@ -39,6 +39,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   );
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [snapshots, setSnapshots] = useState<Record<string, string | null>>({});
   const [observations, setObservations] = useState('');
   const [result, setResult] = useState<string>('pending');
   const [attended, setAttended] = useState<string>('yes');
@@ -51,6 +52,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
   useEffect(() => {
     if (!interview) {
       setAnswers({});
+      setSnapshots({});
       setObservations('');
       setResult('pending');
       setAttended('yes');
@@ -69,8 +71,13 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
     }
     fetchAnswers(interview.id).then(rows => {
       const map: Record<string, string> = {};
-      rows.forEach(r => { if (r.answer) map[r.question_id] = r.answer; });
+      const snapMap: Record<string, string | null> = {};
+      rows.forEach(r => {
+        if (r.answer) map[r.question_id] = r.answer;
+        snapMap[r.question_id] = r.question_text_snapshot ?? null;
+      });
       setAnswers(map);
+      setSnapshots(snapMap);
     }).catch(() => { /* silent */ });
   }, [interview, stage, fetchAnswers]);
 
