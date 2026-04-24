@@ -225,7 +225,8 @@ export default function AuditLogs() {
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     const matchesStatus = filterStatus === 'all' || getLogStatus(log) === filterStatus;
     const matchesCategory = filterCategory === 'all' || getCategory(log) === filterCategory;
-    return matchesSearch && matchesAction && matchesStatus && matchesCategory;
+    const matchesOrigin = filterOrigin === 'all' || getOrigin(log) === filterOrigin;
+    return matchesSearch && matchesAction && matchesStatus && matchesCategory && matchesOrigin;
   });
   const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
