@@ -303,6 +303,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   return {
     success: true,
     data: {
+      simulation_id: simulationId || null,
       released_value,
       installment_value,
       interest_rate,
