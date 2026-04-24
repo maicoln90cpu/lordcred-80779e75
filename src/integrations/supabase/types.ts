@@ -3810,6 +3810,7 @@ export type Database = {
       v8_simulations: {
         Row: {
           amount_to_charge: number | null
+          attempt_count: number
           batch_id: string
           birth_date: string | null
           company_margin: number | null
@@ -3824,6 +3825,8 @@ export type Database = {
           installment_value: number | null
           installments: number | null
           interest_rate: number | null
+          last_attempt_at: string | null
+          last_step: string | null
           margem_valor: number | null
           name: string | null
           processed_at: string | null
@@ -3836,6 +3839,7 @@ export type Database = {
         }
         Insert: {
           amount_to_charge?: number | null
+          attempt_count?: number
           batch_id: string
           birth_date?: string | null
           company_margin?: number | null
@@ -3850,6 +3854,8 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          last_attempt_at?: string | null
+          last_step?: string | null
           margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
@@ -3862,6 +3868,7 @@ export type Database = {
         }
         Update: {
           amount_to_charge?: number | null
+          attempt_count?: number
           batch_id?: string
           birth_date?: string | null
           company_margin?: number | null
@@ -3876,6 +3883,8 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          last_attempt_at?: string | null
+          last_step?: string | null
           margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
