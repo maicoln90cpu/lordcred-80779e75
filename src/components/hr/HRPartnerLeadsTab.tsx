@@ -27,12 +27,7 @@ const SOURCE_OPTIONS: { value: HRAcquisitionSource; label: string }[] = [
   { value: 'referral', label: 'Indicação' },
 ];
 
-function formatPhone(p: string) {
-  const d = (p || '').replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return p;
-}
+// formatPhone movido para src/lib/phoneUtils.ts (formatBrazilianPhone)
 
 export function HRPartnerLeadsTab() {
   const { leads, loading, createLead, updateLead, deleteLead } = useHRPartnerLeads();
@@ -66,12 +61,21 @@ export function HRPartnerLeadsTab() {
     mei: leads.filter((l) => l.mei_informed).length,
   }), [leads]);
 
+  const { toast } = useToast();
+  const newPhoneCheck = validateBrazilianPhone(newPhone);
+
   const handleQuickCreate = async () => {
-    if (!newName.trim() || !newPhone.trim()) return;
-    await createLead({ full_name: newName.trim(), phone: newPhone.replace(/\D/g, '') });
-    setNewName('');
-    setNewPhone('');
-    setCreating(false);
+    if (!newName.trim()) return;
+    if (!newPhoneCheck.valid) {
+      toast({ title: 'Telefone inválido', description: newPhoneCheck.reason, variant: 'destructive' });
+      return;
+    }
+    try {
+      await createLead({ full_name: newName.trim(), phone: newPhoneCheck.normalized });
+      setNewName('');
+      setNewPhone('');
+      setCreating(false);
+    } catch { /* hook trata toast */ }
   };
 
   const handlePatch = (id: string, patch: Partial<HRPartnerLead>) => {
