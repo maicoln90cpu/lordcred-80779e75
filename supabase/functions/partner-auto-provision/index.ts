@@ -101,15 +101,38 @@ Deno.serve(async (req) => {
     // 6) Vincular auto_user_id no parceiro
     await admin.from("partners").update({ auto_user_id: userId }).eq("id", partnerId);
 
-    // 7) Audit
+    // 7) Upsert PIX em seller_pix e seller_pix_v2 (se parceiro tem pix_pj cadastrado)
+    let pixSynced = false;
+    const pixKey = String(partner.pix_pj || "").trim();
+    if (pixKey) {
+      // Detectar tipo de PIX automaticamente
+      const onlyDigits = pixKey.replace(/\D/g, "");
+      let pixType = "outro";
+      if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(pixKey)) pixType = "email";
+      else if (onlyDigits.length === 11 && pixKey.includes(".")) pixType = "cpf";
+      else if (onlyDigits.length === 14) pixType = "cnpj";
+      else if (onlyDigits.length === 11) pixType = "cpf";
+      else if (onlyDigits.length >= 10 && onlyDigits.length <= 13) pixType = "telefone";
+      else if (pixKey.length >= 32) pixType = "aleatoria";
+
+      const pixPayload = { seller_id: userId, pix_key: pixKey, pix_type: pixType };
+
+      const [{ error: pixV1Err }, { error: pixV2Err }] = await Promise.all([
+        admin.from("seller_pix").upsert(pixPayload, { onConflict: "seller_id" }),
+        admin.from("seller_pix_v2").upsert(pixPayload, { onConflict: "seller_id" }),
+      ]);
+      pixSynced = !pixV1Err && !pixV2Err;
+    }
+
+    // 8) Audit
     await admin.from("audit_logs").insert({
       action: "partner_auto_provisioned",
       target_table: "partners",
       target_id: partnerId,
-      details: { email, user_id: userId, created, default_password_used: created },
+      details: { email, user_id: userId, created, default_password_used: created, pix_synced: pixSynced, pix_present: !!pixKey },
     });
 
-    return ok({ success: true, user_id: userId, created });
+    return ok({ success: true, user_id: userId, created, pix_synced: pixSynced });
   } catch (err) {
     return ok({ success: false, fallback: true, error: (err as Error).message });
   }
