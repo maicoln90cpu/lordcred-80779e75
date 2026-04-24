@@ -68,31 +68,33 @@ async function v8Fetch(path: string, init: RequestInit = {}) {
 }
 
 async function actionGetConfigs(supabase: any) {
-  const resp = await v8Fetch("/products/clt/configs", { method: "GET" });
+  const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
     const err = await resp.text();
     return { success: false, error: `V8 get_configs: ${resp.status} - ${err}` };
   }
   const data = await resp.json();
-  const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
+  // V8 retorna { data: [...] } ou array direto. Cada item tem id (UUID), name, financial.{bank,minTerm,maxTerm,minValue,maxValue}
+  const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? data?.configs ?? [];
 
   if (Array.isArray(configs) && configs.length > 0) {
     for (const c of configs) {
-      const config_id = String(c.id ?? c.configId ?? c.code ?? "");
+      const config_id = String(c.id ?? c.configId ?? c.uuid ?? c.code ?? "");
       if (!config_id) continue;
+      const fin = c.financial ?? c.financialConditions ?? {};
       await supabase
         .from("v8_configs_cache")
         .upsert(
           {
             config_id,
             name: String(c.name ?? c.label ?? c.description ?? "Sem nome"),
-            bank_name: c.bank ?? c.bankName ?? null,
+            bank_name: fin.bank ?? c.bank ?? c.bankName ?? null,
             product_type: c.productType ?? c.product ?? "clt",
-            min_value: c.minValue ?? null,
-            max_value: c.maxValue ?? null,
-            min_term: c.minTerm ?? c.minInstallments ?? null,
-            max_term: c.maxTerm ?? c.maxInstallments ?? null,
-            is_active: true,
+            min_value: fin.minValue ?? c.minValue ?? null,
+            max_value: fin.maxValue ?? c.maxValue ?? null,
+            min_term: fin.minTerm ?? c.minTerm ?? c.minInstallments ?? null,
+            max_term: fin.maxTerm ?? c.maxTerm ?? c.maxInstallments ?? null,
+            is_active: c.active !== false,
             raw_data: c,
             synced_at: new Date().toISOString(),
           },
@@ -118,12 +120,12 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
 
-  const consultBody = {
-    document: cpf,
-    name: input.nome ?? null,
-    birthDate: input.data_nascimento ?? null,
-  };
-  const consultResp = await v8Fetch("/products/clt/consult", {
+  // 1) Consult — retorna consult_id obrigatório para os próximos passos
+  const consultBody: Record<string, unknown> = { document: cpf };
+  if (input.nome) consultBody.name = input.nome;
+  if (input.data_nascimento) consultBody.birthDate = input.data_nascimento;
+
+  const consultResp = await v8Fetch(V8_PATHS.consult, {
     method: "POST",
     body: JSON.stringify(consultBody),
   });
@@ -136,10 +138,23 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
       raw: consultJson,
     };
   }
+  const consultData = consultJson?.data ?? consultJson;
+  const consultId = String(
+    consultData?.id ?? consultData?.consult_id ?? consultData?.consultId ?? ""
+  );
+  if (!consultId) {
+    return {
+      success: false,
+      step: "consult",
+      error: "consult_id não retornado pela V8",
+      raw: consultJson,
+    };
+  }
 
-  const authResp = await v8Fetch("/products/clt/authorize", {
+  // 2) Authorize — passa consult_id na URL
+  const authResp = await v8Fetch(V8_PATHS.authorize(consultId), {
     method: "POST",
-    body: JSON.stringify({ document: cpf }),
+    body: JSON.stringify({}),
   });
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
@@ -151,12 +166,14 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     };
   }
 
-  const simResp = await v8Fetch("/products/clt/simulate", {
+  // 3) Simulate — referencia consult_id, configId e provider QI
+  const simResp = await v8Fetch(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify({
-      document: cpf,
+      consult_id: consultId,
       configId: input.config_id,
       installments: input.parcelas,
+      provider: "QI",
     }),
   });
   const simJson = await simResp.json().catch(() => ({}));
