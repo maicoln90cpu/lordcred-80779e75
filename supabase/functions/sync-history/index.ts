@@ -393,12 +393,11 @@ Deno.serve(async (req) => {
       if (rawJid.includes('@lid') && canonicalJid !== rawJid) {
         console.log(`[sync-history] Migrating messages from ${rawJid} -> ${canonicalJid}`)
         // Update messages stored with @lid to use canonical phone JID
-        const { count: migratedCount } = await adminClient
+        const { count: migratedCount } = await (adminClient
           .from('message_history')
-          .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null })
+          .update({ remote_jid: canonicalJid, recipient_phone: contactPhone || null }, { count: 'exact' } as any)
           .eq('chip_id', chipId)
-          .eq('remote_jid', rawJid)
-          .select('*', { count: 'exact', head: true })
+          .eq('remote_jid', rawJid) as any)
         if (migratedCount && migratedCount > 0) {
           console.log(`[sync-history] Migrated ${migratedCount} messages from ${rawJid} to ${canonicalJid}`)
         }

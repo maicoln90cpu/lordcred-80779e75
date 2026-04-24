@@ -244,7 +244,7 @@ async function handleUazapiMessage(adminClient: any, chip: any, payload: any) {
         .like('remote_jid', '%@lid')
 
       if (lidConvos && lidConvos.length > 0) {
-        const match = lidConvos.filter(c => c.contact_name === contactName)
+        const match = lidConvos.filter((c: any) => c.contact_name === contactName)
         if (match.length === 1) {
           console.log(`Auto-correcting: deleting @lid conv ${match[0].remote_jid} (duplicate of ${remoteJid})`)
           await adminClient.from('conversations').delete().eq('id', match[0].id)
