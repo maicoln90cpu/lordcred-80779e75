@@ -22,6 +22,10 @@ const V8_PATHS = {
   simulate: "/private-consignment/simulation",
 };
 
+const MAX_RETRIES_CONSULT = 3;
+const MAX_RETRIES_AUTHORIZE = 15;
+const MAX_RETRIES_SIMULATE = 15;
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getV8Token(): Promise<string> {
@@ -77,16 +81,18 @@ async function v8Fetch(path: string, init: RequestInit = {}) {
 async function v8FetchWithRetry(
   path: string,
   init: RequestInit = {},
-  maxAttempts = 3
+  maxAttempts = 3,
+  step = "unknown"
 ): Promise<Response> {
   let lastResp: Response | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const resp = await v8Fetch(path, init);
     if (resp.status < 500) return resp;
     lastResp = resp;
+    console.error(`[v8FetchWithRetry] step=${step} attempt=${attempt}/${maxAttempts} failed status=${resp.status} path=${path}`);
     if (attempt < maxAttempts) {
       const delay = attempt === 1 ? 500 : 1500;
-      console.log(`[v8FetchWithRetry] ${path} status ${resp.status} — retry ${attempt}/${maxAttempts - 1} em ${delay}ms`);
+      console.log(`[v8FetchWithRetry] step=${step} status=${resp.status} retry=${attempt}/${maxAttempts - 1} em ${delay}ms path=${path}`);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -316,7 +322,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const consultResp = await v8FetchWithRetry(V8_PATHS.consult, {
     method: "POST",
     body: JSON.stringify(consultBody),
-  });
+  }, MAX_RETRIES_CONSULT, "consult");
   const consultJson = await consultResp.json().catch(() => ({}));
   if (!consultResp.ok) {
     return {
@@ -343,7 +349,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
     body: JSON.stringify({}),
-  });
+  }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
     return {
@@ -359,7 +365,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
-  });
+  }, MAX_RETRIES_SIMULATE, "simulate");
   if (!simResp.ok) {
     const simError = await readUpstreamErrorBody(simResp);
     return {
