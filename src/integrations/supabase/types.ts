@@ -1851,6 +1851,316 @@ export type Database = {
         }
         Relationships: []
       }
+      hr_candidates: {
+        Row: {
+          age: number | null
+          cpf: string | null
+          created_at: string
+          full_name: string
+          id: string
+          kanban_status: string
+          notes: string | null
+          phone: string
+          photo_url: string | null
+          resume_url: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          kanban_status?: string
+          notes?: string | null
+          phone: string
+          photo_url?: string | null
+          resume_url?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          kanban_status?: string
+          notes?: string | null
+          phone?: string
+          photo_url?: string | null
+          resume_url?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hr_interview_answers: {
+        Row: {
+          answer: string | null
+          created_at: string
+          id: string
+          interview_id: string
+          question_id: string
+        }
+        Insert: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          interview_id: string
+          question_id: string
+        }
+        Update: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          interview_id?: string
+          question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_interview_answers_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "hr_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_interview_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "hr_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_interviews: {
+        Row: {
+          attended: boolean | null
+          candidate_id: string
+          created_at: string
+          id: string
+          interviewer_id: string | null
+          observations: string | null
+          result: string | null
+          scheduled_at: string | null
+          score_cultura: number | null
+          score_energia: number | null
+          score_tecnica: number | null
+          stage: number
+          updated_at: string
+        }
+        Insert: {
+          attended?: boolean | null
+          candidate_id: string
+          created_at?: string
+          id?: string
+          interviewer_id?: string | null
+          observations?: string | null
+          result?: string | null
+          scheduled_at?: string | null
+          score_cultura?: number | null
+          score_energia?: number | null
+          score_tecnica?: number | null
+          stage: number
+          updated_at?: string
+        }
+        Update: {
+          attended?: boolean | null
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          interviewer_id?: string | null
+          observations?: string | null
+          result?: string | null
+          scheduled_at?: string | null
+          score_cultura?: number | null
+          score_energia?: number | null
+          score_tecnica?: number | null
+          stage?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "hr_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_notification_settings: {
+        Row: {
+          id: string
+          offset_1_minutes: number
+          offset_2_minutes: number
+          template_1_text: string
+          template_2_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          offset_1_minutes?: number
+          offset_2_minutes?: number
+          template_1_text?: string
+          template_2_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          offset_1_minutes?: number
+          offset_2_minutes?: number
+          template_1_text?: string
+          template_2_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      hr_notifications: {
+        Row: {
+          chip_instance_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          message_template: string
+          offset_minutes: number
+          phone_candidate: string | null
+          phone_interviewer: string | null
+          recipient_type: string
+          send_at: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          chip_instance_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          message_template: string
+          offset_minutes: number
+          phone_candidate?: string | null
+          phone_interviewer?: string | null
+          recipient_type: string
+          send_at: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          chip_instance_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          message_template?: string
+          offset_minutes?: number
+          phone_candidate?: string | null
+          phone_interviewer?: string | null
+          recipient_type?: string
+          send_at?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_notifications_chip_instance_id_fkey"
+            columns: ["chip_instance_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_partner_leads: {
+        Row: {
+          accepted: boolean | null
+          acquisition_source: string | null
+          age: number | null
+          cpf: string | null
+          created_at: string
+          full_name: string
+          id: string
+          interview_date: string | null
+          meeting_date: string | null
+          meeting_status: string | null
+          mei_created: string | null
+          mei_informed: boolean | null
+          observations: string | null
+          phone: string
+          referred_by: string | null
+          sent_link: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          accepted?: boolean | null
+          acquisition_source?: string | null
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          interview_date?: string | null
+          meeting_date?: string | null
+          meeting_status?: string | null
+          mei_created?: string | null
+          mei_informed?: boolean | null
+          observations?: string | null
+          phone: string
+          referred_by?: string | null
+          sent_link?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          accepted?: boolean | null
+          acquisition_source?: string | null
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          interview_date?: string | null
+          meeting_date?: string | null
+          meeting_status?: string | null
+          mei_created?: string | null
+          mei_informed?: boolean | null
+          observations?: string | null
+          phone?: string
+          referred_by?: string | null
+          sent_link?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hr_questions: {
+        Row: {
+          id: string
+          order_num: number
+          stage: number
+          text: string
+        }
+        Insert: {
+          id?: string
+          order_num: number
+          stage: number
+          text: string
+        }
+        Update: {
+          id?: string
+          order_num?: number
+          stage?: number
+          text?: string
+        }
+        Relationships: []
+      }
       import_batches: {
         Row: {
           created_at: string
