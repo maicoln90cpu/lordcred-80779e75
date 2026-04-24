@@ -82,9 +82,7 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     return path; // hr-resumes guarda apenas path; URL assinada gerada sob demanda
   };
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handlePhotoUpload = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: 'Foto muito grande', description: 'Máximo 5 MB.', variant: 'destructive' });
       return;
@@ -98,7 +96,6 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       toast({ title: 'Erro ao enviar foto', description: err.message, variant: 'destructive' });
     } finally {
       setUploadingPhoto(false);
-      if (photoInputRef.current) photoInputRef.current.value = '';
     }
   };
 
