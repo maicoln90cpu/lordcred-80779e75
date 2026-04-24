@@ -33,15 +33,15 @@ export default function V8NovaSimulacaoTab() {
     [configs, configId],
   );
 
-  const parcelOptions = useMemo(() => {
-    const rawOptions = Array.isArray(selectedConfig?.raw_data?.number_of_installments)
+  const parcelOptions = useMemo<number[]>(() => {
+    const rawOptions: number[] = Array.isArray(selectedConfig?.raw_data?.number_of_installments)
       ? selectedConfig.raw_data.number_of_installments
           .map((value: string | number) => Number(value))
           .filter((value: number) => Number.isInteger(value) && value > 0)
       : [];
 
     if (rawOptions.length > 0) {
-      return Array.from(new Set(rawOptions)).sort((a, b) => a - b);
+      return [...new Set<number>(rawOptions)].sort((a: number, b: number) => a - b);
     }
 
     if (selectedConfig?.min_term != null && selectedConfig?.max_term != null) {
