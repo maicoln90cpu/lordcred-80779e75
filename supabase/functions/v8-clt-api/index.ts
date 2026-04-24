@@ -1135,6 +1135,40 @@ const handler = async (req: Request) => {
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
         break;
+      case "register_webhooks": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem registrar webhooks" };
+          break;
+        }
+        result = await actionRegisterWebhooks(supabase);
+        await writeAuditLog(supabase, {
+          action: "v8_register_webhooks",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_webhook_registrations",
+          details: {
+            request_payload: { action: "register_webhooks" },
+            response_payload: result,
+          },
+        });
+        break;
+      }
+      case "get_webhook_status": {
+        const { data: regs } = await supabase
+          .from("v8_webhook_registrations")
+          .select("*")
+          .order("webhook_type");
+        const { data: lastLog } = await supabase
+          .from("v8_webhook_logs")
+          .select("id, event_type, status, received_at")
+          .order("received_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        result = { success: true, data: { registrations: regs ?? [], last_log: lastLog ?? null } };
+        break;
+      }
       case "list_operations":
         result = await actionListOperations(params);
         await writeAuditLog(supabase, {
