@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserPlus, Users2, Settings as SettingsIcon } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
 import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
+import { HRPartnerLeadsTab } from '@/components/hr/HRPartnerLeadsTab';
 import { CandidateModal } from '@/components/hr/CandidateModal';
 import { CandidateCreateDialog } from '@/components/hr/CandidateCreateDialog';
 import { useHRCandidates, type HRCandidate } from '@/hooks/useHRCandidates';
@@ -58,9 +59,7 @@ export default function HR() {
           </TabsContent>
 
           <TabsContent value="partners">
-            <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-              <p className="text-sm">Funil de parceiros — implementado na Etapa 7.</p>
-            </div>
+            <HRPartnerLeadsTab />
           </TabsContent>
 
           {isAdmin && (
