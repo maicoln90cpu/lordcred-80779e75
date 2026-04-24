@@ -16,7 +16,7 @@ const AnswerSchema = z.object({
 const InterviewSchema = z.object({
   stage: z.union([z.literal(1), z.literal(2)]),
   interviewer_id: z.string().uuid().nullable().optional(),
-  scheduled_at: z.string().datetime().nullable().optional(),
+  scheduled_at: z.string().datetime({ offset: true }).nullable().optional(),
   attended: z.boolean().nullable().optional(),
   result: z.union([
     InterviewResultSchema,
