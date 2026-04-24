@@ -641,7 +641,7 @@ async function actionListBatches(supabase: any, userId: string, isPriv: boolean)
   return { success: true, data };
 }
 
-serve(async (req) => {
+const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -856,4 +856,8 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+};
+
+if (import.meta.main) {
+  serve(handler);
+}
