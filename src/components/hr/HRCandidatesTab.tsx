@@ -8,25 +8,9 @@ import { useHRInterviewsMap } from '@/hooks/useHRInterviewsMap';
 import CandidateCard from './CandidateCard';
 import { HRFiltersBar, DEFAULT_FILTERS, type HRFilters } from './HRFiltersBar';
 import { filterCandidates } from '@/lib/hrFilters';
+import { HR_COLUMNS, hrColor } from './hrColumns';
 
-interface ColumnDef {
-  id: HRKanbanStatus;
-  name: string;
-  color: string;
-}
-
-const COLUMNS: ColumnDef[] = [
-  { id: 'new_resume', name: 'Currículos novos', color: '#3b82f6' },
-  { id: 'contacted', name: 'Contatados', color: '#06b6d4' },
-  { id: 'scheduled_e1', name: 'E1 agendada', color: '#f59e0b' },
-  { id: 'done_e1', name: 'E1 realizada', color: '#eab308' },
-  { id: 'scheduled_e2', name: 'E2 agendada', color: '#8b5cf6' },
-  { id: 'done_e2', name: 'E2 realizada', color: '#a855f7' },
-  { id: 'approved', name: 'Aprovados', color: '#10b981' },
-  { id: 'rejected', name: 'Reprovados', color: '#ef4444' },
-  { id: 'doubt', name: 'Dúvida', color: '#6b7280' },
-  { id: 'became_partner', name: 'Virou parceiro', color: '#ec4899' },
-];
+const COLUMNS = HR_COLUMNS;
 
 interface Props {
   onCandidateClick?: (candidate: HRCandidate) => void;
@@ -105,6 +89,10 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
           {COLUMNS.map(col => {
             const items = byColumn.get(col.id) ?? [];
             const isOver = dragOverColumn === col.id;
+            const colorSolid = hrColor(col.token);
+            const colorTint = hrColor(col.token, 0.06);
+            const colorChip = hrColor(col.token, 0.12);
+            const colorGlow = hrColor(col.token, 0.4);
             return (
               <div
                 key={col.id}
@@ -114,24 +102,24 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
                 className={`flex flex-col w-[280px] min-w-[280px] rounded-xl border transition-all ${
                   isOver ? 'border-primary/60 shadow-lg shadow-primary/10' : 'border-border/30 shadow-sm'
                 }`}
-                style={{ background: `linear-gradient(180deg, ${col.color}10 0%, hsl(var(--card)) 18%)` }}
+                style={{ background: `linear-gradient(180deg, ${colorTint} 0%, hsl(var(--card)) 18%)` }}
               >
                 <div className="relative px-3 py-2.5 border-b border-border/30">
                   <div
                     className="absolute top-0 left-3 right-3 h-[3px] rounded-b-full"
-                    style={{ backgroundColor: col.color }}
+                    style={{ backgroundColor: colorSolid }}
                   />
                   <div className="flex items-center gap-2 mt-0.5">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: col.color, boxShadow: `0 0 8px ${col.color}60` }}
+                      style={{ backgroundColor: colorSolid, boxShadow: `0 0 8px ${colorGlow}` }}
                     />
                     <h3 className="text-sm font-bold text-foreground tracking-tight truncate">
                       {col.name}
                     </h3>
                     <span
                       className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: `${col.color}1f`, color: col.color }}
+                      style={{ backgroundColor: colorChip, color: colorSolid }}
                     >
                       {items.length}
                     </span>
@@ -155,7 +143,7 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
                       <CandidateCard
                         key={c.id}
                         candidate={c}
-                        columnColor={col.color}
+                        columnColor={colorSolid}
                         onClick={handleClick}
                       />
                     ))
