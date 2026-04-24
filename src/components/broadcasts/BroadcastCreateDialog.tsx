@@ -658,7 +658,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
             {sourceType === 'manual' && (
               <div>
-                <Textarea value={formPhones} onChange={e => setFormPhones(e.target.value)} placeholder="5511999998888&#10;5521988887777&#10;..." rows={4} />
+                <Textarea value={formPhones} onChange={e => setFormPhones(e.target.value)} placeholder="(11) 99999-8888&#10;(21) 98888-7777&#10;..." rows={4} />
                 <p className="text-xs text-muted-foreground mt-1">{getPhoneCount()} telefones válidos</p>
               </div>
             )}
