@@ -236,6 +236,7 @@ type V8OperationListParams = {
   page?: number;
   provider?: string;
   documentNumber?: string;
+  search?: string;
 };
 
 export function buildOperationListQuery(params: V8OperationListParams = {}) {
@@ -245,6 +246,7 @@ export function buildOperationListQuery(params: V8OperationListParams = {}) {
 
   if (params.startDate) query.set("startDate", params.startDate);
   if (params.endDate) query.set("endDate", params.endDate);
+  if (params.search) query.set("search", String(params.search).trim());
   if (Number.isFinite(params.limit) && Number(params.limit) > 0) {
     query.set("limit", String(Math.trunc(Number(params.limit))));
   }
@@ -287,6 +289,63 @@ async function actionListOperations(params: V8OperationListParams = {}) {
     success: true,
     data: filteredOperations,
     total: filteredOperations.length,
+  };
+}
+
+async function actionListConsults(params: V8OperationListParams = {}) {
+  const query = buildOperationListQuery({
+    ...params,
+    search: params.search ?? params.documentNumber,
+  });
+  const resp = await v8Fetch(`${V8_PATHS.consult}?${query}`, { method: "GET" });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('list_consults', {
+      ...err,
+      raw: err.parsed ?? err.rawText,
+    });
+  }
+
+  const json = await resp.json().catch(() => ([]));
+  const consults = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json?.items)
+        ? json.items
+        : Array.isArray(json?.consults)
+          ? json.consults
+          : [];
+
+  const cpfFilter = String(params.documentNumber || "").replace(/\D/g, "");
+  const textFilter = String(params.search || "").trim().toLowerCase();
+  const filteredConsults = consults.filter((item: any) => {
+    const document = String(
+      item?.documentNumber ?? item?.document_number ?? item?.borrowerDocumentNumber ?? ""
+    ).replace(/\D/g, "");
+    const name = String(
+      item?.name ?? item?.borrowerName ?? item?.signerName ?? item?.customer_name ?? ""
+    ).toLowerCase();
+
+    const matchesCpf = !cpfFilter || document === cpfFilter || document.includes(cpfFilter);
+    const matchesText = !textFilter || name.includes(textFilter) || document.includes(textFilter.replace(/\D/g, ""));
+    return matchesCpf && matchesText;
+  }).map((item: any) => ({
+    consultId: String(item?.id ?? item?.consult_id ?? item?.consultId ?? ""),
+    status: item?.status ?? null,
+    name: item?.name ?? item?.borrowerName ?? item?.signerName ?? item?.customer_name ?? null,
+    documentNumber: item?.documentNumber ?? item?.document_number ?? item?.borrowerDocumentNumber ?? null,
+    title: item?.title ?? item?.error_title ?? null,
+    detail: item?.detail ?? item?.description ?? item?.message ?? item?.reason ?? null,
+    createdAt: item?.created_at ?? item?.createdAt ?? item?.updated_at ?? null,
+    raw: item,
+  }));
+
+  return {
+    success: true,
+    data: filteredConsults,
+    total: filteredConsults.length,
   };
 }
 
