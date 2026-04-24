@@ -180,20 +180,19 @@ export default function V8NovaSimulacaoTab() {
             <Label>CPFs (1 por linha)</Label>
             <Textarea
               rows={8}
-              placeholder={`39364073800 Maicon Douglas 06/08/1990 M 11999998888\n98765432100 Maria Silva 15/03/1985 F (11) 98888-7777\n12345678901`}
+              placeholder={`39364073800 Maicon Douglas 06/08/1990 M 11999998888\n98765432100;Maria Silva;15/03/1985;F;11988887777\nDANIEL ALYSSON BARBOSA DA SILVA1044251247308/05/1992\n12345678901`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               className="font-mono text-xs"
             />
             <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
               <p>
-                <strong>Tokens reconhecidos automaticamente</strong> (qualquer ordem após o CPF, separadores: espaço, tab, vírgula ou ponto-e-vírgula):
+                <strong>Formatos aceitos</strong> (1 cliente por linha):
               </p>
-              <p>• <strong>CPF</strong> 11 dígitos (obrigatório, 1º token)</p>
-              <p>• <strong>Data de nascimento</strong> dd/mm/aaaa (obrigatório para V8)</p>
-              <p>• <strong>Gênero</strong> M ou F (opcional, padrão M)</p>
-              <p>• <strong>Telefone</strong> 10-11 dígitos (opcional, padrão 11999999999)</p>
-              <p>• <strong>Nome</strong> qualquer texto restante</p>
+              <p>• <strong>Com separadores</strong> (espaço, tab, vírgula ou ponto-e-vírgula): tokens em qualquer ordem após o CPF.</p>
+              <p>• <strong>Concatenado</strong> (NOME+CPF+DATA sem separadores): ex. <code>DANIEL SILVA1044251247308/05/1992</code></p>
+              <p>• <strong>CPF puro</strong>: 11 dígitos (data continua obrigatória para a V8 — preencha depois ou inclua na linha).</p>
+              <p className="pt-1">Tokens reconhecidos: CPF (11 díg.), Data (dd/mm/aaaa ou yyyy-mm-dd), Gênero (M/F), Telefone (10-11 díg.), Nome.</p>
               <p className="pt-1 font-medium text-foreground">
                 {parseV8Paste(pasteText).length} CPFs válidos detectados
               </p>

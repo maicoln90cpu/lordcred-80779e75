@@ -3830,6 +3830,7 @@ export type Database = {
           status: string
           total_value: number | null
           updated_at: string
+          v8_simulation_id: string | null
         }
         Insert: {
           amount_to_charge?: number | null
@@ -3853,6 +3854,7 @@ export type Database = {
           status?: string
           total_value?: number | null
           updated_at?: string
+          v8_simulation_id?: string | null
         }
         Update: {
           amount_to_charge?: number | null
@@ -3876,6 +3878,7 @@ export type Database = {
           status?: string
           total_value?: number | null
           updated_at?: string
+          v8_simulation_id?: string | null
         }
         Relationships: [
           {

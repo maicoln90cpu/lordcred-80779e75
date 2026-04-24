@@ -69,6 +69,30 @@ async function v8Fetch(path: string, init: RequestInit = {}) {
   return fetch(`${V8_BASE}${path}`, { ...init, headers });
 }
 
+/**
+ * Faz fetch com retry exponencial para erros 5xx (instabilidade upstream V8/QI).
+ * Tenta até `maxAttempts` vezes (padrão 3) com backoff 500ms / 1500ms.
+ * Erros 4xx NÃO são retentados (são problemas de payload do cliente).
+ */
+async function v8FetchWithRetry(
+  path: string,
+  init: RequestInit = {},
+  maxAttempts = 3
+): Promise<Response> {
+  let lastResp: Response | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await v8Fetch(path, init);
+    if (resp.status < 500) return resp;
+    lastResp = resp;
+    if (attempt < maxAttempts) {
+      const delay = attempt === 1 ? 500 : 1500;
+      console.log(`[v8FetchWithRetry] ${path} status ${resp.status} — retry ${attempt}/${maxAttempts - 1} em ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return lastResp as Response;
+}
+
 async function actionGetConfigs(supabase: any) {
   const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
@@ -225,7 +249,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   // 1) Consult — builder testável
   const consultBody = buildConsultBody(input);
 
-  const consultResp = await v8Fetch(V8_PATHS.consult, {
+  const consultResp = await v8FetchWithRetry(V8_PATHS.consult, {
     method: "POST",
     body: JSON.stringify(consultBody),
   });
@@ -530,6 +554,7 @@ serve(async (req) => {
                 company_margin: (result as any).data.company_margin,
                 amount_to_charge: (result as any).data.amount_to_charge,
                 raw_response: (result as any).data.raw_response,
+                v8_simulation_id: (result as any).data.simulation_id ?? null,
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
