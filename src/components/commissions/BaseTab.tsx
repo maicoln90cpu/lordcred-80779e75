@@ -17,6 +17,7 @@ import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
 import { fmtBRL, exportToExcel, formatDateBR, toDatetimeLocalBR, toBrasiliaTimestamp, parseExcelDate, cleanCurrency } from './commissionUtils';
+import { resolveSellerByName } from '@/lib/sellerNameMatch';
 import WeekMultiSelect from './WeekMultiSelect';
 import PasteImportButton from './PasteImportButton';
 
