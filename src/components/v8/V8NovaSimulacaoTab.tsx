@@ -86,6 +86,8 @@ export default function V8NovaSimulacaoTab() {
           const myIdx = idx++;
           const sim = sims[myIdx];
           try {
+            // Recupera tokens extras (gênero/telefone) parseados na hora da colagem
+            const parsedRow = rows.find((r) => r.cpf === sim.cpf);
             await supabase.functions.invoke('v8-clt-api', {
               body: {
                 action: 'simulate_one',
@@ -93,6 +95,8 @@ export default function V8NovaSimulacaoTab() {
                   cpf: sim.cpf,
                   nome: sim.name,
                   data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
                   config_id: configId,
                   parcelas,
                   batch_id: batchId,
@@ -176,18 +180,20 @@ export default function V8NovaSimulacaoTab() {
             <Label>CPFs (1 por linha)</Label>
             <Textarea
               rows={8}
-              placeholder={`39364073800 Maicon Douglas 06/08/1990\n98765432100 Maria Silva 15/03/1985\n12345678901`}
+              placeholder={`39364073800 Maicon Douglas 06/08/1990 M 11999998888\n98765432100 Maria Silva 15/03/1985 F (11) 98888-7777\n12345678901`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               className="font-mono text-xs"
             />
             <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
               <p>
-                <strong>Formatos aceitos</strong> (separadores: espaço, tab, vírgula ou ponto-e-vírgula):
+                <strong>Tokens reconhecidos automaticamente</strong> (qualquer ordem após o CPF, separadores: espaço, tab, vírgula ou ponto-e-vírgula):
               </p>
-              <p>• <code>CPF Nome Sobrenome dd/mm/aaaa</code> ← recomendado (V8 exige nome + nascimento)</p>
-              <p>• <code>CPF;Nome Sobrenome;dd/mm/aaaa</code></p>
-              <p>• <code>CPF</code> sozinho — a consulta falhará sem nome e data de nascimento</p>
+              <p>• <strong>CPF</strong> 11 dígitos (obrigatório, 1º token)</p>
+              <p>• <strong>Data de nascimento</strong> dd/mm/aaaa (obrigatório para V8)</p>
+              <p>• <strong>Gênero</strong> M ou F (opcional, padrão M)</p>
+              <p>• <strong>Telefone</strong> 10-11 dígitos (opcional, padrão 11999999999)</p>
+              <p>• <strong>Nome</strong> qualquer texto restante</p>
               <p className="pt-1 font-medium text-foreground">
                 {parseV8Paste(pasteText).length} CPFs válidos detectados
               </p>
