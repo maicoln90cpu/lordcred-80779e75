@@ -231,7 +231,20 @@ export default function V8ConsultasTab() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              onClick={handleReplayPending}
+              disabled={replaying}
+              title="Reprocessa webhooks da V8 que ficaram pendentes nos últimos 7 dias"
+            >
+              {replaying ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Reprocessar webhooks pendentes (7 dias)
+            </Button>
             <Button onClick={handleSearch} disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSearch className="mr-2 h-4 w-4" />}
               Buscar propostas
