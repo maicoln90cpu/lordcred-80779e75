@@ -52,6 +52,7 @@ const ContractTemplate = lazy(() => import("./pages/admin/ContractTemplate"));
 const Broadcasts = lazy(() => import("./pages/admin/Broadcasts"));
 const Integrations = lazy(() => import("./pages/admin/Integrations"));
 const V8Simulador = lazy(() => import("./pages/admin/V8Simulador"));
+const HR = lazy(() => import("./pages/admin/HR"));
 
 // Corban pages
 const CorbanDashboard = lazy(() => import("./pages/admin/CorbanDashboard"));
@@ -126,6 +127,7 @@ const App = () => (
                 <Route path="/admin/broadcasts" element={<ProtectedRoute blockSellers><Broadcasts /></ProtectedRoute>} />
                 <Route path="/admin/integrations" element={<ProtectedRoute blockSellers><Integrations /></ProtectedRoute>} />
                 <Route path="/admin/v8-simulador" element={<ProtectedRoute><V8Simulador /></ProtectedRoute>} />
+                <Route path="/admin/hr" element={<ProtectedRoute blockSellers blockSupport><HR /></ProtectedRoute>} />
                 <Route path="/admin/master" element={<ProtectedRoute requireAdmin><MasterAdmin /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

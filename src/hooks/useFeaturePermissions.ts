@@ -41,6 +41,7 @@ const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   partners: ['/admin/parceiros', '/admin/parceiros/template'],
   contract_template: ['/admin/parceiros/template'],
   broadcasts: ['/admin/broadcasts'],
+  hr: ['/admin/hr'],
 };
 
 /** Builds reverse map: route → feature_key */
