@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { writeAuditLog } from '../_shared/auditLog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -625,6 +626,7 @@ async function generateAndSend(partnerId: string, userId: string) {
     target_table: 'partners',
     target_id: partnerId,
     details: {
+      category: 'contracts',
       success: true,
       request_payload: { partner_id: partnerId, partner_name: partner.nome, partner_email: partner.email, file_name: fileName },
       response_payload: { envelope_id: envelopeId, document_id: documentId, signer_id: signerId, status: 'pendente_parceiro' },
@@ -739,6 +741,7 @@ async function resendNotification(partnerId: string, userId: string) {
     target_table: 'partners',
     target_id: partnerId,
     details: {
+      category: 'contracts',
       success: notifiedCount > 0,
       request_payload: { partner_id: partnerId, envelope_id: partner.envelope_id, action: 'resend_notification' },
       response_payload: { notified: notifiedCount, signers_total: signers.length, partner_name: partner.nome },
@@ -907,36 +910,80 @@ Deno.serve(async (req) => {
 
     const { action, partner_id, envelope_id } = await req.json();
 
+    // Actions already logged inline with rich payloads — skip the wrapper to avoid duplicates.
+    const ACTIONS_WITH_INLINE_LOG = new Set(['generate_and_send', 'resend_notification']);
+    const userEmail = (user.email as string | undefined) || null;
+    const startedAt = Date.now();
+
     let result;
-    switch (action) {
-      case 'preview':
-        if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await previewContract(partner_id);
-        break;
-      case 'generate_and_send':
-        if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await generateAndSend(partner_id, userId);
-        break;
-      case 'get_status':
-        if (!envelope_id) throw new HttpError(400, 'envelope_id is required');
-        result = await getEnvelopeStatus(envelope_id);
-        break;
-      case 'get_signed_url':
-        if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await getDocumentInfo(partner_id);
-        break;
-      case 'resend_notification': {
-        if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await resendNotification(partner_id, userId);
-        break;
+    let success = true;
+    let errorMessage: string | null = null;
+    try {
+      switch (action) {
+        case 'preview':
+          if (!partner_id) throw new HttpError(400, 'partner_id is required');
+          result = await previewContract(partner_id);
+          break;
+        case 'generate_and_send':
+          if (!partner_id) throw new HttpError(400, 'partner_id is required');
+          result = await generateAndSend(partner_id, userId);
+          break;
+        case 'get_status':
+          if (!envelope_id) throw new HttpError(400, 'envelope_id is required');
+          result = await getEnvelopeStatus(envelope_id);
+          break;
+        case 'get_signed_url':
+          if (!partner_id) throw new HttpError(400, 'partner_id is required');
+          result = await getDocumentInfo(partner_id);
+          break;
+        case 'resend_notification': {
+          if (!partner_id) throw new HttpError(400, 'partner_id is required');
+          result = await resendNotification(partner_id, userId);
+          break;
+        }
+        case 'download_pdf': {
+          if (!partner_id) throw new HttpError(400, 'partner_id is required');
+          result = await downloadPdfProxy(partner_id);
+          break;
+        }
+        default:
+          throw new HttpError(400, `Unknown action: ${action}`);
       }
-      case 'download_pdf': {
-        if (!partner_id) throw new HttpError(400, 'partner_id is required');
-        result = await downloadPdfProxy(partner_id);
-        break;
+    } catch (innerErr) {
+      success = false;
+      errorMessage = innerErr instanceof Error ? innerErr.message : String(innerErr);
+      // Log the failure (every action), then rethrow to keep the original error response.
+      if (!ACTIONS_WITH_INLINE_LOG.has(action)) {
+        await writeAuditLog(supabaseAdmin, {
+          action: `clicksign_${action}`,
+          category: 'contracts',
+          success: false,
+          userId,
+          userEmail,
+          targetTable: 'partners',
+          targetId: partner_id ?? envelope_id ?? null,
+          details: {
+            duration_ms: Date.now() - startedAt,
+            error_message: errorMessage,
+          },
+        });
       }
-      default:
-        throw new HttpError(400, `Unknown action: ${action}`);
+      throw innerErr;
+    }
+
+    if (success && !ACTIONS_WITH_INLINE_LOG.has(action)) {
+      await writeAuditLog(supabaseAdmin, {
+        action: `clicksign_${action}`,
+        category: 'contracts',
+        success: true,
+        userId,
+        userEmail,
+        targetTable: 'partners',
+        targetId: partner_id ?? envelope_id ?? null,
+        details: {
+          duration_ms: Date.now() - startedAt,
+        },
+      });
     }
 
     return new Response(JSON.stringify(result), {
