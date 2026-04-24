@@ -210,13 +210,39 @@ export interface SimulateInput {
   simulation_id?: string;
 }
 
+function formatIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
 /** Converte data dd/mm/aaaa ou yyyy-mm-dd para o formato aceito pela V8 (yyyy-mm-dd). */
 export function normalizeBirthDate(input?: string): string | null {
   if (!input) return null;
   const s = input.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    return formatIsoDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  }
+
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) {
+    return formatIsoDate(Number(br[3]), Number(br[2]), Number(br[1]));
+  }
+
   return null;
 }
 
@@ -314,7 +340,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }
 
   // 2) Authorize — passa consult_id na URL
-  const authResp = await v8Fetch(V8_PATHS.authorize(consultId), {
+  const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
     body: JSON.stringify({}),
   });
@@ -452,6 +478,16 @@ async function actionCreateBatch(
   );
   if (validRows.length === 0) return { success: false, error: "Nenhum CPF válido" };
 
+  const invalidBirthRow = validRows.find(
+    (r) => r.data_nascimento && !normalizeBirthDate(r.data_nascimento)
+  );
+  if (invalidBirthRow) {
+    return {
+      success: false,
+      error: `Data de nascimento inválida para CPF ${(invalidBirthRow.cpf || "").replace(/\D/g, "")}`,
+    };
+  }
+
   const { data: batch, error: batchErr } = await supabase
     .from("v8_batches")
     .insert({
@@ -473,7 +509,7 @@ async function actionCreateBatch(
     created_by: userId,
     cpf: r.cpf.replace(/\D/g, ""),
     name: r.nome ?? null,
-    birth_date: r.data_nascimento ?? null,
+    birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
     status: "pending",
   }));
 
