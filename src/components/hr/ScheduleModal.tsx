@@ -59,10 +59,10 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
         const userIds = ids as string[];
         const { data: profs } = await supabase
           .from('profiles')
-          .select('user_id, name, phone')
+          .select('user_id, name')
           .in('user_id', userIds);
         setInterviewers(((profs as any) || []).map((p: any) => ({
-          user_id: p.user_id, name: p.name || p.user_id, phone: p.phone || null,
+          user_id: p.user_id, name: p.name || p.user_id, phone: null,
         })));
       }
       // Load chips for sending notifications
