@@ -10,8 +10,9 @@ const corsHeaders = {
 };
 
 const V8_BASE = "https://bff.v8sistema.com";
-// Auth oficial conforme docs.v8sistema.com — endpoint OAuth roda no domínio api.v8digital.com
-const V8_AUTH = "https://api.v8digital.com";
+// Auth oficial — Auth0 da V8 Sistema. Validado em 2026-04-24 via DNS+probe (302 -> /).
+// Doc menciona "api.v8digital.com" mas esse host está fora do ar; o Auth0 tenant ativo é auth.v8sistema.com.
+const V8_AUTH = "https://auth.v8sistema.com";
 
 // Endpoints oficiais V8 — Crédito do Trabalhador (CLT) usa /private-consignment/*
 const V8_PATHS = {
@@ -111,20 +112,69 @@ interface SimulateInput {
   cpf: string;
   nome?: string;
   data_nascimento?: string;
+  /** "M" | "F" | "male" | "female" — convertido para o enum aceito pela V8 */
+  genero?: string;
+  email?: string;
+  telefone?: string;
   config_id: string;
   parcelas: number;
   batch_id?: string;
   simulation_id?: string;
 }
 
+/** Converte data dd/mm/aaaa ou yyyy-mm-dd para o formato aceito pela V8 (yyyy-mm-dd). */
+function normalizeBirthDate(input?: string): string | null {
+  if (!input) return null;
+  const s = input.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return null;
+}
+
+/** Normaliza gênero para o enum esperado pela V8 ("male" | "female"). */
+function normalizeGender(input?: string): "male" | "female" {
+  const g = (input || "").trim().toLowerCase();
+  if (g.startsWith("f") || g === "feminino" || g === "female") return "female";
+  return "male";
+}
+
+/** Sanitiza telefone para apenas dígitos; retorna {areaCode, number} com fallback 11/999999999. */
+function normalizePhone(input?: string): { areaCode: string; number: string } {
+  const digits = (input || "").replace(/\D/g, "");
+  if (digits.length >= 10) {
+    return { areaCode: digits.slice(0, 2), number: digits.slice(2) };
+  }
+  return { areaCode: "11", number: "999999999" };
+}
+
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
 
-  // 1) Consult — retorna consult_id obrigatório para os próximos passos
-  const consultBody: Record<string, unknown> = { document: cpf };
-  if (input.nome) consultBody.name = input.nome;
-  if (input.data_nascimento) consultBody.birthDate = input.data_nascimento;
+  const birthDate = normalizeBirthDate(input.data_nascimento);
+  if (!birthDate) {
+    return { success: false, step: "consult", error: "Data de nascimento inválida (use dd/mm/aaaa)" };
+  }
+  if (!input.nome || input.nome.trim().length < 3) {
+    return { success: false, step: "consult", error: "Nome do cliente é obrigatório (mínimo 3 caracteres)" };
+  }
+
+  // 1) Consult — payload completo conforme docs.v8sistema.com (Crédito Privado CLT)
+  const phone = normalizePhone(input.telefone);
+  const consultBody = {
+    borrowerDocumentNumber: cpf,
+    gender: normalizeGender(input.genero),
+    birthDate,
+    signerName: input.nome.trim(),
+    signerEmail: input.email?.trim() || `${cpf}@lordcred.temp`,
+    signerPhone: {
+      countryCode: "55",
+      areaCode: phone.areaCode,
+      number: phone.number,
+    },
+    provider: "QI",
+  };
 
   const consultResp = await v8Fetch(V8_PATHS.consult, {
     method: "POST",
@@ -135,7 +185,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     return {
       success: false,
       step: "consult",
-      error: consultJson?.message || `Status ${consultResp.status}`,
+      error: consultJson?.message || consultJson?.error || `Status ${consultResp.status}`,
       raw: consultJson,
     };
   }
