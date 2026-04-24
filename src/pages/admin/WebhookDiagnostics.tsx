@@ -198,7 +198,16 @@ export default function WebhookDiagnostics() {
                   })}
                   {filteredLogs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12"><Webhook className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum log de webhook encontrado</p></TableCell>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                        <Webhook className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p>Nenhum log de webhook encontrado</p>
+                        <p className="text-xs mt-2 opacity-70">
+                          Os logs são limpos automaticamente após <strong>3 dias</strong> (rotina <code>cleanup_webhook_logs</code> roda às 04h).
+                        </p>
+                        <p className="text-xs mt-1 opacity-70">
+                          Se nenhum chip está recebendo mensagens há mais de 3 dias, esta tabela ficará vazia — é o comportamento esperado.
+                        </p>
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
