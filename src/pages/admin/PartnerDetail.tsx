@@ -18,7 +18,7 @@ import { ContractPreviewDialog } from '@/components/partners/ContractPreviewDial
 import { ContractViewerDialog } from '@/components/partners/ContractViewerDialog';
 import {
   formatCnpj, formatCpf, formatPhone, formatCep, validateForContract,
-  PIPELINE_STATUSES, CONTRATO_STATUSES, TREINAMENTO_STATUSES, ACTION_LABELS, ACTION_ICONS,
+  PIPELINE_STATUSES, CONTRATO_STATUSES, TREINAMENTO_STATUSES, ACTION_LABELS, ACTION_ICONS, CAPTACAO_TIPOS,
 } from '@/lib/partnerUtils';
 
 export default function PartnerDetail() {

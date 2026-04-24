@@ -87,6 +87,16 @@ export function validateForContract(form: Record<string, any>): Record<string, s
   return errors;
 }
 
+export const CAPTACAO_TIPOS = [
+  { value: 'indicacao', label: 'Indicação' },
+  { value: 'redes_sociais', label: 'Redes Sociais' },
+  { value: 'anuncio', label: 'Anúncio' },
+  { value: 'organico', label: 'Orgânico' },
+  { value: 'evento', label: 'Evento' },
+  { value: 'processo_seletivo', label: 'Processo Seletivo' },
+  { value: 'outro', label: 'Outro' },
+];
+
 export const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial' },
   { value: 'reuniao_marcada', label: 'Reunião Marcada' },
