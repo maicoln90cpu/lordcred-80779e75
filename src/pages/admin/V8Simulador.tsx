@@ -4,6 +4,7 @@ import { Calculator } from 'lucide-react';
 import V8NovaSimulacaoTab from '@/components/v8/V8NovaSimulacaoTab';
 import V8HistoricoTab from '@/components/v8/V8HistoricoTab';
 import V8ConfigTab from '@/components/v8/V8ConfigTab';
+import V8ConsultasTab from '@/components/v8/V8ConsultasTab';
 
 export default function V8Simulador() {
   return (
@@ -26,11 +27,15 @@ export default function V8Simulador() {
         <Tabs defaultValue="nova">
           <TabsList>
             <TabsTrigger value="nova">Nova Simulação</TabsTrigger>
+            <TabsTrigger value="consultas">Consultas</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
             <TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
           <TabsContent value="nova" className="mt-4">
             <V8NovaSimulacaoTab />
+          </TabsContent>
+          <TabsContent value="consultas" className="mt-4">
+            <V8ConsultasTab />
           </TabsContent>
           <TabsContent value="historico" className="mt-4">
             <V8HistoricoTab />
