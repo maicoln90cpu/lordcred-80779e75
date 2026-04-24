@@ -59,9 +59,7 @@ export default function HR() {
           </TabsContent>
 
           <TabsContent value="partners">
-            <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-              <p className="text-sm">Funil de parceiros — implementado na Etapa 7.</p>
-            </div>
+            <HRPartnerLeadsTab />
           </TabsContent>
 
           {isAdmin && (
