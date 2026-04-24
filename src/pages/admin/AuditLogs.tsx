@@ -371,6 +371,20 @@ export default function AuditLogs() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={filterOrigin} onValueChange={(v) => setFilterOrigin(v as 'all' | LogOrigin)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filtrar origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toda origem</SelectItem>
+                  <SelectItem value="system">
+                    <span className="flex items-center gap-1.5"><Cpu className="w-3 h-3 text-blue-400" /> Sistema</span>
+                  </SelectItem>
+                  <SelectItem value="user">
+                    <span className="flex items-center gap-1.5"><User className="w-3 h-3 text-purple-400" /> Usuário</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
                 {filteredLogs.length} de {logs.length} registros
