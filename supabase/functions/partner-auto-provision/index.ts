@@ -33,10 +33,10 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // 1) Carregar parceiro
+    // 1) Carregar parceiro (inclui pix_pj)
     const { data: partner, error: partErr } = await admin
       .from("partners")
-      .select("id, nome, email, auto_user_id")
+      .select("id, nome, email, auto_user_id, pix_pj, cnpj, cpf")
       .eq("id", partnerId)
       .maybeSingle();
 
