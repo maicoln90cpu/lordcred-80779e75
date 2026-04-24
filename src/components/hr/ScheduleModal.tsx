@@ -77,11 +77,15 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
     })();
   }, [open]);
 
-  const recipientType = notifyCandidate && notifyInterviewer
+  const selectedInterviewer = interviewers.find(i => i.user_id === interviewerId);
+  const interviewerCanBeNotified = !!selectedInterviewer?.phone;
+  const effectiveNotifyInterviewer = notifyInterviewer && interviewerCanBeNotified;
+
+  const recipientType = notifyCandidate && effectiveNotifyInterviewer
     ? 'both' : notifyCandidate ? 'candidate' : 'interviewer';
 
   const canSave = !!date && !!time && !!interviewerId && (
-    !(notifyCandidate || notifyInterviewer) || !!chipId
+    !(notifyCandidate || effectiveNotifyInterviewer) || !!chipId
   );
 
   const handleSave = async () => {
@@ -106,7 +110,7 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
       );
 
       // 2) Schedule notifications if requested and chip selected
-      if ((notifyCandidate || notifyInterviewer) && chipId && interviewId) {
+      if ((notifyCandidate || effectiveNotifyInterviewer) && chipId && interviewId) {
         if (!settings) {
           toast({
             title: 'Notificações não configuradas',
@@ -114,14 +118,13 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
             variant: 'destructive',
           });
         } else {
-          const interviewer = interviewers.find(i => i.user_id === interviewerId);
           await scheduleNotifications({
             entity_type: 'interview',
             entity_id: interviewId as string,
             scheduled_at: iso,
             recipient_type: recipientType,
             phone_candidate: notifyCandidate ? candidate.phone : null,
-            phone_interviewer: notifyInterviewer ? (interviewer?.phone ?? null) : null,
+            phone_interviewer: effectiveNotifyInterviewer ? (selectedInterviewer?.phone ?? null) : null,
             chip_instance_id: chipId,
           });
         }
