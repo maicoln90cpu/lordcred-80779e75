@@ -364,16 +364,21 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const marginPct = Number(marginRow?.margin_percent ?? 5);
   const company_margin = Number(((released_value * marginPct) / 100).toFixed(2));
   const amount_to_charge = Number((released_value - company_margin).toFixed(2));
+  // margem_valor = mesmo número de company_margin, mas exposto como coluna dedicada
+  // (mantém compat. com a UI atual que usa company_margin e adiciona o campo "oficial").
+  const margem_valor = company_margin;
 
   return {
     success: true,
     data: {
       simulation_id: simulationId || null,
+      consult_id: consultId,
       released_value,
       installment_value,
       interest_rate,
       total_value,
       company_margin,
+      margem_valor,
       amount_to_charge,
       raw_response: { consult: consultJson, authorize: authJson, simulate: simJson },
     },
@@ -552,9 +557,11 @@ serve(async (req) => {
                 interest_rate: (result as any).data.interest_rate,
                 total_value: (result as any).data.total_value,
                 company_margin: (result as any).data.company_margin,
+                margem_valor: (result as any).data.margem_valor ?? (result as any).data.company_margin,
                 amount_to_charge: (result as any).data.amount_to_charge,
                 raw_response: (result as any).data.raw_response,
                 v8_simulation_id: (result as any).data.simulation_id ?? null,
+                consult_id: (result as any).data.consult_id ?? null,
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
