@@ -63,3 +63,6 @@ verify_jwt = false
 [functions.hr-interview-public-submit]
 verify_jwt = false
 
+[functions.v8-webhook]
+verify_jwt = false
+
