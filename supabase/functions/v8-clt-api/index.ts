@@ -80,31 +80,65 @@ async function actionGetConfigs(supabase: any) {
   const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? data?.configs ?? [];
 
   if (Array.isArray(configs) && configs.length > 0) {
+    // Log inspeção: imprime as chaves do primeiro item para auditoria
+    console.log("[v8 get_configs] sample keys:", Object.keys(configs[0] || {}));
+    console.log("[v8 get_configs] sample item:", JSON.stringify(configs[0]).slice(0, 800));
+
     for (const c of configs) {
       const config_id = String(c.id ?? c.configId ?? c.uuid ?? c.code ?? "");
       if (!config_id) continue;
-      const fin = c.financial ?? c.financialConditions ?? {};
-      // V8 (Crédito do Trabalhador) retorna o nome em "slug" no payload flat.
-      // Fallbacks adicionais cobrem versões antigas e variações por provider.
+      // V8 envia detalhes em "financial" OU "financial_conditions" OU plano direto.
+      const fin = c.financial ?? c.financialConditions ?? c.financial_conditions ?? c.conditions ?? {};
       const displayName = String(
         c.slug ?? c.name ?? c.label ?? c.description ?? c.product_name ?? "Sem nome"
       );
       const isInsured = c.is_insured === true || c.isInsured === true;
+      const bankName =
+        fin.bank ??
+        fin.bank_name ??
+        fin.bankName ??
+        c.bank ??
+        c.bankName ??
+        c.bank_name ??
+        c.provider ??
+        c.partner ??
+        null;
+      const minValue =
+        fin.minValue ?? fin.min_value ?? fin.minAmount ?? c.minValue ?? c.min_value ?? null;
+      const maxValue =
+        fin.maxValue ?? fin.max_value ?? fin.maxAmount ?? c.maxValue ?? c.max_value ?? null;
+      const minTerm =
+        fin.minTerm ??
+        fin.min_term ??
+        fin.minInstallments ??
+        fin.min_installments ??
+        c.minTerm ??
+        c.minInstallments ??
+        c.min_installments ??
+        null;
+      const maxTerm =
+        fin.maxTerm ??
+        fin.max_term ??
+        fin.maxInstallments ??
+        fin.max_installments ??
+        c.maxTerm ??
+        c.maxInstallments ??
+        c.max_installments ??
+        null;
+
       await supabase
         .from("v8_configs_cache")
         .upsert(
           {
             config_id,
             name: displayName,
-            bank_name: fin.bank ?? c.bank ?? c.bankName ?? c.provider ?? null,
-            product_type: c.productType ?? c.product ?? "clt",
-            min_value: fin.minValue ?? c.minValue ?? c.min_value ?? null,
-            max_value: fin.maxValue ?? c.maxValue ?? c.max_value ?? null,
-            min_term:
-              fin.minTerm ?? c.minTerm ?? c.minInstallments ?? c.min_installments ?? null,
-            max_term:
-              fin.maxTerm ?? c.maxTerm ?? c.maxInstallments ?? c.max_installments ?? null,
-            is_active: c.active !== false,
+            bank_name: bankName,
+            product_type: c.productType ?? c.product ?? c.product_type ?? "clt",
+            min_value: minValue,
+            max_value: maxValue,
+            min_term: minTerm,
+            max_term: maxTerm,
+            is_active: c.active !== false && c.is_active !== false,
             raw_data: { ...c, _is_insured: isInsured },
             synced_at: new Date().toISOString(),
           },
