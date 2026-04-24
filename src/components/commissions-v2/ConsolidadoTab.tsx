@@ -19,6 +19,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [pixList, setPixList] = useState<SellerPix[]>([]);
   const [loading, setLoading] = useState(true);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const { sort, toggle } = useSortState();
 
@@ -33,8 +34,34 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
     });
   }, []);
 
-  const weeks = [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse();
-  const filtered = weekFilters.length === 0 ? sales : sales.filter(s => weekFilters.includes(s.week_label || ''));
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach(s => { if (s.sale_date) set.add(s.sale_date.slice(0, 7)); });
+    return [...set].sort().reverse();
+  }, [sales]);
+
+  const weeks = useMemo(() => {
+    const filteredSales = monthFilter === 'all'
+      ? sales
+      : sales.filter(s => s.sale_date && s.sale_date.slice(0, 7) === monthFilter);
+    return [...new Set(filteredSales.map(s => s.week_label).filter(Boolean))].sort().reverse() as string[];
+  }, [sales, monthFilter]);
+
+  useEffect(() => {
+    setWeekFilters(prev => prev.filter(w => weeks.includes(w)));
+  }, [weeks]);
+
+  const monthBaseSales = monthFilter === 'all'
+    ? sales
+    : sales.filter(s => s.sale_date && s.sale_date.slice(0, 7) === monthFilter);
+  const filtered = weekFilters.length === 0 ? monthBaseSales : monthBaseSales.filter(s => weekFilters.includes(s.week_label || ''));
+
+  const monthLabel = (ym: string) => {
+    const [y, m] = ym.split('-');
+    const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    return `${names[Number(m) - 1]}/${y}`;
+  };
+
 
   const sellerIds = [...new Set(filtered.map(s => s.seller_id))];
   const sellerData = sellerIds.map(sid => {
