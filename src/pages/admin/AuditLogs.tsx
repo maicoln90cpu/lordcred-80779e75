@@ -317,6 +317,16 @@ export default function AuditLogs() {
                   className="pl-9"
                 />
               </div>
+              <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as 'all' | AuditCategory)}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filtrar categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(categoryLabels) as Array<keyof typeof categoryLabels>).map(k => (
+                    <SelectItem key={k} value={k}>{categoryLabels[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={filterAction} onValueChange={setFilterAction}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filtrar ação" />
