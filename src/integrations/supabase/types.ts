@@ -4157,6 +4157,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      hr_notify_interview_submitted: {
+        Args: { _author_id?: string; _candidate_id: string; _stage: number }
+        Returns: undefined
+      }
       is_admin: { Args: never; Returns: boolean }
       is_channel_member: {
         Args: { _channel_id: string; _user_id: string }
