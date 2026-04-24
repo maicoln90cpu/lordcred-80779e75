@@ -82,8 +82,13 @@ function normalizeResult(value?: string | null) {
     'Próxima Etapa': 'next_stage',
     'Virou parceiro': 'became_partner',
     Parceiro: 'became_partner',
+    approved: 'approved',
+    rejected: 'rejected',
+    doubt: 'doubt',
+    next_stage: 'next_stage',
+    became_partner: 'became_partner',
   }
-  return map[value] ?? (value as 'approved' | 'rejected' | 'doubt' | 'next_stage' | 'became_partner')
+  return map[value] ?? null
 }
 
 async function resolveCallerRole(authHeader: string) {
