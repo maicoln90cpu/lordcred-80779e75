@@ -260,7 +260,6 @@ serve(async (req) => {
   }
 
   // --- Tipo do evento (query param ?type=, payload.type ou heurística por path)
-  const url = new URL(req.url);
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
   const payloadType = String((payload as any)?.type ?? "").toLowerCase();
   const pathHint = url.pathname.toLowerCase();
