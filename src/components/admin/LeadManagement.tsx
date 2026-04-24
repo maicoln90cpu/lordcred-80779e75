@@ -82,10 +82,16 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
   });
 
   const { data: sellers = [] } = useQuery({
-    queryKey: ['sellers-list'],
+    queryKey: ['sellers-list-with-blocked'],
     queryFn: async () => {
-      const { data } = await supabase.rpc('get_visible_profiles');
-      return (data || []) as unknown as { user_id: string; name: string; email: string }[];
+      const [rpcRes, blockedRes] = await Promise.all([
+        supabase.rpc('get_visible_profiles'),
+        supabase.from('profiles').select('user_id, is_blocked'),
+      ]);
+      const blockedMap = new Map<string, boolean>();
+      (blockedRes.data || []).forEach((p: any) => blockedMap.set(p.user_id, !!p.is_blocked));
+      const list = (rpcRes.data || []) as unknown as { user_id: string; name: string; email: string }[];
+      return list.map(s => ({ ...s, is_blocked: blockedMap.get(s.user_id) ?? false })) as Array<{ user_id: string; name: string; email: string; is_blocked: boolean }>;
     }
   });
 
