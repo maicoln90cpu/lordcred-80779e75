@@ -209,7 +209,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
         </div>
       )}
 
-      {stageQuestions.length > 0 && (
+      {stageQuestions.length > 0 && attended === 'yes' && (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Perguntas</h4>
           {stageQuestions.map(q => {
