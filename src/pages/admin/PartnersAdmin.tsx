@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { PartnersDashboard } from '@/components/partners/PartnersDashboard';
 import PartnerKanbanBoard from '@/components/partners/PartnerKanbanBoard';
+import { CAPTACAO_TIPOS } from '@/lib/partnerUtils';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial', color: 'bg-muted text-muted-foreground' },
@@ -44,7 +45,7 @@ const CRM_COLUMNS: { key: string; label: string; options: string[] }[] = [
   { key: 'aceitou', label: 'Aceitou', options: ['Confirmou', 'Pensando', 'Recusou', ''] },
   { key: 'info_mei', label: 'Info MEI', options: ['Sim', 'Questionei interesse', 'Não respondeu', ''] },
   { key: 'criou_mei', label: 'Criou MEI', options: ['Sim', 'Não respondeu', 'Aguardando criação', 'Não quer', ''] },
-  { key: 'captacao_parceiro', label: 'Captação', options: ['Entrevista', 'Indicação', 'Redes Sociais', 'Outro', ''] },
+  { key: 'captacao_parceiro', label: 'Captação', options: ['Entrevista', 'Indicação', 'Redes Sociais', 'Processo Seletivo', 'Outro', ''] },
 ];
 
 const INACTIVITY_DAYS = 7;
@@ -521,12 +522,9 @@ export default function PartnersAdmin() {
                 <Select value={form.captacao_tipo} onValueChange={v => setForm(f => ({ ...f, captacao_tipo: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="indicacao">Indicação</SelectItem>
-                    <SelectItem value="redes_sociais">Redes Sociais</SelectItem>
-                    <SelectItem value="anuncio">Anúncio</SelectItem>
-                    <SelectItem value="organico">Orgânico</SelectItem>
-                    <SelectItem value="evento">Evento</SelectItem>
-                    <SelectItem value="outro">Outro</SelectItem>
+                    {CAPTACAO_TIPOS.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
