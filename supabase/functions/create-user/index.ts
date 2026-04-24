@@ -164,6 +164,16 @@ Deno.serve(async (req) => {
         .update({ email: newEmail })
         .eq('user_id', targetUserId)
 
+      await writeAuditLog(adminClient, {
+        action: 'user_email_updated',
+        category: 'users',
+        success: true,
+        userId,
+        targetTable: 'profiles',
+        targetId: targetUserId,
+        details: { new_email: newEmail, by_role: callerRole },
+      })
+
       return new Response(
         JSON.stringify({ success: true, message: 'Email updated successfully' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
