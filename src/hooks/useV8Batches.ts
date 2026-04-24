@@ -68,6 +68,7 @@ export interface V8Simulation {
   company_margin: number | null;
   amount_to_charge: number | null;
   error_message: string | null;
+  error_kind?: string | null;
   raw_response: any;
   processed_at: string | null;
   created_at: string;
