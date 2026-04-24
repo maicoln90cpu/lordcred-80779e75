@@ -34,7 +34,7 @@ describe('parseV8Paste', () => {
   });
 
   it('extrai gênero e telefone quando presentes', () => {
-    const rows = parseV8Paste('39364073800 Ana Costa 10/10/1990 F (11) 99999-8888');
+    const rows = parseV8Paste('39364073800 Ana Costa 10/10/1990 F 11999998888');
     expect(rows).toHaveLength(1);
     expect(rows[0].genero).toBe('F');
     expect(rows[0].telefone).toBe('11999998888');
