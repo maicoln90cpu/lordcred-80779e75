@@ -87,6 +87,16 @@ Deno.serve(async (req) => {
       throw updateError
     }
 
+    await writeAuditLog(adminClient, {
+      action: 'user_role_updated',
+      category: 'users',
+      success: true,
+      userId: requesterId,
+      targetTable: 'user_roles',
+      targetId: targetUserId,
+      details: { new_role: newRole, by_role: requesterRole?.role ?? null },
+    })
+
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
