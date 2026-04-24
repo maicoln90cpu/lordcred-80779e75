@@ -50,7 +50,7 @@ export function useHRPartnerLeads() {
 
   useRealtimeSubscription(
     () => { fetchLeads(); },
-    { table: 'hr_partner_leads', event: '*', debounceMs: 300 }
+    { table: 'hr_partner_leads', event: '*', debounceMs: 150 }
   );
 
   const createLead = useCallback(async (input: Partial<HRPartnerLead>) => {
@@ -78,29 +78,38 @@ export function useHRPartnerLeads() {
       toast({ title: 'Erro ao criar lead', description: error.message, variant: 'destructive' });
       throw error;
     }
+    // Optimistic insert local
+    setLeads(prev => {
+      if (prev.some(l => l.id === (data as HRPartnerLead).id)) return prev;
+      return [data as HRPartnerLead, ...prev];
+    });
     toast({ title: 'Lead parceiro criado' });
     return data as HRPartnerLead;
   }, [toast]);
 
   const updateLead = useCallback(async (id: string, patch: Partial<HRPartnerLead>) => {
+    setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...patch } as HRPartnerLead : l)));
     const { error } = await (supabase as any)
       .from('hr_partner_leads')
       .update(patch)
       .eq('id', id);
     if (error) {
       toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+      fetchLeads();
       throw error;
     }
-  }, [toast]);
+  }, [toast, fetchLeads]);
 
   const deleteLead = useCallback(async (id: string) => {
+    setLeads(prev => prev.filter(l => l.id !== id));
     const { error } = await (supabase as any).from('hr_partner_leads').delete().eq('id', id);
     if (error) {
       toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+      fetchLeads();
       throw error;
     }
     toast({ title: 'Lead removido' });
-  }, [toast]);
+  }, [toast, fetchLeads]);
 
   return { leads, loading, refetch: fetchLeads, createLead, updateLead, deleteLead };
 }
