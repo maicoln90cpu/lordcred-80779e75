@@ -1021,6 +1021,15 @@ const handler = async (req: Request) => {
           },
         });
         if (params?.simulation_id) {
+          await supabase
+            .from("v8_simulations")
+            .update({
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              last_step: (result as any)?.step ?? 'simulate_one',
+            })
+            .eq("id", params.simulation_id);
+
           if (result.success) {
             await supabase
               .from("v8_simulations")
@@ -1039,6 +1048,7 @@ const handler = async (req: Request) => {
                 raw_response: (result as any).data.raw_response,
                 v8_simulation_id: (result as any).data.simulation_id ?? null,
                 consult_id: (result as any).data.consult_id ?? null,
+                last_step: 'simulate',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1062,6 +1072,7 @@ const handler = async (req: Request) => {
                   payload: (result as any).raw ?? null,
                 },
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
+                last_step: (result as any).step ?? 'consult_status',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1079,6 +1090,7 @@ const handler = async (req: Request) => {
                   guidance: (result as any).guidance ?? null,
                   payload: (result as any).raw ?? null,
                 },
+                last_step: (result as any).step ?? 'simulate_one',
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
@@ -1141,6 +1153,35 @@ const handler = async (req: Request) => {
               page: params?.page ?? null,
               provider: params?.provider ?? "QI",
               documentNumber: params?.documentNumber ? String(params.documentNumber).replace(/\d(?=\d{4})/g, "*") : null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              total: (result as any)?.total ?? 0,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+          },
+        });
+        break;
+      case "list_consults":
+        result = await actionListConsults(params);
+        await writeAuditLog(supabase, {
+          action: "v8_list_consults",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_consults",
+          details: {
+            request_payload: {
+              action: "list_consults",
+              startDate: params?.startDate ?? null,
+              endDate: params?.endDate ?? null,
+              limit: params?.limit ?? null,
+              page: params?.page ?? null,
+              provider: params?.provider ?? "QI",
+              documentNumber: params?.documentNumber ? String(params.documentNumber).replace(/\d(?=\d{4})/g, "*") : null,
+              search: params?.search ?? null,
             },
             response_payload: {
               success: !!(result as any)?.success,
