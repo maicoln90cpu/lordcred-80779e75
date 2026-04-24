@@ -116,6 +116,17 @@ Deno.serve(async (req) => {
     await adminClient.from('user_roles').delete().eq('user_id', userId);
     await adminClient.from('profiles').delete().eq('user_id', userId);
 
+    await writeAuditLog(adminClient, {
+      action: 'user_deleted',
+      category: 'users',
+      success: true,
+      userId: caller.id,
+      userEmail: caller.email ?? null,
+      targetTable: 'profiles',
+      targetId: userId,
+      details: { deleted_user_id: userId, deleted_role: targetRole?.role ?? null },
+    });
+
     return new Response(
       JSON.stringify({ success: true, message: 'User deleted successfully' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
