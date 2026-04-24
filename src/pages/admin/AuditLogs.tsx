@@ -182,6 +182,7 @@ export default function AuditLogs() {
   const [filterAction, setFilterAction] = useState('all');
   const [filterCategory, setFilterCategory] = useState<'all' | AuditCategory>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | LogStatus>('all');
+  const [filterOrigin, setFilterOrigin] = useState<'all' | LogOrigin>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
