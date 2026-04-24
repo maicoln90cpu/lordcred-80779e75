@@ -1941,6 +1941,60 @@ export type Database = {
           },
         ]
       }
+      hr_interview_tokens: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          interview_id: string
+          is_active: boolean
+          stage: number
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          interview_id: string
+          is_active?: boolean
+          stage: number
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          interview_id?: string
+          is_active?: boolean
+          stage?: number
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_interview_tokens_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "hr_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_interview_tokens_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "hr_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_interviews: {
         Row: {
           attended: boolean | null
