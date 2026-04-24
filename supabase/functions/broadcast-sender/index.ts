@@ -350,6 +350,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    await writeAuditLog(adminClient, {
+      action: 'broadcast_run',
+      category: 'broadcasts',
+      success: true,
+      targetTable: 'broadcast_campaigns',
+      targetId: campaignId ?? null,
+      details: {
+        campaigns: campaigns.length,
+        processed: totalProcessed,
+        failed: totalFailed,
+        skipped: totalSkipped,
+      },
+    })
+
     return new Response(
       JSON.stringify({ ok: true, processed: totalProcessed, failed: totalFailed, skipped: totalSkipped }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
