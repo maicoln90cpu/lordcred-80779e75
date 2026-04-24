@@ -179,7 +179,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
     signerPhone: {
       countryCode: "55",
       areaCode: phone.areaCode,
-      number: phone.number,
+      phoneNumber: phone.phoneNumber,
     },
     provider: "QI",
   };
