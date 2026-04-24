@@ -3059,6 +3059,7 @@ export type Database = {
           is_blocked: boolean
           max_chips: number
           name: string | null
+          phone: string | null
           updated_at: string
           user_id: string
         }
@@ -3071,6 +3072,7 @@ export type Database = {
           is_blocked?: boolean
           max_chips?: number
           name?: string | null
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
@@ -3083,6 +3085,7 @@ export type Database = {
           is_blocked?: boolean
           max_chips?: number
           name?: string | null
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }

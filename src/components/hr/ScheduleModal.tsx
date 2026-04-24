@@ -57,12 +57,12 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
       const { data: ids } = await (supabase as any).rpc('get_non_seller_user_ids');
       if (ids && Array.isArray(ids)) {
         const userIds = ids as string[];
-        const { data: profs } = await supabase
+        const { data: profs } = await (supabase as any)
           .from('profiles')
-          .select('user_id, name')
+          .select('user_id, name, phone')
           .in('user_id', userIds);
         setInterviewers(((profs as any) || []).map((p: any) => ({
-          user_id: p.user_id, name: p.name || p.user_id, phone: null,
+          user_id: p.user_id, name: p.name || p.user_id, phone: p.phone || null,
         })));
       }
       // Load chips for sending notifications
@@ -77,11 +77,15 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
     })();
   }, [open]);
 
-  const recipientType = notifyCandidate && notifyInterviewer
+  const selectedInterviewer = interviewers.find(i => i.user_id === interviewerId);
+  const interviewerCanBeNotified = !!selectedInterviewer?.phone;
+  const effectiveNotifyInterviewer = notifyInterviewer && interviewerCanBeNotified;
+
+  const recipientType = notifyCandidate && effectiveNotifyInterviewer
     ? 'both' : notifyCandidate ? 'candidate' : 'interviewer';
 
   const canSave = !!date && !!time && !!interviewerId && (
-    !(notifyCandidate || notifyInterviewer) || !!chipId
+    !(notifyCandidate || effectiveNotifyInterviewer) || !!chipId
   );
 
   const handleSave = async () => {
@@ -106,7 +110,7 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
       );
 
       // 2) Schedule notifications if requested and chip selected
-      if ((notifyCandidate || notifyInterviewer) && chipId && interviewId) {
+      if ((notifyCandidate || effectiveNotifyInterviewer) && chipId && interviewId) {
         if (!settings) {
           toast({
             title: 'Notificações não configuradas',
@@ -114,14 +118,13 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
             variant: 'destructive',
           });
         } else {
-          const interviewer = interviewers.find(i => i.user_id === interviewerId);
           await scheduleNotifications({
             entity_type: 'interview',
             entity_id: interviewId as string,
             scheduled_at: iso,
             recipient_type: recipientType,
             phone_candidate: notifyCandidate ? candidate.phone : null,
-            phone_interviewer: notifyInterviewer ? (interviewer?.phone ?? null) : null,
+            phone_interviewer: effectiveNotifyInterviewer ? (selectedInterviewer?.phone ?? null) : null,
             chip_instance_id: chipId,
           });
         }
@@ -193,6 +196,9 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
             </Select>
           </div>
 
+          {(() => {
+            const interviewerHasPhone = interviewerCanBeNotified;
+            return (
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="notif-cand" className="text-sm font-medium cursor-pointer">
@@ -201,16 +207,29 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
               <Switch id="notif-cand" checked={notifyCandidate} onCheckedChange={setNotifyCandidate} />
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="notif-int" className="text-sm font-medium cursor-pointer text-muted-foreground">
+              <Label
+                htmlFor="notif-int"
+                className={cn(
+                  'text-sm font-medium cursor-pointer',
+                  !interviewerHasPhone && 'text-muted-foreground'
+                )}
+              >
                 Notificar entrevistador (WhatsApp)
               </Label>
-              <Switch id="notif-int" checked={notifyInterviewer} onCheckedChange={setNotifyInterviewer} disabled />
+              <Switch
+                id="notif-int"
+                checked={notifyInterviewer && interviewerHasPhone}
+                onCheckedChange={setNotifyInterviewer}
+                disabled={!interviewerHasPhone}
+              />
             </div>
-            <p className="text-[10px] text-muted-foreground -mt-1.5">
-              Cadastro de telefone do entrevistador será adicionado em uma próxima etapa.
-            </p>
+            {interviewerId && !interviewerHasPhone && (
+              <p className="text-[10px] text-warning -mt-1.5">
+                Este entrevistador não tem telefone WhatsApp cadastrado em "Meu Perfil".
+              </p>
+            )}
 
-            {(notifyCandidate || notifyInterviewer) && (
+            {(notifyCandidate || (notifyInterviewer && interviewerHasPhone)) && (
               <div className="space-y-1.5 pt-1.5 border-t border-border/60">
                 <Label>Chip de envio</Label>
                 <Select value={chipId} onValueChange={setChipId}>
@@ -232,6 +251,8 @@ export function ScheduleModal({ open, onOpenChange, candidate, stage, onSchedule
               </div>
             )}
           </div>
+            );
+          })()}
         </div>
 
         <DialogFooter>

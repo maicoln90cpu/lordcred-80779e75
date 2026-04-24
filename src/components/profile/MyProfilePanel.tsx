@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Camera, KeyRound, Loader2, User, Mail, Shield, Calendar } from 'lucide-react';
+import { Camera, KeyRound, Loader2, User, Mail, Shield, Calendar, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,11 +18,14 @@ interface MyProfilePanelProps {
 export default function MyProfilePanel({ className }: MyProfilePanelProps) {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null; email: string; created_at: string } | null>(null);
+  const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null; email: string; created_at: string; phone: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [editName, setEditName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [editPhone, setEditPhone] = useState('');
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,9 +44,9 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('profiles')
-        .select('name, avatar_url, email, created_at')
+        .select('name, avatar_url, email, created_at, phone')
         .eq('user_id', user.id)
         .single();
       if (data) setProfile(data);
@@ -67,6 +70,35 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!user) return;
+    // Aceita vazio (limpa) ou string com apenas dígitos. Formato esperado: 5511999999999.
+    const cleaned = editPhone.replace(/\D/g, '');
+    if (cleaned && (cleaned.length < 10 || cleaned.length > 15)) {
+      toast({
+        title: 'Telefone inválido',
+        description: 'Use apenas dígitos com DDI + DDD + número (ex: 5511999999999).',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsSavingPhone(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({ phone: cleaned || null })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setProfile(prev => prev ? { ...prev, phone: cleaned || null } : prev);
+      setIsEditingPhone(false);
+      toast({ title: 'Telefone atualizado' });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSavingPhone(false);
     }
   };
 
@@ -194,6 +226,47 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">Email</p>
             <p className="text-sm font-medium truncate">{profile?.email}</p>
+          </div>
+        </div>
+
+        {/* Telefone WhatsApp */}
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/30">
+          <Phone className="w-4 h-4 mt-1 text-muted-foreground shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">Telefone WhatsApp</p>
+            {isEditingPhone ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="5511999999999"
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && handleSavePhone()}
+                />
+                <Button size="sm" onClick={handleSavePhone} disabled={isSavingPhone} className="h-8 text-xs">
+                  {isSavingPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Salvar'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setIsEditingPhone(false)} className="h-8 text-xs">
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{profile?.phone || 'Não cadastrado'}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs text-primary"
+                  onClick={() => { setEditPhone(profile?.phone || ''); setIsEditingPhone(true); }}
+                >
+                  Editar
+                </Button>
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Apenas dígitos com DDI + DDD (ex: 5511999999999). Usado para receber lembretes de entrevistas de RH.
+            </p>
           </div>
         </div>
 

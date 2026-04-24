@@ -142,12 +142,19 @@ export function HRSettingsTab() {
     const idx = list.findIndex(x => x.id === q.id);
     const swap = dir === 'up' ? list[idx - 1] : list[idx + 1];
     if (!swap) return;
-    // Trick: usamos order_num temporário negativo para evitar colisão UNIQUE(stage, order_num)
-    const tempOrder = -1 * Date.now();
-    const { error: e1 } = await (supabase as any).from('hr_questions').update({ order_num: tempOrder }).eq('id', q.id);
-    if (e1) { toast({ title: 'Erro', description: e1.message, variant: 'destructive' }); return; }
-    await (supabase as any).from('hr_questions').update({ order_num: q.order_num }).eq('id', swap.id);
-    await (supabase as any).from('hr_questions').update({ order_num: swap.order_num }).eq('id', q.id);
+    // Temporário alto e positivo para evitar colisão UNIQUE(stage, order_num)
+    // e respeitar o CHECK (order_num > 0).
+    const tempOrder = Math.max(...list.map(x => x.order_num)) + 9999;
+    try {
+      const { error: e1 } = await (supabase as any).from('hr_questions').update({ order_num: tempOrder }).eq('id', q.id);
+      if (e1) throw e1;
+      const { error: e2 } = await (supabase as any).from('hr_questions').update({ order_num: q.order_num }).eq('id', swap.id);
+      if (e2) throw e2;
+      const { error: e3 } = await (supabase as any).from('hr_questions').update({ order_num: swap.order_num }).eq('id', q.id);
+      if (e3) throw e3;
+    } catch (e: any) {
+      toast({ title: 'Erro ao reordenar', description: e.message, variant: 'destructive' });
+    }
   };
 
   if (loading || !settings) {
