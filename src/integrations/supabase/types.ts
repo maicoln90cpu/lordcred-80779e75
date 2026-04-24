@@ -3815,6 +3815,7 @@ export type Database = {
           company_margin: number | null
           config_id: string | null
           config_name: string | null
+          consult_id: string | null
           cpf: string
           created_at: string
           created_by: string
@@ -3823,6 +3824,7 @@ export type Database = {
           installment_value: number | null
           installments: number | null
           interest_rate: number | null
+          margem_valor: number | null
           name: string | null
           processed_at: string | null
           raw_response: Json | null
@@ -3839,6 +3841,7 @@ export type Database = {
           company_margin?: number | null
           config_id?: string | null
           config_name?: string | null
+          consult_id?: string | null
           cpf: string
           created_at?: string
           created_by: string
@@ -3847,6 +3850,7 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
           raw_response?: Json | null
@@ -3863,6 +3867,7 @@ export type Database = {
           company_margin?: number | null
           config_id?: string | null
           config_name?: string | null
+          consult_id?: string | null
           cpf?: string
           created_at?: string
           created_by?: string
@@ -3871,6 +3876,7 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           interest_rate?: number | null
+          margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
           raw_response?: Json | null
@@ -3896,6 +3902,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v8_webhook_logs: {
+        Row: {
+          consult_id: string | null
+          event_type: string
+          headers: Json | null
+          id: string
+          operation_id: string | null
+          payload: Json
+          process_error: string | null
+          processed: boolean
+          received_at: string
+          status: string | null
+          v8_simulation_id: string | null
+        }
+        Insert: {
+          consult_id?: string | null
+          event_type: string
+          headers?: Json | null
+          id?: string
+          operation_id?: string | null
+          payload: Json
+          process_error?: string | null
+          processed?: boolean
+          received_at?: string
+          status?: string | null
+          v8_simulation_id?: string | null
+        }
+        Update: {
+          consult_id?: string | null
+          event_type?: string
+          headers?: Json | null
+          id?: string
+          operation_id?: string | null
+          payload?: Json
+          process_error?: string | null
+          processed?: boolean
+          received_at?: string
+          status?: string | null
+          v8_simulation_id?: string | null
+        }
+        Relationships: []
       }
       warming_messages: {
         Row: {
