@@ -202,7 +202,7 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] py-0 h-5 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] py-0 h-5 border-warning/50 text-warning">
                             <Pencil className="w-2.5 h-2.5" />
                             pergunta editada
                           </Badge>
