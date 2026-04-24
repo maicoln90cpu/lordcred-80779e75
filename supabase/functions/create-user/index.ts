@@ -107,6 +107,16 @@ Deno.serve(async (req) => {
         )
       }
 
+      await writeAuditLog(adminClient, {
+        action: 'user_password_reset',
+        category: 'users',
+        success: true,
+        userId,
+        targetTable: 'auth.users',
+        targetId: targetUserId,
+        details: { by_role: callerRole },
+      })
+
       return new Response(
         JSON.stringify({ success: true, message: 'Password reset successfully' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
