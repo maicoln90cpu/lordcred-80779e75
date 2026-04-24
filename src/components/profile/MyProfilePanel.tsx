@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Camera, KeyRound, Loader2, User, Mail, Shield, Calendar } from 'lucide-react';
+import { Camera, KeyRound, Loader2, User, Mail, Shield, Calendar, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,11 +18,14 @@ interface MyProfilePanelProps {
 export default function MyProfilePanel({ className }: MyProfilePanelProps) {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null; email: string; created_at: string } | null>(null);
+  const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null; email: string; created_at: string; phone: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [editName, setEditName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [editPhone, setEditPhone] = useState('');
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,9 +44,9 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('profiles')
-        .select('name, avatar_url, email, created_at')
+        .select('name, avatar_url, email, created_at, phone')
         .eq('user_id', user.id)
         .single();
       if (data) setProfile(data);
@@ -67,6 +70,35 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!user) return;
+    // Aceita vazio (limpa) ou string com apenas dígitos. Formato esperado: 5511999999999.
+    const cleaned = editPhone.replace(/\D/g, '');
+    if (cleaned && (cleaned.length < 10 || cleaned.length > 15)) {
+      toast({
+        title: 'Telefone inválido',
+        description: 'Use apenas dígitos com DDI + DDD + número (ex: 5511999999999).',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsSavingPhone(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({ phone: cleaned || null })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setProfile(prev => prev ? { ...prev, phone: cleaned || null } : prev);
+      setIsEditingPhone(false);
+      toast({ title: 'Telefone atualizado' });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSavingPhone(false);
     }
   };
 
