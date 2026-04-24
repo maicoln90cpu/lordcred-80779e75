@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { validateBrazilianPhone } from '@/lib/phoneUtils';
 
 interface MyProfilePanelProps {
   className?: string;
@@ -94,10 +95,10 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
     try {
       const { error } = await (supabase as any)
         .from('profiles')
-        .update({ phone: cleaned || null })
+        .update({ phone: phoneToSave || null })
         .eq('user_id', user.id);
       if (error) throw error;
-      setProfile(prev => prev ? { ...prev, phone: cleaned || null } : prev);
+      setProfile(prev => prev ? { ...prev, phone: phoneToSave || null } : prev);
       setIsEditingPhone(false);
       toast({ title: 'Telefone atualizado' });
     } catch (error: any) {
