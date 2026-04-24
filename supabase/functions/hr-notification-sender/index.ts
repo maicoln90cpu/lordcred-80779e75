@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4"
+import { writeAuditLog } from "../_shared/auditLog.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
