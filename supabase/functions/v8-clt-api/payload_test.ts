@@ -21,7 +21,14 @@ Deno.test("normalizeBirthDate aceita yyyy-mm-dd", () => {
 Deno.test("normalizeBirthDate retorna null para inválido", () => {
   assertEquals(normalizeBirthDate(""), null);
   assertEquals(normalizeBirthDate("abc"), null);
-  assertEquals(normalizeBirthDate("32/13/1990"), "1990-13-32"); // regex aceita; V8 valida
+  assertEquals(normalizeBirthDate("32/13/1990"), null);
+  assertEquals(normalizeBirthDate("1990-13-32"), null);
+  assertEquals(normalizeBirthDate("31/02/1990"), null);
+});
+
+Deno.test("normalizeBirthDate rejeita datas impossíveis e aceita bissexto válido", () => {
+  assertEquals(normalizeBirthDate("29/02/2024"), "2024-02-29");
+  assertEquals(normalizeBirthDate("29/02/2023"), null);
 });
 
 Deno.test("normalizeGender mapeia M/F/feminino corretamente", () => {
