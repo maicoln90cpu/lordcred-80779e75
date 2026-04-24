@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
         }).eq('id', chip.id)
         await logLifecycle(adminClient, chip.id, 'cleanup_disconnected', 'Auto-cleanup: disconnected chip removed from UazAPI and marked inactive')
         results.push(`Cleaned disconnected: ${chip.instance_name}`)
-      } catch (e) {
+      } catch (e: any) {
         results.push(`Error cleaning disconnected ${chip.instance_name}: ${e.message}`)
       }
     }
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
                   }).catch(() => {})
                 }
                 ghostCount++
-              } catch (_) {
+              } catch (_: any) {
                 // Ignore individual ghost deletion errors
               }
             }
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       results.push(`Ghost cleanup error: ${e.message}`)
     }
 
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
         await adminClient.from('chips').update({ status: 'inactive', health_fail_count: 0, instance_token: null }).eq('id', chip.id)
         await logLifecycle(adminClient, chip.id, 'inactive', 'Auto-cleanup: 14+ days inactive, removed from UazAPI')
         results.push(`Cleaned up: ${chip.instance_name}`)
-      } catch (e) {
+      } catch (e: any) {
         results.push(`Error cleaning ${chip.instance_name}: ${e.message}`)
       }
     }
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
             results.push(`Warning: ${chip.instance_name} fail ${newFailCount}/${STRIKE_THRESHOLD}`)
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         const newFailCount = (chip.health_fail_count || 0) + 1
         if (newFailCount >= STRIKE_THRESHOLD) {
           const chipToken = chip.instance_token
@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error('Maintenance error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
 async function logLifecycle(client: any, chipId: string, event: string, details: string) {
   try {
     await client.from('chip_lifecycle_logs').insert({ chip_id: chipId, event, details })
-  } catch (e) {
+  } catch (e: any) {
     console.error('Failed to log lifecycle:', e)
   }
 }

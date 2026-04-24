@@ -529,7 +529,7 @@ Deno.serve(async (req) => {
       data: finalData,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[corban-api] Unexpected error:', error)
     return new Response(JSON.stringify({ error: error.message || 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }

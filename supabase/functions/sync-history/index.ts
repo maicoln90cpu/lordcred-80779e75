@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
         rawChats = extractArray(chatsResponse)
         console.log(`[sync-history] /chat/find returned ${rawChats.length} total chats`)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[sync-history] Failed to fetch chats:', e)
     }
 
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
               chat._resolvedPic = details.imagePreview || details.image || null
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error(`[sync-history] /chat/details failed for ${rawJid}:`, e)
         }
         await delay(API_DELAY_MS)
@@ -487,7 +487,7 @@ Deno.serve(async (req) => {
             syncedMessages += rows.length
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(`[sync-history] Failed to sync messages for ${canonicalJid}:`, e)
       }
 
@@ -519,7 +519,7 @@ Deno.serve(async (req) => {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[sync-history] Fatal error:', error)
     return new Response(JSON.stringify({ error: error.message, hasMore: false }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
