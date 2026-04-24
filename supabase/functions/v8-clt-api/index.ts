@@ -246,17 +246,49 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   }
 
   const result = simJson?.data ?? simJson;
+  // V8 (Crédito do Trabalhador) — resposta oficial usa disbursement_option.
+  // disbursement_options pode vir como array de cenários; pegamos o primeiro válido.
+  const dispOpt =
+    result?.disbursement_option ??
+    (Array.isArray(result?.disbursement_options) ? result.disbursement_options[0] : null) ??
+    result?.disbursementOption ??
+    null;
+
+  const simulationId = String(
+    result?.id ?? result?.simulation_id ?? result?.simulationId ?? ""
+  );
+
   const released_value = Number(
-    result?.netAmount ?? result?.releasedValue ?? result?.valorLiberado ?? 0
+    dispOpt?.final_disbursement_amount ??
+      dispOpt?.finalDisbursementAmount ??
+      dispOpt?.net_amount ??
+      result?.netAmount ??
+      result?.releasedValue ??
+      result?.valorLiberado ??
+      0
   );
   const installment_value = Number(
-    result?.installmentAmount ?? result?.parcelValue ?? result?.valorParcela ?? 0
+    dispOpt?.installment_amount ??
+      dispOpt?.installmentAmount ??
+      result?.installmentAmount ??
+      result?.parcelValue ??
+      result?.valorParcela ??
+      0
   );
   const interest_rate = Number(
-    result?.interestRate ?? result?.rate ?? result?.taxa ?? 0
+    dispOpt?.monthly_interest_rate ??
+      dispOpt?.interest_rate ??
+      result?.interestRate ??
+      result?.rate ??
+      result?.taxa ??
+      0
   );
   const total_value = Number(
-    result?.totalAmount ?? result?.valorTotal ?? installment_value * input.parcelas
+    dispOpt?.total_amount ??
+      dispOpt?.totalAmount ??
+      result?.totalAmount ??
+      result?.valorTotal ??
+      installment_value * input.parcelas
   );
 
   const { data: marginRow } = await supabase
