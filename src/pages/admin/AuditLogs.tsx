@@ -211,7 +211,8 @@ export default function AuditLogs() {
       (log.target_table?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesAction = filterAction === 'all' || log.action === filterAction;
     const matchesStatus = filterStatus === 'all' || getLogStatus(log) === filterStatus;
-    return matchesSearch && matchesAction && matchesStatus;
+    const matchesCategory = filterCategory === 'all' || getCategory(log) === filterCategory;
+    return matchesSearch && matchesAction && matchesStatus && matchesCategory;
   });
   const filteredLogs = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
 
