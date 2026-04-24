@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import { parseExcelDate, cleanCurrency } from './commissionUtils';
 import type { Profile } from './commissionUtils';
+import { resolveSellerByName } from '@/lib/sellerNameMatch';
 
 interface HistImportTabProps {
   userId: string;
@@ -21,11 +22,15 @@ export default function HistImportTab({ userId, profiles, getSellerName }: HistI
   const [importing, setImporting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const findSellerByName = (name: string): string | null => {
-    if (!name) return null;
-    const q = name.toLowerCase().trim();
-    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
-    return p?.user_id || null;
+  // Resolve vendedor por nome com fuzzy match (pg_trgm) — fallback para userId quando ambíguo ou ausente.
+  const findSellerByName = async (name: string): Promise<string | null> => {
+    const r = await resolveSellerByName(name, profiles);
+    if (!r.userId) return null;
+    if (r.ambiguous) {
+      console.warn('[commissions import V1] match ambíguo descartado para', name, r);
+      return null;
+    }
+    return r.userId;
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,7 +65,7 @@ export default function HistImportTab({ userId, profiles, getSellerName }: HistI
           client_cpf: findCol(row, ['CPF', 'cpf'])?.toString() || null,
           client_name: findCol(row, ['Nome', 'nome', 'Cliente'])?.toString() || null,
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone'])?.toString() || null,
-          seller_id: findSellerByName(sellerName) || userId,
+          seller_id: (await findSellerByName(sellerName)) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta', 'external_proposal_id'])?.toString() || null,
           table_name: findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null,
           client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento'])?.toString() || null,

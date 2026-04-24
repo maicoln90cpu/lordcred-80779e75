@@ -10,6 +10,7 @@ import { ClipboardPaste, Loader2 } from 'lucide-react';
 import { parseClipboardText } from '@/lib/clipboardParser';
 import type { Profile } from './commissionUtils';
 import { parseExcelDate, cleanCurrency } from './commissionUtils';
+import { resolveSellerByName } from '@/lib/sellerNameMatch';
 
 const POSITIONAL_HEADERS_11 = ['Data Pago', 'Produto', 'Banco', 'Prazo', 'Valor Liberado', 'Seguro', 'Telefone', 'Nome', 'CPF', 'Vendedor', 'ID'];
 
@@ -31,11 +32,14 @@ export default function PasteImportButton({ profiles, userId, onImported }: Past
   const [previewPage, setPreviewPage] = useState(0);
   const PREVIEW_PAGE_SIZE = 20;
 
-  const findSellerByName = (name: string): string | null => {
-    if (!name) return null;
-    const q = name.toLowerCase().trim();
-    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
-    return p?.user_id || null;
+  const findSellerByName = async (name: string): Promise<string | null> => {
+    const r = await resolveSellerByName(name, profiles);
+    if (!r.userId) return null;
+    if (r.ambiguous) {
+      console.warn('[commissions paste V2] match ambíguo descartado para', name, r);
+      return null;
+    }
+    return r.userId;
   };
 
   const doParse = (raw: string) => {
@@ -85,7 +89,7 @@ export default function PasteImportButton({ profiles, userId, onImported }: Past
           client_cpf: findCol(row, ['CPF', 'cpf']) || null,
           client_name: findCol(row, ['Nome', 'nome', 'Cliente']) || null,
           client_phone: findCol(row, ['Telefone', 'telefone', 'Fone']) || null,
-          seller_id: findSellerByName(sellerName) || userId,
+          seller_id: (await findSellerByName(sellerName)) || userId,
           external_proposal_id: findCol(row, ['id', 'ID', 'Id Proposta']) || null,
           table_name: findCol(row, ['Tabela', 'tabela', 'Table']) || null,
           client_birth_date: findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento']) || null,

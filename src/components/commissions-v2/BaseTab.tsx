@@ -17,6 +17,7 @@ import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
 import { fmtBRL, exportToExcel, formatDateBR, toDatetimeLocalBR, toBrasiliaTimestamp, parseExcelDate, cleanCurrency } from './commissionUtils';
+import { resolveSellerByName } from '@/lib/sellerNameMatch';
 import WeekMultiSelect from './WeekMultiSelect';
 import PasteImportButton from './PasteImportButton';
 
@@ -172,11 +173,14 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
 
   const fmt = (v: number) => fmtBRL(v);
 
-  const findSellerByName = (name: string): string | null => {
-    if (!name) return null;
-    const q = name.toLowerCase().trim();
-    const p = profiles.find(pr => pr.name?.toLowerCase().trim() === q || pr.email.toLowerCase() === q);
-    return p?.user_id || null;
+  const findSellerByName = async (name: string): Promise<string | null> => {
+    const r = await resolveSellerByName(name, profiles);
+    if (!r.userId) return null;
+    if (r.ambiguous) {
+      console.warn('[commissions base V2] match ambíguo descartado para', name, r);
+      return null;
+    }
+    return r.userId;
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,7 +225,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
         const tableName = findCol(row, ['Tabela', 'tabela', 'Table'])?.toString() || null;
         const birthDate = findCol(row, ['Data Nascimento', 'data_nascimento', 'Nascimento', 'Data de Nascimento'])?.toString() || null;
         if (!bank || releasedValue <= 0) { skipped++; continue; }
-        const sellerId = findSellerByName(sellerName) || userId;
+        const sellerId = (await findSellerByName(sellerName)) || userId;
         payloads.push({
           sale_date: saleDate, product: product || 'FGTS', bank, term, released_value: releasedValue,
           has_insurance: hasInsurance, client_cpf: cpf, client_name: name, client_phone: phone,
