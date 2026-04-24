@@ -902,8 +902,77 @@ async function actionListBatches(supabase: any, userId: string, isPriv: boolean)
   return { success: true, data };
 }
 
+/**
+ * Registra os 2 webhooks da V8 (consult + operation) apontando para nossa edge v8-webhook.
+ * A V8 faz POST de teste antes de aceitar — nosso receptor já responde 200 e identifica
+ * `webhook.test`/`webhook.registered` para preencher v8_webhook_registrations.
+ */
+async function actionRegisterWebhooks(supabase: any) {
+  const projectUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  // URL pública do nosso receptor (sem JWT — V8 não envia Authorization)
+  const baseWebhookUrl = `${projectUrl}/functions/v1/v8-webhook`;
+  const targets: Array<{ type: "consult" | "operation"; v8Path: string; url: string }> = [
+    {
+      type: "consult",
+      v8Path: "/user/webhook/private-consignment/consult",
+      url: `${baseWebhookUrl}?type=consult`,
+    },
+    {
+      type: "operation",
+      v8Path: "/user/webhook/private-consignment/operation",
+      url: `${baseWebhookUrl}?type=operation`,
+    },
+  ];
+
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const t of targets) {
+    let ok = false;
+    let status = 0;
+    let errorMsg: string | null = null;
+    try {
+      const resp = await v8Fetch(t.v8Path, {
+        method: "POST",
+        body: JSON.stringify({ url: t.url }),
+      });
+      status = resp.status;
+      const txt = await resp.text();
+      ok = resp.ok;
+      if (!ok) errorMsg = txt.slice(0, 500);
+    } catch (err) {
+      errorMsg = (err as Error)?.message || String(err);
+    }
+
+    // Upsert no nosso registro
+    await supabase
+      .from("v8_webhook_registrations")
+      .upsert(
+        {
+          webhook_type: t.type,
+          registered_url: t.url,
+          last_registered_at: new Date().toISOString(),
+          last_status: ok ? "success" : "failed",
+          last_error: errorMsg,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "webhook_type" },
+      );
+
+    results.push({ type: t.type, url: t.url, status, ok, error: errorMsg });
+  }
+
+  const allOk = results.every((r) => r.ok);
+  return {
+    success: allOk,
+    data: { results },
+    error: allOk ? null : "Falha ao registrar um ou mais webhooks (ver detalhes)",
+  };
+}
+
+
 const handler = async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -1135,6 +1204,40 @@ const handler = async (req: Request) => {
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
         break;
+      case "register_webhooks": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem registrar webhooks" };
+          break;
+        }
+        result = await actionRegisterWebhooks(supabase);
+        await writeAuditLog(supabase, {
+          action: "v8_register_webhooks",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_webhook_registrations",
+          details: {
+            request_payload: { action: "register_webhooks" },
+            response_payload: result,
+          },
+        });
+        break;
+      }
+      case "get_webhook_status": {
+        const { data: regs } = await supabase
+          .from("v8_webhook_registrations")
+          .select("*")
+          .order("webhook_type");
+        const { data: lastLog } = await supabase
+          .from("v8_webhook_logs")
+          .select("id, event_type, status, received_at")
+          .order("received_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        result = { success: true, data: { registrations: regs ?? [], last_log: lastLog ?? null } };
+        break;
+      }
       case "list_operations":
         result = await actionListOperations(params);
         await writeAuditLog(supabase, {

@@ -3,15 +3,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Save, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Save, Loader2, Webhook, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+interface WebhookRegistration {
+  webhook_type: string;
+  registered_url: string;
+  last_registered_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  last_test_received_at: string | null;
+  last_confirm_received_at: string | null;
+}
 
 export default function V8ConfigTab() {
   const [margin, setMargin] = useState<number>(5);
   const [rowId, setRowId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<WebhookRegistration[]>([]);
+  const [lastLog, setLastLog] = useState<{ event_type: string; status: string | null; received_at: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -26,8 +40,19 @@ export default function V8ConfigTab() {
         setMargin(Number(data.margin_percent));
       }
       setLoading(false);
+      void refreshWebhookStatus();
     })();
   }, []);
+
+  async function refreshWebhookStatus() {
+    const { data } = await supabase.functions.invoke('v8-clt-api', {
+      body: { action: 'get_webhook_status' },
+    });
+    if (data?.success) {
+      setWebhookStatus(data.data?.registrations ?? []);
+      setLastLog(data.data?.last_log ?? null);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -52,32 +77,143 @@ export default function V8ConfigTab() {
     }
   }
 
+  async function handleRegisterWebhooks() {
+    setRegistering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'register_webhooks' },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success('Webhooks registrados na V8 — aguarde o handshake.');
+      } else {
+        toast.error(data?.error || 'Falha ao registrar webhooks');
+      }
+      await refreshWebhookStatus();
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || err}`);
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  function formatRelative(iso: string | null): string {
+    if (!iso) return '—';
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'agora';
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h}h`;
+    return `há ${Math.floor(h / 24)}d`;
+  }
+
   return (
-    <Card className="max-w-md">
-      <CardHeader>
-        <CardTitle>Configurações</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label>Margem da empresa (%)</Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            value={margin}
-            onChange={(e) => setMargin(Number(e.target.value))}
-            disabled={loading}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Percentual descontado do valor liberado para calcular o valor a cobrar do cliente.
+    <div className="space-y-4 max-w-3xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>Margem da empresa</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Margem (%)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={margin}
+              onChange={(e) => setMargin(Number(e.target.value))}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Percentual descontado do valor liberado para calcular o valor a cobrar do cliente.
+            </p>
+          </div>
+          <Button onClick={handleSave} disabled={saving || loading}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Webhook className="w-5 h-5" />
+            Webhooks V8 (status em tempo real)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Quando uma consulta ou proposta muda de status na V8, o sistema é notificado
+            automaticamente — sem precisar consultar manualmente. O caso "Maicon" só será
+            atualizado quando a V8 enviar o webhook de conclusão.
           </p>
-        </div>
-        <Button onClick={handleSave} disabled={saving || loading}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
-        </Button>
-      </CardContent>
-    </Card>
+
+          <div className="flex gap-2">
+            <Button onClick={handleRegisterWebhooks} disabled={registering}>
+              {registering ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Webhook className="w-4 h-4 mr-2" />
+              )}
+              Registrar / re-registrar webhooks na V8
+            </Button>
+            <Button variant="outline" onClick={refreshWebhookStatus}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar status
+            </Button>
+          </div>
+
+          {lastLog && (
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <strong>Última notificação V8 recebida:</strong>{' '}
+              <span className="font-mono">{lastLog.event_type}</span>
+              {lastLog.status && <> · status <span className="font-mono">{lastLog.status}</span></>}
+              {' · '}
+              {formatRelative(lastLog.received_at)}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {webhookStatus.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                Nenhum webhook registrado ainda. Clique em "Registrar" acima.
+              </div>
+            )}
+            {webhookStatus.map((reg) => (
+              <div key={reg.webhook_type} className="rounded-md border p-3 text-sm space-y-1">
+                <div className="flex items-center gap-2">
+                  <strong className="capitalize">{reg.webhook_type}</strong>
+                  {reg.last_status === 'success' ? (
+                    <Badge variant="default" className="gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> registrado
+                    </Badge>
+                  ) : reg.last_status === 'failed' ? (
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertCircle className="w-3 h-3" /> falhou
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">pendente</Badge>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground break-all font-mono">
+                  {reg.registered_url}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Registrado: {formatRelative(reg.last_registered_at)} · Teste recebido:{' '}
+                  {formatRelative(reg.last_test_received_at)} · Confirmado:{' '}
+                  {formatRelative(reg.last_confirm_received_at)}
+                </div>
+                {reg.last_error && (
+                  <div className="text-xs text-destructive">Erro: {reg.last_error}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

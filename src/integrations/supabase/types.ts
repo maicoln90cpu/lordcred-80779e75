@@ -3816,6 +3816,39 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_operations_local: {
+        Row: {
+          consult_id: string | null
+          first_seen_at: string
+          id: string
+          last_updated_at: string
+          operation_id: string
+          raw_payload: Json | null
+          status: string | null
+          v8_simulation_id: string | null
+        }
+        Insert: {
+          consult_id?: string | null
+          first_seen_at?: string
+          id?: string
+          last_updated_at?: string
+          operation_id: string
+          raw_payload?: Json | null
+          status?: string | null
+          v8_simulation_id?: string | null
+        }
+        Update: {
+          consult_id?: string | null
+          first_seen_at?: string
+          id?: string
+          last_updated_at?: string
+          operation_id?: string
+          raw_payload?: Json | null
+          status?: string | null
+          v8_simulation_id?: string | null
+        }
+        Relationships: []
+      }
       v8_simulations: {
         Row: {
           amount_to_charge: number | null
@@ -3836,6 +3869,7 @@ export type Database = {
           interest_rate: number | null
           last_attempt_at: string | null
           last_step: string | null
+          last_webhook_at: string | null
           margem_valor: number | null
           name: string | null
           processed_at: string | null
@@ -3845,6 +3879,7 @@ export type Database = {
           total_value: number | null
           updated_at: string
           v8_simulation_id: string | null
+          webhook_status: string | null
         }
         Insert: {
           amount_to_charge?: number | null
@@ -3865,6 +3900,7 @@ export type Database = {
           interest_rate?: number | null
           last_attempt_at?: string | null
           last_step?: string | null
+          last_webhook_at?: string | null
           margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
@@ -3874,6 +3910,7 @@ export type Database = {
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
+          webhook_status?: string | null
         }
         Update: {
           amount_to_charge?: number | null
@@ -3894,6 +3931,7 @@ export type Database = {
           interest_rate?: number | null
           last_attempt_at?: string | null
           last_step?: string | null
+          last_webhook_at?: string | null
           margem_valor?: number | null
           name?: string | null
           processed_at?: string | null
@@ -3903,6 +3941,7 @@ export type Database = {
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
+          webhook_status?: string | null
         }
         Relationships: [
           {
@@ -3960,6 +3999,45 @@ export type Database = {
           received_at?: string
           status?: string | null
           v8_simulation_id?: string | null
+        }
+        Relationships: []
+      }
+      v8_webhook_registrations: {
+        Row: {
+          created_at: string
+          id: string
+          last_confirm_received_at: string | null
+          last_error: string | null
+          last_registered_at: string | null
+          last_status: string | null
+          last_test_received_at: string | null
+          registered_url: string
+          updated_at: string
+          webhook_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_confirm_received_at?: string | null
+          last_error?: string | null
+          last_registered_at?: string | null
+          last_status?: string | null
+          last_test_received_at?: string | null
+          registered_url: string
+          updated_at?: string
+          webhook_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_confirm_received_at?: string | null
+          last_error?: string | null
+          last_registered_at?: string | null
+          last_status?: string | null
+          last_test_received_at?: string | null
+          registered_url?: string
+          updated_at?: string
+          webhook_type?: string
         }
         Relationships: []
       }
