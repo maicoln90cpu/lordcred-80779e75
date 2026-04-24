@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, FileSearch, Loader2 } from 'lucide-react';
+import { CalendarIcon, FileSearch, Loader2, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { useV8Operations } from '@/hooks/useV8Operations';
+import { supabase } from '@/integrations/supabase/client';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
@@ -92,6 +93,7 @@ export default function V8ConsultasTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [replaying, setReplaying] = useState(false);
 
   const {
     operations,
@@ -185,6 +187,29 @@ export default function V8ConsultasTab() {
     setDetailsOpen(true);
   }
 
+  async function handleReplayPending() {
+    setReplaying(true);
+    try {
+      // Limite 200 por clique para caber dentro do timeout de 150s da edge function.
+      // O usuário pode clicar várias vezes até zerar a fila.
+      const { data, error } = await supabase.functions.invoke('v8-webhook', {
+        body: { action: 'replay_pending', limit: 200 },
+      });
+      if (error) throw error;
+      if (data?.ok) {
+        toast.success(
+          `Reprocessados: ${data.success} sucesso, ${data.failed} sem ação. Total lido: ${data.total}. Clique de novo se ainda houver pendentes.`,
+        );
+      } else {
+        toast.error(data?.error || 'Não foi possível reprocessar os webhooks pendentes.');
+      }
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || err}`);
+    } finally {
+      setReplaying(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -208,7 +233,20 @@ export default function V8ConsultasTab() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              onClick={handleReplayPending}
+              disabled={replaying}
+              title="Reprocessa webhooks da V8 que ficaram pendentes nos últimos 7 dias"
+            >
+              {replaying ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Reprocessar webhooks pendentes (7 dias)
+            </Button>
             <Button onClick={handleSearch} disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSearch className="mr-2 h-4 w-4" />}
               Buscar propostas

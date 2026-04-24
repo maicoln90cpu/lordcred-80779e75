@@ -41,15 +41,128 @@ function mapV8StatusToInternal(v8Status?: string): string | null {
   return null;
 }
 
+/**
+ * Reprocessa um payload V8 dentro do mesmo handler (usado pelo replay_pending).
+ * Retorna { processed, action, processError }.
+ */
+async function processV8Payload(
+  supabase: any,
+  payload: Record<string, unknown>,
+  url: URL,
+): Promise<{ processed: boolean; action: string; processError: string | null }> {
+  const typeParam = (url.searchParams.get("type") || "").toLowerCase();
+  const payloadType = String((payload as any)?.type ?? "").toLowerCase();
+  const pathHint = url.pathname.toLowerCase();
+  const eventType: "consult" | "operation" | "registration" =
+    payloadType.startsWith("webhook.") ? "registration" :
+    typeParam === "operation" || payloadType.includes("operation") || pathHint.includes("operation") || (payload as any)?.operationId
+      ? "operation"
+      : "consult";
+
+  const consultId = String(
+    (payload as any)?.consultId ??
+      (payload as any)?.consult_id ??
+      (payload as any)?.id ??
+      "",
+  ) || null;
+  const operationId = String(
+    (payload as any)?.operationId ?? (payload as any)?.operation_id ?? "",
+  ) || null;
+  const v8SimulationId = String(
+    (payload as any)?.id_simulation ?? (payload as any)?.simulation_id ?? "",
+  ) || null;
+  const v8Status = String((payload as any)?.status ?? "") || null;
+
+  let processed = false;
+  let processError: string | null = null;
+  let action = "noop";
+
+  try {
+    if (payloadType === "webhook.test" || payloadType === "webhook.registered") {
+      const regType = typeParam === "operation" || pathHint.includes("operation") ? "operation" : "consult";
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (payloadType === "webhook.test") {
+        updates.last_test_received_at = new Date().toISOString();
+        action = "test";
+      } else {
+        updates.last_confirm_received_at = new Date().toISOString();
+        updates.last_status = "success";
+        action = "registered";
+      }
+      await supabase.from("v8_webhook_registrations").update(updates).eq("webhook_type", regType);
+      processed = true;
+    } else if (eventType === "consult" && consultId) {
+      const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
+      const margemStr = (payload as any)?.availableMarginValue;
+      const margem = margemStr != null && !Number.isNaN(Number(margemStr)) ? Number(margemStr) : null;
+
+      const updates: Record<string, unknown> = {
+        raw_response: payload,
+        processed_at: new Date().toISOString(),
+        last_webhook_at: new Date().toISOString(),
+        webhook_status: v8Status,
+      };
+      if (internalStatus) updates.status = internalStatus;
+      if (v8SimulationId) updates.v8_simulation_id = v8SimulationId;
+      if (margem != null) updates.margem_valor = margem;
+
+      const { data: updRows, error: updErr } = await supabase
+        .from("v8_simulations")
+        .update(updates)
+        .eq("consult_id", consultId)
+        .select("id");
+
+      if (updErr) {
+        processError = updErr.message;
+      } else if (updRows && updRows.length > 0) {
+        processed = true;
+        action = "consult_upsert";
+      } else {
+        // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
+        const { error: insErr } = await supabase.from("v8_simulations").insert({
+          consult_id: consultId,
+          v8_simulation_id: v8SimulationId,
+          status: internalStatus ?? "pending",
+          webhook_status: v8Status,
+          last_webhook_at: new Date().toISOString(),
+          processed_at: new Date().toISOString(),
+          raw_response: payload,
+          margem_valor: margem,
+          name: "(via webhook V8)",
+          cpf: "",
+          installments: 0,
+          is_orphan: true,
+        });
+        if (insErr) processError = insErr.message;
+        else { processed = true; action = "consult_insert_orphan"; }
+      }
+    } else if (eventType === "operation" && operationId) {
+      const { error: upErr } = await supabase
+        .from("v8_operations_local")
+        .upsert(
+          {
+            operation_id: operationId,
+            consult_id: consultId,
+            v8_simulation_id: v8SimulationId,
+            status: v8Status,
+            raw_payload: payload,
+            last_updated_at: new Date().toISOString(),
+          },
+          { onConflict: "operation_id" },
+        );
+      if (upErr) processError = upErr.message;
+      else { processed = true; action = "operation_upsert"; }
+    }
+  } catch (err) {
+    processError = (err as Error)?.message || String(err);
+  }
+
+  return { processed, action, processError };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   }
 
   const supabase = createClient(
@@ -57,12 +170,85 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // --- Action: replay_pending — reprocessa logs pendentes dos últimos 7 dias
+  // Aceita POST com body { action: "replay_pending" } OU GET ?action=replay_pending
+  const url = new URL(req.url);
+  let actionParam = url.searchParams.get("action");
+  let bodyForReplay: any = null;
+
+  if (req.method === "POST") {
+    try {
+      const cloned = req.clone();
+      const txt = await cloned.text();
+      if (txt) {
+        bodyForReplay = JSON.parse(txt);
+        if (bodyForReplay?.action) actionParam = bodyForReplay.action;
+      }
+    } catch { /* não é JSON, segue fluxo de webhook */ }
+  }
+
+  if (actionParam === "replay_pending") {
+    const limit = Math.min(Number(bodyForReplay?.limit ?? 500), 500);
+    const { data: logs, error: logsErr } = await supabase
+      .from("v8_webhook_logs")
+      .select("id, payload")
+      .eq("processed", false)
+      .gte("received_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())
+      .order("received_at", { ascending: true })
+      .limit(limit);
+
+    if (logsErr) {
+      return new Response(JSON.stringify({ ok: false, error: logsErr.message }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let success = 0;
+    let failed = 0;
+    for (const log of logs ?? []) {
+      const result = await processV8Payload(supabase, (log.payload as any) ?? {}, url);
+      if (result.processed && !result.processError) {
+        await supabase
+          .from("v8_webhook_logs")
+          .update({ processed: true, process_error: null })
+          .eq("id", log.id);
+        success++;
+      } else {
+        await supabase
+          .from("v8_webhook_logs")
+          .update({ process_error: result.processError ?? "noop (no consult/operation id)" })
+          .eq("id", log.id);
+        failed++;
+      }
+    }
+
+    await writeAuditLog(supabase, {
+      action: "v8_webhook_replay_pending",
+      category: "simulator",
+      success: failed === 0,
+      details: { total: logs?.length ?? 0, success, failed, limit },
+    });
+
+    return new Response(
+      JSON.stringify({ ok: true, total: logs?.length ?? 0, success, failed }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // --- Coleta payload bruto + headers seguros
   let rawText = "";
   let payload: Record<string, unknown> = {};
   try {
-    rawText = await req.text();
-    payload = rawText ? JSON.parse(rawText) : {};
+    rawText = bodyForReplay ? JSON.stringify(bodyForReplay) : await req.text();
+    payload = bodyForReplay ?? (rawText ? JSON.parse(rawText) : {});
   } catch (_) {
     payload = { _parse_error: true, raw: rawText.slice(0, 2000) };
   }
@@ -74,7 +260,6 @@ serve(async (req) => {
   }
 
   // --- Tipo do evento (query param ?type=, payload.type ou heurística por path)
-  const url = new URL(req.url);
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
   const payloadType = String((payload as any)?.type ?? "").toLowerCase();
   const pathHint = url.pathname.toLowerCase();
