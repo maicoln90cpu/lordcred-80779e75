@@ -103,7 +103,20 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
         </div>
-        <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64 mt-2" />
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os meses</SelectItem>
+              {monthOptions.map(m => (
+                <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <WeekMultiSelect weeks={weeks} selected={weekFilters} onChange={setWeekFilters} className="w-full sm:w-64" />
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : sellerData.length === 0 ? (
