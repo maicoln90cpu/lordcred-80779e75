@@ -229,6 +229,47 @@ export default function MyProfilePanel({ className }: MyProfilePanelProps) {
           </div>
         </div>
 
+        {/* Telefone WhatsApp */}
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/30">
+          <Phone className="w-4 h-4 mt-1 text-muted-foreground shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">Telefone WhatsApp</p>
+            {isEditingPhone ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="5511999999999"
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && handleSavePhone()}
+                />
+                <Button size="sm" onClick={handleSavePhone} disabled={isSavingPhone} className="h-8 text-xs">
+                  {isSavingPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Salvar'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setIsEditingPhone(false)} className="h-8 text-xs">
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{profile?.phone || 'Não cadastrado'}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs text-primary"
+                  onClick={() => { setEditPhone(profile?.phone || ''); setIsEditingPhone(true); }}
+                >
+                  Editar
+                </Button>
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Apenas dígitos com DDI + DDD (ex: 5511999999999). Usado para receber lembretes de entrevistas de RH.
+            </p>
+          </div>
+        </div>
+
         {/* Role */}
         <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/30">
           <Shield className="w-4 h-4 mt-1 text-muted-foreground shrink-0" />
