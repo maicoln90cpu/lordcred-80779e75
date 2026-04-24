@@ -87,7 +87,7 @@ export function useHRCandidates() {
 
   useRealtimeSubscription(
     () => { fetchCandidates(); },
-    { table: 'hr_candidates', event: '*', debounceMs: 300 }
+    { table: 'hr_candidates', event: '*', debounceMs: 150 }
   );
 
   const createCandidate = useCallback(async (input: Partial<HRCandidate>) => {
@@ -146,26 +146,23 @@ export function useHRCandidates() {
       .eq('id', id)
       .maybeSingle();
 
-    // Tentar remover arquivos do Storage (falha silenciosa — arquivos órfãos
-    // são menos críticos que candidatos presos no banco).
-    // Pula entradas que começam com "http" (legado de URL assinada).
     if (candidate?.photo_url && !candidate.photo_url.startsWith('http')) {
-      // Para fotos salvamos a publicUrl, então só limpamos quando o valor for um path puro
-      // (compatibilidade com possíveis futuros uploads que armazenem path).
       await supabase.storage.from('hr-photos').remove([candidate.photo_url]).catch(() => {});
     }
     if (candidate?.resume_url && !candidate.resume_url.startsWith('http')) {
       await supabase.storage.from('hr-resumes').remove([candidate.resume_url]).catch(() => {});
     }
 
-    // Deletar o registro (cascade remove entrevistas e respostas)
+    // Optimistic remove local
+    setCandidates(prev => prev.filter(c => c.id !== id));
     const { error } = await (supabase as any).from('hr_candidates').delete().eq('id', id);
     if (error) {
       toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+      fetchCandidates();
       throw error;
     }
     toast({ title: 'Candidato removido' });
-  }, [toast]);
+  }, [toast, fetchCandidates]);
 
   const moveToPartner = useCallback(async (candidate: HRCandidate) => {
     // 1) flag the candidate
