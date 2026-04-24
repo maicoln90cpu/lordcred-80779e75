@@ -78,10 +78,14 @@ const actionLabels: Record<string, { label: string; className: string; category:
   // Tickets (system / ops)
   ticket_created: { label: 'Ticket Criado', className: 'bg-green-500/20 text-green-400', category: 'system' },
   ticket_updated: { label: 'Ticket Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'system' },
-  // Contracts
+  // Contracts (ClickSign)
   clicksign_contract_generated: { label: 'Contrato Gerado', className: 'bg-green-500/20 text-green-400', category: 'contracts' },
   clicksign_resend_notification: { label: 'Contrato Reenviado', className: 'bg-orange-500/20 text-orange-400', category: 'contracts' },
   clicksign_webhook_signed: { label: 'Contrato Assinado', className: 'bg-green-500/20 text-green-400', category: 'contracts' },
+  clicksign_preview: { label: 'Contrato — Pré-visualização', className: 'bg-muted text-muted-foreground', category: 'contracts' },
+  clicksign_get_status: { label: 'Contrato — Status', className: 'bg-muted text-muted-foreground', category: 'contracts' },
+  clicksign_get_signed_url: { label: 'Contrato — Link Assinado', className: 'bg-blue-500/20 text-blue-400', category: 'contracts' },
+  clicksign_download_pdf: { label: 'Contrato — Download PDF', className: 'bg-blue-500/20 text-blue-400', category: 'contracts' },
   // Partners (commissions area)
   partner_created: { label: 'Parceiro Criado', className: 'bg-green-500/20 text-green-400', category: 'commissions' },
   partner_updated: { label: 'Parceiro Atualizado', className: 'bg-blue-500/20 text-blue-400', category: 'commissions' },
@@ -94,6 +98,27 @@ const actionLabels: Record<string, { label: string; className: string; category:
   hr_notifications_run: { label: 'RH — Disparo Notificações', className: 'bg-blue-500/20 text-blue-400', category: 'hr' },
   // Broadcasts
   broadcast_run: { label: 'Disparo Executado', className: 'bg-blue-500/20 text-blue-400', category: 'broadcasts' },
+  // Corban (NewCorban API proxy)
+  corban_getPropostas: { label: 'Corban — Buscar Propostas', className: 'bg-muted text-muted-foreground', category: 'corban' },
+  corban_getAssets: { label: 'Corban — Listar Assets', className: 'bg-muted text-muted-foreground', category: 'corban' },
+  corban_listLogins: { label: 'Corban — Listar Logins', className: 'bg-muted text-muted-foreground', category: 'corban' },
+  corban_listQueueFGTS: { label: 'Corban — Fila FGTS', className: 'bg-muted text-muted-foreground', category: 'corban' },
+  corban_insertQueueFGTS: { label: 'Corban — Inserir Fila FGTS', className: 'bg-blue-500/20 text-blue-400', category: 'corban' },
+  corban_createProposta: { label: 'Corban — Criar Proposta', className: 'bg-green-500/20 text-green-400', category: 'corban' },
+  corban_testConnection: { label: 'Corban — Teste de Conexão', className: 'bg-muted text-muted-foreground', category: 'corban' },
+  corban_rawProxy: { label: 'Corban — Proxy Bruto', className: 'bg-orange-500/20 text-orange-400', category: 'corban' },
+  // WhatsApp Gateway (administrative actions)
+  whatsapp_create_instance: { label: 'WhatsApp — Criar Instância', className: 'bg-green-500/20 text-green-400', category: 'whatsapp' },
+  whatsapp_delete_instance: { label: 'WhatsApp — Excluir Instância', className: 'bg-destructive/20 text-destructive', category: 'whatsapp' },
+  whatsapp_disconnect_instance: { label: 'WhatsApp — Desconectar', className: 'bg-orange-500/20 text-orange-400', category: 'whatsapp' },
+  whatsapp_get_qrcode: { label: 'WhatsApp — Gerar QR Code', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_sync_templates: { label: 'WhatsApp — Sincronizar Templates', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_set_profile_name: { label: 'WhatsApp — Alterar Nome', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_set_profile_picture: { label: 'WhatsApp — Alterar Foto', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_set_privacy: { label: 'WhatsApp — Privacidade', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_update_business_profile: { label: 'WhatsApp — Perfil Comercial', className: 'bg-blue-500/20 text-blue-400', category: 'whatsapp' },
+  whatsapp_block_contact: { label: 'WhatsApp — Bloquear Contato', className: 'bg-orange-500/20 text-orange-400', category: 'whatsapp' },
+  whatsapp_delete_chat: { label: 'WhatsApp — Excluir Conversa', className: 'bg-destructive/20 text-destructive', category: 'whatsapp' },
 };
 
 function getCategory(log: AuditLog): AuditCategory {
