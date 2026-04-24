@@ -5,7 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, Save, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useHRInterviews, type HRCandidate, type HRInterview } from '@/hooks/useHRCandidates';
 
