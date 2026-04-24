@@ -177,10 +177,10 @@ export default function V8NovaSimulacaoTab() {
           </div>
 
           <div>
-            <Label>CPFs (1 por linha)</Label>
+            <Label>Dados dos clientes (1 por linha)</Label>
             <Textarea
               rows={8}
-              placeholder={`39364073800 Maicon Douglas 06/08/1990 M 11999998888\n98765432100;Maria Silva;15/03/1985;F;11988887777\nDANIEL ALYSSON BARBOSA DA SILVA1044251247308/05/1992\n12345678901`}
+              placeholder={`12345678901 João da Silva 15/03/1985 M 11999998888\n98765432100;Maria Souza;06/08/1990;F;11988887777\nCARLOS PEREIRA LIMA 11122233344 22/11/1978`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               className="font-mono text-xs"
@@ -189,10 +189,13 @@ export default function V8NovaSimulacaoTab() {
               <p>
                 <strong>Formatos aceitos</strong> (1 cliente por linha):
               </p>
-              <p>• <strong>Com separadores</strong> (espaço, tab, vírgula ou ponto-e-vírgula): tokens em qualquer ordem após o CPF.</p>
-              <p>• <strong>Concatenado</strong> (NOME+CPF+DATA sem separadores): ex. <code>DANIEL SILVA1044251247308/05/1992</code></p>
-              <p>• <strong>CPF puro</strong>: 11 dígitos (data continua obrigatória para a V8 — preencha depois ou inclua na linha).</p>
-              <p className="pt-1">Tokens reconhecidos: CPF (11 díg.), Data (dd/mm/aaaa ou yyyy-mm-dd), Gênero (M/F), Telefone (10-11 díg.), Nome.</p>
+              <p>• <strong>Com separadores</strong> (espaço, tab, vírgula ou ponto-e-vírgula): tokens em qualquer ordem.</p>
+              <p>• <strong>Concatenado</strong> (NOME+CPF+DATA sem separadores), comum em exports de ERP.</p>
+              <p className="pt-1">
+                Tokens reconhecidos: <strong>CPF</strong> (11 díg.), <strong>Data</strong> (dd/mm/aaaa ou yyyy-mm-dd),
+                {' '}<strong>Gênero</strong> (M/F), <strong>Telefone</strong> (10-11 díg.), <strong>Nome</strong>.
+              </p>
+              <p>⚠️ <strong>CPF e data de nascimento são obrigatórios</strong> — a V8 rejeita simulação sem data.</p>
               <p className="pt-1 font-medium text-foreground">
                 {parseV8Paste(pasteText).length} CPFs válidos detectados
               </p>

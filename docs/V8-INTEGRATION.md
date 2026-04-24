@@ -1,0 +1,338 @@
+# V8 Integração — Documentação Consolidada
+
+> **LordCred × V8 Digital — Crédito Privado CLT (Crédito do Trabalhador)**
+> Última atualização: 2026-04-24
+> Status: Em validação operacional (rota `/admin/v8-simulador`).
+
+Este documento consolida o material técnico interno da V8 (PDF resumo + manual
+detalhado) com o que **realmente está implementado** no LordCred. Quando houver
+divergência entre o material da V8 e a implementação, esta documentação prevalece
+e o ponto é marcado como **⚠️ divergência verificada**.
+
+---
+
+## 1. Visão Geral
+
+| Item | Detalhe |
+|---|---|
+| Produto | Crédito Privado CLT (Crédito do Trabalhador) |
+| Provedor / Averbador | `QI` (fixo em todos os endpoints) |
+| API Base | `https://bff.v8sistema.com` |
+| Auth (OAuth2 Password Grant) | `https://auth.v8sistema.com/oauth/token` ⚠️ |
+| Validade do token | 86.400s (24h) — cache em memória, renovação 5min antes |
+| Rota no LordCred | `/admin/v8-simulador` |
+| Edge Function | `v8-clt-api` |
+| Acesso | Todos os roles (master, admin, manager, support, seller) |
+
+**⚠️ Divergência verificada (Auth URL):** o PDF resumido e o manual detalhado da
+V8 indicam `https://api.v8digital.com/oauth/token`. Em testes práticos durante
+H2.1–H2.5, esse host **retornava 503/falha de DNS**, e a integração só
+estabilizou apontando para `https://auth.v8sistema.com/oauth/token` (mesmo
+padrão Auth0 do BFF). Mantemos o host atual e revalidamos sempre que a V8
+publicar uma atualização. Se um dia o host oficial voltar, basta trocar a
+constante `V8_AUTH_URL` em `supabase/functions/v8-clt-api/index.ts`.
+
+---
+
+## 2. Contexto de Negócio
+
+Antes da integração, simulações eram feitas em uma planilha Google Sheets +
+Apps Script. Cada CPF era processado individualmente, sem persistência, sem
+rastreabilidade e sem possibilidade de auditoria.
+
+Com a integração:
+1. Operador cola **vários CPFs** em uma única tela.
+2. Edge Function dispara consultas em lote (3 simultâneos).
+3. Resultados são salvos em `v8_simulations` com histórico permanente.
+4. Realtime atualiza a tela conforme cada CPF termina.
+5. Sistema calcula a **margem da empresa** (taxa banco vs. taxa cobrada do
+   cliente) em cima do `released_value`.
+
+---
+
+## 3. Autenticação V8 (OAuth2 Password Grant)
+
+### Endpoint
+```
+POST https://auth.v8sistema.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+```
+
+### Parâmetros
+
+| Campo | Valor | Observação |
+|---|---|---|
+| `grant_type` | `password` | Fixo |
+| `username` | `<email>` | Secret `V8_USERNAME` |
+| `password` | `<senha>` | Secret `V8_PASSWORD` |
+| `audience` | `<audience>` | Secret `V8_AUDIENCE` |
+| `scope` | `offline_access` | Fixo |
+| `client_id` | `<client_id>` | Secret `V8_CLIENT_ID` |
+
+### Resposta
+
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "scope": "offline_access"
+}
+```
+
+### Estratégia de cache
+
+Token guardado **em memória** dentro do isolate Deno. Renovado
+automaticamente quando faltam <5min para expirar. Nunca exposto ao frontend.
+
+---
+
+## 4. Endpoints utilizados
+
+### 4.1 GET configs (tabelas de taxa)
+
+```
+GET https://bff.v8sistema.com/private-consignment/simulation/configs
+```
+
+Resposta esperada (forma plana — observada em produção):
+```json
+[
+  { "id": "uuid", "slug": "tabela-x", "monthly_interest_rate": "1.99",
+    "number_of_installments": ["6","12","18","24","36","48","60","72","84","96"] }
+]
+```
+
+⚠️ O manual da V8 mostra `{ "configs": [...] }`. A função
+`actionGetConfigs` aceita **as duas formas** (objeto ou array plano) — vide
+`actionGetConfigs` em `v8-clt-api/index.ts`.
+
+### 4.2 POST consult (gera termo de consentimento)
+
+```
+POST https://bff.v8sistema.com/private-consignment/consult
+```
+
+Body construído pelo helper `buildConsultBody()` (puro, testável):
+
+```json
+{
+  "borrowerDocumentNumber": "63513785321",
+  "gender": "male",
+  "birthDate": "2001-01-01",
+  "signerName": "WANDERSON MONTEIRO SILVA",
+  "signerEmail": "63513785321@lordcred.temp",
+  "signerPhone": {
+    "phoneNumber": "999999999",
+    "countryCode": "55",
+    "areaCode": "11"
+  },
+  "provider": "QI"
+}
+```
+
+**Regras de normalização** (helpers exportados em `v8-clt-api/index.ts`):
+
+| Helper | Comportamento |
+|---|---|
+| `normalizeBirthDate` | Aceita `dd/mm/aaaa`, `aaaa-mm-dd`, retorna ISO `YYYY-MM-DD` |
+| `normalizeGender` | `M`/`masc`/`male` → `male`; `F`/`fem`/`female` → `female`; default `male` |
+| `normalizePhone` | Remove máscara, separa `areaCode` (2 díg.) + `phoneNumber` (8–9 díg.). Fallback `11`/`999999999` quando ausente |
+
+⚠️ O manual da V8 chama o campo de telefone de `number`. **Em produção a V8
+aceita apenas `phoneNumber`** (senão devolve 400 com `"signerPhone.phoneNumber must be a string"`).
+
+### 4.3 POST authorize (autoriza o termo)
+
+```
+POST https://bff.v8sistema.com/private-consignment/consult/{consult_id}/authorize
+```
+
+Sem body. Retorna `200` com texto `"Successful response"`. No LordCred é
+disparado automaticamente após o consult, pois o consentimento operacional é
+gerido pela empresa.
+
+### 4.4 POST simulation (cria simulação)
+
+```
+POST https://bff.v8sistema.com/private-consignment/simulation
+{
+  "consult_id": "...",
+  "config_id": "...",
+  "number_of_installments": 24,
+  "provider": "QI"
+}
+```
+
+Resposta — campos relevantes:
+
+| Campo V8 | Coluna em `v8_simulations` | Significado |
+|---|---|---|
+| `id_simulation` | `v8_simulation_id` | ID externo, usado para criar proposta futura |
+| `disbursement_option.final_disbursement_amount` | `released_value` | Valor líquido ao cliente |
+| `installment_value` | `installment_value` | Parcela mensal |
+| `operation_amount` | `operation_amount` | Soma total das parcelas |
+| `monthly_interest_rate` | `monthly_rate` | Taxa ao mês |
+| `disbursement_option.first_due_date` | `first_due_date` | 1º vencimento |
+
+⚠️ O PDF resumo cita `simulation_id`. O manual detalhado e a resposta real da
+V8 usam `id_simulation`. O parser local aceita ambos.
+
+### 4.5 POST operation (criar proposta — futuro)
+
+Documentado pela V8 em `POST /private-consignment/operation`. **Ainda não
+implementado** no LordCred. Será habilitado quando a etapa de formalização
+ClickSign + V8 for fechada (ver Roadmap).
+
+### 4.6 POST cancel (cancelar operação — futuro)
+
+```
+POST /operation/{idOperation}/cancel
+{ "cancel_reason": "", "cancel_description": "", "provider": "QI" }
+```
+
+Não usado hoje. Será exposto junto com a tela de gestão de propostas V8.
+
+---
+
+## 5. Webhooks V8 (futuro)
+
+A V8 disponibiliza dois webhooks que o LordCred ainda **não consome**:
+
+```
+POST /user/webhook/private-consignment/consult
+POST /user/webhook/private-consignment/operation
+```
+
+Quando habilitarmos, serão recebidos por uma edge function `v8-webhook` (a
+criar) que vai atualizar `v8_simulations.status` em tempo real, em vez de
+depender do polling síncrono atual.
+
+---
+
+## 6. Banco de dados (tabelas criadas)
+
+| Tabela | Função |
+|---|---|
+| `v8_batches` | Cabeçalho do lote (nome, config, parcelas, totais) |
+| `v8_simulations` | Resultado por CPF (status, valores, erro). Coluna `v8_simulation_id` adicionada na H2.8 |
+| `v8_configs_cache` | Cache local das tabelas V8 (atualizado pelo botão "Atualizar tabelas V8") |
+| `v8_margin_config` | Margem percentual da empresa (default 5%) |
+
+Todas com RLS habilitada — apenas usuários autenticados leem/escrevem; lotes
+são vinculados ao `created_by` para escopo por usuário/admin.
+
+---
+
+## 7. Edge Function — `v8-clt-api`
+
+Actions implementadas:
+
+| Action | Uso |
+|---|---|
+| `get_configs` | Atualiza `v8_configs_cache` a partir do GET configs |
+| `create_batch` | Cria `v8_batches` + linhas em `v8_simulations` (status `pending`) |
+| `simulate_one` | Executa consult → authorize → simulation para 1 CPF |
+| `list_batches` | Lista lotes do usuário corrente |
+
+Helpers puros exportados (cobertos por `payload_test.ts`):
+- `buildConsultBody`
+- `normalizeBirthDate`, `normalizeGender`, `normalizePhone`
+- `v8FetchWithRetry` — retry exponencial (3 tentativas, 500ms / 1500ms) para
+  respostas 5xx do upstream V8/Auth0.
+
+Logging: cada ação grava em `audit_logs` com `category: 'simulator'`, contendo
+`request_summary` + `response_summary` (status + body truncado) — útil para
+postmortem quando a V8 está instável.
+
+---
+
+## 8. Frontend — `/admin/v8-simulador`
+
+3 abas:
+1. **Nova Simulação** — `V8NovaSimulacaoTab.tsx` (cola dados, escolhe tabela e
+   parcelas, dispara o lote, mostra progresso em tempo real).
+2. **Histórico** — `V8HistoricoTab.tsx` (lista lotes anteriores).
+3. **Configurações** — `V8ConfigTab.tsx` (margem da empresa, refresh tabelas).
+
+### Parser de colagem (`src/lib/v8Parser.ts`)
+
+Aceita **3 formatos** por linha — em qualquer ordem após o CPF:
+
+1. **Tokens separados** por espaço, tab, `;` ou `,`:
+   ```
+   12345678901 João da Silva 15/03/1985 M 11999998888
+   12345678901;Maria Souza;1990-08-06;F;(11) 98888-7777
+   ```
+2. **Concatenado** (NOME+CPF+DATA, sem separadores), comum em exports de ERP:
+   ```
+   DANIEL ALYSSON BARBOSA DA SILVA1044251247308/05/1992
+   ```
+3. **CPF puro** *(removido da UI mas suportado pelo parser para compatibilidade)*
+
+Tokens reconhecidos automaticamente:
+- CPF (11 dígitos contíguos, com ou sem máscara)
+- Data (`dd/mm/aaaa` ou `yyyy-mm-dd`)
+- Gênero (`M`/`F`/`masculino`/`feminino`/`male`/`female`)
+- Telefone (10–11 dígitos contíguos)
+- Nome (resto)
+
+Cobertura de testes: `src/lib/__tests__/v8Parser.test.ts` (13 casos).
+
+---
+
+## 9. Segurança
+
+- Credenciais V8 ficam em **Supabase Secrets** (`V8_CLIENT_ID`, `V8_USERNAME`,
+  `V8_PASSWORD`, `V8_AUDIENCE`). Nunca no código nem no frontend.
+- Token JWT só vive no isolate Deno; nunca volta para o navegador.
+- RLS bloqueia leitura/escrita anônima em todas as tabelas `v8_*`.
+- Edge function valida `auth.getUser(token)` antes de qualquer chamada V8.
+
+---
+
+## 10. Tratamento de erros
+
+| Cenário | Comportamento |
+|---|---|
+| 4xx da V8 (payload inválido, CPF fora de cobertura, gênero faltando) | Linha vai para `status='failed'` com `error_message` legível |
+| 5xx da V8 (instabilidade upstream) | `v8FetchWithRetry` faz até 3 tentativas (backoff 500ms/1500ms). Persiste se todas falharem |
+| Token expirado | Renovação automática transparente |
+| Linha sem data de nascimento | Marcada como `failed` com mensagem "Data de nascimento obrigatória" |
+
+Status agregados do lote são derivados em tempo real no frontend
+(`pending` / `success` / `failed`).
+
+---
+
+## 11. Limitações conhecidas
+
+- Não há captura de webhook ainda — status pós-simulação depende de re-consulta
+  manual.
+- Margem da empresa é única e linear (5% default). Roadmap prevê tabelas por
+  banco/parceiro.
+- Criação de proposta (`/operation`) e cancelamento ainda não estão na UI.
+
+---
+
+## 12. Roadmap
+
+- [ ] H3.1 — Edge function `v8-webhook` para receber consult/operation.
+- [ ] H3.2 — Persistir `consult_id`, `raw_response` e `margem_valor` em
+      `v8_simulations`.
+- [ ] H3.3 — Tela de Proposta V8 + integração ClickSign para formalização.
+- [ ] H3.4 — Margem por banco/parceiro/configuração.
+- [ ] H3.5 — Cancelamento de operação a partir do histórico.
+
+---
+
+## Anexo — Comparativo entre fontes V8
+
+| Tópico | PDF resumo (`clt_v8.pdf`) | Manual detalhado (`v8-integracao-2.md`) | LordCred (real) |
+|---|---|---|---|
+| Auth URL | `api.v8digital.com` | `api.v8digital.com` | `auth.v8sistema.com` ⚠️ |
+| Telefone | — | `phoneNumber` (no body do consult) | `phoneNumber` ✅ |
+| ID da simulação | `simulation_id` | `id_simulation` | aceita ambos |
+| Configs | — | `{ configs: [...] }` | aceita objeto **ou** array plano |
+| Cancelamento | documentado | — | não implementado |
+| Webhooks | listados | listados | não implementado |
