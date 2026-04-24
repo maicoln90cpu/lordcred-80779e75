@@ -188,21 +188,43 @@ export function InterviewForm({ candidate, stage, onSaved }: Props) {
       {stageQuestions.length > 0 && (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Perguntas</h4>
-          {stageQuestions.map(q => (
-            <div key={q.id} className="space-y-1.5">
-              <Label className="text-xs leading-snug">
-                <span className="text-muted-foreground mr-1">{q.order_num}.</span>
-                {q.text}
-              </Label>
-              <Textarea
-                value={answers[q.id] || ''}
-                onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                placeholder="Resposta..."
-                rows={2}
-                maxLength={2000}
-              />
-            </div>
-          ))}
+          {stageQuestions.map(q => {
+            const snap = snapshots[q.id];
+            const wasEdited = !!snap && snap.trim() !== q.text.trim();
+            return (
+              <div key={q.id} className="space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <Label className="text-xs leading-snug flex-1">
+                    <span className="text-muted-foreground mr-1">{q.order_num}.</span>
+                    {q.text}
+                  </Label>
+                  {wasEdited && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] py-0 h-5 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                            <Pencil className="w-2.5 h-2.5" />
+                            pergunta editada
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs">
+                          <p className="text-xs font-semibold mb-1">Texto original (no momento da resposta):</p>
+                          <p className="text-xs text-muted-foreground">{snap}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                <Textarea
+                  value={answers[q.id] || ''}
+                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                  placeholder="Resposta..."
+                  rows={2}
+                  maxLength={2000}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
