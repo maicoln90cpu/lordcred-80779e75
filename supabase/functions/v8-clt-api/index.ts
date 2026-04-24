@@ -493,6 +493,20 @@ serve(async (req) => {
           targetTable: "v8_batches",
           targetId: (result as any)?.data?.batch_id ?? null,
           details: {
+            request_payload: {
+              action: "create_batch",
+              name: params?.name ?? null,
+              config_id: params?.config_id ?? null,
+              config_label: params?.config_label ?? null,
+              parcelas: params?.parcelas ?? null,
+              rows_count: Array.isArray(params?.rows) ? params.rows.length : 0,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              batch_id: (result as any)?.data?.batch_id ?? null,
+              total: (result as any)?.data?.total ?? null,
+              error: (result as any)?.error ?? null,
+            },
             total: (result as any)?.data?.total ?? null,
             error: (result as any)?.error ?? null,
           },
