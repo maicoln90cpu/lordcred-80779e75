@@ -12,6 +12,14 @@ const corsHeaders = {
 const V8_BASE = "https://bff.v8sistema.com";
 const V8_AUTH = "https://auth.v8sistema.com";
 
+// Endpoints oficiais V8 — Crédito do Trabalhador (CLT) usa /private-consignment/*
+const V8_PATHS = {
+  configs: "/private-consignment/simulation/configs",
+  consult: "/private-consignment/consult",
+  authorize: (consultId: string) => `/private-consignment/consult/${consultId}/authorize`,
+  simulate: "/private-consignment/simulation",
+};
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getV8Token(): Promise<string> {
