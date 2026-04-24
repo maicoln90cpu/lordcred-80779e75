@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildConsultBody,
+  buildSimulationBody,
   normalizeBirthDate,
   normalizeGender,
   normalizePhone,
@@ -103,4 +104,23 @@ Deno.test("buildConsultBody respeita email customizado", () => {
     parcelas: 24,
   });
   assertEquals(body.signerEmail, "maicon@lordcred.com");
+});
+
+Deno.test("buildSimulationBody monta payload oficial da V8", () => {
+  const body = buildSimulationBody(
+    {
+      config_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      parcelas: 24,
+    },
+    "consult-123"
+  );
+
+  assertEquals(body, {
+    consult_id: "consult-123",
+    config_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    number_of_installments: 24,
+    provider: "QI",
+  });
+  assert(!("configId" in body));
+  assert(!("installments" in body));
 });
