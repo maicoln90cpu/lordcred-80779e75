@@ -117,6 +117,20 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
     return new Set(teamMembers.filter(m => m.team_id === globalTeam).map(m => m.user_id));
   }, [globalTeam, teamMembers]);
 
+  // Set de vendedores válidos para a UI:
+  // - existe em profiles (via RPC get_visible_profiles)
+  // - não está bloqueado
+  // - se filtro de equipe ativo, é membro da equipe
+  const activeSellerIds = useMemo(() => {
+    const set = new Set<string>();
+    sellers.forEach((s: any) => {
+      if (s.is_blocked) return;
+      if (teamFilteredUserIds && !teamFilteredUserIds.has(s.user_id)) return;
+      set.add(s.user_id);
+    });
+    return set;
+  }, [sellers, teamFilteredUserIds]);
+
   const getSellerName = (userId: string) => {
     const s = sellers.find((s: any) => s.user_id === userId);
     return s?.name || s?.email || 'N/A';
