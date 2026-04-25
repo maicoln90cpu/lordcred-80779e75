@@ -194,7 +194,16 @@ export default function RatesFGTSTab() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <RatesBulkControls
+          banks={Array.from(new Set(rates.map(r => r.bank))).sort()}
+          bankFilter={bankFilter}
+          onBankFilterChange={setBankFilter}
+          tableName="commission_rates_fgts_v2"
+          totalCount={rates.length}
+          filteredCount={rates.filter(r => r.bank === bankFilter).length}
+          onDeleted={loadRates}
+        />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada — clique em "Pré-preencher 28 taxas" para começar</p>
         ) : (
@@ -213,7 +222,7 @@ export default function RatesFGTSTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applySortToData(rates, sort, (r, k) => {
+              {applySortToData(rates.filter(r => bankFilter === '__all__' || r.bank === bankFilter), sort, (r, k) => {
                 if (k === 'has_insurance') return r.has_insurance ? 'Sim' : 'Não';
                 return (r as any)[k];
               }).map(r => (
