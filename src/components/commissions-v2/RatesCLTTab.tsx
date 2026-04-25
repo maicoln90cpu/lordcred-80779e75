@@ -14,6 +14,7 @@ import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateCLT } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
+import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
 
 export default function RatesCLTTab() {
   const { toast } = useToast();
@@ -146,6 +147,7 @@ export default function RatesCLTTab() {
               const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas CLT'); XLSX.writeFile(wb, 'taxas_clt_parceiros.xlsx');
               toast({ title: `${rates.length} taxas exportadas` });
             }}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
+            <SmartPasteRatesButton tableName="commission_rates_clt_v2" onInserted={loadRates} />
             <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
             <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
           </div>
