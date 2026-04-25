@@ -116,8 +116,8 @@ export function extractValueRange(text: string): { min: number; max: number; mat
   if (ate) {
     return { min: 0, max: parseMoney(ate[1]), matched: ate[0] };
   }
-  // "acima de R$X" / "de R$X" (open upper bound)
-  const acima = norm.match(/(?:acima\s+de|a\s+partir\s+de|de)\s*R\$?\s*([\d.,]+)/i);
+  // "acima de X" / "a partir de X" / "de X" (open upper bound, R$ optional)
+  const acima = norm.match(/(?:acima\s+de|a\s+partir\s+de|de)\s*R?\$?\s*([\d.,]+)/i);
   if (acima) {
     return { min: parseMoney(acima[1]), max: 999999999, matched: acima[0] };
   }

@@ -106,7 +106,7 @@ describe('parseSmartRates — end-to-end', () => {
     expect(warnings).toHaveLength(0);
     expect(rates).toHaveLength(6);
 
-    expect(rates[0]).toMatchObject({ bank: 'LOTUS', table_key: '1+', rate: 16, term_min: 0 });
+    expect(rates[0]).toMatchObject({ bank: 'LOTUS', rate: 16, term_min: 1, term_max: 1 });
     expect(rates[1]).toMatchObject({ bank: 'HUB', table_key: 'Sonho', rate: 9.5 });
     expect(rates[2]).toMatchObject({ bank: 'HUB', table_key: 'Carta na Manga', max_value: 250, rate: 2.75 });
     expect(rates[3]).toMatchObject({ bank: 'HUB', min_value: 250, max_value: 999999999, rate: 4.25 });
