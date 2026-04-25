@@ -12,6 +12,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
+import RatesBulkControls from './RatesBulkControls';
 
 export default function RatesFGTSTab() {
   const { toast } = useToast();
@@ -21,6 +22,7 @@ export default function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
   const { sort, toggle } = useSortState();
+  const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
