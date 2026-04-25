@@ -139,7 +139,16 @@ export default function RatesFGTSTab() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <RatesBulkControls
+          banks={Array.from(new Set(rates.map(r => r.bank))).sort()}
+          bankFilter={bankFilter}
+          onBankFilterChange={setBankFilter}
+          tableName="commission_rates_fgts"
+          totalCount={rates.length}
+          filteredCount={rates.filter(r => r.bank === bankFilter).length}
+          onDeleted={loadRates}
+        />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada</p>
         ) : (
@@ -154,7 +163,7 @@ export default function RatesFGTSTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applySortToData(rates, sort, (r, k) => (r as any)[k]).map(r => (
+              {applySortToData(rates.filter(r => bankFilter === '__all__' || r.bank === bankFilter), sort, (r, k) => (r as any)[k]).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
