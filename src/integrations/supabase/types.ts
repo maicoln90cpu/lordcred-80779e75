@@ -2227,6 +2227,9 @@ export type Database = {
       import_batches: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
           file_name: string
           file_path: string | null
           id: string
@@ -2238,6 +2241,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           file_name: string
           file_path?: string | null
           id?: string
@@ -2249,6 +2255,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           file_name?: string
           file_path?: string | null
           id?: string
@@ -4329,9 +4338,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      purge_old_deleted_batches: { Args: never; Returns: number }
       reset_daily_message_count: { Args: never; Returns: undefined }
+      restore_import_batch: { Args: { _batch_id: string }; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      soft_delete_import_batch: {
+        Args: { _batch_id: string; _reason?: string }
+        Returns: Json
+      }
       update_channel_info: {
         Args: {
           _admin_only?: boolean

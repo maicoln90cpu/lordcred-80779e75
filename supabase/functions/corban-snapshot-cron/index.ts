@@ -20,24 +20,27 @@ function formatDate(d: Date): string {
 
 function normalizePropostas(rawData: any): any[] {
   if (!rawData) return [];
-  // Handle various response shapes from NewCorban
-  let items: any[] = [];
-  if (Array.isArray(rawData)) {
-    items = rawData;
-  } else if (rawData.data && Array.isArray(rawData.data)) {
-    items = rawData.data;
-  } else if (rawData.propostas && Array.isArray(rawData.propostas)) {
-    items = rawData.propostas;
-  } else if (typeof rawData === 'object') {
-    // Try to find first array property
+  // 1. Direct array
+  if (Array.isArray(rawData)) return rawData;
+  // 2. Common wrappers
+  if (rawData.data && Array.isArray(rawData.data)) return rawData.data;
+  if (rawData.propostas && Array.isArray(rawData.propostas)) return rawData.propostas;
+  // 3. Keyed-object (NewCorban returns proposals as { "<id>": {...}, "<id2>": {...} })
+  if (typeof rawData === 'object') {
+    const entries = Object.entries(rawData);
+    const numericEntries = entries.filter(([k]) => /^\d+$/.test(k));
+    if (numericEntries.length > 0) {
+      return numericEntries.map(([id, value]) => ({
+        proposta_id: id,
+        ...(typeof value === 'object' && value !== null ? value as Record<string, unknown> : {}),
+      }));
+    }
+    // 4. Fallback: first array property
     for (const key of Object.keys(rawData)) {
-      if (Array.isArray(rawData[key]) && rawData[key].length > 0) {
-        items = rawData[key];
-        break;
-      }
+      if (Array.isArray(rawData[key]) && rawData[key].length > 0) return rawData[key];
     }
   }
-  return items;
+  return [];
 }
 
 function extractField(item: any, ...paths: string[]): any {
@@ -65,44 +68,62 @@ Deno.serve(async (req) => {
       throw new Error('Corban credentials not configured');
     }
 
-    // Fetch proposals from last 30 days
+    // Match exact payload format used by corban-api/getPropostas (proven to return data).
+    // NewCorban API quirks: max window = 31 days, tipo='cadastro', no top-level pagination.
+    // Strategy: split last 60 days into 2 windows of 30 days each.
     const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const w1End = new Date(now);
+    const w1Start = new Date(now); w1Start.setDate(w1Start.getDate() - 30);
+    const w2End = new Date(w1Start); w2End.setDate(w2End.getDate() - 1);
+    const w2Start = new Date(w2End); w2Start.setDate(w2Start.getDate() - 30);
 
-    const payload = {
-      auth: {
-        username: CORBAN_USERNAME,
-        password: CORBAN_PASSWORD,
-        empresa: CORBAN_EMPRESA,
-      },
-      requestType: 'getPropostas',
-      filters: {
-        status: [],
-        data: {
-          tipo: 'cadastro',
-          startDate: formatDate(thirtyDaysAgo),
-          endDate: formatDate(now),
+    const windows: Array<[Date, Date]> = [[w1Start, w1End], [w2Start, w2End]];
+
+    async function fetchWindow(start: Date, end: Date): Promise<any[]> {
+      const payload = {
+        auth: { username: CORBAN_USERNAME, password: CORBAN_PASSWORD, empresa: CORBAN_EMPRESA },
+        requestType: 'getPropostas',
+        filters: {
+          status: [],
+          data: { tipo: 'cadastro', startDate: formatDate(start), endDate: formatDate(end) },
         },
-      },
-    };
+      };
 
-    console.log(`[corban-snapshot-cron] Fetching proposals ${formatDate(thirtyDaysAgo)} to ${formatDate(now)}...`);
+      const r = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    const response = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+      const text = await r.text();
+      if (!r.ok) {
+        console.error(`[corban-snapshot-cron] HTTP ${r.status} for ${formatDate(start)}→${formatDate(end)}: ${text.slice(0, 200)}`);
+        return [];
+      }
 
-    if (!response.ok) {
-      throw new Error(`Corban API returned ${response.status}`);
+      let raw: any;
+      try { raw = JSON.parse(text); } catch {
+        console.error(`[corban-snapshot-cron] Non-JSON response: ${text.slice(0, 200)}`);
+        return [];
+      }
+
+      if (raw?.error === true) {
+        console.error(`[corban-snapshot-cron] API error: ${raw.mensagem || JSON.stringify(raw).slice(0, 200)}`);
+        return [];
+      }
+
+      const pageItems = normalizePropostas(raw);
+      console.log(`[corban-snapshot-cron] ${formatDate(start)}→${formatDate(end)}: ${pageItems.length} items (raw keys: ${Object.keys(raw || {}).join(',').slice(0, 100)})`);
+      return pageItems;
     }
 
-    const rawData = await response.json();
-    const items = normalizePropostas(rawData);
+    let items: any[] = [];
+    for (const [s, e] of windows) {
+      const got = await fetchWindow(s, e);
+      items.push(...got);
+    }
 
-    console.log(`[corban-snapshot-cron] Got ${items.length} proposals`);
+    console.log(`[corban-snapshot-cron] TOTAL collected: ${items.length} proposals`);
 
     if (items.length === 0) {
       return new Response(JSON.stringify({ success: true, count: 0, message: 'No proposals found' }), {
