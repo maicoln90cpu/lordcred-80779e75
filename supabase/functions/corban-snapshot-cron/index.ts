@@ -65,44 +65,61 @@ Deno.serve(async (req) => {
       throw new Error('Corban credentials not configured');
     }
 
-    // Fetch proposals from last 30 days
+    // Fetch proposals from last 60 days, trying 'envio' first then 'cadastro' as fallback.
+    // The NewCorban API expects tipo='envio' (per docs/integration memory) — 'cadastro' returns empty.
     const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const startWindow = new Date(now);
+    startWindow.setDate(startWindow.getDate() - 60);
 
-    const payload = {
-      auth: {
-        username: CORBAN_USERNAME,
-        password: CORBAN_PASSWORD,
-        empresa: CORBAN_EMPRESA,
-      },
-      requestType: 'getPropostas',
-      filters: {
-        status: [],
-        data: {
-          tipo: 'cadastro',
-          startDate: formatDate(thirtyDaysAgo),
-          endDate: formatDate(now),
-        },
-      },
-    };
+    async function fetchWithTipo(tipo: 'envio' | 'cadastro'): Promise<any[]> {
+      const allItems: any[] = [];
+      let pagina = 1;
+      const maxPages = 20; // safety cap (20 * ~500 = 10k proposals)
 
-    console.log(`[corban-snapshot-cron] Fetching proposals ${formatDate(thirtyDaysAgo)} to ${formatDate(now)}...`);
+      while (pagina <= maxPages) {
+        const payload = {
+          auth: { username: CORBAN_USERNAME, password: CORBAN_PASSWORD, empresa: CORBAN_EMPRESA },
+          requestType: 'getPropostas',
+          filters: {
+            status: [],
+            data: { tipo, startDate: formatDate(startWindow), endDate: formatDate(now) },
+            pagina,
+          },
+        };
 
-    const response = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+        const r = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-    if (!response.ok) {
-      throw new Error(`Corban API returned ${response.status}`);
+        if (!r.ok) {
+          console.error(`[corban-snapshot-cron] tipo=${tipo} page=${pagina} status=${r.status}`);
+          break;
+        }
+
+        const raw = await r.json();
+        const pageItems = normalizePropostas(raw);
+        console.log(`[corban-snapshot-cron] tipo=${tipo} page=${pagina} → ${pageItems.length} items`);
+
+        if (pageItems.length === 0) break;
+        allItems.push(...pageItems);
+        if (pageItems.length < 100) break; // last page heuristic
+        pagina++;
+      }
+
+      return allItems;
     }
 
-    const rawData = await response.json();
-    const items = normalizePropostas(rawData);
+    console.log(`[corban-snapshot-cron] Fetching window ${formatDate(startWindow)} → ${formatDate(now)}`);
 
-    console.log(`[corban-snapshot-cron] Got ${items.length} proposals`);
+    let items = await fetchWithTipo('envio');
+    if (items.length === 0) {
+      console.log('[corban-snapshot-cron] tipo=envio empty, trying tipo=cadastro fallback');
+      items = await fetchWithTipo('cadastro');
+    }
+
+    console.log(`[corban-snapshot-cron] TOTAL collected: ${items.length} proposals`);
 
     if (items.length === 0) {
       return new Response(JSON.stringify({ success: true, count: 0, message: 'No proposals found' }), {
