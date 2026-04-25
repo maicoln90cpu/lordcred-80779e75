@@ -116,7 +116,11 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
                       <TableCell className="text-sm text-muted-foreground">{new Date(batch.created_at).toLocaleDateString('pt-BR')} {new Date(batch.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                       <TableCell><Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className="text-xs">{batch.status === 'active' ? 'Ativo' : 'Excluído'}</Badge></TableCell>
                       <TableCell className="flex gap-1">
-                        {batch.file_path && <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleDownload(batch)} title="Baixar arquivo original"><Download className="w-4 h-4" /></Button>}
+                        {batch.file_path ? (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleDownload(batch)} title="Baixar arquivo original"><Download className="w-4 h-4" /></Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled title="Arquivo não arquivado (importação anterior ao armazenamento de arquivos)"><Download className="w-4 h-4" /></Button>
+                        )}
                         {batch.status === 'active' && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(batch)}><Trash2 className="w-4 h-4" /></Button>}
                       </TableCell>
                     </TableRow>
