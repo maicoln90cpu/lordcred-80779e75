@@ -238,7 +238,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       if (payloads.length === 0) { toast({ title: 'Nenhum registro válido encontrado', variant: 'destructive' }); setImporting(false); return; }
 
       const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
-        file_name: file.name, module: 'parceiros', sheet_name: 'base', row_count: payloads.length, imported_by: userId, status: 'active',
+        file_name: file.name, module: 'parceiros_v2', sheet_name: 'base', row_count: payloads.length, imported_by: userId, status: 'active',
       } as any).select('id').single();
 
       const batchId = batchErr ? null : (batchRecord as any)?.id;

@@ -14,7 +14,21 @@ import { getSpreadsheetUrl } from '@/lib/storageUpload';
 interface ImportBatch { id: string; module: string; sheet_name: string; file_name: string; row_count: number; imported_by: string; created_at: string; status: string; file_path?: string | null; }
 interface Profile { user_id: string; name: string | null; email: string; }
 
-interface CRImportHistoryProps { moduleFilter: 'relatorios' | 'parceiros'; }
+export type CRImportModule = 'relatorios' | 'parceiros' | 'parceiros_v2';
+
+interface CRImportHistoryProps { moduleFilter: CRImportModule; }
+
+/**
+ * Mapeia (módulo, aba) → tabela física que armazena as linhas importadas.
+ * IMPORTANTE: V1 (parceiros) → commission_sales; V2 (parceiros_v2) → commission_sales_v2.
+ * Misturar isso causa exclusão cruzada de dados (bug crítico já visto em produção).
+ */
+export function mapSheetToTable(moduleFilter: CRImportModule, sheetName: string): string | null {
+  if (moduleFilter === 'parceiros_v2' && sheetName === 'base') return 'commission_sales_v2';
+  if (moduleFilter === 'parceiros' && sheetName === 'base') return 'commission_sales';
+  const tableMap: Record<string, string> = { geral: 'cr_geral', repasse: 'cr_repasse', seguros: 'cr_seguros', relatorio: 'cr_relatorio' };
+  return tableMap[sheetName] || null;
+}
 
 export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) {
   const { toast } = useToast();
@@ -51,8 +65,7 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const tableMap: Record<string, string> = { geral: 'cr_geral', repasse: 'cr_repasse', seguros: 'cr_seguros', relatorio: 'cr_relatorio', base: 'commission_sales' };
-      const targetTable = tableMap[deleteTarget.sheet_name];
+      const targetTable = mapSheetToTable(moduleFilter, deleteTarget.sheet_name);
       if (targetTable) { const { error: dataErr } = await supabase.from(targetTable as any).delete().eq('batch_id', deleteTarget.id); if (dataErr) throw dataErr; }
       const { error } = await supabase.from('import_batches' as any).delete().eq('id', deleteTarget.id);
       if (error) throw error;
@@ -103,7 +116,11 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
                       <TableCell className="text-sm text-muted-foreground">{new Date(batch.created_at).toLocaleDateString('pt-BR')} {new Date(batch.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                       <TableCell><Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className="text-xs">{batch.status === 'active' ? 'Ativo' : 'Excluído'}</Badge></TableCell>
                       <TableCell className="flex gap-1">
-                        {batch.file_path && <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleDownload(batch)} title="Baixar arquivo original"><Download className="w-4 h-4" /></Button>}
+                        {batch.file_path ? (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleDownload(batch)} title="Baixar arquivo original"><Download className="w-4 h-4" /></Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 cursor-not-allowed" disabled title="Arquivo não arquivado (importação anterior ao armazenamento de arquivos)"><Download className="w-4 h-4" /></Button>
+                        )}
                         {batch.status === 'active' && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(batch)}><Trash2 className="w-4 h-4" /></Button>}
                       </TableCell>
                     </TableRow>
