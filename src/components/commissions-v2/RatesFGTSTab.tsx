@@ -54,6 +54,7 @@ export default function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', table_key: '', term_min: '0', term_max: '999', min_value: '0', max_value: '999999999', has_insurance: false, rate: '', obs: '' });
   const { sort, toggle } = useSortState();
+  const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
