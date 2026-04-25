@@ -13,6 +13,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
+import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 
 const PRESET_RATES = [
   { bank: 'LOTUS', table_key: 'LOTUS 1+', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: false, rate: 16, obs: 'Prazo 1 ano' },
@@ -53,6 +54,7 @@ export default function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', table_key: '', term_min: '0', term_max: '999', min_value: '0', max_value: '999999999', has_insurance: false, rate: '', obs: '' });
   const { sort, toggle } = useSortState();
+  const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -192,7 +194,16 @@ export default function RatesFGTSTab() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <RatesBulkControls
+          banks={Array.from(new Set(rates.map(r => r.bank))).sort()}
+          bankFilter={bankFilter}
+          onBankFilterChange={setBankFilter}
+          tableName="commission_rates_fgts_v2"
+          totalCount={rates.length}
+          filteredCount={rates.filter(r => r.bank === bankFilter).length}
+          onDeleted={loadRates}
+        />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada — clique em "Pré-preencher 28 taxas" para começar</p>
         ) : (
@@ -211,7 +222,7 @@ export default function RatesFGTSTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applySortToData(rates, sort, (r, k) => {
+              {applySortToData(rates.filter(r => bankFilter === '__all__' || r.bank === bankFilter), sort, (r, k) => {
                 if (k === 'has_insurance') return r.has_insurance ? 'Sim' : 'Não';
                 return (r as any)[k];
               }).map(r => (

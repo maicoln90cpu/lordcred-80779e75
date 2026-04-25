@@ -13,6 +13,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateCLT } from './commissionUtils';
+import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 
 export default function RatesCLTTab() {
   const { toast } = useToast();
@@ -22,6 +23,7 @@ export default function RatesCLTTab() {
   const [editing, setEditing] = useState<RateCLT | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
   const { sort, toggle } = useSortState();
+  const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -149,7 +151,16 @@ export default function RatesCLTTab() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <RatesBulkControls
+          banks={Array.from(new Set(rates.map(r => r.bank))).sort()}
+          bankFilter={bankFilter}
+          onBankFilterChange={setBankFilter}
+          tableName="commission_rates_clt_v2"
+          totalCount={rates.length}
+          filteredCount={rates.filter(r => r.bank === bankFilter).length}
+          onDeleted={loadRates}
+        />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada</p>
         ) : (
@@ -168,7 +179,7 @@ export default function RatesCLTTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applySortToData(rates, sort, (r, k) => {
+              {applySortToData(rates.filter(r => bankFilter === '__all__' || r.bank === bankFilter), sort, (r, k) => {
                 if (k === 'has_insurance') return r.has_insurance ? 'Sim' : 'Não';
                 return (r as any)[k];
               }).map(r => (

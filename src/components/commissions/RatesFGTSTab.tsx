@@ -12,6 +12,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
+import RatesBulkControls from './RatesBulkControls';
 
 export default function RatesFGTSTab() {
   const { toast } = useToast();
@@ -21,6 +22,7 @@ export default function RatesFGTSTab() {
   const [editing, setEditing] = useState<RateFGTS | null>(null);
   const [form, setForm] = useState({ effective_date: '', bank: '', rate_no_insurance: '', rate_with_insurance: '' });
   const { sort, toggle } = useSortState();
+  const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -137,7 +139,16 @@ export default function RatesFGTSTab() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <RatesBulkControls
+          banks={Array.from(new Set(rates.map(r => r.bank))).sort()}
+          bankFilter={bankFilter}
+          onBankFilterChange={setBankFilter}
+          tableName="commission_rates_fgts"
+          totalCount={rates.length}
+          filteredCount={rates.filter(r => r.bank === bankFilter).length}
+          onDeleted={loadRates}
+        />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada</p>
         ) : (
@@ -152,7 +163,7 @@ export default function RatesFGTSTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applySortToData(rates, sort, (r, k) => (r as any)[k]).map(r => (
+              {applySortToData(rates.filter(r => bankFilter === '__all__' || r.bank === bankFilter), sort, (r, k) => (r as any)[k]).map(r => (
                 <TableRow key={r.id}>
                   <TableCell>{new Date(r.effective_date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell className="font-medium">{r.bank}</TableCell>
