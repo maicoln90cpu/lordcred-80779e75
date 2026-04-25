@@ -65,58 +65,59 @@ Deno.serve(async (req) => {
       throw new Error('Corban credentials not configured');
     }
 
-    // Fetch proposals from last 60 days, trying 'envio' first then 'cadastro' as fallback.
-    // The NewCorban API expects tipo='envio' (per docs/integration memory) — 'cadastro' returns empty.
+    // Match exact payload format used by corban-api/getPropostas (proven to return data).
+    // NewCorban API quirks: max window = 31 days, tipo='cadastro', no top-level pagination.
+    // Strategy: split last 60 days into 2 windows of 30 days each.
     const now = new Date();
-    const startWindow = new Date(now);
-    startWindow.setDate(startWindow.getDate() - 60);
+    const w1End = new Date(now);
+    const w1Start = new Date(now); w1Start.setDate(w1Start.getDate() - 30);
+    const w2End = new Date(w1Start); w2End.setDate(w2End.getDate() - 1);
+    const w2Start = new Date(w2End); w2Start.setDate(w2Start.getDate() - 30);
 
-    async function fetchWithTipo(tipo: 'envio' | 'cadastro'): Promise<any[]> {
-      const allItems: any[] = [];
-      let pagina = 1;
-      const maxPages = 20; // safety cap (20 * ~500 = 10k proposals)
+    const windows: Array<[Date, Date]> = [[w1Start, w1End], [w2Start, w2End]];
 
-      while (pagina <= maxPages) {
-        const payload = {
-          auth: { username: CORBAN_USERNAME, password: CORBAN_PASSWORD, empresa: CORBAN_EMPRESA },
-          requestType: 'getPropostas',
-          filters: {
-            status: [],
-            data: { tipo, startDate: formatDate(startWindow), endDate: formatDate(now) },
-            pagina,
-          },
-        };
+    async function fetchWindow(start: Date, end: Date): Promise<any[]> {
+      const payload = {
+        auth: { username: CORBAN_USERNAME, password: CORBAN_PASSWORD, empresa: CORBAN_EMPRESA },
+        requestType: 'getPropostas',
+        filters: {
+          status: [],
+          data: { tipo: 'cadastro', startDate: formatDate(start), endDate: formatDate(end) },
+        },
+      };
 
-        const r = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+      const r = await fetch(`${CORBAN_API_URL}/api/propostas/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        if (!r.ok) {
-          console.error(`[corban-snapshot-cron] tipo=${tipo} page=${pagina} status=${r.status}`);
-          break;
-        }
-
-        const raw = await r.json();
-        const pageItems = normalizePropostas(raw);
-        console.log(`[corban-snapshot-cron] tipo=${tipo} page=${pagina} → ${pageItems.length} items`);
-
-        if (pageItems.length === 0) break;
-        allItems.push(...pageItems);
-        if (pageItems.length < 100) break; // last page heuristic
-        pagina++;
+      const text = await r.text();
+      if (!r.ok) {
+        console.error(`[corban-snapshot-cron] HTTP ${r.status} for ${formatDate(start)}→${formatDate(end)}: ${text.slice(0, 200)}`);
+        return [];
       }
 
-      return allItems;
+      let raw: any;
+      try { raw = JSON.parse(text); } catch {
+        console.error(`[corban-snapshot-cron] Non-JSON response: ${text.slice(0, 200)}`);
+        return [];
+      }
+
+      if (raw?.error === true) {
+        console.error(`[corban-snapshot-cron] API error: ${raw.mensagem || JSON.stringify(raw).slice(0, 200)}`);
+        return [];
+      }
+
+      const pageItems = normalizePropostas(raw);
+      console.log(`[corban-snapshot-cron] ${formatDate(start)}→${formatDate(end)}: ${pageItems.length} items (raw keys: ${Object.keys(raw || {}).join(',').slice(0, 100)})`);
+      return pageItems;
     }
 
-    console.log(`[corban-snapshot-cron] Fetching window ${formatDate(startWindow)} → ${formatDate(now)}`);
-
-    let items = await fetchWithTipo('envio');
-    if (items.length === 0) {
-      console.log('[corban-snapshot-cron] tipo=envio empty, trying tipo=cadastro fallback');
-      items = await fetchWithTipo('cadastro');
+    let items: any[] = [];
+    for (const [s, e] of windows) {
+      const got = await fetchWindow(s, e);
+      items.push(...got);
     }
 
     console.log(`[corban-snapshot-cron] TOTAL collected: ${items.length} proposals`);
