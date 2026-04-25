@@ -13,6 +13,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
+import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 
 const PRESET_RATES = [
   { bank: 'LOTUS', table_key: 'LOTUS 1+', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: false, rate: 16, obs: 'Prazo 1 ano' },
