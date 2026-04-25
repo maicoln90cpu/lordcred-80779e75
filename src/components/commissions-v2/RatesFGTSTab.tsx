@@ -14,6 +14,7 @@ import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
+import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
 
 const PRESET_RATES = [
   { bank: 'LOTUS', table_key: 'LOTUS 1+', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: false, rate: 16, obs: 'Prazo 1 ano' },
@@ -189,6 +190,7 @@ export default function RatesFGTSTab() {
               const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas FGTS V2'); XLSX.writeFile(wb, 'taxas_fgts_v2.xlsx');
               toast({ title: `${rates.length} taxas exportadas` });
             }}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
+            <SmartPasteRatesButton tableName="commission_rates_fgts_v2" onInserted={loadRates} />
             <Button variant="outline" size="sm" onClick={() => { setImportPreview([]); setImportDialogOpen(true); }}><Upload className="w-4 h-4 mr-1" /> Importar</Button>
             <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Taxa</Button>
           </div>
