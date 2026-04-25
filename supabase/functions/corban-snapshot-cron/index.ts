@@ -20,24 +20,27 @@ function formatDate(d: Date): string {
 
 function normalizePropostas(rawData: any): any[] {
   if (!rawData) return [];
-  // Handle various response shapes from NewCorban
-  let items: any[] = [];
-  if (Array.isArray(rawData)) {
-    items = rawData;
-  } else if (rawData.data && Array.isArray(rawData.data)) {
-    items = rawData.data;
-  } else if (rawData.propostas && Array.isArray(rawData.propostas)) {
-    items = rawData.propostas;
-  } else if (typeof rawData === 'object') {
-    // Try to find first array property
+  // 1. Direct array
+  if (Array.isArray(rawData)) return rawData;
+  // 2. Common wrappers
+  if (rawData.data && Array.isArray(rawData.data)) return rawData.data;
+  if (rawData.propostas && Array.isArray(rawData.propostas)) return rawData.propostas;
+  // 3. Keyed-object (NewCorban returns proposals as { "<id>": {...}, "<id2>": {...} })
+  if (typeof rawData === 'object') {
+    const entries = Object.entries(rawData);
+    const numericEntries = entries.filter(([k]) => /^\d+$/.test(k));
+    if (numericEntries.length > 0) {
+      return numericEntries.map(([id, value]) => ({
+        proposta_id: id,
+        ...(typeof value === 'object' && value !== null ? value as Record<string, unknown> : {}),
+      }));
+    }
+    // 4. Fallback: first array property
     for (const key of Object.keys(rawData)) {
-      if (Array.isArray(rawData[key]) && rawData[key].length > 0) {
-        items = rawData[key];
-        break;
-      }
+      if (Array.isArray(rawData[key]) && rawData[key].length > 0) return rawData[key];
     }
   }
-  return items;
+  return [];
 }
 
 function extractField(item: any, ...paths: string[]): any {
