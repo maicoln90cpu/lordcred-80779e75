@@ -472,24 +472,35 @@ export default function V8NovaSimulacaoTab() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Progresso do Lote</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const { data, error } = await supabase.functions.invoke('v8-webhook', {
-                    body: { action: 'replay_pending', limit: 500 },
-                  });
-                  if (error) throw error;
-                  toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
-                } catch (e: any) {
-                  toast.error(`Falha ao reprocessar: ${e?.message || e}`);
-                }
-              }}
-              title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
-            >
-              <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={running}
+                onClick={handleRetryFailed}
+                title="Re-dispara apenas falhas temporárias (rate limit / análise pendente). Não toca em consulta ativa, proposta existente ou dados inválidos."
+              >
+                <RefreshCw className="w-3 h-3 mr-1" /> Retentar falhados
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('v8-webhook', {
+                      body: { action: 'replay_pending', limit: 500 },
+                    });
+                    if (error) throw error;
+                    toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
+                  } catch (e: any) {
+                    toast.error(`Falha ao reprocessar: ${e?.message || e}`);
+                  }
+                }}
+                title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
