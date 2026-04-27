@@ -66,18 +66,47 @@ function getSimulationStatusVariant(simulation: { status: string; raw_response: 
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const MAX_CONCURRENCY = 3;
+const STORAGE_KEY = 'v8:nova-simulacao:draft';
+
+type V8Draft = {
+  batchName: string;
+  configId: string;
+  parcelas: number;
+  simulationMode: 'none' | 'disbursed_amount' | 'installment_face_value';
+  simulationValue: string;
+  pasteText: string;
+  activeBatchId: string | null;
+};
+
+function loadDraft(): Partial<V8Draft> {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
   const { settings: v8Settings } = useV8Settings();
-  const [batchName, setBatchName] = useState('');
-  const [configId, setConfigId] = useState('');
-  const [parcelas, setParcelas] = useState(24);
-  const [simulationMode, setSimulationMode] = useState<'none' | 'disbursed_amount' | 'installment_face_value'>('none');
-  const [simulationValue, setSimulationValue] = useState('');
-  const [pasteText, setPasteText] = useState('');
-  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const _draft = useMemo(() => loadDraft(), []);
+  const [batchName, setBatchName] = useState<string>(_draft.batchName ?? '');
+  const [configId, setConfigId] = useState<string>(_draft.configId ?? '');
+  const [parcelas, setParcelas] = useState<number>(_draft.parcelas ?? 24);
+  const [simulationMode, setSimulationMode] = useState<'none' | 'disbursed_amount' | 'installment_face_value'>(_draft.simulationMode ?? 'none');
+  const [simulationValue, setSimulationValue] = useState<string>(_draft.simulationValue ?? '');
+  const [pasteText, setPasteText] = useState<string>(_draft.pasteText ?? '');
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(_draft.activeBatchId ?? null);
   const [running, setRunning] = useState(false);
+
+  // Persiste rascunho no localStorage para sobreviver à troca de aba/refresh
+  useEffect(() => {
+    try {
+      const draft: V8Draft = { batchName, configId, parcelas, simulationMode, simulationValue, pasteText, activeBatchId };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    } catch {}
+  }, [batchName, configId, parcelas, simulationMode, simulationValue, pasteText, activeBatchId]);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
 
