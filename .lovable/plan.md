@@ -1,73 +1,98 @@
+## O que será feito
 
-# Plano — 4 ajustes + relatório de comissões V2
+Três frentes independentes, todas com migrations e código testáveis em separado.
 
-## 1) V8 Simulador — Histórico e persistência da Nova Simulação
+---
 
-**Problema atual**
-- A mensagem de erro instrui "use Retentar para tentar novamente", mas o botão **não existe** na aba Histórico (só na Nova Simulação).
-- Ao sair da aba "Nova Simulação", o estado em memória (lista de CPFs em processamento) é perdido — quando volta, fica vazio.
+### Frente 1 — Migration de correção `commission_rates_v2`
 
-**O que farei**
-- **Botão "Retentar falhados" no `V8HistoricoTab`** (dentro de cada lote expandido, no topo da tabela). Reaproveita o cron `v8-retry-cron` invocando-o sob demanda com `batch_id`, e respeita as mesmas regras (`shouldAutoRetry` — só `temporary_v8` / `analysis_pending`, dentro do `max_auto_retry_attempts`).
-- **Persistência da Nova Simulação**: salvar o `currentBatchId` em `localStorage` (`v8:current-batch`) e, ao remontar o componente, recarregar as linhas via `useV8BatchSimulations(batchId)`. Assim, trocar de aba/recarregar a página não perde a tela.
-- Atualizar o texto do erro para apontar corretamente: "Aguarde — o sistema vai retentar automaticamente. Você também pode usar o botão **Retentar falhados** acima."
+Estratégia segura em 3 passos dentro de **uma única migration transacional**:
 
-## 2) Chat Interno — Shift+Enter quebra linha
+1. **Backup automático**: cria tabela `commission_rates_clt_v2_backup_20260427` e `commission_rates_fgts_v2_backup_20260427` com cópia integral antes de qualquer mudança (permite reverter em segundos se preciso).
+2. **DELETE seletivo das duplicatas** (33 grupos CLT) usando a chave (`bank`, `table_key`, `term_min`, `term_max`, `has_insurance`).
+3. **INSERT da linha oficial** com a taxa da planilha.
+4. **UPDATE da divergência** PARANA BANCO FGTS (14% → 4%).
+5. **INSERT das 31 faltantes** (28 CLT + 3 FGTS).
 
-**Hoje**: `InternalChat.tsx` usa `<Input>` (single-line). Enter envia, Shift+Enter não faz nada porque Input não suporta multi-linha.
+#### Resoluções de conflito (taxa oficial = planilha)
 
-**Mudança**: trocar por `<Textarea>` com `rows={1}` + auto-resize (até ~5 linhas), mantendo:
-- `Enter` → envia
-- `Shift+Enter` → quebra linha
-- `Ctrl/Cmd+V` de imagem → continua funcionando (handler `onPaste` preservado)
+| Banco / Tabela | Prazo | Seg | Taxa oficial |
+|---|---|---|---|
+| Banco C6 / — | 18m | Não | 2.2% |
+| Banco C6 / — | 24m | Não | 2.5% |
+| Banco C6 / — | 36–48m | Não | 2.7% |
+| Banco C6 / 4 Parcela | 12m | Sim | 2.2% |
+| Banco C6 / 4 Parcela | 18m | Sim | 2.6% |
+| Banco C6 / 4 Parcela | 36m | Sim | 3.1% |
+| Happy / — | 18m Não / Sim | — | 1.0 / 1.8 |
+| Happy / — | 24m Não / Sim | — | 1.4 / 2.25 |
+| Happy / — | 36m Não / Sim | — | 2.0 / 3.6 |
+| MERCANTIL / — | 0–999m | Sim | 4.5% |
+| Prata Digital / — | 6m / 12m / 24–36m | Não | 2.75 / 3.25 / 5.0 |
+| Presença Bank / — | 6 / 12 / 24 / 36m | Não | 3.25 / 4.25 / 4.5 / 4.75 |
+| V8 Bank / — | 24m / 36m | Não | 3.75 / 4.25 |
+| ZiliCred / — | 0–999m | Sim | 2.9% |
+| FACTA / — | 6–20m / 24–48m | Não | **3.3 / 3.8** (menor das duas; planilha não tem "FACTA genérico", mantenho conservador) |
 
-## 3) Tickets — Anexar print/arquivo
+#### Faltantes a inserir (CLT)
+V8 Bank 6–10 (2.5%), 12–18 (3.0%), 24 (3.75%), 36 (4.25%) — sem seguro, sem table_key.
+HUB CLT: SONHO (3.25%), FOCO (2.5%), CARTADA (2.25%) — com table_key.
+C6 6/9 todos: 1.5%; 12/18/24/36–48 Normal (sem table_key).
+C6 4P/6P/9P 12/18/24/36/48 com seguro (com table_key `4 Parcela`, `6 Parcela`, `9 Parcela`).
 
-**Hoje**: Dialog "Novo Ticket" tem só título, descrição e prioridade. Sem upload.
+#### Faltantes a inserir (FGTS)
+- PARANA C/ SEGURO 6.5% (`has_insurance=true`).
+- HUB Carta na Manga FGTS faixa R$ 0,01–250 = 20.5%, 251–999.999,99 = 17% (registrar como banco "HUB" + table_key "CARTA NA MANGA" + faixa de valor).
 
-**Mudança**:
-- Adicionar campo "Anexo (opcional)" no `BroadcastCreateDialog`-like dialog de novo ticket: aceita imagens (png/jpg/webp) e PDF, até 10MB.
-- Upload para bucket `ticket-attachments` (criar via migration, RLS: ler quem tem acesso ao ticket; gravar = autor do ticket / privileged).
-- Adicionar coluna `attachment_url text` e `attachment_name text` em `support_tickets` (migration).
-- No painel do ticket, mostrar miniatura clicável (imagem) ou link de download (PDF).
-- (Bonus) permitir anexar também nas **respostas** do ticket (`ticket_messages.attachment_url`) — opcional, marcar como pendência se quiser deixar para depois.
+---
 
-## 4) Relatório de divergências — Comissões Parceiros V2
+### Frente 2 — Performance: filtrar por `contacted_at` em vez de `created_at`
 
-A planilha enviada tem 75 linhas (FGTS à esquerda, CLT à direita). Já comparei amostras com `commission_rates_fgts_v2` e `commission_rates_clt_v2` e há **3 tipos de problema** óbvios:
+#### Backend
+- Criar `get_performance_stats_v2(_date_from, _date_to)` (mantém v1 intacta para não quebrar nada). Diferenças:
+  - `total` continua contando todos os leads atribuídos ao vendedor (sem filtro de data — base ativa).
+  - `contacted` / `approved` / `pending` filtram por **`contacted_at` BETWEEN _date_from..._date_to**.
+  - Mensagens (`msg_stats`) continuam por `created_at` (são imutáveis, faz sentido).
+- Criar `get_lead_status_distribution_v2` filtrando por `contacted_at`.
+- Manter `get_avg_response_time` como está (já usa contacted_at para o cálculo).
 
-**A. Duplicatas no banco V2 (CLT)** — exemplo: `Banco C6` 6m sem seguro aparece **3 vezes** com `rate=1.5`, `1.50`, `1.5`. C6 12m sem seguro aparece 3x com `2`, `2.00`, `2`. Causa: imports repetidos sem dedupe.
+#### Frontend
+- `Performance.tsx` chama as `_v2`.
+- KPI "Pendentes" passa a significar "leads ainda pendentes hoje", e "Contatados/Aprovados" passa a ser "movidos no período X".
 
-**B. Tabelas faltando no V2** vs planilha:
-- FGTS: `LOTUS 1+ Com Seguro` (12%), `LOTUS 2+ Com Seguro` (10.5%), `LOTUS 3+ Com Seguro` (9.5%), `LOTUS 4+ Com Seguro` (7.5%), `LOTUS 1R+/2R+/3R+/4R+`, `LOTUS SEM TAC`, faixas `R$ 0,01–250` (20.5%) e `251–999.999,99` (17%).
-- CLT: `MERCANTIL` e `MERCANTIL C/ SEG`, todas as `FACTA NOVO GOLD/SMART`, `V8 6/12/24/36`, `PRESENÇA 6/12/24/36`, `HUB SONHO/FOCO/CARTADA CLT`, `PRATA 6/12/24-36`, `HAPPY 12/18/24/36` (com e sem seg), `ZILICRED` (todas), `QUALIBANK 6/12/18/24/36`.
+---
 
-**C. Valores divergentes** — ex: planilha diz `FACTA GOLD PLUS 2 anos = 6.35%`, banco tem `17%`. Planilha `LOTUS 1+ = 11%`, banco bate (11). Planilha `PARANA 1x = 4%`, banco tem `14%`. Há claramente confusão entre **nomenclatura de prazo** (1 ano vs 1 parcela) e **escala de %** (alguns valores no banco parecem estar 2,5x acima).
+### Frente 3 — Performance: filtro personalizado com hora
 
-**Entrega**
-- Script Python compara cada linha da planilha com a tabela V2 (FGTS e CLT separados), gera um XLSX em `/mnt/documents/comissoes-v2-divergencias.xlsx` com 4 abas:
-  1. **FGTS - Divergências** (coluna: planilha % vs banco %, status, sugestão)
-  2. **CLT - Divergências**
-  3. **Faltando no banco** (linhas da planilha sem correspondência V2)
-  4. **Duplicatas** (entradas duplicadas em V2 a remover)
-- Relatório também em Markdown no chat com top 10 itens críticos e o **SQL exato** para corrigir cada um (UPDATE/DELETE/INSERT).
-- **Não vou alterar dados sem sua aprovação** — o relatório é diagnóstico; após você revisar, gero a migration de correção.
+#### Frontend
+- No bloco "Personalizado" (linha 307–333 de `Performance.tsx`), adicionar dois `<Input type="time">` ao lado de cada `Calendar` (defaults `00:00` para início e `23:59` para fim).
+- `computeDateRange` aplica essas horas ao `Date` antes de converter para ISO.
+- Atalho extra: botão "Última hora" para 1 clique.
+
+---
+
+## Arquivos afetados
+
+- 1 migration nova: `correct_commission_rates_v2_and_performance_v2.sql` (ou duas separadas se preferir)
+- `src/pages/admin/Performance.tsx` (filtros + chamadas RPC)
+- Sem mudança em V1 nem em telas operacionais
 
 ---
 
 ## Detalhes técnicos
 
-- **v8-retry-cron**: já aceita `batch_id` opcional? Verificar; se não, adicionar parâmetro e filtro `WHERE batch_id = $1`.
-- **localStorage chave**: `v8:current-batch:{user_id}` para isolar entre usuários.
-- **Textarea auto-resize**: usar `useRef` + `el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'` no `onChange`, com `max-h-32`.
-- **Bucket `ticket-attachments`**: público=false, signed URL de 1h ao exibir.
-- **Migration tickets**: `ALTER TABLE support_tickets ADD COLUMN attachment_url text, attachment_name text;`
-- **Comparador de taxas**: normalização (uppercase + strip + remover acentos + match fuzzy via `difflib.get_close_matches` com cutoff 0.85) — fundamental para casar "PARANA C/ SEGURO" com `PARANA BANCO has_insurance=true`.
+- Migration em `BEGIN; ... COMMIT;` implícito via Supabase. Backup criado com `CREATE TABLE ... AS SELECT *` (rápido, mesmo schema).
+- Para reverter: `TRUNCATE commission_rates_clt_v2; INSERT INTO commission_rates_clt_v2 SELECT * FROM commission_rates_clt_v2_backup_20260427;`.
+- RLS dos backups: herda nada — adiciono RLS bloqueado para qualquer não-master, evitando vazamento.
+- `get_performance_stats_v2` é SECURITY DEFINER + STABLE (igual à v1).
+- Filtro de hora: `customDateFromTime: string` (HH:MM), aplicado com `setHours(parseInt(h), parseInt(m), 0, 0)` antes do `.toISOString()`.
 
-## Pendências (após este plano)
-- Correção de fato dos dados V2 (depende da sua revisão do relatório).
-- Anexos em respostas do ticket (item 3, marcado como bonus).
+---
 
-## Prevenção de regressão
-- Vitest para `shouldAutoRetry` já cobre. Adicionar caso para `retryFailedFromHistory(batchId)`.
-- Constraint `UNIQUE(bank, table_key, term_min, term_max, has_insurance, min_value, max_value, effective_date)` em `commission_rates_clt_v2` e `_fgts_v2` para impedir novas duplicatas.
+## Pontos de atenção que você precisa confirmar
+
+1. **FACTA sem tabela** (6–20m e 24–48m): a planilha não tem "FACTA — genérico". Vou usar 3.3% e 3.8% (menor de cada conflito). Se preferir as maiores, troco.
+2. **HUB FGTS Carta na Manga até/acima R$ 250**: vou inserir como `bank='HUB'` + `table_key='CARTA NA MANGA'` + `min_value/max_value` de 0.01–250 e 251–999999.99. Se já existirem entradas HUB diferentes, o INSERT pode duplicar — antes do INSERT faço `DELETE` de qualquer linha HUB+CARTA NA MANGA preexistente para limpar.
+3. **"Pendentes" no KPI** com filtro por contato: ficará alto (todos os leads atribuídos sem contato ainda). É isso que você quer? Confirma e sigo.
+
+Posso aplicar tudo?
