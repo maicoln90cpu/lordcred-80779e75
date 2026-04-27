@@ -450,6 +450,18 @@ async function actionGetConfigs(supabase: any) {
     }
   }
 
+  // Dedupe automática: marca como inativas TODAS as configs do cache cujo
+  // config_id NÃO veio na resposta atual da V8. Assim, quando a V8 publicar
+  // novos UUIDs para a mesma "CLT Acelera", as antigas somem do dropdown
+  // (o useV8Configs filtra is_active=true).
+  if (incomingIds.size > 0) {
+    const idsArr = Array.from(incomingIds);
+    await supabase
+      .from("v8_configs_cache")
+      .update({ is_active: false, synced_at: new Date().toISOString() })
+      .not("config_id", "in", `(${idsArr.map((s) => `"${s}"`).join(",")})`);
+  }
+
   return { success: true, data: configs };
 }
 
