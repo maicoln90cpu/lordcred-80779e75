@@ -202,6 +202,7 @@ export default function V8NovaSimulacaoTab() {
                   batch_id: activeBatchId,
                   simulation_id: sim.id,
                   attempt_count: Number((sim as any).attempt_count ?? 1) + 1,
+                  triggered_by: 'manual_retry',
                 },
               },
             });
