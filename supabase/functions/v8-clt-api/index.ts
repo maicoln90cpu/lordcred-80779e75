@@ -1248,10 +1248,17 @@ const handler = async (req: Request) => {
               });
             }
           } else if ((result as any)?.step === "consult_status") {
+            // Não rebaixar: se a linha já é 'failed', manter — apenas anexar info ao raw_response.
+            const { data: existing } = await supabase
+              .from("v8_simulations")
+              .select("status")
+              .eq("id", params.simulation_id)
+              .maybeSingle();
+            const newStatus = existing?.status === "failed" ? "failed" : "pending";
             await supabase
               .from("v8_simulations")
               .update({
-                status: "pending",
+                status: newStatus,
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
                 raw_response: {
                   kind: (result as any).kind ?? null,
