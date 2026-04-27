@@ -545,7 +545,10 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
+                      <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
+                        {s.attempt_count ?? 0}
+                        {(s.attempt_count ?? 0) >= MAX_AUTO_RETRY_ATTEMPTS && <span className="text-[10px] block text-destructive">(máx)</span>}
+                      </td>
                       <td className="px-2 py-1 align-top">
                         {(() => {
                           const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
