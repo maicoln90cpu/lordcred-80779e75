@@ -1115,22 +1115,36 @@ const handler = async (req: Request) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userErr } = await supabaseAuth.auth.getUser(token);
-    if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = userData.user.id;
+    const isCronCall = req.headers.get("x-cron-trigger") === "v8-retry-cron"
+      && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    const { data: privData } = await supabase.rpc("is_privileged", { _user_id: userId });
-    const isPriv = !!privData;
+    let userId: string;
+    let userEmail: string | null = null;
+    let isPriv = false;
+
+    if (isCronCall) {
+      // Chamada interna do v8-retry-cron — não temos um usuário humano.
+      // Usa o created_by da própria simulação (passado em params.cron_user_id) para audit.
+      const body0 = await req.clone().json().catch(() => ({}));
+      userId = body0?.params?.cron_user_id || "00000000-0000-0000-0000-000000000000";
+      userEmail = "cron@v8-retry";
+      isPriv = true;
+    } else {
+      const { data: userData, error: userErr } = await supabaseAuth.auth.getUser(token);
+      if (userErr || !userData?.user) {
+        return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = userData.user.id;
+      userEmail = userData.user.email ?? null;
+      const { data: privData } = await supabase.rpc("is_privileged", { _user_id: userId });
+      isPriv = !!privData;
+    }
 
     const body = await req.json().catch(() => ({}));
     const { action, params } = body;
-
-    const userEmail = userData.user.email ?? null;
 
     let result;
     switch (action) {
