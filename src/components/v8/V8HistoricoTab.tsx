@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 import {
   getV8ErrorHeadline,
   getV8ErrorMeta,
@@ -12,8 +16,48 @@ import {
 
 function BatchDetail({ batchId }: { batchId: string }) {
   const { simulations } = useV8BatchSimulations(batchId);
+  const { toast } = useToast();
+  const [retrying, setRetrying] = useState(false);
+
+  const failedRetriable = simulations.filter((s) => {
+    if (s.status !== 'failed') return false;
+    const kind = (s as any).raw_response?.kind || (s as any).raw_response?.error_kind || null;
+    return isRetriableErrorKind(kind);
+  });
+
+  const handleRetry = async () => {
+    if (failedRetriable.length === 0) return;
+    setRetrying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-retry-cron', {
+        body: { batch_id: batchId, manual: true },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Retentativa iniciada',
+        description: `${(data as any)?.eligible ?? failedRetriable.length} simulações reenviadas. Os resultados aparecerão em alguns segundos.`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
-    <div className="border rounded mt-2 overflow-x-auto">
+    <div className="space-y-2 mt-2">
+      {failedRetriable.length > 0 && (
+        <div className="flex items-center justify-between rounded border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
+          <span className="text-xs">
+            <strong>{failedRetriable.length}</strong> simulação(ões) falhada(s) podem ser retentadas (instabilidade da V8 / análise pendente).
+          </span>
+          <Button size="sm" variant="outline" onClick={handleRetry} disabled={retrying} className="h-7">
+            {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Retentar falhados
+          </Button>
+        </div>
+      )}
+      <div className="border rounded overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="bg-muted">
           <tr>
@@ -87,6 +131,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
