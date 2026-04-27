@@ -136,8 +136,10 @@ export default function V8NovaSimulacaoTab() {
       toast.error('Dê um nome ao lote');
       return;
     }
-    if (!Number.isFinite(Number(simulationValue.replace(',', '.'))) || Number(simulationValue.replace(',', '.')) <= 0) {
-      toast.error('Informe um valor válido para a simulação');
+    const hasValueInput = simulationValue.trim().length > 0;
+    const wantsValue = simulationMode !== 'none';
+    if (wantsValue && (!hasValueInput || !Number.isFinite(Number(simulationValue.replace(',', '.'))) || Number(simulationValue.replace(',', '.')) <= 0)) {
+      toast.error('Informe um valor válido para a simulação ou escolha "Sem valor (V8 decide)"');
       return;
     }
 
