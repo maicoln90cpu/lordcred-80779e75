@@ -26,6 +26,7 @@ import {
   getV8ErrorSecondary,
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
+import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -133,6 +134,78 @@ export default function V8NovaSimulacaoTab() {
       setStatusDialogData({ cpf, loading: false, result: data.data, error: null });
     } catch (err: any) {
       setStatusDialogData({ cpf, loading: false, result: null, error: err?.message || String(err) });
+    }
+  }
+
+  /**
+   * Re-dispara simulações falhadas que sejam retentáveis automaticamente:
+   * apenas kind ∈ {temporary_v8, analysis_pending} (instabilidade ou análise pendente).
+   * NÃO mexe em active_consult, existing_proposal nem invalid_data — esses precisam de ação humana.
+   */
+  async function handleRetryFailed() {
+    if (!activeBatchId) return;
+    const candidates = simulations.filter((s) => {
+      if (s.status !== 'failed') return false;
+      const kind = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      return isRetriableErrorKind(kind);
+    });
+
+    if (candidates.length === 0) {
+      toast.info('Nenhuma falha retentável neste lote (apenas erros temporários ou em análise são reprocessados automaticamente).');
+      return;
+    }
+
+    if (!configId) {
+      toast.error('Escolha a tabela usada no lote antes de retentar');
+      return;
+    }
+
+    setRunning(true);
+    const toastId = toast.loading(`Retentando ${candidates.length} simulação(ões)...`);
+    let okCount = 0;
+    let failCount = 0;
+    const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
+
+    try {
+      let idx = 0;
+      const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
+        while (idx < candidates.length) {
+          const myIdx = idx++;
+          const sim = candidates[myIdx];
+          try {
+            const parsedRow = pasteAnalysis.rows.find((r) => r.cpf === sim.cpf);
+            const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_one',
+                params: {
+                  cpf: sim.cpf,
+                  nome: sim.name,
+                  data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
+                  config_id: sim.config_id || configId,
+                  parcelas: sim.installments || parcelas,
+                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+                  batch_id: activeBatchId,
+                  simulation_id: sim.id,
+                  attempt_count: Number((sim as any).attempt_count ?? 1) + 1,
+                },
+              },
+            });
+            if (error || !data?.success) failCount += 1;
+            else okCount += 1;
+          } catch {
+            failCount += 1;
+          }
+        }
+      });
+      await Promise.all(workers);
+      toast.success(`Retentativa concluída: ${okCount} ok · ${failCount} ainda com erro`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Erro ao retentar: ${err?.message || err}`, { id: toastId });
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -399,24 +472,35 @@ export default function V8NovaSimulacaoTab() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Progresso do Lote</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const { data, error } = await supabase.functions.invoke('v8-webhook', {
-                    body: { action: 'replay_pending', limit: 500 },
-                  });
-                  if (error) throw error;
-                  toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
-                } catch (e: any) {
-                  toast.error(`Falha ao reprocessar: ${e?.message || e}`);
-                }
-              }}
-              title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
-            >
-              <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={running}
+                onClick={handleRetryFailed}
+                title="Re-dispara apenas falhas temporárias (rate limit / análise pendente). Não toca em consulta ativa, proposta existente ou dados inválidos."
+              >
+                <RefreshCw className="w-3 h-3 mr-1" /> Retentar falhados
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('v8-webhook', {
+                      body: { action: 'replay_pending', limit: 500 },
+                    });
+                    if (error) throw error;
+                    toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
+                  } catch (e: any) {
+                    toast.error(`Falha ao reprocessar: ${e?.message || e}`);
+                  }
+                }}
+                title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
