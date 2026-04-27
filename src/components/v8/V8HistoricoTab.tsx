@@ -217,10 +217,12 @@ export default function V8HistoricoTab() {
             const isOpen = expanded === b.id;
             return (
               <div key={b.id} className="border rounded">
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setExpanded(isOpen ? null : b.id)}
-                  className="w-full flex items-center gap-2 p-3 hover:bg-muted/50 transition-colors text-left"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(isOpen ? null : b.id); } }}
+                  className="w-full flex items-center gap-2 p-3 hover:bg-muted/50 transition-colors text-left cursor-pointer select-none"
                 >
                   {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   <div className="flex-1">
@@ -234,8 +236,8 @@ export default function V8HistoricoTab() {
                   </Badge>
                   <Badge variant="outline">{b.success_count}/{b.total_count} ok</Badge>
                   <Badge variant="outline">{successRate}%</Badge>
-                  <span onClick={(e) => e.stopPropagation()}><BatchRetryHeaderButton batchId={b.id} /></span>
-                </button>
+                  <BatchRetryHeaderButton batchId={b.id} />
+                </div>
                 {isOpen && <div className="px-3 pb-3"><BatchDetail batchId={b.id} /></div>}
               </div>
             );
