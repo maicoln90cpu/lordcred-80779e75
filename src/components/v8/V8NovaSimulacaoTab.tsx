@@ -65,11 +65,13 @@ export default function V8NovaSimulacaoTab() {
   const [batchName, setBatchName] = useState('');
   const [configId, setConfigId] = useState('');
   const [parcelas, setParcelas] = useState(24);
-  const [simulationMode, setSimulationMode] = useState<'disbursed_amount' | 'installment_face_value'>('disbursed_amount');
+  const [simulationMode, setSimulationMode] = useState<'none' | 'disbursed_amount' | 'installment_face_value'>('none');
   const [simulationValue, setSimulationValue] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
