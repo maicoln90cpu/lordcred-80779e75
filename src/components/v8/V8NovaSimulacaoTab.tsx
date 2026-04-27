@@ -137,7 +137,77 @@ export default function V8NovaSimulacaoTab() {
     }
   }
 
-  async function handleStart() {
+  /**
+   * Re-dispara simulações falhadas que sejam retentáveis automaticamente:
+   * apenas kind ∈ {temporary_v8, analysis_pending} (instabilidade ou análise pendente).
+   * NÃO mexe em active_consult, existing_proposal nem invalid_data — esses precisam de ação humana.
+   */
+  async function handleRetryFailed() {
+    if (!activeBatchId) return;
+    const candidates = simulations.filter((s) => {
+      if (s.status !== 'failed') return false;
+      const kind = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      return isRetriableErrorKind(kind);
+    });
+
+    if (candidates.length === 0) {
+      toast.info('Nenhuma falha retentável neste lote (apenas erros temporários ou em análise são reprocessados automaticamente).');
+      return;
+    }
+
+    if (!configId) {
+      toast.error('Escolha a tabela usada no lote antes de retentar');
+      return;
+    }
+
+    setRunning(true);
+    const toastId = toast.loading(`Retentando ${candidates.length} simulação(ões)...`);
+    let okCount = 0;
+    let failCount = 0;
+    const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
+
+    try {
+      let idx = 0;
+      const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
+        while (idx < candidates.length) {
+          const myIdx = idx++;
+          const sim = candidates[myIdx];
+          try {
+            const parsedRow = pasteAnalysis.rows.find((r) => r.cpf === sim.cpf);
+            const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_one',
+                params: {
+                  cpf: sim.cpf,
+                  nome: sim.name,
+                  data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
+                  config_id: sim.config_id || configId,
+                  parcelas: sim.installments || parcelas,
+                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+                  batch_id: activeBatchId,
+                  simulation_id: sim.id,
+                  attempt_count: Number((sim as any).attempt_count ?? 1) + 1,
+                },
+              },
+            });
+            if (error || !data?.success) failCount += 1;
+            else okCount += 1;
+          } catch {
+            failCount += 1;
+          }
+        }
+      });
+      await Promise.all(workers);
+      toast.success(`Retentativa concluída: ${okCount} ok · ${failCount} ainda com erro`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Erro ao retentar: ${err?.message || err}`, { id: toastId });
+    } finally {
+      setRunning(false);
+    }
+  }
     const rows = pasteAnalysis.rows;
     if (rows.length === 0) {
       toast.error('Cole pelo menos 1 CPF válido');
