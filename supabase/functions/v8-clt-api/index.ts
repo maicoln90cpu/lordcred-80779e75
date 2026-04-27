@@ -389,6 +389,7 @@ async function actionGetConfigs(supabase: any) {
     for (const c of configs) {
       const config_id = String(c.id ?? c.configId ?? c.uuid ?? c.code ?? "");
       if (!config_id) continue;
+      incomingIds.add(config_id);
       // V8 envia detalhes em "financial" OU "financial_conditions" OU plano direto.
       const fin = c.financial ?? c.financialConditions ?? c.financial_conditions ?? c.conditions ?? {};
       const displayName = String(
