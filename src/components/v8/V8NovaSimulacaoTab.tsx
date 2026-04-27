@@ -26,9 +26,9 @@ import {
   getV8ErrorSecondary,
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
-import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
+import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 
-function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
+function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
 
   if (simulation.status === 'failed' && errorKind === 'active_consult') {
@@ -44,12 +44,17 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     return 'dados inválidos';
   }
   if (simulation.status === 'pending') {
-    return 'em análise';
+    // Sem nenhuma chamada ainda → estamos disparando AGORA
+    if (!simulation.last_attempt_at) return 'processando';
+    // V8 explicitamente em estado de espera
+    const ws = (simulation.webhook_status || '').toUpperCase();
+    if (ws.startsWith('WAITING_')) return 'em análise';
+    return 'aguardando V8';
   }
   return simulation.status;
 }
 
-function getSimulationStatusVariant(simulation: { status: string; raw_response: any }) {
+function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
 
   if (simulation.status === 'success') return 'default' as const;
