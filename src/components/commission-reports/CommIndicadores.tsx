@@ -131,14 +131,21 @@ export default function CommIndicadores({
       detalhe: `Prazo ${(r as any).term_min}-${(r as any).term_max} | Seguro: ${(r as any).has_insurance ? 'Sim' : 'Não'}${(r as any).table_key ? ` | Chave: ${(r as any).table_key}` : ''}`,
       criado: (r as any).created_at,
     }));
-    const fgtsItems = fgtsRates.map(r => ({
-      tipo: 'FGTS',
-      banco: (r as any).bank,
-      vigencia: (r as any).effective_date,
-      taxa: `S/ Seg: ${(r as any).rate_no_insurance}% | C/ Seg: ${(r as any).rate_with_insurance}%`,
-      detalhe: '',
-      criado: (r as any).created_at,
-    }));
+    const fgtsItems = fgtsRates.map(r => {
+      const row = r as any;
+      // V2: coluna `rate` única com `has_insurance`. V1: `rate_no_insurance` + `rate_with_insurance`.
+      const taxa = row.rate !== undefined
+        ? `${row.rate}%${row.has_insurance ? ' (c/ seg)' : ''}${row.table_key ? ` | ${row.table_key}` : ''}`
+        : `S/ Seg: ${row.rate_no_insurance}% | C/ Seg: ${row.rate_with_insurance}%`;
+      return {
+        tipo: 'FGTS',
+        banco: row.bank,
+        vigencia: row.effective_date,
+        taxa,
+        detalhe: '',
+        criado: row.created_at,
+      };
+    });
     return [...cltItems, ...fgtsItems].sort((a, b) => new Date(b.criado).getTime() - new Date(a.criado).getTime()).slice(0, 30);
   }, [cltRates, fgtsRates]);
 
