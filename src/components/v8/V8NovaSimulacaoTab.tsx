@@ -69,6 +69,7 @@ const MAX_CONCURRENCY = 3;
 
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
+  const { settings: v8Settings } = useV8Settings();
   const [batchName, setBatchName] = useState('');
   const [configId, setConfigId] = useState('');
   const [parcelas, setParcelas] = useState(24);
@@ -79,6 +80,11 @@ export default function V8NovaSimulacaoTab() {
   const [running, setRunning] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
+
+  const maxAutoRetry = v8Settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
+  const minBackoffMs = (v8Settings?.retry_min_backoff_seconds ?? 10) * 1000;
+  const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
+  const backgroundRetryEnabled = v8Settings?.background_retry_enabled ?? true;
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
