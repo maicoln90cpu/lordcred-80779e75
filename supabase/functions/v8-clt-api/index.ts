@@ -1425,6 +1425,30 @@ const handler = async (req: Request) => {
           },
         });
         break;
+      case "check_consult_status":
+        result = await actionCheckConsultStatus(params);
+        await writeAuditLog(supabase, {
+          action: "v8_check_consult_status",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_consults",
+          details: {
+            request_payload: {
+              action: "check_consult_status",
+              cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+              consult_id: params?.consult_id ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              found: (result as any)?.data?.found ?? false,
+              latest_status: (result as any)?.data?.latest?.status ?? null,
+              error: (result as any)?.error ?? null,
+            },
+          },
+        });
+        break;
       default:
         result = { success: false, error: `Ação desconhecida: ${action}` };
     }
