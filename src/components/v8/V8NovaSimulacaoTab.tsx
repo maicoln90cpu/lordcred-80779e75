@@ -423,7 +423,20 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
                       <td className="px-2 py-1 align-top">
                         {s.status === 'pending' ? (
-                          <span className="text-muted-foreground">Aguardando retorno da V8</span>
+                          <span className="text-muted-foreground">Aguardando retorno da V8 (via webhook)</span>
+                        ) : (s.raw_response?.kind === 'active_consult' || s.raw_response?.error_kind === 'active_consult') ? (
+                          <div className="space-y-1">
+                            <div className="whitespace-pre-line font-medium text-amber-600">
+                              Já existe consulta ativa para este CPF na V8
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCheckStatus(s.cpf)}
+                            >
+                              <Search className="w-3 h-3 mr-1" /> Ver status na V8
+                            </Button>
+                          </div>
                         ) : s.error_message || s.raw_response ? (
                           <div className="space-y-1">
                             <div className="whitespace-pre-line font-medium">
