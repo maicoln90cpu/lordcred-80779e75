@@ -940,6 +940,7 @@ async function actionCheckConsultStatus(params: { cpf?: string; consult_id?: str
   };
 }
 
+async function actionCreateBatch(
   supabase: any,
   payload: {
     name: string;
