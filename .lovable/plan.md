@@ -1,98 +1,86 @@
-## O que será feito
+## Resposta às 2 perguntas
 
-Três frentes independentes, todas com migrations e código testáveis em separado.
+### 1) Comissões V2 — divergências NÃO foram zeradas
+Você está certo. A migration anterior corrigiu parte, mas deixou 21 problemas estruturais. O relatório atualizado está em `comissoes-v2-divergencias-v2.xlsx` (anexo acima).
 
----
+**Resumo dos buracos encontrados:**
 
-### Frente 1 — Migration de correção `commission_rates_v2`
-
-Estratégia segura em 3 passos dentro de **uma única migration transacional**:
-
-1. **Backup automático**: cria tabela `commission_rates_clt_v2_backup_20260427` e `commission_rates_fgts_v2_backup_20260427` com cópia integral antes de qualquer mudança (permite reverter em segundos se preciso).
-2. **DELETE seletivo das duplicatas** (33 grupos CLT) usando a chave (`bank`, `table_key`, `term_min`, `term_max`, `has_insurance`).
-3. **INSERT da linha oficial** com a taxa da planilha.
-4. **UPDATE da divergência** PARANA BANCO FGTS (14% → 4%).
-5. **INSERT das 31 faltantes** (28 CLT + 3 FGTS).
-
-#### Resoluções de conflito (taxa oficial = planilha)
-
-| Banco / Tabela | Prazo | Seg | Taxa oficial |
+| Item | Planilha | DB hoje | Problema |
 |---|---|---|---|
-| Banco C6 / — | 18m | Não | 2.2% |
-| Banco C6 / — | 24m | Não | 2.5% |
-| Banco C6 / — | 36–48m | Não | 2.7% |
-| Banco C6 / 4 Parcela | 12m | Sim | 2.2% |
-| Banco C6 / 4 Parcela | 18m | Sim | 2.6% |
-| Banco C6 / 4 Parcela | 36m | Sim | 3.1% |
-| Happy / — | 18m Não / Sim | — | 1.0 / 1.8 |
-| Happy / — | 24m Não / Sim | — | 1.4 / 2.25 |
-| Happy / — | 36m Não / Sim | — | 2.0 / 3.6 |
-| MERCANTIL / — | 0–999m | Sim | 4.5% |
-| Prata Digital / — | 6m / 12m / 24–36m | Não | 2.75 / 3.25 / 5.0 |
-| Presença Bank / — | 6 / 12 / 24 / 36m | Não | 3.25 / 4.25 / 4.5 / 4.75 |
-| V8 Bank / — | 24m / 36m | Não | 3.75 / 4.25 |
-| ZiliCred / — | 0–999m | Sim | 2.9% |
-| FACTA / — | 6–20m / 24–48m | Não | **3.3 / 3.8** (menor das duas; planilha não tem "FACTA genérico", mantenho conservador) |
+| LOTUS FGTS | 13 linhas | 4 | Faltam 9 variantes (1R+/2R+/3R+/4R+, "Com Seguro" 1+/2+/3+/4+, SEM TAC) |
+| PARANA FGTS | 2 linhas | 11 | Foi explodido em 11 linhas (1 por prazo) — a planilha quer só 2 (sem seguro 4%, com seguro 6.5%) |
+| HUB FGTS | 8 linhas | 9 | 4 linhas legadas "Faixa R$ 500/1000/2000/+" precisam sair |
+| FACTA CLT | 10 linhas | 2 | Faltam NOVO GOLD 2/3/4 (12-18, 24, 35-48) e NOVO SMART |
+| Banco C6 CLT | 21 linhas | 40 | 11 grupos têm 2 linhas duplicadas idênticas |
+| HUB CLT | 3 linhas | 9 | Banco gravado com 2 nomes diferentes ("HUB" e "Hub Credito") — trigger confunde |
+| Happy/Qualibank/ZiliCred | — | — | Sobram 4 linhas extras |
 
-#### Faltantes a inserir (CLT)
-V8 Bank 6–10 (2.5%), 12–18 (3.0%), 24 (3.75%), 36 (4.25%) — sem seguro, sem table_key.
-HUB CLT: SONHO (3.25%), FOCO (2.5%), CARTADA (2.25%) — com table_key.
-C6 6/9 todos: 1.5%; 12/18/24/36–48 Normal (sem table_key).
-C6 4P/6P/9P 12/18/24/36/48 com seguro (com table_key `4 Parcela`, `6 Parcela`, `9 Parcela`).
+### 2) Performance — está correto ✅
+Verifiquei a RPC `get_performance_stats_v2` (usada na linha 161 de `Performance.tsx`):
+- **Contatado**: filtra por `contacted_at` (momento em que o lead saiu de pendente) ✅
+- **Aprovado**: filtra por `contacted_at` E `status=APROVADO` ✅
+- **Pendente** e **Total**: filtram por `created_at` (intencional — pendente nunca tem `contacted_at`)
 
-#### Faltantes a inserir (FGTS)
-- PARANA C/ SEGURO 6.5% (`has_insurance=true`).
-- HUB Carta na Manga FGTS faixa R$ 0,01–250 = 20.5%, 251–999.999,99 = 17% (registrar como banco "HUB" + table_key "CARTA NA MANGA" + faixa de valor).
+Conclusão: a página de Performance já filtra pelo momento em que o vendedor chamou o cliente. Nenhuma alteração necessária aqui.
 
 ---
 
-### Frente 2 — Performance: filtrar por `contacted_at` em vez de `created_at`
+## Plano de correção (Comissões V2)
 
-#### Backend
-- Criar `get_performance_stats_v2(_date_from, _date_to)` (mantém v1 intacta para não quebrar nada). Diferenças:
-  - `total` continua contando todos os leads atribuídos ao vendedor (sem filtro de data — base ativa).
-  - `contacted` / `approved` / `pending` filtram por **`contacted_at` BETWEEN _date_from..._date_to**.
-  - Mensagens (`msg_stats`) continuam por `created_at` (são imutáveis, faz sentido).
-- Criar `get_lead_status_distribution_v2` filtrando por `contacted_at`.
-- Manter `get_avg_response_time` como está (já usa contacted_at para o cálculo).
+Vou rodar **uma única migration idempotente** com 4 etapas, com backup antes:
 
-#### Frontend
-- `Performance.tsx` chama as `_v2`.
-- KPI "Pendentes" passa a significar "leads ainda pendentes hoje", e "Contatados/Aprovados" passa a ser "movidos no período X".
+### Etapa 1 — Backup
+```sql
+CREATE TABLE commission_rates_fgts_v2_backup_20260427b AS SELECT * FROM commission_rates_fgts_v2;
+CREATE TABLE commission_rates_clt_v2_backup_20260427b AS SELECT * FROM commission_rates_clt_v2;
+```
 
----
+### Etapa 2 — FGTS
+- **PARANA BANCO**: `DELETE` das 11 linhas → `INSERT` 2 linhas oficiais (term 0-999, sem/com seguro)
+- **HUB CARTA NA MANGA**: `DELETE` das 4 linhas legadas (termos 1-5 com faixa R$ 500/1000/2000)
+- **LOTUS**: `INSERT` 9 variantes faltantes (1R+, 2R+, 3R+, 4R+, 1+/2+/3+/4+ Com Seguro, SEM TAC)
 
-### Frente 3 — Performance: filtro personalizado com hora
+### Etapa 3 — CLT
+- **HUB ↔ Hub Credito**: `UPDATE bank='HUB'` em tudo + `DELETE` duplicatas (manter `MIN(id)` por grupo)
+- **Banco C6**: `DELETE` duplicatas via CTE `ROW_NUMBER() OVER (PARTITION BY bank, table_key, term_min, term_max, has_insurance ORDER BY id) > 1`
+- **FACTA**: `INSERT` 10 linhas (NOVO GOLD 2/3/4 nas 3 faixas + NOVO SMART)
+- **Happy/Qualibank/ZiliCred**: `DELETE` duplicatas via mesma CTE
 
-#### Frontend
-- No bloco "Personalizado" (linha 307–333 de `Performance.tsx`), adicionar dois `<Input type="time">` ao lado de cada `Calendar` (defaults `00:00` para início e `23:59` para fim).
-- `computeDateRange` aplica essas horas ao `Date` antes de converter para ISO.
-- Atalho extra: botão "Última hora" para 1 clique.
-
----
-
-## Arquivos afetados
-
-- 1 migration nova: `correct_commission_rates_v2_and_performance_v2.sql` (ou duas separadas se preferir)
-- `src/pages/admin/Performance.tsx` (filtros + chamadas RPC)
-- Sem mudança em V1 nem em telas operacionais
+### Etapa 4 — Validação automática
+Query final que retorna a contagem por banco (igual à da auditoria) para confirmar que bate com a planilha (FGTS=31, CLT=66).
 
 ---
 
-## Detalhes técnicos
+## Perguntas antes de executar
 
-- Migration em `BEGIN; ... COMMIT;` implícito via Supabase. Backup criado com `CREATE TABLE ... AS SELECT *` (rápido, mesmo schema).
-- Para reverter: `TRUNCATE commission_rates_clt_v2; INSERT INTO commission_rates_clt_v2 SELECT * FROM commission_rates_clt_v2_backup_20260427;`.
-- RLS dos backups: herda nada — adiciono RLS bloqueado para qualquer não-master, evitando vazamento.
-- `get_performance_stats_v2` é SECURITY DEFINER + STABLE (igual à v1).
-- Filtro de hora: `customDateFromTime: string` (HH:MM), aplicado com `setHours(parseInt(h), parseInt(m), 0, 0)` antes do `.toISOString()`.
+1. **PARANA BANCO**: confirmo o achatamento para 2 linhas únicas (perdendo a granularidade por prazo que está hoje)?
+2. **HUB → Hub Credito**: vou consolidar tudo em **"HUB"** (nome único). OK?
+3. **Banco C6 duplicatas**: posso usar critério `MIN(id)` para escolher qual manter? (o rate é idêntico nas 11 duplicatas, então não há perda)
 
----
+## Vantagens / Desvantagens
 
-## Pontos de atenção que você precisa confirmar
+**Vantagens:**
+- Trigger `calculate_commission_v2` passa a achar a taxa correta sem ambiguidade
+- Bate 100% com a planilha-fonte (31 FGTS + 66 CLT)
+- Backup permite rollback total em 1 comando
 
-1. **FACTA sem tabela** (6–20m e 24–48m): a planilha não tem "FACTA — genérico". Vou usar 3.3% e 3.8% (menor de cada conflito). Se preferir as maiores, troco.
-2. **HUB FGTS Carta na Manga até/acima R$ 250**: vou inserir como `bank='HUB'` + `table_key='CARTA NA MANGA'` + `min_value/max_value` de 0.01–250 e 251–999999.99. Se já existirem entradas HUB diferentes, o INSERT pode duplicar — antes do INSERT faço `DELETE` de qualquer linha HUB+CARTA NA MANGA preexistente para limpar.
-3. **"Pendentes" no KPI** com filtro por contato: ficará alto (todos os leads atribuídos sem contato ainda). É isso que você quer? Confirma e sigo.
+**Desvantagens:**
+- Vendas V2 já calculadas com taxa antiga não são recalculadas automaticamente (precisaria rodar UPDATE depois — posso incluir se quiser)
 
-Posso aplicar tudo?
+## Checklist manual após aplicar
+1. Abrir `/admin/commissions-v2` → aba Taxas FGTS → filtrar LOTUS → ver 13 linhas
+2. Filtrar PARANA → ver 2 linhas (4% e 6.5%)
+3. Aba Taxas CLT → filtrar Banco C6 → ver 21 linhas (sem duplicatas)
+4. Filtrar HUB → ver 3 linhas (Sonho/Foco/Cartada) e zero "Hub Credito"
+5. Filtrar FACTA → ver 10 linhas
+
+## Pendências futuras (não-bloqueantes)
+- Recalcular vendas V2 já lançadas com taxa antiga (rodar gatilho de UPDATE)
+- Adicionar UNIQUE INDEX em `(bank, table_key, term_min, term_max, has_insurance, min_value, max_value, effective_date)` para impedir duplicatas no futuro
+
+## Prevenção de regressão
+- Backup automático em `_backup_20260427b` antes de qualquer mudança
+- Query de validação por banco no final da migration
+- Sugiro adicionar UNIQUE INDEX (item da pendência) para prevenir duplicatas futuras
+
+**Aprova o plano com as 3 confirmações acima? Posso já incluir a UNIQUE INDEX e o recalculo das vendas V2 no mesmo pacote, se quiser.**
