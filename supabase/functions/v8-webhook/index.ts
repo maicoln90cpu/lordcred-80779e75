@@ -106,17 +106,48 @@ async function processV8Payload(
       if (v8SimulationId) updates.v8_simulation_id = v8SimulationId;
       if (margem != null) updates.margem_valor = margem;
 
-      const { data: updRows, error: updErr } = await supabase
+      // GUARD 1: ler estado atual antes de sobrescrever — webhook não pode regredir
+      // (failed → pending) nem promover (any → success) sem valores monetários reais.
+      const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .update(updates)
+        .select("id, status, released_value, installment_value")
         .eq("consult_id", consultId)
-        .select("id");
+        .maybeSingle();
 
-      if (updErr) {
-        processError = updErr.message;
-      } else if (updRows && updRows.length > 0) {
-        processed = true;
-        action = "consult_upsert";
+      if (currentRow) {
+        const safeUpdates: Record<string, unknown> = {
+          raw_response: payload,
+          last_webhook_at: new Date().toISOString(),
+          webhook_status: v8Status,
+        };
+        if (margem != null) safeUpdates.margem_valor = margem;
+        if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
+
+        const wantsSuccess = internalStatus === "success";
+        const wantsPending = internalStatus === "pending";
+        const hasRealValues = currentRow.released_value != null && currentRow.installment_value != null;
+
+        if (wantsSuccess && hasRealValues) {
+          safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (internalStatus === "failed" && currentRow.status !== "success") {
+          safeUpdates.status = "failed";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (wantsPending && currentRow.status === "pending") {
+          // mantém pending — sem mudança de status
+        }
+        // Casos bloqueados (apenas auditoria, status não muda):
+        //  - wantsSuccess sem valores → consulta autorizada mas simulação financeira não rodou
+        //  - wantsPending com status failed → não rebaixar
+        //  - wantsPending com status success → não rebaixar
+
+        const { error: updErr } = await supabase
+          .from("v8_simulations")
+          .update(safeUpdates)
+          .eq("id", currentRow.id);
+
+        if (updErr) processError = updErr.message;
+        else { processed = true; action = "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
         const { error: insErr } = await supabase.from("v8_simulations").insert({
@@ -328,33 +359,49 @@ serve(async (req) => {
         .eq("webhook_type", regType);
       processed = true;
     }
-    // --- 3. Eventos de consulta (margem)
+    // --- 3. Eventos de consulta — usa MESMO guard do processV8Payload
     else if (eventType === "consult" && consultId) {
       const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
       const margemStr = (payload as any)?.availableMarginValue;
       const margem = margemStr != null && !Number.isNaN(Number(margemStr)) ? Number(margemStr) : null;
 
-      const updates: Record<string, unknown> = {
-        raw_response: payload,
-        processed_at: new Date().toISOString(),
-        last_webhook_at: new Date().toISOString(),
-        webhook_status: v8Status,
-      };
-      if (internalStatus) updates.status = internalStatus;
-      if (v8SimulationId) updates.v8_simulation_id = v8SimulationId;
-      if (margem != null) updates.margem_valor = margem;
-
-      const { data: updRows, error: updErr } = await supabase
+      const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .update(updates)
+        .select("id, status, released_value, installment_value")
         .eq("consult_id", consultId)
-        .select("id");
+        .maybeSingle();
 
-      if (updErr) {
-        processError = updErr.message;
-      } else if (updRows && updRows.length > 0) {
-        processed = true;
-        action = "consult_upsert";
+      if (currentRow) {
+        const safeUpdates: Record<string, unknown> = {
+          raw_response: payload,
+          last_webhook_at: new Date().toISOString(),
+          webhook_status: v8Status,
+        };
+        if (margem != null) safeUpdates.margem_valor = margem;
+        if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
+
+        const wantsSuccess = internalStatus === "success";
+        const wantsPending = internalStatus === "pending";
+        const hasRealValues = currentRow.released_value != null && currentRow.installment_value != null;
+
+        if (wantsSuccess && hasRealValues) {
+          safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (internalStatus === "failed" && currentRow.status !== "success") {
+          safeUpdates.status = "failed";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (wantsPending && currentRow.status === "pending") {
+          // mantém pending
+        }
+        // Bloqueia: success sem valores; pending sobre failed/success.
+
+        const { error: updErr } = await supabase
+          .from("v8_simulations")
+          .update(safeUpdates)
+          .eq("id", currentRow.id);
+
+        if (updErr) processError = updErr.message;
+        else { processed = true; action = "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" para o operador ver via tela de consultas/replay
         const { error: insErr } = await supabase.from("v8_simulations").insert({
@@ -366,7 +413,6 @@ serve(async (req) => {
           processed_at: new Date().toISOString(),
           raw_response: payload,
           margem_valor: margem,
-          // Campos obrigatórios mínimos — name/cpf vêm vazios, será correlacionado depois
           name: "(via webhook V8)",
           cpf: "",
           installments: 0,

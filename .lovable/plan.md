@@ -1,57 +1,84 @@
-# Plano — 5 correções no Simulador V8
+# Plano — 4 correções no Simulador V8 (continuação Etapa B)
 
-## Diagnóstico (o que confirmei lendo o código)
+## Diagnóstico (confirmado em código + banco)
 
-| # | Problema | Causa raiz |
+Rodei `SELECT` em `v8_simulations` dos últimos 2 dias. Os achados batem com o que você relatou:
+
+| # | Sintoma | Causa raiz |
 |---|---|---|
-| 1 | Tabelas duplicadas no select | A V8 retorna **vários `config_id` (UUIDs) com o mesmo `name`** ("CLT Acelera", "CLT Acelera - Seguro" etc.). O upsert (`onConflict: config_id`) só evita duplicar a mesma UUID — quando a V8 publica configs novas, as antigas continuam no cache para sempre. Já há 4+ linhas hoje. |
-| 2 | "Valor liberado/parcela" obrigatório | No frontend (`V8NovaSimulacaoTab` linha 130) e na edge (`actionSimulateOne` linha 649-654) o valor é exigido. Pela doc oficial da V8, o body de `/simulation` aceita **só `consult_id + config_id + number_of_installments + provider`** — `disbursed_amount` e `installment_face_value` são opcionais (a V8 devolve cenários default). |
-| 3 | "Aguardando retorno da V8" persiste | No `V8NovaSimulacaoTab` linha 411-412 a UI mostra esse texto sempre que `status === 'pending'`. Quando a V8 já respondeu com erro `active_consult`, a edge **retorna `success: false` mas não atualiza `v8_simulations.status`** — a linha fica `pending` para sempre. (Confirmado: `actionSimulateOne` retorna o erro mas não faz `update` na tabela em caso de falha — só o `simulate_one` no `switch` faz update no caminho de sucesso.) |
-| 4 | "Já existe consulta ativa" sem como ver status | A edge tem `list_consults` e `list_operations`, mas não tem uma action **"checar status de 1 CPF específico sem disparar nova consulta"**. Quando a V8 diz "consulta ativa", o operador não tem botão para ver onde está. |
-| 5 | Frontend renderiza "aguardando" antes da V8 responder | Mesma causa do #3 — o `pending` da linha não é trocado para `failed` quando a edge retorna erro. O `simulate_one` do switch (linha 1038+) precisa fazer `UPDATE v8_simulations SET status='failed', error_message=..., raw_response=... WHERE id=simulation_id` em **todo** caminho de saída (sucesso e falha). |
+| 1 | "Aguardando retorno da V8" mesmo com erro `active_consult` | A linha está `failed` + `kind=active_consult`, mas a UI **só** troca o texto se `status !== 'pending'`. Quando o webhook V8 chega depois com `WAITING_*` ele **rebaixa** para `pending` (override no `v8-webhook` linhas 105/343) — voltando a mostrar "Aguardando V8". |
+| 2a | "A idade excedeu o limite máximo" | Erro **legítimo** da V8 — produto tem teto de idade (CLT Acelera não aceita aposentado/idoso). Não é bug, mas hoje fica camuflado no balão genérico. |
+| 2b | "Já existe consulta ativa" | Você já tem botão **"Ver status na V8"** implementado (Etapa anterior), mas só aparece quando `status !== 'pending'`. Se o webhook rebaixa para pending, o botão somem. |
+| 3a | Items "success" sem valor liberado/parcela | **BUG GRAVE confirmado no banco**: linhas com `status='success'` têm `released_value=NULL` + `error_message="Limite de requisições excedido"`. O `v8-webhook` recebe um evento posterior com `status=SUCCESS` (ou `CONSENT_APPROVED`) **referente apenas à autorização da consulta**, não à simulação financeira, e sobrescreve `status` sem trazer valores. A simulação de fato falhou (rate limit 429 da V8). |
+| 3b | "Tentativas = 1" para todos | A edge faz `attempt_count = max(input, 1)`. O frontend só dispara **1x** por CPF (`workers` em `handleStart`). Não há retry automático — só o `MAX_RETRIES_SIMULATE=15` interno do passo `simulate`, que **não** retenta o `consult` quando ele falha por rate limit. |
+| 4a | Frontend não atualiza com dados frescos | Realtime já está ligado (`useV8BatchSimulations` escuta postgres_changes filtrado por `batch_id`). O problema é a regra de exibição: `status==='pending'` → mostra texto fixo. Precisa olhar `last_webhook_at` + `error_message` para decidir. |
+| 4b | "Sucesso" sem valor no histórico | Mesmo bug do 3a — webhook sobrescreve status sem checar consistência. |
 
 ---
 
 ## Correções (ordem de implementação)
 
-### 1. Limpeza + dedupe das tabelas V8 (Item 1)
-**Onde:** `supabase/functions/v8-clt-api/index.ts` → `actionGetConfigs`.
+### 1. Proteção no `v8-webhook` (CAUSA RAIZ do "success sem valor")
 
-- Antes do upsert, **marcar como inativas todas as configs cujo `config_id` não veio na resposta atual da V8**: `UPDATE v8_configs_cache SET is_active = false WHERE config_id NOT IN (...lista da V8)`.
-- O hook `useV8Configs` já filtra `eq('is_active', true)`, então as antigas somem do dropdown automaticamente.
-- **Migration de limpeza pontual**: deletar as 4 linhas duplicadas hoje (manter só o `config_id` mais recente por `name`).
-- Mudar a label do dropdown para `name + " · " + bank_name` quando houver, para distinguir tabelas com mesmo nome de bancos diferentes.
+**Arquivo:** `supabase/functions/v8-webhook/index.ts`
 
-### 2. Tornar valor opcional (Item 2)
-**Onde:** edge `actionSimulateOne` (linhas 649-654) + frontend `V8NovaSimulacaoTab` (linha 130).
+Hoje, quando a V8 envia `status=SUCCESS` referente à *autorização da consulta*, o webhook sobrescreve `v8_simulations.status` mesmo se a simulação local já está `failed` por outro motivo (rate limit, idade, etc).
 
-- Edge: remover validações de `simulation_mode`/`simulation_value` quando ambos vierem vazios. Ajustar `buildSimulationBodyWithValue` para **omitir** `disbursed_amount`/`installment_face_value` se `simulation_value` não for passado.
-- Frontend: adicionar opção "Sem valor (usa default da V8)" no select de tipo de simulação. Quando escolhida, esconde o input de valor e não valida.
-- Documentar em `docs/V8-INTEGRATION.md` que o valor é opcional.
+Mudança: o webhook **só promove** uma linha para `success` se ela tiver `released_value IS NOT NULL` E `installment_value IS NOT NULL`. Caso contrário, mantém o status anterior e grava só `webhook_status` + `last_webhook_at` + `raw_response` (auditoria preservada). Aplicar nas duas funções (`processV8Payload` e o handler inline).
 
-### 3. Sempre persistir status final em `v8_simulations` (Itens 3 e 5)
-**Onde:** `supabase/functions/v8-clt-api/index.ts` → switch `case "simulate_one"` (linha 1038+).
+Também: nunca **rebaixar** de `failed` → `pending`. Se o status local já é `failed`, manter — só atualizar `webhook_status` para auditoria.
 
-- Envolver a chamada `actionSimulateOne` para que **independente de sucesso/falha**, faça:
-  ```
-  UPDATE v8_simulations
-  SET status = result.success ? 'success' : 'failed',
-      error_message = result.user_message ?? null,
-      raw_response = result.raw ?? result,
-      processed_at = now(),
-      attempt_count = COALESCE(attempt_count,0) + 1,
-      last_step = result.step ?? null
-  WHERE id = simulation_id
-  ```
-- Resultado: a linha **nunca mais fica `pending` indefinidamente** quando a V8 já respondeu. O Realtime do `useV8BatchSimulations` atualiza a tela sozinho e o "Aguardando retorno da V8" só aparece se realmente houver webhook pendente.
-- No frontend: trocar "Aguardando retorno da V8" por "Aguardando V8 (webhook)" e só mostrar se `status === 'pending' && last_webhook_at IS NULL` por mais de 30s. Senão, mostrar o erro real.
+### 2. UI — exibir o erro real mesmo quando status='pending' rebaixado
 
-### 4. Botão "Ver status" sem nova simulação (Item 4)
-**Onde:** nova action na edge + botão na UI de progresso.
+**Arquivo:** `src/components/v8/V8NovaSimulacaoTab.tsx` (linha 443-444)
 
-- Nova action `check_consult_status` na edge: aceita `{ cpf }` ou `{ consult_id }`, chama `GET /private-consignment/consult?search={cpf}` e devolve a linha mais recente (status, criado em, motivo).
-- Na tabela de progresso do `V8NovaSimulacaoTab`, quando `error_kind === 'active_consult'`, mostrar botão **"Ver status na V8"** que abre dialog com o resultado da action acima — sem disparar nova consulta nem cobrar V8 de novo.
-- Na aba "Consultas" já existe a tabela de consultas ativas, então adicionar também um campo de busca por CPF único que dispara essa mesma action.
+Hoje:
+```ts
+{s.status === 'pending' ? (
+  <span>Aguardando retorno da V8 (via webhook)</span>
+) : ...
+```
+
+Trocar para:
+- Se `status==='pending'` **E** `error_message` existe → mostrar o erro (com guidance) em vez de "Aguardando".
+- Se `status==='pending'` **E** `last_webhook_at` está vazio E passou >60s do `processed_at` → mostrar "Aguardando V8 há Xs · Webhook não chegou ainda" + botão **"Ver status na V8"**.
+- Se `kind==='active_consult'` em qualquer status (não só `failed`) → mostrar mensagem amarela + botão "Ver status na V8".
+
+### 3. Edge — não rebaixar `failed` → `pending` no `actionSimulateOne`
+
+**Arquivo:** `supabase/functions/v8-clt-api/index.ts` (linhas 1236-1254)
+
+Hoje, quando `step==='consult_status'` retorna `analysis_pending`, gravamos `status='pending'` mesmo se a tentativa anterior já foi `failed`. Mudança: ler o status atual antes do update; se já for `failed` e o erro novo for `analysis_pending`, manter `failed` e só anexar info ao `raw_response`.
+
+### 4. Detectar rate limit (HTTP 429) como `temporary_v8` retentável
+
+**Arquivo:** `supabase/functions/v8-clt-api/index.ts` — `detectV8ErrorKind` (linha 166)
+
+Hoje só classifica `>=500` como `temporary_v8`. Adicionar:
+- `status === 429` → `temporary_v8` + guidance "V8 com rate limit".
+- Texto "limite de requisições excedido" → `temporary_v8`.
+
+E no `v8FetchWithRetry` (linha 88): aceitar 429 também como retentável (hoje só 5xx). Backoff 2s/5s/10s. Isso resolve grande parte das falhas do lote da Etapa B.
+
+### 5. UI — botão "Reprocessar pendentes" no card de progresso
+
+**Arquivo:** `V8NovaSimulacaoTab.tsx`
+
+Botão chama `replay_pending` (já existe na edge `v8-webhook`) que reprocessa os logs não processados dos últimos 7 dias. Útil quando você desconfia que o webhook chegou mas a linha não atualizou. Texto auxiliar: "Use isto se as linhas ficarem em 'aguardando' por mais de 2 minutos".
+
+### 6. Resposta direta para suas 4 perguntas (sem código)
+
+**(1)** Como consultar manualmente sem abrir nova simulação?
+→ Use o botão **"Ver status na V8"** que aparece em qualquer linha com `kind=active_consult` (após correção 2). Ele chama `check_consult_status` (já existe), faz `GET /private-consignment/consult?search={cpf}` e mostra status + data. Sem custo extra na V8.
+
+**(2)** Erro "idade excedeu o limite":
+→ É regra do produto V8. CLT Acelera não atende cliente acima de uma idade-teto (não documentado publicamente, mas observado em ~70 anos). Solução operacional: tentar outra tabela. Não há fix técnico — é regra de negócio da V8.
+
+**(3)** "Sucesso" sem valor + 1 tentativa:
+→ É o bug do webhook (correção 1). Após o fix, esses items aparecerão com o status real `failed` + erro de rate limit. Sobre tentativas: o sistema **não** retenta automaticamente entre lotes — após correção 4, o `consult` será retentado em rate limit. Para retentar manualmente, sugiro adicionar (Etapa futura) um botão "Retentar falhados" no card de progresso.
+
+**(4)** Front esperando mas V8 já respondeu:
+→ Após correção 1, o frontend mostra o status real (failed/success com valores) assim que a edge termina. Realtime já dispara o re-render automaticamente — o problema era o webhook **regredir** o status.
 
 ---
 
@@ -59,31 +86,37 @@
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/v8-clt-api/index.ts` | actionGetConfigs (dedupe), actionSimulateOne (valor opcional), nova actionCheckConsultStatus, switch `simulate_one` (UPDATE sempre) |
-| `supabase/migrations/<novo>.sql` | DELETE das 4 linhas duplicadas em `v8_configs_cache` (mantém o config_id mais recente por name) |
-| `src/components/v8/V8NovaSimulacaoTab.tsx` | Opção "sem valor", label "name · bank", botão "Ver status na V8", texto de pending corrigido |
-| `src/components/v8/V8ConsultasTab.tsx` | Busca por 1 CPF chamando `check_consult_status` |
-| `src/hooks/useV8Operations.ts` | nova função `checkConsultStatus(cpf)` |
-| `docs/V8-INTEGRATION.md` | atualizar seção 4.4 e 10 |
+| `supabase/functions/v8-webhook/index.ts` | Não promover `success` sem valores; nunca rebaixar `failed`→`pending`; aplicar em `processV8Payload` E no handler inline |
+| `supabase/functions/v8-clt-api/index.ts` | `detectV8ErrorKind`: 429 → temporary_v8; `v8FetchWithRetry`: retentar 429; switch `simulate_one`: não rebaixar status no caminho `consult_status` |
+| `src/components/v8/V8NovaSimulacaoTab.tsx` | Lógica de exibição: respeitar `error_message` mesmo em pending; botão "Ver status na V8" também em pending com active_consult; botão "Reprocessar pendentes" |
 
 ---
 
 ## Checklist manual após implementação
 
-1. Clicar "Atualizar tabelas V8" 3x → o select continua com **4 entradas distintas** (não cresce).
-2. Iniciar simulação **sem preencher valor** → V8 aceita e devolve cenários.
-3. Simular um CPF que já tem consulta ativa → linha aparece como **"consulta ativa"** (não fica "aguardando" preso) + botão "Ver status na V8" abre o status real.
-4. Simular CPF novo válido → vai para `success` em até 30s.
-5. Aba Consultas → buscar por 1 CPF e ver o status sem disparar simulação.
+1. Rodar lote pequeno (5 CPFs) com 1 conhecidamente "active_consult" → linha aparece **amarela** com botão "Ver status na V8" mesmo se webhook chegar depois.
+2. Linha que falhou por idade → mostra **"A idade excedeu o limite máximo"** sem ser camuflada por "aguardando".
+3. Lote grande (50 CPFs) que estoure rate limit V8 → linhas marcadas como `temporary_v8` com guidance "tente em alguns minutos", **não** mais "success" sem valor.
+4. Aguardar 5min após lote → nenhuma linha com `status=success` E `released_value=NULL`.
+5. Botão "Reprocessar pendentes" → chama `replay_pending`, reprocessa logs órfãos.
 
 ---
 
-## Pendências (não inclusas — sugiro para depois)
+## Pendências (não inclusas — sugiro depois)
 
-- Auto-limpeza periódica de `v8_simulations` órfãs antigas (>90 dias).
-- Webhook `private.consignment.consult.updated` já está implementado, mas não há **retry automático** quando o webhook chega antes da edge terminar de gravar o `consult_id`. Pode causar `consult_insert_orphan` desnecessário. Resolver depois.
+- **Botão "Retentar falhados"** no card de progresso para re-disparar items com `kind ∈ {temporary_v8, analysis_pending}` (não retentar `active_consult` ou `invalid_data`).
+- **Limpeza retroativa**: rodar `UPDATE v8_simulations SET status='failed' WHERE status='success' AND released_value IS NULL` para corrigir o histórico já contaminado pelo bug do webhook (criar migration explícita após sua aprovação).
+- **Documentar idade-teto** em `docs/V8-INTEGRATION.md` quando descobrir o valor exato.
+
+---
 
 ## Prevenção de regressão
 
-- Teste Vitest puro em `v8-clt-api/payload_test.ts`: dado payload sem `simulation_value`, `buildSimulationBodyWithValue` retorna body **sem** `disbursed_amount`/`installment_face_value`.
-- Teste Vitest puro: dado `actionGetConfigs` recebendo lista A→B (B menor), config presente em A mas ausente em B fica `is_active=false`.
+- Teste Vitest puro novo em `supabase/functions/v8-clt-api/payload_test.ts`:
+  - `detectV8ErrorKind({status: 429})` → `'temporary_v8'`.
+  - `detectV8ErrorKind({rawText: 'Limite de requisições excedido'})` → `'temporary_v8'`.
+- Teste Vitest novo `v8WebhookGuard.test.ts` (função pura extraída):
+  - Dado linha local com `released_value=null`, payload V8 com `status=SUCCESS` → resultado **não** promove para success.
+  - Dado linha local `failed`, payload V8 com `WAITING_CONSULT` → resultado **não** rebaixa para pending.
+
+Aprova para eu implementar?

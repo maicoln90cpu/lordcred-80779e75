@@ -94,11 +94,16 @@ async function v8FetchWithRetry(
   let lastResp: Response | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const resp = await v8Fetch(path, init);
-    if (resp.status < 500) return resp;
+    // 429 (rate limit) e 5xx são retentáveis; demais 4xx não.
+    if (resp.status < 500 && resp.status !== 429) return resp;
     lastResp = resp;
     console.error(`[v8FetchWithRetry] step=${step} attempt=${attempt}/${maxAttempts} failed status=${resp.status} path=${path}`);
     if (attempt < maxAttempts) {
-      const delay = attempt === 1 ? 500 : 1500;
+      // Backoff maior em 429 (V8 precisa de respiro)
+      const isRateLimit = resp.status === 429;
+      const delay = isRateLimit
+        ? (attempt === 1 ? 2000 : attempt === 2 ? 5000 : 10000)
+        : (attempt === 1 ? 500 : 1500);
       console.log(`[v8FetchWithRetry] step=${step} status=${resp.status} retry=${attempt}/${maxAttempts - 1} em ${delay}ms path=${path}`);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -184,6 +189,15 @@ function detectV8ErrorKind(input: Record<string, any> = {}) {
   if (haystack.includes('operation') && haystack.includes('already') || haystack.includes('proposta já existente') || haystack.includes('proposta ja existente')) {
     return 'existing_proposal';
   }
+  // Rate limit V8 — texto observado em produção e HTTP 429 são tratáveis.
+  if (
+    Number(input.status) === 429 ||
+    haystack.includes('limite de requisições excedido') ||
+    haystack.includes('limite de requisicoes excedido') ||
+    haystack.includes('rate limit')
+  ) {
+    return 'temporary_v8';
+  }
   if (Number(input.status) >= 500) {
     return 'temporary_v8';
   }
@@ -202,7 +216,7 @@ function formatV8Guidance(kind: string) {
     case 'existing_proposal':
       return 'Já existe proposta para este cliente na V8.\nConsulte as operações existentes antes de tentar uma nova simulação.';
     case 'temporary_v8':
-      return 'A V8 está com instabilidade temporária.\nTente novamente em alguns minutos.';
+      return 'A V8 está com instabilidade ou rate limit.\nAguarde 1–2 minutos e use "Retentar" para tentar novamente.';
     case 'invalid_data':
       return 'A V8 recusou os dados enviados.\nRevise CPF, data de nascimento, tabela e valor informado.';
     default:
@@ -1234,10 +1248,17 @@ const handler = async (req: Request) => {
               });
             }
           } else if ((result as any)?.step === "consult_status") {
+            // Não rebaixar: se a linha já é 'failed', manter — apenas anexar info ao raw_response.
+            const { data: existing } = await supabase
+              .from("v8_simulations")
+              .select("status")
+              .eq("id", params.simulation_id)
+              .maybeSingle();
+            const newStatus = existing?.status === "failed" ? "failed" : "pending";
             await supabase
               .from("v8_simulations")
               .update({
-                status: "pending",
+                status: newStatus,
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
                 raw_response: {
                   kind: (result as any).kind ?? null,
