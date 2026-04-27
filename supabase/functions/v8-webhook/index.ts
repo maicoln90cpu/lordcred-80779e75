@@ -403,7 +403,10 @@ serve(async (req) => {
         if (updErr) processError = updErr.message;
         else { processed = true; action = "consult_upsert"; }
       } else {
-        // Sem linha local → cria "órfã" para o operador ver via tela de consultas/replay
+        // Sem linha local → cria "órfã" para o operador ver via tela de consultas/replay.
+        // CRÍTICO: marcar is_orphan=true para satisfazer o check constraint
+        // v8_sim_owner_or_orphan (is_orphan OR (batch_id IS NOT NULL AND created_by IS NOT NULL)).
+        // Sem essa flag o INSERT é rejeitado e o evento é perdido (regressão histórica).
         const { error: insErr } = await supabase.from("v8_simulations").insert({
           consult_id: consultId,
           v8_simulation_id: v8SimulationId,
@@ -416,6 +419,7 @@ serve(async (req) => {
           name: "(via webhook V8)",
           cpf: "",
           installments: 0,
+          is_orphan: true,
         });
         if (insErr) processError = insErr.message;
         else { processed = true; action = "consult_insert_orphan"; }
