@@ -26,6 +26,7 @@ import {
   getV8ErrorSecondary,
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
+import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
