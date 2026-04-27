@@ -94,11 +94,16 @@ async function v8FetchWithRetry(
   let lastResp: Response | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const resp = await v8Fetch(path, init);
-    if (resp.status < 500) return resp;
+    // 429 (rate limit) e 5xx são retentáveis; demais 4xx não.
+    if (resp.status < 500 && resp.status !== 429) return resp;
     lastResp = resp;
     console.error(`[v8FetchWithRetry] step=${step} attempt=${attempt}/${maxAttempts} failed status=${resp.status} path=${path}`);
     if (attempt < maxAttempts) {
-      const delay = attempt === 1 ? 500 : 1500;
+      // Backoff maior em 429 (V8 precisa de respiro)
+      const isRateLimit = resp.status === 429;
+      const delay = isRateLimit
+        ? (attempt === 1 ? 2000 : attempt === 2 ? 5000 : 10000)
+        : (attempt === 1 ? 500 : 1500);
       console.log(`[v8FetchWithRetry] step=${step} status=${resp.status} retry=${attempt}/${maxAttempts - 1} em ${delay}ms path=${path}`);
       await new Promise((r) => setTimeout(r, delay));
     }
