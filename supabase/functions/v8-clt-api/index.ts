@@ -668,11 +668,15 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
     return { success: false, step: "simulate", error: "number_of_installments inválido" };
   }
-  if (!["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""))) {
-    return { success: false, step: "simulate", error: "Escolha o tipo da simulação (valor liberado ou valor da parcela)" };
+  // simulation_mode + simulation_value são OPCIONAIS pela doc V8.
+  // Se um for informado, o outro deve ser também — senão envia payload mínimo.
+  const hasMode = ["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""));
+  const hasValue = Number.isFinite(Number(input.simulation_value)) && Number(input.simulation_value) > 0;
+  if (hasMode && !hasValue) {
+    return { success: false, step: "simulate", error: "Tipo da simulação informado mas valor está vazio. Preencha o valor ou remova o tipo." };
   }
-  if (!Number.isFinite(Number(input.simulation_value)) || Number(input.simulation_value) <= 0) {
-    return { success: false, step: "simulate", error: "Informe um valor de simulação válido" };
+  if (hasValue && !hasMode) {
+    return { success: false, step: "simulate", error: "Valor informado mas tipo da simulação está vazio." };
   }
 
   // 1) Consult — builder testável
