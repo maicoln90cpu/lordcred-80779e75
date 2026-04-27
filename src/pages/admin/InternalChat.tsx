@@ -212,7 +212,44 @@ export default function InternalChat() {
                   ) : (
                     <>
                       <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => ic.fileInputRef.current?.click()}><Paperclip className="w-4 h-4" /></Button>
-                      <Input value={ic.newMessage} onChange={e => { ic.setNewMessage(e.target.value); ic.broadcastTyping(); }} placeholder="Digite sua mensagem..." onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ic.handleSendMessage(); } }} onPaste={e => { const items = e.clipboardData?.items; if (!items) return; for (let i = 0; i < items.length; i++) { if (items[i].type.startsWith('image/')) { e.preventDefault(); const file = items[i].getAsFile(); if (file) { const url = URL.createObjectURL(file); ic.setMediaPreview({ file, type: 'image', url }); } return; } } }} className="flex-1" />
+                      <Textarea
+                        value={ic.newMessage}
+                        rows={1}
+                        onChange={e => {
+                          ic.setNewMessage(e.target.value);
+                          ic.broadcastTyping();
+                          // auto-resize até ~5 linhas
+                          const el = e.target as HTMLTextAreaElement;
+                          el.style.height = 'auto';
+                          el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+                        }}
+                        placeholder="Digite sua mensagem... (Shift+Enter quebra linha)"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            ic.handleSendMessage();
+                            // reset altura após enviar
+                            const el = e.currentTarget as HTMLTextAreaElement;
+                            requestAnimationFrame(() => { el.style.height = 'auto'; });
+                          }
+                        }}
+                        onPaste={e => {
+                          const items = e.clipboardData?.items;
+                          if (!items) return;
+                          for (let i = 0; i < items.length; i++) {
+                            if (items[i].type.startsWith('image/')) {
+                              e.preventDefault();
+                              const file = items[i].getAsFile();
+                              if (file) {
+                                const url = URL.createObjectURL(file);
+                                ic.setMediaPreview({ file, type: 'image', url });
+                              }
+                              return;
+                            }
+                          }
+                        }}
+                        className="flex-1 min-h-9 max-h-36 resize-none py-2"
+                      />
                       {ic.newMessage.trim() || ic.mediaPreview ? <Button onClick={() => ic.handleSendMessage()} className="h-9 w-9 shrink-0" size="icon"><Send className="w-4 h-4" /></Button> : <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={ic.startRecording}><Mic className="w-4 h-4" /></Button>}
                     </>
                   )}
