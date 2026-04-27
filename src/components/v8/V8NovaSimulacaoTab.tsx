@@ -145,7 +145,7 @@ export default function V8NovaSimulacaoTab() {
 
     setRunning(true);
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
-    const normalizedSimulationValue = Number(simulationValue.replace(',', '.'));
+    const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
     let pendingCount = 0;
 
     try {
