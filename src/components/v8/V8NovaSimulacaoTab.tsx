@@ -118,6 +118,24 @@ export default function V8NovaSimulacaoTab() {
   const failed = simulations.filter((s) => s.status === 'failed').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  async function handleCheckStatus(cpf: string) {
+    setStatusDialogOpen(true);
+    setStatusDialogData({ cpf, loading: true, result: null, error: null });
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'check_consult_status', params: { cpf } },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        setStatusDialogData({ cpf, loading: false, result: null, error: data?.user_message || data?.error || 'Falha ao consultar' });
+        return;
+      }
+      setStatusDialogData({ cpf, loading: false, result: data.data, error: null });
+    } catch (err: any) {
+      setStatusDialogData({ cpf, loading: false, result: null, error: err?.message || String(err) });
+    }
+  }
+
   async function handleStart() {
     const rows = pasteAnalysis.rows;
     if (rows.length === 0) {
