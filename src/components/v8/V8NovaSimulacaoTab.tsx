@@ -26,9 +26,9 @@ import {
   getV8ErrorSecondary,
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
-import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
+import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 
-function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any }) {
+function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
 
   if (simulation.status === 'failed' && errorKind === 'active_consult') {
@@ -44,12 +44,17 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     return 'dados inválidos';
   }
   if (simulation.status === 'pending') {
-    return 'em análise';
+    // Sem nenhuma chamada ainda → estamos disparando AGORA
+    if (!simulation.last_attempt_at) return 'processando';
+    // V8 explicitamente em estado de espera
+    const ws = (simulation.webhook_status || '').toUpperCase();
+    if (ws.startsWith('WAITING_')) return 'em análise';
+    return 'aguardando V8';
   }
   return simulation.status;
 }
 
-function getSimulationStatusVariant(simulation: { status: string; raw_response: any }) {
+function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
 
   if (simulation.status === 'success') return 'default' as const;
@@ -310,12 +315,88 @@ export default function V8NovaSimulacaoTab() {
       if (pendingCount > 0) {
         toast.warning(`Lote enviado. ${pendingCount} consulta(s) ainda estão em análise na V8.`);
       } else {
-        toast.success('Lote concluído!');
+        toast.success('Lote concluído (1ª passada)!');
       }
+
+      // ===== AUTO-RETRY EM BACKGROUND =====
+      // Re-dispara automaticamente CPFs com erro temporário (rate limit / análise pendente)
+      // até MAX_AUTO_RETRY_ATTEMPTS (15). Backoff: 10s, 20s, 40s, 80s, capped em 120s.
+      await runAutoRetryLoop(batchId, rows, normalizedSimulationValue);
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
     } finally {
       setRunning(false);
+    }
+  }
+
+  /**
+   * Loop de auto-retry — re-dispara apenas falhas retentáveis (temporary_v8 / analysis_pending)
+   * até atingir MAX_AUTO_RETRY_ATTEMPTS por CPF. Roda em background, com backoff entre rodadas.
+   * Aborta quando: nenhum candidato restante OU usuário clicar em "Parar auto-retry".
+   */
+  async function runAutoRetryLoop(
+    batchId: string,
+    rows: ReturnType<typeof analyzeV8Paste>['rows'],
+    normalizedSimulationValue: number,
+  ) {
+    let round = 0;
+    const MAX_ROUNDS = MAX_AUTO_RETRY_ATTEMPTS; // segurança extra contra loop infinito
+    while (round < MAX_ROUNDS) {
+      // Lê estado fresco do banco (não confia no state do React)
+      const { data: fresh } = await supabase
+        .from('v8_simulations')
+        .select('id, cpf, name, birth_date, status, attempt_count, raw_response, error_kind, config_id, installments')
+        .eq('batch_id', batchId);
+      if (!fresh) break;
+
+      const candidates = fresh.filter((s: any) => {
+        if (s.status !== 'failed') return false;
+        const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+        return shouldAutoRetry(kind, s.attempt_count);
+      });
+
+      if (candidates.length === 0) {
+        if (round > 0) toast.success(`Auto-retry concluído após ${round} rodada(s).`);
+        break;
+      }
+
+      round += 1;
+      const backoffMs = Math.min(10_000 * Math.pow(2, round - 1), 120_000);
+      toast.info(`Rodada de auto-retry ${round}/${MAX_ROUNDS} · ${candidates.length} CPF(s) instáveis · aguardando ${Math.round(backoffMs / 1000)}s antes...`);
+      await new Promise((r) => setTimeout(r, backoffMs));
+
+      let idx = 0;
+      const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
+        while (idx < candidates.length) {
+          const myIdx = idx++;
+          const sim: any = candidates[myIdx];
+          try {
+            const parsedRow = rows.find((r) => r.cpf === sim.cpf);
+            await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_one',
+                params: {
+                  cpf: sim.cpf,
+                  nome: sim.name,
+                  data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
+                  config_id: sim.config_id || configId,
+                  parcelas: sim.installments || parcelas,
+                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+                  batch_id: batchId,
+                  simulation_id: sim.id,
+                  attempt_count: Number(sim.attempt_count ?? 1) + 1,
+                },
+              },
+            });
+          } catch (err) {
+            console.error('Auto-retry sim err', sim.cpf, err);
+          }
+        }
+      });
+      await Promise.all(workers);
     }
   }
 
@@ -540,7 +621,10 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                      <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
+                      <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
+                        {s.attempt_count ?? 0}
+                        {(s.attempt_count ?? 0) >= MAX_AUTO_RETRY_ATTEMPTS && <span className="text-[10px] block text-destructive">(máx)</span>}
+                      </td>
                       <td className="px-2 py-1 align-top">
                         {(() => {
                           const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
@@ -565,7 +649,16 @@ export default function V8NovaSimulacaoTab() {
                             );
                           }
 
-                          // Caso 2: pending sem qualquer informação de erro — texto neutro
+                          // Caso 2a: pending SEM nenhuma chamada (nem disparamos ainda) → "processando"
+                          if (s.status === 'pending' && !s.last_attempt_at) {
+                            return (
+                              <span className="flex items-center gap-2 text-blue-500">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Disparando consulta na V8…
+                              </span>
+                            );
+                          }
+                          // Caso 2b: pending sem informação de erro mas já chamamos
                           if (s.status === 'pending' && !hasErrorInfo) {
                             const elapsed = s.processed_at
                               ? Math.floor((Date.now() - new Date(s.processed_at).getTime()) / 1000)

@@ -3,6 +3,8 @@ import {
   detectV8ErrorKind,
   isRetriableErrorKind,
   RETRIABLE_ERROR_KINDS,
+  shouldAutoRetry,
+  MAX_AUTO_RETRY_ATTEMPTS,
 } from '../v8ErrorClassification';
 
 describe('detectV8ErrorKind', () => {
@@ -106,5 +108,43 @@ describe('isRetriableErrorKind / RETRIABLE_ERROR_KINDS', () => {
 
   it('Set imutável tem exatamente 2 entradas', () => {
     expect(RETRIABLE_ERROR_KINDS.size).toBe(2);
+  });
+});
+
+describe('shouldAutoRetry / MAX_AUTO_RETRY_ATTEMPTS', () => {
+  it('MAX_AUTO_RETRY_ATTEMPTS é 15 (contrato com a UI)', () => {
+    expect(MAX_AUTO_RETRY_ATTEMPTS).toBe(15);
+  });
+
+  it('retenta temporary_v8 abaixo do cap', () => {
+    expect(shouldAutoRetry('temporary_v8', 0)).toBe(true);
+    expect(shouldAutoRetry('temporary_v8', 1)).toBe(true);
+    expect(shouldAutoRetry('temporary_v8', 14)).toBe(true);
+  });
+
+  it('retenta analysis_pending abaixo do cap', () => {
+    expect(shouldAutoRetry('analysis_pending', 5)).toBe(true);
+  });
+
+  it('PARA de retentar ao atingir o cap (15 tentativas)', () => {
+    expect(shouldAutoRetry('temporary_v8', 15)).toBe(false);
+    expect(shouldAutoRetry('temporary_v8', 99)).toBe(false);
+  });
+
+  it('NUNCA retenta active_consult (precisa ação humana)', () => {
+    expect(shouldAutoRetry('active_consult', 0)).toBe(false);
+    expect(shouldAutoRetry('active_consult', 1)).toBe(false);
+  });
+
+  it('NUNCA retenta invalid_data, existing_proposal, unknown', () => {
+    expect(shouldAutoRetry('invalid_data', 0)).toBe(false);
+    expect(shouldAutoRetry('existing_proposal', 0)).toBe(false);
+    expect(shouldAutoRetry('unknown', 0)).toBe(false);
+  });
+
+  it('lida com null/undefined', () => {
+    expect(shouldAutoRetry(null, 0)).toBe(false);
+    expect(shouldAutoRetry(undefined, null)).toBe(false);
+    expect(shouldAutoRetry('temporary_v8', null)).toBe(true); // 0 tentativas
   });
 });

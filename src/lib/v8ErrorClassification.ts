@@ -95,3 +95,24 @@ export const RETRIABLE_ERROR_KINDS: ReadonlySet<V8ErrorKind> = new Set([
 export function isRetriableErrorKind(kind: string | null | undefined): boolean {
   return !!kind && RETRIABLE_ERROR_KINDS.has(kind as V8ErrorKind);
 }
+
+/**
+ * Limite máximo de tentativas automáticas por CPF dentro de um lote.
+ * Erros temporários (rate limit, 5xx, análise pendente) são re-disparados
+ * em background até esse teto. Acima disso, vira responsabilidade humana
+ * (clicar em "Retentar falhados" ou abrir um novo lote).
+ */
+export const MAX_AUTO_RETRY_ATTEMPTS = 15;
+
+/**
+ * Decide se uma simulação falhada deve entrar na próxima rodada de auto-retry.
+ * Combina classe do erro (retentável) com cap de tentativas (15).
+ */
+export function shouldAutoRetry(
+  kind: string | null | undefined,
+  attemptCount: number | null | undefined,
+): boolean {
+  if (!isRetriableErrorKind(kind)) return false;
+  const attempts = Number(attemptCount ?? 0);
+  return attempts < MAX_AUTO_RETRY_ATTEMPTS;
+}
