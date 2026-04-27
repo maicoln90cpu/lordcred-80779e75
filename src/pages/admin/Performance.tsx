@@ -157,11 +157,11 @@ export default function Performance() {
       setLoading(true);
       try {
         const [perfRes, statusRes, responseRes] = await Promise.all([
-          supabase.rpc('get_performance_stats', {
+          supabase.rpc('get_performance_stats_v2' as any, {
             _date_from: dateFrom || undefined,
             _date_to: dateTo || undefined,
-          }),
-          supabase.rpc('get_lead_status_distribution', {
+          } as any),
+          supabase.rpc('get_lead_status_distribution_v2' as any, {
             _date_from: dateFrom || undefined,
             _date_to: dateTo || undefined,
           } as any),
