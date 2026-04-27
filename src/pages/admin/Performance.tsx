@@ -325,30 +325,37 @@ export default function Performance() {
 
         {/* Custom date pickers */}
         {periodDays === -1 && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateFrom && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {customDateFrom ? format(customDateFrom, 'dd/MM/yyyy') : 'Data início'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customDateFrom} onSelect={setCustomDateFrom} disabled={(date) => date > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
-            <span className="text-muted-foreground text-sm">até</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateTo && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {customDateTo ? format(customDateTo, 'dd/MM/yyyy') : 'Data fim'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customDateTo} onSelect={setCustomDateTo} disabled={(date) => date > new Date() || (customDateFrom ? date < customDateFrom : false)} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateFrom ? format(customDateFrom, 'dd/MM/yyyy') : 'Data início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateFrom} onSelect={setCustomDateFrom} disabled={(date) => date > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+              <Input type="time" value={customTimeFrom} onChange={e => setCustomTimeFrom(e.target.value)} className="w-[110px] h-9" aria-label="Hora início" />
+              <span className="text-muted-foreground text-sm">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateTo ? format(customDateTo, 'dd/MM/yyyy') : 'Data fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateTo} onSelect={setCustomDateTo} disabled={(date) => date > new Date() || (customDateFrom ? date < customDateFrom : false)} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+              <Input type="time" value={customTimeTo} onChange={e => setCustomTimeTo(e.target.value)} className="w-[110px] h-9" aria-label="Hora fim" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Dica: para ver leads chamados das 13h às 14h em um mesmo dia, escolha a mesma data nos dois lados e ajuste as horas.
+            </p>
           </div>
         )}
 
