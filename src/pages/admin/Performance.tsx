@@ -131,10 +131,12 @@ export default function Performance() {
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [customTimeFrom, setCustomTimeFrom] = useState('00:00');
+  const [customTimeTo, setCustomTimeTo] = useState('23:59');
 
   const { dateFrom, dateTo } = useMemo(
-    () => computeDateRange(periodDays, customDateFrom, customDateTo),
-    [periodDays, customDateFrom, customDateTo]
+    () => computeDateRange(periodDays, customDateFrom, customDateTo, customTimeFrom, customTimeTo),
+    [periodDays, customDateFrom, customDateTo, customTimeFrom, customTimeTo]
   );
 
   // Fetch static data once
