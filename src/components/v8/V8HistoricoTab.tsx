@@ -14,6 +14,67 @@ import {
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
 
+// Botão "Retentar (N)" exibido no header de cada lote — não exige expandir o detalhe.
+function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
+  const { toast } = useToast();
+  const [count, setCount] = useState<number>(0);
+  const [retrying, setRetrying] = useState(false);
+
+  const loadCount = async () => {
+    const { data } = await supabase
+      .from('v8_simulations')
+      .select('id, raw_response')
+      .eq('batch_id', batchId)
+      .eq('status', 'failed');
+    const retriable = (data || []).filter((s: any) => {
+      const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
+      return isRetriableErrorKind(kind);
+    });
+    setCount(retriable.length);
+  };
+
+  useEffect(() => {
+    loadCount();
+  }, [batchId]);
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (count === 0) return;
+    setRetrying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-retry-cron', {
+        body: { batch_id: batchId, manual: true },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Retentativa iniciada',
+        description: `${(data as any)?.eligible ?? count} simulações reenviadas. Os resultados aparecerão em alguns segundos.`,
+      });
+      // Recarrega a contagem após pequena espera para refletir status atualizado.
+      setTimeout(loadCount, 3000);
+    } catch (err: any) {
+      toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  if (count === 0) return null;
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={handleRetry}
+      disabled={retrying}
+      className="h-7 border-yellow-500/40 text-yellow-600 hover:bg-yellow-500/10"
+    >
+      {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+      Retentar ({count})
+    </Button>
+  );
+}
+
 function BatchDetail({ batchId }: { batchId: string }) {
   const { simulations } = useV8BatchSimulations(batchId);
   const { toast } = useToast();
@@ -173,6 +234,7 @@ export default function V8HistoricoTab() {
                   </Badge>
                   <Badge variant="outline">{b.success_count}/{b.total_count} ok</Badge>
                   <Badge variant="outline">{successRate}%</Badge>
+                  <span onClick={(e) => e.stopPropagation()}><BatchRetryHeaderButton batchId={b.id} /></span>
                 </button>
                 {isOpen && <div className="px-3 pb-3"><BatchDetail batchId={b.id} /></div>}
               </div>
