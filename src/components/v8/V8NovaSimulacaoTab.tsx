@@ -208,6 +208,8 @@ export default function V8NovaSimulacaoTab() {
       setRunning(false);
     }
   }
+
+  async function handleStart() {
     const rows = pasteAnalysis.rows;
     if (rows.length === 0) {
       toast.error('Cole pelo menos 1 CPF válido');
