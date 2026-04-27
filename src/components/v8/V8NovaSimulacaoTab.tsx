@@ -570,7 +570,16 @@ export default function V8NovaSimulacaoTab() {
                             );
                           }
 
-                          // Caso 2: pending sem qualquer informação de erro — texto neutro
+                          // Caso 2a: pending SEM nenhuma chamada (nem disparamos ainda) → "processando"
+                          if (s.status === 'pending' && !s.last_attempt_at) {
+                            return (
+                              <span className="flex items-center gap-2 text-blue-500">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Disparando consulta na V8…
+                              </span>
+                            );
+                          }
+                          // Caso 2b: pending sem informação de erro mas já chamamos
                           if (s.status === 'pending' && !hasErrorInfo) {
                             const elapsed = s.processed_at
                               ? Math.floor((Date.now() - new Date(s.processed_at).getTime()) / 1000)
