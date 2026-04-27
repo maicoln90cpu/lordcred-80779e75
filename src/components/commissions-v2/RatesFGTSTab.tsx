@@ -8,44 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Download, Upload, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, Upload, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { parseClipboardText } from '@/lib/clipboardParser';
 import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
-
-const PRESET_RATES = [
-  { bank: 'LOTUS', table_key: 'LOTUS 1+', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: false, rate: 16, obs: 'Prazo 1 ano' },
-  { bank: 'LOTUS', table_key: 'LOTUS 2+', term_min: 2, term_max: 2, min_value: 0, max_value: 999999999, has_insurance: false, rate: 19, obs: 'Prazo 2 anos' },
-  { bank: 'LOTUS', table_key: 'LOTUS 3+', term_min: 3, term_max: 3, min_value: 0, max_value: 999999999, has_insurance: false, rate: 22, obs: 'Prazo 3 anos' },
-  { bank: 'LOTUS', table_key: 'LOTUS 4+', term_min: 4, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 24, obs: 'Prazo 4-5 anos' },
-  { bank: 'HUB', table_key: 'SONHO', term_min: 1, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 18, obs: 'Sonho' },
-  { bank: 'HUB', table_key: 'FOCO', term_min: 1, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 20, obs: 'Foco' },
-  { bank: 'HUB', table_key: 'CARTA NA MANGA', term_min: 1, term_max: 5, min_value: 0, max_value: 500, has_insurance: false, rate: 12, obs: 'Faixa até R$ 500' },
-  { bank: 'HUB', table_key: 'CARTA NA MANGA', term_min: 1, term_max: 5, min_value: 500.01, max_value: 1000, has_insurance: false, rate: 14, obs: 'Faixa R$ 500-1000' },
-  { bank: 'HUB', table_key: 'CARTA NA MANGA', term_min: 1, term_max: 5, min_value: 1000.01, max_value: 2000, has_insurance: false, rate: 16, obs: 'Faixa R$ 1000-2000' },
-  { bank: 'HUB', table_key: 'CARTA NA MANGA', term_min: 1, term_max: 5, min_value: 2000.01, max_value: 999999999, has_insurance: false, rate: 18, obs: 'Faixa acima R$ 2000' },
-  { bank: 'FACTA', table_key: 'GOLD PLUS', term_min: 2, term_max: 2, min_value: 0, max_value: 999999999, has_insurance: false, rate: 17, obs: 'Plus 2 anos' },
-  { bank: 'FACTA', table_key: 'GOLD PLUS', term_min: 3, term_max: 3, min_value: 0, max_value: 999999999, has_insurance: false, rate: 20, obs: 'Plus 3 anos' },
-  { bank: 'FACTA', table_key: 'GOLD PLUS', term_min: 4, term_max: 4, min_value: 0, max_value: 999999999, has_insurance: false, rate: 22, obs: 'Plus 4 anos' },
-  { bank: 'FACTA', table_key: 'GOLD PLUS', term_min: 5, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 24, obs: 'Plus 5 anos' },
-  { bank: 'FACTA', table_key: 'GOLD POWER', term_min: 2, term_max: 2, min_value: 0, max_value: 999999999, has_insurance: false, rate: 16, obs: 'Power 2 anos' },
-  { bank: 'FACTA', table_key: 'GOLD POWER', term_min: 3, term_max: 3, min_value: 0, max_value: 999999999, has_insurance: false, rate: 19, obs: 'Power 3 anos' },
-  { bank: 'FACTA', table_key: 'GOLD POWER', term_min: 4, term_max: 4, min_value: 0, max_value: 999999999, has_insurance: false, rate: 21, obs: 'Power 4 anos' },
-  { bank: 'FACTA', table_key: 'GOLD POWER', term_min: 5, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 23, obs: 'Power 5 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: false, rate: 14, obs: 'Sem seguro 1 ano' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 2, term_max: 2, min_value: 0, max_value: 999999999, has_insurance: false, rate: 17, obs: 'Sem seguro 2 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 3, term_max: 3, min_value: 0, max_value: 999999999, has_insurance: false, rate: 20, obs: 'Sem seguro 3 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 4, term_max: 4, min_value: 0, max_value: 999999999, has_insurance: false, rate: 22, obs: 'Sem seguro 4 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 5, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: false, rate: 24, obs: 'Sem seguro 5 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 1, term_max: 1, min_value: 0, max_value: 999999999, has_insurance: true, rate: 16, obs: 'Com seguro 1 ano' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 2, term_max: 2, min_value: 0, max_value: 999999999, has_insurance: true, rate: 19, obs: 'Com seguro 2 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 3, term_max: 3, min_value: 0, max_value: 999999999, has_insurance: true, rate: 22, obs: 'Com seguro 3 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 4, term_max: 4, min_value: 0, max_value: 999999999, has_insurance: true, rate: 24, obs: 'Com seguro 4 anos' },
-  { bank: 'PARANA BANCO', table_key: '', term_min: 5, term_max: 5, min_value: 0, max_value: 999999999, has_insurance: true, rate: 26, obs: 'Com seguro 5 anos' },
-];
 
 export default function RatesFGTSTab() {
   const { toast } = useToast();
