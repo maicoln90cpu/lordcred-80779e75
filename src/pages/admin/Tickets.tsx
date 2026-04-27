@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Ticket {
@@ -27,6 +27,8 @@ interface Ticket {
   updated_at: string;
   creator_email?: string;
   assignee_email?: string;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
 }
 
 interface TicketMessage {
@@ -64,9 +66,12 @@ export default function Tickets() {
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState('media');
+  const [newAttachment, setNewAttachment] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProfiles();
@@ -129,23 +134,60 @@ export default function Tickets() {
 
   const handleCreateTicket = async () => {
     if (!newTitle.trim() || !user) return;
-    const { error } = await supabase.from('support_tickets').insert({
-      title: newTitle.trim(),
-      description: newDescription.trim() || null,
-      priority: newPriority,
-      created_by: user.id,
-    });
-    if (error) {
-      toast({ title: 'Erro ao criar ticket', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Ticket criado com sucesso' });
-      setCreateOpen(false);
-      setNewTitle('');
-      setNewDescription('');
-      setNewPriority('media');
-      loadTickets();
+    setUploading(true);
+    let attachment_url: string | null = null;
+    let attachment_name: string | null = null;
+
+    try {
+      if (newAttachment) {
+        const MAX = 10 * 1024 * 1024; // 10 MB
+        if (newAttachment.size > MAX) {
+          toast({ title: 'Arquivo muito grande', description: 'Limite de 10 MB por anexo.', variant: 'destructive' });
+          setUploading(false);
+          return;
+        }
+        const ext = newAttachment.name.split('.').pop() || 'bin';
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from('ticket-attachments')
+          .upload(path, newAttachment, { contentType: newAttachment.type, upsert: false });
+        if (upErr) {
+          toast({ title: 'Erro ao enviar anexo', description: upErr.message, variant: 'destructive' });
+          setUploading(false);
+          return;
+        }
+        const { data: pub } = supabase.storage.from('ticket-attachments').getPublicUrl(path);
+        attachment_url = pub.publicUrl;
+        attachment_name = newAttachment.name;
+      }
+
+      const { error } = await supabase.from('support_tickets').insert({
+        title: newTitle.trim(),
+        description: newDescription.trim() || null,
+        priority: newPriority,
+        created_by: user.id,
+        attachment_url,
+        attachment_name,
+      });
+      if (error) {
+        toast({ title: 'Erro ao criar ticket', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Ticket criado com sucesso' });
+        setCreateOpen(false);
+        setNewTitle('');
+        setNewDescription('');
+        setNewPriority('media');
+        setNewAttachment(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        loadTickets();
+      }
+    } finally {
+      setUploading(false);
     }
   };
+
+  const isImageAttachment = (name?: string | null) =>
+    !!name && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedTicket || !user) return;
