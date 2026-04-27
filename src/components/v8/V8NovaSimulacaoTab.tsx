@@ -315,12 +315,88 @@ export default function V8NovaSimulacaoTab() {
       if (pendingCount > 0) {
         toast.warning(`Lote enviado. ${pendingCount} consulta(s) ainda estão em análise na V8.`);
       } else {
-        toast.success('Lote concluído!');
+        toast.success('Lote concluído (1ª passada)!');
       }
+
+      // ===== AUTO-RETRY EM BACKGROUND =====
+      // Re-dispara automaticamente CPFs com erro temporário (rate limit / análise pendente)
+      // até MAX_AUTO_RETRY_ATTEMPTS (15). Backoff: 10s, 20s, 40s, 80s, capped em 120s.
+      await runAutoRetryLoop(batchId, rows, normalizedSimulationValue);
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
     } finally {
       setRunning(false);
+    }
+  }
+
+  /**
+   * Loop de auto-retry — re-dispara apenas falhas retentáveis (temporary_v8 / analysis_pending)
+   * até atingir MAX_AUTO_RETRY_ATTEMPTS por CPF. Roda em background, com backoff entre rodadas.
+   * Aborta quando: nenhum candidato restante OU usuário clicar em "Parar auto-retry".
+   */
+  async function runAutoRetryLoop(
+    batchId: string,
+    rows: ReturnType<typeof analyzeV8Paste>['rows'],
+    normalizedSimulationValue: number,
+  ) {
+    let round = 0;
+    const MAX_ROUNDS = MAX_AUTO_RETRY_ATTEMPTS; // segurança extra contra loop infinito
+    while (round < MAX_ROUNDS) {
+      // Lê estado fresco do banco (não confia no state do React)
+      const { data: fresh } = await supabase
+        .from('v8_simulations')
+        .select('id, cpf, name, birth_date, status, attempt_count, raw_response, error_kind, config_id, installments')
+        .eq('batch_id', batchId);
+      if (!fresh) break;
+
+      const candidates = fresh.filter((s: any) => {
+        if (s.status !== 'failed') return false;
+        const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+        return shouldAutoRetry(kind, s.attempt_count);
+      });
+
+      if (candidates.length === 0) {
+        if (round > 0) toast.success(`Auto-retry concluído após ${round} rodada(s).`);
+        break;
+      }
+
+      round += 1;
+      const backoffMs = Math.min(10_000 * Math.pow(2, round - 1), 120_000);
+      toast.info(`Rodada de auto-retry ${round}/${MAX_ROUNDS} · ${candidates.length} CPF(s) instáveis · aguardando ${Math.round(backoffMs / 1000)}s antes...`);
+      await new Promise((r) => setTimeout(r, backoffMs));
+
+      let idx = 0;
+      const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
+        while (idx < candidates.length) {
+          const myIdx = idx++;
+          const sim: any = candidates[myIdx];
+          try {
+            const parsedRow = rows.find((r) => r.cpf === sim.cpf);
+            await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_one',
+                params: {
+                  cpf: sim.cpf,
+                  nome: sim.name,
+                  data_nascimento: sim.birth_date,
+                  genero: parsedRow?.genero,
+                  telefone: parsedRow?.telefone,
+                  config_id: sim.config_id || configId,
+                  parcelas: sim.installments || parcelas,
+                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+                  batch_id: batchId,
+                  simulation_id: sim.id,
+                  attempt_count: Number(sim.attempt_count ?? 1) + 1,
+                },
+              },
+            });
+          } catch (err) {
+            console.error('Auto-retry sim err', sim.cpf, err);
+          }
+        }
+      });
+      await Promise.all(workers);
     }
   }
 
