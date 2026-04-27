@@ -859,7 +859,87 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   };
 }
 
-async function actionCreateBatch(
+/**
+ * Verifica o status de uma consulta existente na V8 SEM disparar nova simulação.
+ * Aceita { cpf } ou { consult_id }. Útil quando a V8 retorna "já existe consulta ativa"
+ * e o operador quer só ver onde ela está.
+ */
+async function actionCheckConsultStatus(params: { cpf?: string; consult_id?: string } = {}) {
+  const cpf = String(params.cpf || "").replace(/\D/g, "");
+  const consultId = String(params.consult_id || "").trim();
+  if (!cpf && !consultId) {
+    return { success: false, error: "Informe CPF ou consult_id" };
+  }
+
+  // Procura consultas dos últimos 30 dias
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const query = new URLSearchParams({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    limit: "50",
+    page: "1",
+    provider: "QI",
+  });
+  if (cpf) query.set("search", cpf);
+
+  const resp = await v8Fetch(`${V8_PATHS.consult}?${query.toString()}`, { method: "GET" });
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult("check_consult_status", { ...err, raw: err.parsed ?? err.rawText });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+  const records = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+
+  // Filtra: por consult_id se informado, senão por CPF
+  const matches = records.filter((row: any) => {
+    if (consultId) {
+      const rowId = String(row?.id ?? row?.consult_id ?? row?.consultId ?? "");
+      return rowId === consultId;
+    }
+    const rowDoc = String(row?.documentNumber ?? row?.borrowerDocumentNumber ?? "").replace(/\D/g, "");
+    return rowDoc === cpf;
+  });
+
+  if (matches.length === 0) {
+    return {
+      success: true,
+      data: { found: false, consults: [], message: "Nenhuma consulta encontrada nos últimos 30 dias para este CPF." },
+    };
+  }
+
+  // Ordena por createdAt desc — a mais recente primeiro
+  matches.sort((a: any, b: any) => {
+    const ta = new Date(a?.created_at ?? a?.createdAt ?? 0).getTime();
+    const tb = new Date(b?.created_at ?? b?.createdAt ?? 0).getTime();
+    return tb - ta;
+  });
+
+  return {
+    success: true,
+    data: {
+      found: true,
+      latest: {
+        consultId: String(matches[0]?.id ?? matches[0]?.consult_id ?? matches[0]?.consultId ?? ""),
+        status: matches[0]?.status ?? null,
+        name: matches[0]?.name ?? matches[0]?.borrowerName ?? matches[0]?.signerName ?? null,
+        documentNumber: matches[0]?.documentNumber ?? matches[0]?.borrowerDocumentNumber ?? null,
+        title: matches[0]?.title ?? null,
+        detail: matches[0]?.detail ?? matches[0]?.description ?? matches[0]?.message ?? null,
+        createdAt: matches[0]?.created_at ?? matches[0]?.createdAt ?? null,
+        raw: matches[0],
+      },
+      consults: matches.map((row: any) => ({
+        consultId: String(row?.id ?? row?.consult_id ?? row?.consultId ?? ""),
+        status: row?.status ?? null,
+        createdAt: row?.created_at ?? row?.createdAt ?? null,
+        detail: row?.detail ?? row?.description ?? null,
+      })),
+    },
+  };
+}
+
   supabase: any,
   payload: {
     name: string;
