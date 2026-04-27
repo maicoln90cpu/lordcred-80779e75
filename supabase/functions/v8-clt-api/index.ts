@@ -378,6 +378,9 @@ async function actionGetConfigs(supabase: any) {
   // V8 retorna { data: [...] } ou array direto. Cada item tem id (UUID), name, financial.{bank,minTerm,maxTerm,minValue,maxValue}
   const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? data?.configs ?? [];
 
+  // Coleta os config_id que vieram nesta resposta — usados para desativar os ausentes.
+  const incomingIds = new Set<string>();
+
   if (Array.isArray(configs) && configs.length > 0) {
     // Log inspeção: imprime as chaves do primeiro item para auditoria
     console.log("[v8 get_configs] sample keys:", Object.keys(configs[0] || {}));
@@ -386,6 +389,7 @@ async function actionGetConfigs(supabase: any) {
     for (const c of configs) {
       const config_id = String(c.id ?? c.configId ?? c.uuid ?? c.code ?? "");
       if (!config_id) continue;
+      incomingIds.add(config_id);
       // V8 envia detalhes em "financial" OU "financial_conditions" OU plano direto.
       const fin = c.financial ?? c.financialConditions ?? c.financial_conditions ?? c.conditions ?? {};
       const displayName = String(
@@ -444,6 +448,18 @@ async function actionGetConfigs(supabase: any) {
           { onConflict: "config_id" }
         );
     }
+  }
+
+  // Dedupe automática: marca como inativas TODAS as configs do cache cujo
+  // config_id NÃO veio na resposta atual da V8. Assim, quando a V8 publicar
+  // novos UUIDs para a mesma "CLT Acelera", as antigas somem do dropdown
+  // (o useV8Configs filtra is_active=true).
+  if (incomingIds.size > 0) {
+    const idsArr = Array.from(incomingIds);
+    await supabase
+      .from("v8_configs_cache")
+      .update({ is_active: false, synced_at: new Date().toISOString() })
+      .not("config_id", "in", `(${idsArr.map((s) => `"${s}"`).join(",")})`);
   }
 
   return { success: true, data: configs };
@@ -552,10 +568,16 @@ function buildSimulationBodyWithValue(
   consultId: string,
 ) {
   const base = buildSimulationBody(input, consultId) as Record<string, unknown>;
+  const valueNum = Number(input.simulation_value);
+  // Se valor não foi informado (ou é zero/inválido), envia payload mínimo —
+  // a V8 devolve cenários default. Isso permite "consulta exploratória".
+  if (!Number.isFinite(valueNum) || valueNum <= 0) {
+    return base;
+  }
   if (input.simulation_mode === "installment_face_value") {
-    base.installment_face_value = Number(input.simulation_value);
-  } else {
-    base.disbursed_amount = Number(input.simulation_value);
+    base.installment_face_value = valueNum;
+  } else if (input.simulation_mode === "disbursed_amount") {
+    base.disbursed_amount = valueNum;
   }
   return base;
 }
@@ -646,11 +668,15 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
   if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
     return { success: false, step: "simulate", error: "number_of_installments inválido" };
   }
-  if (!["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""))) {
-    return { success: false, step: "simulate", error: "Escolha o tipo da simulação (valor liberado ou valor da parcela)" };
+  // simulation_mode + simulation_value são OPCIONAIS pela doc V8.
+  // Se um for informado, o outro deve ser também — senão envia payload mínimo.
+  const hasMode = ["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""));
+  const hasValue = Number.isFinite(Number(input.simulation_value)) && Number(input.simulation_value) > 0;
+  if (hasMode && !hasValue) {
+    return { success: false, step: "simulate", error: "Tipo da simulação informado mas valor está vazio. Preencha o valor ou remova o tipo." };
   }
-  if (!Number.isFinite(Number(input.simulation_value)) || Number(input.simulation_value) <= 0) {
-    return { success: false, step: "simulate", error: "Informe um valor de simulação válido" };
+  if (hasValue && !hasMode) {
+    return { success: false, step: "simulate", error: "Valor informado mas tipo da simulação está vazio." };
   }
 
   // 1) Consult — builder testável
@@ -829,6 +855,87 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         consult_status: consultStatusData,
         simulate: simJson,
       },
+    },
+  };
+}
+
+/**
+ * Verifica o status de uma consulta existente na V8 SEM disparar nova simulação.
+ * Aceita { cpf } ou { consult_id }. Útil quando a V8 retorna "já existe consulta ativa"
+ * e o operador quer só ver onde ela está.
+ */
+async function actionCheckConsultStatus(params: { cpf?: string; consult_id?: string } = {}) {
+  const cpf = String(params.cpf || "").replace(/\D/g, "");
+  const consultId = String(params.consult_id || "").trim();
+  if (!cpf && !consultId) {
+    return { success: false, error: "Informe CPF ou consult_id" };
+  }
+
+  // Procura consultas dos últimos 30 dias
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const query = new URLSearchParams({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    limit: "50",
+    page: "1",
+    provider: "QI",
+  });
+  if (cpf) query.set("search", cpf);
+
+  const resp = await v8Fetch(`${V8_PATHS.consult}?${query.toString()}`, { method: "GET" });
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult("check_consult_status", { ...err, raw: err.parsed ?? err.rawText });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+  const records = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+
+  // Filtra: por consult_id se informado, senão por CPF
+  const matches = records.filter((row: any) => {
+    if (consultId) {
+      const rowId = String(row?.id ?? row?.consult_id ?? row?.consultId ?? "");
+      return rowId === consultId;
+    }
+    const rowDoc = String(row?.documentNumber ?? row?.borrowerDocumentNumber ?? "").replace(/\D/g, "");
+    return rowDoc === cpf;
+  });
+
+  if (matches.length === 0) {
+    return {
+      success: true,
+      data: { found: false, consults: [], message: "Nenhuma consulta encontrada nos últimos 30 dias para este CPF." },
+    };
+  }
+
+  // Ordena por createdAt desc — a mais recente primeiro
+  matches.sort((a: any, b: any) => {
+    const ta = new Date(a?.created_at ?? a?.createdAt ?? 0).getTime();
+    const tb = new Date(b?.created_at ?? b?.createdAt ?? 0).getTime();
+    return tb - ta;
+  });
+
+  return {
+    success: true,
+    data: {
+      found: true,
+      latest: {
+        consultId: String(matches[0]?.id ?? matches[0]?.consult_id ?? matches[0]?.consultId ?? ""),
+        status: matches[0]?.status ?? null,
+        name: matches[0]?.name ?? matches[0]?.borrowerName ?? matches[0]?.signerName ?? null,
+        documentNumber: matches[0]?.documentNumber ?? matches[0]?.borrowerDocumentNumber ?? null,
+        title: matches[0]?.title ?? null,
+        detail: matches[0]?.detail ?? matches[0]?.description ?? matches[0]?.message ?? null,
+        createdAt: matches[0]?.created_at ?? matches[0]?.createdAt ?? null,
+        raw: matches[0],
+      },
+      consults: matches.map((row: any) => ({
+        consultId: String(row?.id ?? row?.consult_id ?? row?.consultId ?? ""),
+        status: row?.status ?? null,
+        createdAt: row?.created_at ?? row?.createdAt ?? null,
+        detail: row?.detail ?? row?.description ?? null,
+      })),
     },
   };
 }
@@ -1314,6 +1421,30 @@ const handler = async (req: Request) => {
               success: !!(result as any)?.success,
               error: (result as any)?.error ?? null,
               title: (result as any)?.title ?? null,
+            },
+          },
+        });
+        break;
+      case "check_consult_status":
+        result = await actionCheckConsultStatus(params);
+        await writeAuditLog(supabase, {
+          action: "v8_check_consult_status",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_consults",
+          details: {
+            request_payload: {
+              action: "check_consult_status",
+              cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+              consult_id: params?.consult_id ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              found: (result as any)?.data?.found ?? false,
+              latest_status: (result as any)?.data?.latest?.status ?? null,
+              error: (result as any)?.error ?? null,
             },
           },
         });

@@ -7,8 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Play, Loader2 } from 'lucide-react';
+import { RefreshCw, Play, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
@@ -58,11 +65,13 @@ export default function V8NovaSimulacaoTab() {
   const [batchName, setBatchName] = useState('');
   const [configId, setConfigId] = useState('');
   const [parcelas, setParcelas] = useState(24);
-  const [simulationMode, setSimulationMode] = useState<'disbursed_amount' | 'installment_face_value'>('disbursed_amount');
+  const [simulationMode, setSimulationMode] = useState<'none' | 'disbursed_amount' | 'installment_face_value'>('none');
   const [simulationValue, setSimulationValue] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
@@ -109,6 +118,24 @@ export default function V8NovaSimulacaoTab() {
   const failed = simulations.filter((s) => s.status === 'failed').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  async function handleCheckStatus(cpf: string) {
+    setStatusDialogOpen(true);
+    setStatusDialogData({ cpf, loading: true, result: null, error: null });
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'check_consult_status', params: { cpf } },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        setStatusDialogData({ cpf, loading: false, result: null, error: data?.user_message || data?.error || 'Falha ao consultar' });
+        return;
+      }
+      setStatusDialogData({ cpf, loading: false, result: data.data, error: null });
+    } catch (err: any) {
+      setStatusDialogData({ cpf, loading: false, result: null, error: err?.message || String(err) });
+    }
+  }
+
   async function handleStart() {
     const rows = pasteAnalysis.rows;
     if (rows.length === 0) {
@@ -127,14 +154,16 @@ export default function V8NovaSimulacaoTab() {
       toast.error('Dê um nome ao lote');
       return;
     }
-    if (!Number.isFinite(Number(simulationValue.replace(',', '.'))) || Number(simulationValue.replace(',', '.')) <= 0) {
-      toast.error('Informe um valor válido para a simulação');
+    const hasValueInput = simulationValue.trim().length > 0;
+    const wantsValue = simulationMode !== 'none';
+    if (wantsValue && (!hasValueInput || !Number.isFinite(Number(simulationValue.replace(',', '.'))) || Number(simulationValue.replace(',', '.')) <= 0)) {
+      toast.error('Informe um valor válido para a simulação ou escolha "Sem valor (V8 decide)"');
       return;
     }
 
     setRunning(true);
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
-    const normalizedSimulationValue = Number(simulationValue.replace(',', '.'));
+    const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
     let pendingCount = 0;
 
     try {
@@ -184,8 +213,8 @@ export default function V8NovaSimulacaoTab() {
                   telefone: parsedRow?.telefone,
                   config_id: configId,
                   parcelas,
-                  simulation_mode: simulationMode,
-                  simulation_value: normalizedSimulationValue,
+                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
                   batch_id: batchId,
                   simulation_id: sim.id,
                   attempt_count: Number((sim as any).attempt_count ?? 0) + 1,
@@ -251,7 +280,7 @@ export default function V8NovaSimulacaoTab() {
                   )}
                   {configs.map((c) => (
                     <SelectItem key={c.config_id} value={c.config_id}>
-                      {c.name}
+                      {c.name}{c.bank_name ? ` · ${c.bank_name}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -282,28 +311,31 @@ export default function V8NovaSimulacaoTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Tipo da simulação</Label>
-              <Select value={simulationMode} onValueChange={(value: 'disbursed_amount' | 'installment_face_value') => setSimulationMode(value)}>
+              <Select value={simulationMode} onValueChange={(value: 'none' | 'disbursed_amount' | 'installment_face_value') => setSimulationMode(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
                   <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
                   <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
-              <Input
-                inputMode="decimal"
-                placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
-                value={simulationValue}
-                onChange={(e) => setSimulationValue(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                A V8 exige um valor-base para calcular a simulação. Sem isso ela tende a recusar ou devolver erro.
-              </p>
-            </div>
+            {simulationMode !== 'none' && (
+              <div>
+                <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
+                  value={simulationValue}
+                  onChange={(e) => setSimulationValue(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -409,7 +441,20 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
                       <td className="px-2 py-1 align-top">
                         {s.status === 'pending' ? (
-                          <span className="text-muted-foreground">Aguardando retorno da V8</span>
+                          <span className="text-muted-foreground">Aguardando retorno da V8 (via webhook)</span>
+                        ) : (s.raw_response?.kind === 'active_consult' || s.raw_response?.error_kind === 'active_consult') ? (
+                          <div className="space-y-1">
+                            <div className="whitespace-pre-line font-medium text-amber-600">
+                              Já existe consulta ativa para este CPF na V8
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCheckStatus(s.cpf)}
+                            >
+                              <Search className="w-3 h-3 mr-1" /> Ver status na V8
+                            </Button>
+                          </div>
                         ) : s.error_message || s.raw_response ? (
                           <div className="space-y-1">
                             <div className="whitespace-pre-line font-medium">
