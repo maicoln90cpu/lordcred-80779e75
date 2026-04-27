@@ -262,7 +262,7 @@ export default function V8NovaSimulacaoTab() {
                   )}
                   {configs.map((c) => (
                     <SelectItem key={c.config_id} value={c.config_id}>
-                      {c.name}
+                      {c.name}{c.bank_name ? ` · ${c.bank_name}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
