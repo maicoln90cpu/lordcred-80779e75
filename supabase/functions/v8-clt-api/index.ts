@@ -184,6 +184,15 @@ function detectV8ErrorKind(input: Record<string, any> = {}) {
   if (haystack.includes('operation') && haystack.includes('already') || haystack.includes('proposta já existente') || haystack.includes('proposta ja existente')) {
     return 'existing_proposal';
   }
+  // Rate limit V8 — texto observado em produção e HTTP 429 são tratáveis.
+  if (
+    Number(input.status) === 429 ||
+    haystack.includes('limite de requisições excedido') ||
+    haystack.includes('limite de requisicoes excedido') ||
+    haystack.includes('rate limit')
+  ) {
+    return 'temporary_v8';
+  }
   if (Number(input.status) >= 500) {
     return 'temporary_v8';
   }
@@ -202,7 +211,7 @@ function formatV8Guidance(kind: string) {
     case 'existing_proposal':
       return 'Já existe proposta para este cliente na V8.\nConsulte as operações existentes antes de tentar uma nova simulação.';
     case 'temporary_v8':
-      return 'A V8 está com instabilidade temporária.\nTente novamente em alguns minutos.';
+      return 'A V8 está com instabilidade ou rate limit.\nAguarde 1–2 minutos e use "Retentar" para tentar novamente.';
     case 'invalid_data':
       return 'A V8 recusou os dados enviados.\nRevise CPF, data de nascimento, tabela e valor informado.';
     default:
