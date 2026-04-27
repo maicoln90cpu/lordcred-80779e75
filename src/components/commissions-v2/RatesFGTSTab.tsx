@@ -151,7 +151,7 @@ export default function RatesFGTSTab() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle>Taxas Comissão FGTS <span className="ml-2 text-xs font-normal text-muted-foreground">(V2 — multi-variável)</span></CardTitle>
           <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={prefillPresets}><Sparkles className="w-4 h-4 mr-1" /> Pré-preencher 28 taxas</Button>
+            
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
             <Button variant="outline" size="sm" onClick={() => {
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
@@ -176,7 +176,7 @@ export default function RatesFGTSTab() {
           onDeleted={loadRates}
         />
         {loading ? <p className="text-center text-muted-foreground py-8">Carregando...</p> : rates.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada — clique em "Pré-preencher 28 taxas" para começar</p>
+          <p className="text-center text-muted-foreground py-8">Nenhuma taxa cadastrada — use "Importar" ou "Colar Inteligente" para subir as taxas oficiais.</p>
         ) : (
           <Table>
             <TableHeader>
