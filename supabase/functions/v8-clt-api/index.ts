@@ -1156,8 +1156,50 @@ const handler = async (req: Request) => {
           },
         });
         break;
-      case "simulate_one":
+      case "simulate_one": {
+        const _attemptStartedAt = Date.now();
         result = await actionSimulateOne(supabase, params);
+        const _attemptDurationMs = Date.now() - _attemptStartedAt;
+        // Audit fino: registra a tentativa em v8_simulation_attempts (se houver simulation_id)
+        if (params?.simulation_id) {
+          try {
+            const _kind = (result as any)?.kind ?? null;
+            const _step = (result as any)?.step ?? null;
+            const _statusForAttempt = (result as any)?.success
+              ? "success"
+              : (_step === "consult_status" ? "pending" : "failed");
+            await supabase.from("v8_simulation_attempts").insert({
+              simulation_id: params.simulation_id,
+              batch_id: params.batch_id ?? null,
+              attempt_number: Math.max(Number(params?.attempt_count ?? 1), 1),
+              triggered_by: params?.triggered_by || "user",
+              triggered_by_user: userId,
+              request_payload: {
+                cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+                config_id: params?.config_id ?? null,
+                parcelas: params?.parcelas ?? null,
+                simulation_mode: params?.simulation_mode ?? null,
+                simulation_value: params?.simulation_value ?? null,
+              },
+              response_body: {
+                success: !!(result as any)?.success,
+                step: _step,
+                kind: _kind,
+                title: (result as any)?.title ?? null,
+                detail: (result as any)?.detail ?? null,
+                user_message: (result as any)?.user_message ?? null,
+                data: (result as any)?.data ?? null,
+              },
+              http_status: (result as any)?.http_status ?? null,
+              status: _statusForAttempt,
+              error_kind: _kind,
+              error_message: (result as any)?.success ? null : String((result as any)?.user_message || (result as any)?.error || ""),
+              duration_ms: _attemptDurationMs,
+            });
+          } catch (logErr) {
+            console.error("[v8-clt-api] failed to insert v8_simulation_attempts", logErr);
+          }
+        }
         await writeAuditLog(supabase, {
           action: "v8_simulate_one",
           category: "simulator",
