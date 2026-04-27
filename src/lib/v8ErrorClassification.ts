@@ -97,22 +97,22 @@ export function isRetriableErrorKind(kind: string | null | undefined): boolean {
 }
 
 /**
- * Limite máximo de tentativas automáticas por CPF dentro de um lote.
- * Erros temporários (rate limit, 5xx, análise pendente) são re-disparados
- * em background até esse teto. Acima disso, vira responsabilidade humana
- * (clicar em "Retentar falhados" ou abrir um novo lote).
+ * Limite máximo PADRÃO (fallback) de tentativas automáticas por CPF.
+ * Pode ser sobrescrito por linha em `public.v8_settings.max_auto_retry_attempts`
+ * (lido pelo frontend via `useV8Settings` e pelo cron `v8-retry-cron`).
  */
 export const MAX_AUTO_RETRY_ATTEMPTS = 15;
 
 /**
  * Decide se uma simulação falhada deve entrar na próxima rodada de auto-retry.
- * Combina classe do erro (retentável) com cap de tentativas (15).
+ * Combina classe do erro (retentável) com cap de tentativas (configurável).
  */
 export function shouldAutoRetry(
   kind: string | null | undefined,
   attemptCount: number | null | undefined,
+  maxAttempts: number = MAX_AUTO_RETRY_ATTEMPTS,
 ): boolean {
   if (!isRetriableErrorKind(kind)) return false;
   const attempts = Number(attemptCount ?? 0);
-  return attempts < MAX_AUTO_RETRY_ATTEMPTS;
+  return attempts < maxAttempts;
 }
