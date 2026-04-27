@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Ticket {
@@ -27,6 +27,8 @@ interface Ticket {
   updated_at: string;
   creator_email?: string;
   assignee_email?: string;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
 }
 
 interface TicketMessage {
@@ -64,9 +66,12 @@ export default function Tickets() {
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState('media');
+  const [newAttachment, setNewAttachment] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProfiles();
@@ -129,23 +134,60 @@ export default function Tickets() {
 
   const handleCreateTicket = async () => {
     if (!newTitle.trim() || !user) return;
-    const { error } = await supabase.from('support_tickets').insert({
-      title: newTitle.trim(),
-      description: newDescription.trim() || null,
-      priority: newPriority,
-      created_by: user.id,
-    });
-    if (error) {
-      toast({ title: 'Erro ao criar ticket', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Ticket criado com sucesso' });
-      setCreateOpen(false);
-      setNewTitle('');
-      setNewDescription('');
-      setNewPriority('media');
-      loadTickets();
+    setUploading(true);
+    let attachment_url: string | null = null;
+    let attachment_name: string | null = null;
+
+    try {
+      if (newAttachment) {
+        const MAX = 10 * 1024 * 1024; // 10 MB
+        if (newAttachment.size > MAX) {
+          toast({ title: 'Arquivo muito grande', description: 'Limite de 10 MB por anexo.', variant: 'destructive' });
+          setUploading(false);
+          return;
+        }
+        const ext = newAttachment.name.split('.').pop() || 'bin';
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from('ticket-attachments')
+          .upload(path, newAttachment, { contentType: newAttachment.type, upsert: false });
+        if (upErr) {
+          toast({ title: 'Erro ao enviar anexo', description: upErr.message, variant: 'destructive' });
+          setUploading(false);
+          return;
+        }
+        const { data: pub } = supabase.storage.from('ticket-attachments').getPublicUrl(path);
+        attachment_url = pub.publicUrl;
+        attachment_name = newAttachment.name;
+      }
+
+      const { error } = await supabase.from('support_tickets').insert({
+        title: newTitle.trim(),
+        description: newDescription.trim() || null,
+        priority: newPriority,
+        created_by: user.id,
+        attachment_url,
+        attachment_name,
+      });
+      if (error) {
+        toast({ title: 'Erro ao criar ticket', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Ticket criado com sucesso' });
+        setCreateOpen(false);
+        setNewTitle('');
+        setNewDescription('');
+        setNewPriority('media');
+        setNewAttachment(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        loadTickets();
+      }
+    } finally {
+      setUploading(false);
     }
   };
+
+  const isImageAttachment = (name?: string | null) =>
+    !!name && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedTicket || !user) return;
@@ -228,7 +270,53 @@ export default function Tickets() {
                       <SelectItem value="urgente">Urgente</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button onClick={handleCreateTicket} disabled={!newTitle.trim()} className="w-full">Criar Ticket</Button>
+
+                  <div className="space-y-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={e => setNewAttachment(e.target.files?.[0] || null)}
+                    />
+                    {!newAttachment ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip className="w-4 h-4 mr-2" />
+                        Anexar print ou arquivo (opcional, máx 10 MB)
+                      </Button>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 p-2 border rounded-md bg-muted/30">
+                        <div className="flex items-center gap-2 text-sm truncate">
+                          {newAttachment.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+                          <span className="truncate">{newAttachment.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            ({(newAttachment.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            setNewAttachment(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={handleCreateTicket} disabled={!newTitle.trim() || uploading} className="w-full">
+                    {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enviando...</> : 'Criar Ticket'}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -312,6 +400,30 @@ export default function Tickets() {
                   </div>
                   {selectedTicket.description && (
                     <p className="text-sm text-muted-foreground mt-2 p-3 bg-muted/30 rounded-lg">{selectedTicket.description}</p>
+                  )}
+                  {selectedTicket.attachment_url && (
+                    <div className="mt-2 p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                        <Paperclip className="w-3 h-3" />
+                        <a
+                          href={selectedTicket.attachment_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline truncate"
+                        >
+                          {selectedTicket.attachment_name || 'Anexo'}
+                        </a>
+                      </div>
+                      {isImageAttachment(selectedTicket.attachment_name) && (
+                        <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={selectedTicket.attachment_url}
+                            alt={selectedTicket.attachment_name || 'Anexo'}
+                            className="max-h-64 rounded-md border border-border object-contain"
+                          />
+                        </a>
+                      )}
+                    </div>
                   )}
                 </CardHeader>
                 <Separator />
