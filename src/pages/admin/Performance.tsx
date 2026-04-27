@@ -67,18 +67,31 @@ const PERIOD_OPTIONS = [
   { label: 'Personalizado', value: -1 },
 ];
 
-function computeDateRange(periodDays: number, customDateFrom?: Date, customDateTo?: Date) {
+function applyTime(date: Date, time: string, fallback: [number, number, number, number]) {
+  const d = new Date(date);
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(time || '');
+  if (m) {
+    d.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+  } else {
+    d.setHours(fallback[0], fallback[1], fallback[2], fallback[3]);
+  }
+  return d;
+}
+
+function computeDateRange(
+  periodDays: number,
+  customDateFrom?: Date,
+  customDateTo?: Date,
+  customTimeFrom = '00:00',
+  customTimeTo = '23:59',
+) {
   const now = new Date();
   let dateFrom: string | null = null;
   let dateTo: string | null = null;
 
   if (periodDays === -1) {
-    dateFrom = customDateFrom ? customDateFrom.toISOString() : null;
-    if (customDateTo) {
-      const d = new Date(customDateTo);
-      d.setHours(23, 59, 59, 999);
-      dateTo = d.toISOString();
-    }
+    dateFrom = customDateFrom ? applyTime(customDateFrom, customTimeFrom, [0, 0, 0, 0]).toISOString() : null;
+    dateTo   = customDateTo   ? applyTime(customDateTo,   customTimeTo,   [23, 59, 59, 999]).toISOString() : null;
   } else if (periodDays === 0) {
     // Tudo
   } else if (periodDays === -2) {
@@ -93,6 +106,9 @@ function computeDateRange(periodDays: number, customDateFrom?: Date, customDateT
     const day = now.getDay();
     dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 7).toISOString();
     dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 1, 23, 59, 59, 999).toISOString();
+  } else if (periodDays === -6) {
+    // Última hora (atalho)
+    dateFrom = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
   } else {
     const d = new Date();
     d.setDate(d.getDate() - periodDays);
