@@ -378,6 +378,9 @@ async function actionGetConfigs(supabase: any) {
   // V8 retorna { data: [...] } ou array direto. Cada item tem id (UUID), name, financial.{bank,minTerm,maxTerm,minValue,maxValue}
   const configs = Array.isArray(data) ? data : data?.data ?? data?.items ?? data?.configs ?? [];
 
+  // Coleta os config_id que vieram nesta resposta — usados para desativar os ausentes.
+  const incomingIds = new Set<string>();
+
   if (Array.isArray(configs) && configs.length > 0) {
     // Log inspeção: imprime as chaves do primeiro item para auditoria
     console.log("[v8 get_configs] sample keys:", Object.keys(configs[0] || {}));
