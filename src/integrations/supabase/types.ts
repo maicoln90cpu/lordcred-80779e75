@@ -3350,6 +3350,8 @@ export type Database = {
       support_tickets: {
         Row: {
           assigned_to: string | null
+          attachment_name: string | null
+          attachment_url: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -3361,6 +3363,8 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -3372,6 +3376,8 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
