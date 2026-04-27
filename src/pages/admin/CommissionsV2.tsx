@@ -102,12 +102,25 @@ export default function CommissionsV2() {
           )}
           {isAdmin && (
             <TabsContent value="indicadores">
-              <CommIndicadores profiles={profiles} getSellerName={getSellerName} />
+              <CommIndicadores
+                profiles={profiles}
+                getSellerName={getSellerName}
+                salesTable="commission_sales_v2"
+                cltRatesTable="commission_rates_clt_v2"
+                fgtsRatesTable="commission_rates_fgts_v2"
+              />
             </TabsContent>
           )}
           {isAdmin && (
             <TabsContent value="metas">
-              <CommMetas profiles={profiles} getSellerName={getSellerName} />
+              <CommMetas
+                profiles={profiles}
+                getSellerName={getSellerName}
+                salesTable="commission_sales_v2"
+                settingsTable="commission_settings_v2"
+                rewardsTable="commission_annual_rewards_v2"
+                bonusTiersTable="commission_bonus_tiers_v2"
+              />
             </TabsContent>
           )}
           {isAdmin && (
