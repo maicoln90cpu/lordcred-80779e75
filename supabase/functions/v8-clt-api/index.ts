@@ -1341,6 +1341,7 @@ const handler = async (req: Request) => {
           }
         }
         break;
+      }
       case "create_batch":
         result = await actionCreateBatch(supabase, params, userId);
         await writeAuditLog(supabase, {
