@@ -647,6 +647,45 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_rates_clt_v2_backup_20260427: {
+        Row: {
+          bank: string | null
+          created_at: string | null
+          effective_date: string | null
+          has_insurance: boolean | null
+          id: string | null
+          obs: string | null
+          rate: number | null
+          table_key: string | null
+          term_max: number | null
+          term_min: number | null
+        }
+        Insert: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Update: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Relationships: []
+      }
       commission_rates_fgts: {
         Row: {
           bank: string
@@ -716,6 +755,51 @@ export type Database = {
           table_key?: string | null
           term_max?: number
           term_min?: number
+        }
+        Relationships: []
+      }
+      commission_rates_fgts_v2_backup_20260427: {
+        Row: {
+          bank: string | null
+          created_at: string | null
+          effective_date: string | null
+          has_insurance: boolean | null
+          id: string | null
+          max_value: number | null
+          min_value: number | null
+          obs: string | null
+          rate: number | null
+          table_key: string | null
+          term_max: number | null
+          term_min: number | null
+        }
+        Insert: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          max_value?: number | null
+          min_value?: number | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Update: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          max_value?: number | null
+          min_value?: number | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
         }
         Relationships: []
       }
@@ -4400,9 +4484,17 @@ export type Database = {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }
+      get_lead_status_distribution_v2: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: Json
+      }
       get_master_user_ids: { Args: never; Returns: string[] }
       get_non_seller_user_ids: { Args: never; Returns: string[] }
       get_performance_stats: {
+        Args: { _date_from?: string; _date_to?: string }
+        Returns: Json
+      }
+      get_performance_stats_v2: {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }

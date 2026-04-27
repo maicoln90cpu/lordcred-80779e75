@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -56,6 +57,7 @@ interface AvgResponseItem {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
+  { label: 'Última hora', value: -6 },
   { label: 'Hoje', value: -2 },
   { label: 'Ontem', value: -3 },
   { label: 'Essa Semana', value: -4 },
@@ -67,18 +69,31 @@ const PERIOD_OPTIONS = [
   { label: 'Personalizado', value: -1 },
 ];
 
-function computeDateRange(periodDays: number, customDateFrom?: Date, customDateTo?: Date) {
+function applyTime(date: Date, time: string, fallback: [number, number, number, number]) {
+  const d = new Date(date);
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(time || '');
+  if (m) {
+    d.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+  } else {
+    d.setHours(fallback[0], fallback[1], fallback[2], fallback[3]);
+  }
+  return d;
+}
+
+function computeDateRange(
+  periodDays: number,
+  customDateFrom?: Date,
+  customDateTo?: Date,
+  customTimeFrom = '00:00',
+  customTimeTo = '23:59',
+) {
   const now = new Date();
   let dateFrom: string | null = null;
   let dateTo: string | null = null;
 
   if (periodDays === -1) {
-    dateFrom = customDateFrom ? customDateFrom.toISOString() : null;
-    if (customDateTo) {
-      const d = new Date(customDateTo);
-      d.setHours(23, 59, 59, 999);
-      dateTo = d.toISOString();
-    }
+    dateFrom = customDateFrom ? applyTime(customDateFrom, customTimeFrom, [0, 0, 0, 0]).toISOString() : null;
+    dateTo   = customDateTo   ? applyTime(customDateTo,   customTimeTo,   [23, 59, 59, 999]).toISOString() : null;
   } else if (periodDays === 0) {
     // Tudo
   } else if (periodDays === -2) {
@@ -93,6 +108,9 @@ function computeDateRange(periodDays: number, customDateFrom?: Date, customDateT
     const day = now.getDay();
     dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 7).toISOString();
     dateTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 1, 23, 59, 59, 999).toISOString();
+  } else if (periodDays === -6) {
+    // Última hora (atalho)
+    dateFrom = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
   } else {
     const d = new Date();
     d.setDate(d.getDate() - periodDays);
@@ -114,10 +132,12 @@ export default function Performance() {
   const [periodDays, setPeriodDays] = useState(30);
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [customTimeFrom, setCustomTimeFrom] = useState('00:00');
+  const [customTimeTo, setCustomTimeTo] = useState('23:59');
 
   const { dateFrom, dateTo } = useMemo(
-    () => computeDateRange(periodDays, customDateFrom, customDateTo),
-    [periodDays, customDateFrom, customDateTo]
+    () => computeDateRange(periodDays, customDateFrom, customDateTo, customTimeFrom, customTimeTo),
+    [periodDays, customDateFrom, customDateTo, customTimeFrom, customTimeTo]
   );
 
   // Fetch static data once
@@ -138,11 +158,11 @@ export default function Performance() {
       setLoading(true);
       try {
         const [perfRes, statusRes, responseRes] = await Promise.all([
-          supabase.rpc('get_performance_stats', {
+          supabase.rpc('get_performance_stats_v2' as any, {
             _date_from: dateFrom || undefined,
             _date_to: dateTo || undefined,
-          }),
-          supabase.rpc('get_lead_status_distribution', {
+          } as any),
+          supabase.rpc('get_lead_status_distribution_v2' as any, {
             _date_from: dateFrom || undefined,
             _date_to: dateTo || undefined,
           } as any),
@@ -305,30 +325,37 @@ export default function Performance() {
 
         {/* Custom date pickers */}
         {periodDays === -1 && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateFrom && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {customDateFrom ? format(customDateFrom, 'dd/MM/yyyy') : 'Data início'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customDateFrom} onSelect={setCustomDateFrom} disabled={(date) => date > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
-            <span className="text-muted-foreground text-sm">até</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateTo && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {customDateTo ? format(customDateTo, 'dd/MM/yyyy') : 'Data fim'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customDateTo} onSelect={setCustomDateTo} disabled={(date) => date > new Date() || (customDateFrom ? date < customDateFrom : false)} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateFrom ? format(customDateFrom, 'dd/MM/yyyy') : 'Data início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateFrom} onSelect={setCustomDateFrom} disabled={(date) => date > new Date()} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+              <Input type="time" value={customTimeFrom} onChange={e => setCustomTimeFrom(e.target.value)} className="w-[110px] h-9" aria-label="Hora início" />
+              <span className="text-muted-foreground text-sm">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("w-[160px] justify-start text-left font-normal", !customDateTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateTo ? format(customDateTo, 'dd/MM/yyyy') : 'Data fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customDateTo} onSelect={setCustomDateTo} disabled={(date) => date > new Date() || (customDateFrom ? date < customDateFrom : false)} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+              <Input type="time" value={customTimeTo} onChange={e => setCustomTimeTo(e.target.value)} className="w-[110px] h-9" aria-label="Hora fim" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Dica: para ver leads chamados das 13h às 14h em um mesmo dia, escolha a mesma data nos dois lados e ajuste as horas.
+            </p>
           </div>
         )}
 
