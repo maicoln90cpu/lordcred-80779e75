@@ -3,6 +3,8 @@ import {
   detectV8ErrorKind,
   isRetriableErrorKind,
   RETRIABLE_ERROR_KINDS,
+  shouldAutoRetry,
+  MAX_AUTO_RETRY_ATTEMPTS,
 } from '../v8ErrorClassification';
 
 describe('detectV8ErrorKind', () => {
