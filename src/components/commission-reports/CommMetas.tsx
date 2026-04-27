@@ -48,7 +48,23 @@ function getProgressColor(pct: number): string {
   return '[&>div]:bg-destructive';
 }
 
-export default function CommMetas({ profiles, getSellerName }: { profiles: Profile[]; getSellerName: (id: string) => string }) {
+// IMPORTANTE: sempre receba `salesTable` via prop — não hardcode 'commission_sales',
+// senão o módulo V2 (sandbox) acaba lendo dados do V1 e mostra números falsos.
+export default function CommMetas({
+  profiles,
+  getSellerName,
+  salesTable = 'commission_sales',
+  settingsTable = 'commission_settings',
+  rewardsTable = 'commission_annual_rewards',
+  bonusTiersTable = 'commission_bonus_tiers',
+}: {
+  profiles: Profile[];
+  getSellerName: (id: string) => string;
+  salesTable?: 'commission_sales' | 'commission_sales_v2';
+  settingsTable?: 'commission_settings' | 'commission_settings_v2';
+  rewardsTable?: 'commission_annual_rewards' | 'commission_annual_rewards_v2';
+  bonusTiersTable?: 'commission_bonus_tiers' | 'commission_bonus_tiers_v2';
+}) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
   const [selectedMonth, setSelectedMonth] = useState<string>(String(currentMonth));
@@ -59,9 +75,9 @@ export default function CommMetas({ profiles, getSellerName }: { profiles: Profi
   ];
 
   const { data: sales = [], isLoading: loadingSales } = useQuery({
-    queryKey: ['metas-sales', currentYear],
+    queryKey: ['metas-sales', currentYear, salesTable],
     queryFn: async () => {
-      const { data, error } = await supabase.from('commission_sales')
+      const { data, error } = await supabase.from(salesTable)
         .select('id, seller_id, released_value, sale_date, commission_value')
         .gte('sale_date', `${currentYear}-01-01`)
         .lte('sale_date', `${currentYear}-12-31`);
@@ -71,25 +87,25 @@ export default function CommMetas({ profiles, getSellerName }: { profiles: Profi
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['metas-settings'],
+    queryKey: ['metas-settings', settingsTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_settings').select('*').limit(1).single();
+      const { data } = await supabase.from(settingsTable).select('*').limit(1).maybeSingle();
       return data;
     }
   });
 
   const { data: rewards = [] } = useQuery({
-    queryKey: ['metas-rewards'],
+    queryKey: ['metas-rewards', rewardsTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_annual_rewards').select('*').order('min_contracts', { ascending: true });
+      const { data } = await supabase.from(rewardsTable).select('*').order('min_contracts', { ascending: true });
       return (data || []) as AnnualReward[];
     }
   });
 
   const { data: bonusTiers = [] } = useQuery({
-    queryKey: ['metas-bonus-tiers'],
+    queryKey: ['metas-bonus-tiers', bonusTiersTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_bonus_tiers').select('*').order('min_contracts', { ascending: true });
+      const { data } = await supabase.from(bonusTiersTable).select('*').order('min_contracts', { ascending: true });
       return (data || []) as BonusTier[];
     }
   });
