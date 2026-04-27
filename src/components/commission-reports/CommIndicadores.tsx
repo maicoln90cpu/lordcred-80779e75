@@ -29,31 +29,48 @@ interface Profile {
   email: string;
 }
 
-export default function CommIndicadores({ profiles, getSellerName }: { profiles: Profile[]; getSellerName: (id: string) => string }) {
+// IMPORTANTE: sempre receba `salesTable` via prop — não hardcode 'commission_sales',
+// senão o módulo V2 (sandbox) acaba lendo dados do V1 e mostra números falsos.
+export default function CommIndicadores({
+  profiles,
+  getSellerName,
+  salesTable = 'commission_sales',
+  cltRatesTable = 'commission_rates_clt',
+  fgtsRatesTable = 'commission_rates_fgts',
+}: {
+  profiles: Profile[];
+  getSellerName: (id: string) => string;
+  salesTable?: 'commission_sales' | 'commission_sales_v2';
+  cltRatesTable?: 'commission_rates_clt' | 'commission_rates_clt_v2';
+  fgtsRatesTable?: 'commission_rates_fgts' | 'commission_rates_fgts_v2';
+}) {
   const { sort, toggle } = useSortState();
 
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ['comm-sales-indicadores'],
+    queryKey: ['comm-sales-indicadores', salesTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_sales').select('id, seller_id, product, bank, released_value, commission_value, commission_rate, week_label, sale_date, client_name').limit(5000);
+      const { data } = await supabase.from(salesTable).select('id, seller_id, product, bank, released_value, commission_value, commission_rate, week_label, sale_date, client_name').limit(5000);
       return (data || []) as Sale[];
     },
   });
 
   // Fetch CLT rate history
   const { data: cltRates = [] } = useQuery({
-    queryKey: ['comm-clt-rates-history'],
+    queryKey: ['comm-clt-rates-history', cltRatesTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_rates_clt').select('id, bank, effective_date, rate, has_insurance, term_min, term_max, table_key, created_at').order('created_at', { ascending: false }).limit(50);
+      const { data } = await supabase.from(cltRatesTable).select('id, bank, effective_date, rate, has_insurance, term_min, term_max, table_key, created_at').order('created_at', { ascending: false }).limit(50);
       return data || [];
     },
   });
 
-  // Fetch FGTS rate history
+  // Fetch FGTS rate history (V1 = 3 cols; V2 = multivariável)
   const { data: fgtsRates = [] } = useQuery({
-    queryKey: ['comm-fgts-rates-history'],
+    queryKey: ['comm-fgts-rates-history', fgtsRatesTable],
     queryFn: async () => {
-      const { data } = await supabase.from('commission_rates_fgts').select('id, bank, effective_date, rate_no_insurance, rate_with_insurance, created_at').order('created_at', { ascending: false }).limit(50);
+      const cols = fgtsRatesTable === 'commission_rates_fgts_v2'
+        ? 'id, bank, effective_date, rate, has_insurance, table_key, created_at'
+        : 'id, bank, effective_date, rate_no_insurance, rate_with_insurance, created_at';
+      const { data } = await supabase.from(fgtsRatesTable).select(cols).order('created_at', { ascending: false }).limit(50);
       return data || [];
     },
   });
@@ -114,14 +131,21 @@ export default function CommIndicadores({ profiles, getSellerName }: { profiles:
       detalhe: `Prazo ${(r as any).term_min}-${(r as any).term_max} | Seguro: ${(r as any).has_insurance ? 'Sim' : 'Não'}${(r as any).table_key ? ` | Chave: ${(r as any).table_key}` : ''}`,
       criado: (r as any).created_at,
     }));
-    const fgtsItems = fgtsRates.map(r => ({
-      tipo: 'FGTS',
-      banco: (r as any).bank,
-      vigencia: (r as any).effective_date,
-      taxa: `S/ Seg: ${(r as any).rate_no_insurance}% | C/ Seg: ${(r as any).rate_with_insurance}%`,
-      detalhe: '',
-      criado: (r as any).created_at,
-    }));
+    const fgtsItems = fgtsRates.map(r => {
+      const row = r as any;
+      // V2: coluna `rate` única com `has_insurance`. V1: `rate_no_insurance` + `rate_with_insurance`.
+      const taxa = row.rate !== undefined
+        ? `${row.rate}%${row.has_insurance ? ' (c/ seg)' : ''}${row.table_key ? ` | ${row.table_key}` : ''}`
+        : `S/ Seg: ${row.rate_no_insurance}% | C/ Seg: ${row.rate_with_insurance}%`;
+      return {
+        tipo: 'FGTS',
+        banco: row.bank,
+        vigencia: row.effective_date,
+        taxa,
+        detalhe: '',
+        criado: row.created_at,
+      };
+    });
     return [...cltItems, ...fgtsItems].sort((a, b) => new Date(b.criado).getTime() - new Date(a.criado).getTime()).slice(0, 30);
   }, [cltRates, fgtsRates]);
 
