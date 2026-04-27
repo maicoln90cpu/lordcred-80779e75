@@ -397,8 +397,26 @@ export default function V8NovaSimulacaoTab() {
 
       {activeBatchId && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Progresso do Lote</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase.functions.invoke('v8-webhook', {
+                    body: { action: 'replay_pending', limit: 500 },
+                  });
+                  if (error) throw error;
+                  toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
+                } catch (e: any) {
+                  toast.error(`Falha ao reprocessar: ${e?.message || e}`);
+                }
+              }}
+              title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
