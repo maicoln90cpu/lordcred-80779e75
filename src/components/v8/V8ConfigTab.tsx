@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Save, Loader2, Webhook, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import V8RetrySettingsCard from './V8RetrySettingsCard';
 
 interface WebhookRegistration {
   webhook_type: string;
@@ -214,6 +215,8 @@ export default function V8ConfigTab() {
           </div>
         </CardContent>
       </Card>
+
+      <V8RetrySettingsCard />
     </div>
   );
 }
