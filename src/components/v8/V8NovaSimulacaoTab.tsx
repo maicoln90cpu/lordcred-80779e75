@@ -293,28 +293,31 @@ export default function V8NovaSimulacaoTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Tipo da simulação</Label>
-              <Select value={simulationMode} onValueChange={(value: 'disbursed_amount' | 'installment_face_value') => setSimulationMode(value)}>
+              <Select value={simulationMode} onValueChange={(value: 'none' | 'disbursed_amount' | 'installment_face_value') => setSimulationMode(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
                   <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
                   <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
-              <Input
-                inputMode="decimal"
-                placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
-                value={simulationValue}
-                onChange={(e) => setSimulationValue(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                A V8 exige um valor-base para calcular a simulação. Sem isso ela tende a recusar ou devolver erro.
-              </p>
-            </div>
+            {simulationMode !== 'none' && (
+              <div>
+                <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
+                  value={simulationValue}
+                  onChange={(e) => setSimulationValue(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
