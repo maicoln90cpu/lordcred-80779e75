@@ -568,10 +568,16 @@ function buildSimulationBodyWithValue(
   consultId: string,
 ) {
   const base = buildSimulationBody(input, consultId) as Record<string, unknown>;
+  const valueNum = Number(input.simulation_value);
+  // Se valor não foi informado (ou é zero/inválido), envia payload mínimo —
+  // a V8 devolve cenários default. Isso permite "consulta exploratória".
+  if (!Number.isFinite(valueNum) || valueNum <= 0) {
+    return base;
+  }
   if (input.simulation_mode === "installment_face_value") {
-    base.installment_face_value = Number(input.simulation_value);
-  } else {
-    base.disbursed_amount = Number(input.simulation_value);
+    base.installment_face_value = valueNum;
+  } else if (input.simulation_mode === "disbursed_amount") {
+    base.disbursed_amount = valueNum;
   }
   return base;
 }
