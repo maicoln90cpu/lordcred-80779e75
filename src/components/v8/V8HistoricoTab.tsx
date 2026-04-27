@@ -45,7 +45,19 @@ function BatchDetail({ batchId }: { batchId: string }) {
   };
 
   return (
-    <div className="border rounded mt-2 overflow-x-auto">
+    <div className="space-y-2 mt-2">
+      {failedRetriable.length > 0 && (
+        <div className="flex items-center justify-between rounded border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
+          <span className="text-xs">
+            <strong>{failedRetriable.length}</strong> simulação(ões) falhada(s) podem ser retentadas (instabilidade da V8 / análise pendente).
+          </span>
+          <Button size="sm" variant="outline" onClick={handleRetry} disabled={retrying} className="h-7">
+            {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Retentar falhados
+          </Button>
+        </div>
+      )}
+      <div className="border rounded overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="bg-muted">
           <tr>
