@@ -80,15 +80,6 @@ export default function RatesFGTSTab() {
     toast({ title: 'Taxa excluída' }); loadRates();
   };
 
-  const prefillPresets = async () => {
-    if (!confirm(`Pré-preencher ${PRESET_RATES.length} taxas (LOTUS, HUB, FACTA, Paraná)?`)) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const payload = PRESET_RATES.map(p => ({ ...p, effective_date: today, table_key: p.table_key || null }));
-    const { error } = await supabase.from('commission_rates_fgts_v2').insert(payload as any);
-    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    else { toast({ title: `${PRESET_RATES.length} taxas pré-preenchidas` }); loadRates(); }
-  };
-
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
