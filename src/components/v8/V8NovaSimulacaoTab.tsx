@@ -543,6 +543,52 @@ export default function V8NovaSimulacaoTab() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Status da consulta na V8</DialogTitle>
+            <DialogDescription>
+              CPF: <span className="font-mono">{statusDialogData.cpf}</span>
+            </DialogDescription>
+          </DialogHeader>
+          {statusDialogData.loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> Buscando na V8...
+            </div>
+          ) : statusDialogData.error ? (
+            <div className="text-sm text-destructive whitespace-pre-line">{statusDialogData.error}</div>
+          ) : statusDialogData.result?.found === false ? (
+            <div className="text-sm text-muted-foreground">{statusDialogData.result.message}</div>
+          ) : statusDialogData.result?.latest ? (
+            <div className="space-y-2 text-sm">
+              <div><strong>Status:</strong> {statusDialogData.result.latest.status ?? '—'}</div>
+              <div><strong>Nome:</strong> {statusDialogData.result.latest.name ?? '—'}</div>
+              <div><strong>Criada em:</strong> {statusDialogData.result.latest.createdAt ? new Date(statusDialogData.result.latest.createdAt).toLocaleString('pt-BR') : '—'}</div>
+              {statusDialogData.result.latest.detail && (
+                <div className="text-muted-foreground">{statusDialogData.result.latest.detail}</div>
+              )}
+              {statusDialogData.result.consults?.length > 1 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    Ver todas as {statusDialogData.result.consults.length} consultas
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {statusDialogData.result.consults.map((c: any) => (
+                      <li key={c.consultId} className="border rounded p-2">
+                        <div><strong>{c.status}</strong> · {c.createdAt ? new Date(c.createdAt).toLocaleString('pt-BR') : '—'}</div>
+                        {c.detail && <div className="text-muted-foreground">{c.detail}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Sem dados.</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
