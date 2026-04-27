@@ -270,7 +270,53 @@ export default function Tickets() {
                       <SelectItem value="urgente">Urgente</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button onClick={handleCreateTicket} disabled={!newTitle.trim()} className="w-full">Criar Ticket</Button>
+
+                  <div className="space-y-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={e => setNewAttachment(e.target.files?.[0] || null)}
+                    />
+                    {!newAttachment ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip className="w-4 h-4 mr-2" />
+                        Anexar print ou arquivo (opcional, máx 10 MB)
+                      </Button>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 p-2 border rounded-md bg-muted/30">
+                        <div className="flex items-center gap-2 text-sm truncate">
+                          {newAttachment.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+                          <span className="truncate">{newAttachment.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            ({(newAttachment.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            setNewAttachment(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={handleCreateTicket} disabled={!newTitle.trim() || uploading} className="w-full">
+                    {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enviando...</> : 'Criar Ticket'}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
