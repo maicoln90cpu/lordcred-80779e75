@@ -31,6 +31,17 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // Manual invocation: aceita { batch_id?, manual?: true } no body
+  let manualBatchId: string | null = null;
+  let manualMode = false;
+  try {
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({} as any));
+      manualBatchId = body?.batch_id ?? null;
+      manualMode = body?.manual === true || !!manualBatchId;
+    }
+  } catch (_) { /* ignore */ }
+
   try {
     // 1) Lê config
     const { data: settings } = await supabase
@@ -42,7 +53,7 @@ serve(async (req) => {
     if (!settings) {
       return ok({ skipped: true, reason: "no_settings" });
     }
-    if (!settings.background_retry_enabled) {
+    if (!settings.background_retry_enabled && !manualMode) {
       return ok({ skipped: true, reason: "disabled" });
     }
 
@@ -52,7 +63,7 @@ serve(async (req) => {
 
     // 2) Busca candidatos: status=failed + kind retentável + attempt_count < max + last_attempt_at antigo o suficiente
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
-    const { data: candidates, error: candErr } = await supabase
+    let q = supabase
       .from("v8_simulations")
       .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, last_attempt_at, created_by")
       .eq("status", "failed")
@@ -60,6 +71,8 @@ serve(async (req) => {
       .lt("attempt_count", maxAttempts)
       .order("last_attempt_at", { ascending: true, nullsFirst: true })
       .limit(batchSize);
+    if (manualBatchId) q = q.eq("batch_id", manualBatchId);
+    const { data: candidates, error: candErr } = await q;
 
     if (candErr) {
       console.error("[v8-retry-cron] select error", candErr);
