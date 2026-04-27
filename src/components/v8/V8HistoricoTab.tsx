@@ -131,6 +131,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
