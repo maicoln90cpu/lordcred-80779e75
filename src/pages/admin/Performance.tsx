@@ -56,6 +56,7 @@ interface AvgResponseItem {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const PERIOD_OPTIONS = [
+  { label: 'Última hora', value: -6 },
   { label: 'Hoje', value: -2 },
   { label: 'Ontem', value: -3 },
   { label: 'Essa Semana', value: -4 },
