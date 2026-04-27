@@ -27,6 +27,7 @@ import {
   stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
+import { useV8Settings } from '@/hooks/useV8Settings';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -68,6 +69,7 @@ const MAX_CONCURRENCY = 3;
 
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
+  const { settings: v8Settings } = useV8Settings();
   const [batchName, setBatchName] = useState('');
   const [configId, setConfigId] = useState('');
   const [parcelas, setParcelas] = useState(24);
@@ -78,6 +80,11 @@ export default function V8NovaSimulacaoTab() {
   const [running, setRunning] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
+
+  const maxAutoRetry = v8Settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
+  const minBackoffMs = (v8Settings?.retry_min_backoff_seconds ?? 10) * 1000;
+  const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
+  const backgroundRetryEnabled = v8Settings?.background_retry_enabled ?? true;
 
   const { simulations } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
@@ -195,6 +202,7 @@ export default function V8NovaSimulacaoTab() {
                   batch_id: activeBatchId,
                   simulation_id: sim.id,
                   attempt_count: Number((sim as any).attempt_count ?? 1) + 1,
+                  triggered_by: 'manual_retry',
                 },
               },
             });
@@ -296,6 +304,7 @@ export default function V8NovaSimulacaoTab() {
                   batch_id: batchId,
                   simulation_id: sim.id,
                   attempt_count: Number((sim as any).attempt_count ?? 0) + 1,
+                  triggered_by: 'user',
                 },
               },
             });
@@ -319,9 +328,13 @@ export default function V8NovaSimulacaoTab() {
       }
 
       // ===== AUTO-RETRY EM BACKGROUND =====
-      // Re-dispara automaticamente CPFs com erro temporário (rate limit / análise pendente)
-      // até MAX_AUTO_RETRY_ATTEMPTS (15). Backoff: 10s, 20s, 40s, 80s, capped em 120s.
-      await runAutoRetryLoop(batchId, rows, normalizedSimulationValue);
+      // Se o cron `v8-retry-cron` está habilitado, ele assume — o navegador não precisa
+      // ficar aberto. Mantemos o loop frontend apenas como fallback quando o cron está OFF.
+      if (backgroundRetryEnabled) {
+        toast.info('Auto-retry rodando em segundo plano (cron a cada 1 min). Pode fechar a aba.');
+      } else {
+        await runAutoRetryLoop(batchId, rows, normalizedSimulationValue);
+      }
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
     } finally {
@@ -340,7 +353,7 @@ export default function V8NovaSimulacaoTab() {
     normalizedSimulationValue: number,
   ) {
     let round = 0;
-    const MAX_ROUNDS = MAX_AUTO_RETRY_ATTEMPTS; // segurança extra contra loop infinito
+    const MAX_ROUNDS = maxAutoRetry; // teto configurável (v8_settings.max_auto_retry_attempts)
     while (round < MAX_ROUNDS) {
       // Lê estado fresco do banco (não confia no state do React)
       const { data: fresh } = await supabase
@@ -352,7 +365,7 @@ export default function V8NovaSimulacaoTab() {
       const candidates = fresh.filter((s: any) => {
         if (s.status !== 'failed') return false;
         const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-        return shouldAutoRetry(kind, s.attempt_count);
+        return shouldAutoRetry(kind, s.attempt_count, maxAutoRetry);
       });
 
       if (candidates.length === 0) {
@@ -361,7 +374,7 @@ export default function V8NovaSimulacaoTab() {
       }
 
       round += 1;
-      const backoffMs = Math.min(10_000 * Math.pow(2, round - 1), 120_000);
+      const backoffMs = Math.min(minBackoffMs * Math.pow(2, round - 1), maxBackoffMs);
       toast.info(`Rodada de auto-retry ${round}/${MAX_ROUNDS} · ${candidates.length} CPF(s) instáveis · aguardando ${Math.round(backoffMs / 1000)}s antes...`);
       await new Promise((r) => setTimeout(r, backoffMs));
 
@@ -388,6 +401,7 @@ export default function V8NovaSimulacaoTab() {
                   batch_id: batchId,
                   simulation_id: sim.id,
                   attempt_count: Number(sim.attempt_count ?? 1) + 1,
+                  triggered_by: 'user',
                 },
               },
             });

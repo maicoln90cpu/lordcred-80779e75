@@ -3858,6 +3858,104 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_settings: {
+        Row: {
+          background_retry_enabled: boolean
+          created_at: string
+          id: string
+          max_auto_retry_attempts: number
+          retry_batch_size: number
+          retry_max_backoff_seconds: number
+          retry_min_backoff_seconds: number
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          background_retry_enabled?: boolean
+          created_at?: string
+          id?: string
+          max_auto_retry_attempts?: number
+          retry_batch_size?: number
+          retry_max_backoff_seconds?: number
+          retry_min_backoff_seconds?: number
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          background_retry_enabled?: boolean
+          created_at?: string
+          id?: string
+          max_auto_retry_attempts?: number
+          retry_batch_size?: number
+          retry_max_backoff_seconds?: number
+          retry_min_backoff_seconds?: number
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      v8_simulation_attempts: {
+        Row: {
+          attempt_number: number
+          batch_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_kind: string | null
+          error_message: string | null
+          http_status: number | null
+          id: string
+          request_payload: Json | null
+          response_body: Json | null
+          simulation_id: string
+          status: string | null
+          triggered_by: string
+          triggered_by_user: string | null
+        }
+        Insert: {
+          attempt_number: number
+          batch_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_kind?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          request_payload?: Json | null
+          response_body?: Json | null
+          simulation_id: string
+          status?: string | null
+          triggered_by?: string
+          triggered_by_user?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          batch_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_kind?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          request_payload?: Json | null
+          response_body?: Json | null
+          simulation_id?: string
+          status?: string | null
+          triggered_by?: string
+          triggered_by_user?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v8_simulation_attempts_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "v8_simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v8_simulations: {
         Row: {
           amount_to_charge: number | null
