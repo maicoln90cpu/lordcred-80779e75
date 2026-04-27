@@ -401,6 +401,30 @@ export default function Tickets() {
                   {selectedTicket.description && (
                     <p className="text-sm text-muted-foreground mt-2 p-3 bg-muted/30 rounded-lg">{selectedTicket.description}</p>
                   )}
+                  {selectedTicket.attachment_url && (
+                    <div className="mt-2 p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                        <Paperclip className="w-3 h-3" />
+                        <a
+                          href={selectedTicket.attachment_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline truncate"
+                        >
+                          {selectedTicket.attachment_name || 'Anexo'}
+                        </a>
+                      </div>
+                      {isImageAttachment(selectedTicket.attachment_name) && (
+                        <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={selectedTicket.attachment_url}
+                            alt={selectedTicket.attachment_name || 'Anexo'}
+                            className="max-h-64 rounded-md border border-border object-contain"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <Separator />
                 <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
