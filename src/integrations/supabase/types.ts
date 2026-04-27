@@ -686,6 +686,45 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_rates_clt_v2_backup_20260427b: {
+        Row: {
+          bank: string | null
+          created_at: string | null
+          effective_date: string | null
+          has_insurance: boolean | null
+          id: string | null
+          obs: string | null
+          rate: number | null
+          table_key: string | null
+          term_max: number | null
+          term_min: number | null
+        }
+        Insert: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Update: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Relationships: []
+      }
       commission_rates_fgts: {
         Row: {
           bank: string
@@ -759,6 +798,51 @@ export type Database = {
         Relationships: []
       }
       commission_rates_fgts_v2_backup_20260427: {
+        Row: {
+          bank: string | null
+          created_at: string | null
+          effective_date: string | null
+          has_insurance: boolean | null
+          id: string | null
+          max_value: number | null
+          min_value: number | null
+          obs: string | null
+          rate: number | null
+          table_key: string | null
+          term_max: number | null
+          term_min: number | null
+        }
+        Insert: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          max_value?: number | null
+          min_value?: number | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Update: {
+          bank?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          has_insurance?: boolean | null
+          id?: string | null
+          max_value?: number | null
+          min_value?: number | null
+          obs?: string | null
+          rate?: number | null
+          table_key?: string | null
+          term_max?: number | null
+          term_min?: number | null
+        }
+        Relationships: []
+      }
+      commission_rates_fgts_v2_backup_20260427b: {
         Row: {
           bank: string | null
           created_at: string | null
