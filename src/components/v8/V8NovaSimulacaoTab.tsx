@@ -440,57 +440,82 @@ export default function V8NovaSimulacaoTab() {
                       <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
                       <td className="px-2 py-1 align-top">
-                        {s.status === 'pending' ? (
-                          <span className="text-muted-foreground">Aguardando retorno da V8 (via webhook)</span>
-                        ) : (s.raw_response?.kind === 'active_consult' || s.raw_response?.error_kind === 'active_consult') ? (
-                          <div className="space-y-1">
-                            <div className="whitespace-pre-line font-medium text-amber-600">
-                              Já existe consulta ativa para este CPF na V8
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleCheckStatus(s.cpf)}
-                            >
-                              <Search className="w-3 h-3 mr-1" /> Ver status na V8
-                            </Button>
-                          </div>
-                        ) : s.error_message || s.raw_response ? (
-                          <div className="space-y-1">
-                            <div className="whitespace-pre-line font-medium">
-                              {getV8ErrorHeadline(s.raw_response, s.error_message) || 'Falha sem detalhe retornado'}
-                            </div>
-                            {getV8ErrorSecondary(s.raw_response) && (
-                              <div className="whitespace-pre-line text-muted-foreground">
-                                {getV8ErrorSecondary(s.raw_response)}
+                        {(() => {
+                          const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
+                          const isActiveConsult = kind === 'active_consult';
+                          const headline = getV8ErrorHeadline(s.raw_response, s.error_message);
+                          const secondary = getV8ErrorSecondary(s.raw_response);
+                          const meta = getV8ErrorMeta(s.raw_response);
+                          const payloadStr = stringifyV8Payload(s.raw_response);
+                          const hasErrorInfo = !!(s.error_message || headline || s.raw_response);
+
+                          // Caso 1: active_consult em qualquer status — mostrar mensagem amarela + botão
+                          if (isActiveConsult) {
+                            return (
+                              <div className="space-y-1">
+                                <div className="whitespace-pre-line font-medium text-amber-600">
+                                  Já existe consulta ativa para este CPF na V8
+                                </div>
+                                <Button size="sm" variant="outline" onClick={() => handleCheckStatus(s.cpf)}>
+                                  <Search className="w-3 h-3 mr-1" /> Ver status na V8
+                                </Button>
                               </div>
-                            )}
-                            {(getV8ErrorMeta(s.raw_response).step || getV8ErrorMeta(s.raw_response).kind) && (
-                              <div className="text-[11px] text-muted-foreground">
-                                {getV8ErrorMeta(s.raw_response).step ? `etapa: ${getV8ErrorMeta(s.raw_response).step}` : null}
-                                {getV8ErrorMeta(s.raw_response).step && getV8ErrorMeta(s.raw_response).kind ? ' • ' : null}
-                                {getV8ErrorMeta(s.raw_response).kind ? `tipo: ${getV8ErrorMeta(s.raw_response).kind}` : null}
+                            );
+                          }
+
+                          // Caso 2: pending sem qualquer informação de erro — texto neutro
+                          if (s.status === 'pending' && !hasErrorInfo) {
+                            const elapsed = s.processed_at
+                              ? Math.floor((Date.now() - new Date(s.processed_at).getTime()) / 1000)
+                              : null;
+                            const noWebhook = !s.last_attempt_at && !s.raw_response;
+                            return (
+                              <span className="text-muted-foreground">
+                                Aguardando retorno da V8 (via webhook)
+                                {elapsed != null && elapsed > 60 ? ` · há ${elapsed}s` : ''}
+                                {noWebhook && elapsed != null && elapsed > 120 ? ' · webhook ainda não chegou' : ''}
+                              </span>
+                            );
+                          }
+
+                          // Caso 3: existe info de erro (mesmo em pending) — mostrar
+                          if (hasErrorInfo) {
+                            return (
+                              <div className="space-y-1">
+                                <div className="whitespace-pre-line font-medium">
+                                  {headline || 'Falha sem detalhe retornado'}
+                                </div>
+                                {secondary && (
+                                  <div className="whitespace-pre-line text-muted-foreground">{secondary}</div>
+                                )}
+                                {(meta.step || meta.kind) && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {meta.step ? `etapa: ${meta.step}` : null}
+                                    {meta.step && meta.kind ? ' • ' : null}
+                                    {meta.kind ? `tipo: ${meta.kind}` : null}
+                                  </div>
+                                )}
+                                {meta.guidance && (
+                                  <div className="whitespace-pre-line text-[11px] text-muted-foreground">
+                                    {meta.guidance}
+                                  </div>
+                                )}
+                                {payloadStr && (
+                                  <details className="rounded border border-border bg-muted/30 p-2">
+                                    <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+                                      Ver payload bruto
+                                    </summary>
+                                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
+                                      {payloadStr}
+                                    </pre>
+                                  </details>
+                                )}
                               </div>
-                            )}
-                            {getV8ErrorMeta(s.raw_response).guidance && (
-                              <div className="whitespace-pre-line text-[11px] text-muted-foreground">
-                                {getV8ErrorMeta(s.raw_response).guidance}
-                              </div>
-                            )}
-                            {stringifyV8Payload(s.raw_response) && (
-                              <details className="rounded border border-border bg-muted/30 p-2">
-                                <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
-                                  Ver payload bruto
-                                </summary>
-                                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
-                                  {stringifyV8Payload(s.raw_response)}
-                                </pre>
-                              </details>
-                            )}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
+                            );
+                          }
+
+                          return '—';
+                        })()}
                       </td>
                     </tr>
                   ))}
