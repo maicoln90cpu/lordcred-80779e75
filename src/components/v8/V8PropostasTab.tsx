@@ -120,6 +120,9 @@ export default function V8PropostasTab() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs leading-relaxed">
+        <strong>O que é uma proposta?</strong> É a operação <em>já aberta</em> na V8 (CCB gerada, em análise, aguardando pagamento etc.). Diferente da aba <strong>Consultas</strong>, aqui o contrato existe e está em andamento até <code>paid</code> ou <code>canceled</code>.
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
