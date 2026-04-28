@@ -151,6 +151,7 @@ export default function V8ConsultasTab() {
     }
 
     setHasSearched(true);
+    lastSearchRef.current = { start: startDate, end: endDate, term: searchTerm };
 
     const result = await loadOperations({
       startDate: toRangeBoundary(startDate, 'start'),
@@ -179,6 +180,38 @@ export default function V8ConsultasTab() {
 
     toast.success(`${result.total} proposta(s) e ${consultResult.total} consulta(s) carregada(s)`);
   }
+
+  // Realtime: quando o webhook V8 atualiza qualquer simulação (status/raw_response),
+  // reexecuta a última busca silenciosamente para refletir o novo estado das consultas
+  // ativas. Sem subscription, era preciso clicar em "Buscar propostas" de novo.
+  useEffect(() => {
+    if (!hasSearched) return;
+    const channel = supabase
+      .channel('v8-consultas-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'v8_simulations' },
+        () => {
+          const last = lastSearchRef.current;
+          if (!last) return;
+          setRtPulse(true);
+          setTimeout(() => setRtPulse(false), 800);
+          // Recarrega só consultas ativas (mais barato que operations)
+          void loadConsults({
+            startDate: toRangeBoundary(last.start, 'start'),
+            endDate: toRangeBoundary(last.end, 'end'),
+            limit: 200,
+            page: 1,
+            search: last.term,
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSearched]);
 
   async function handleOpenDetails(operationId: string) {
     const result = await loadOperationDetail(operationId);
