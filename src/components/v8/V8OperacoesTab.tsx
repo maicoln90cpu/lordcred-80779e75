@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TimelineEventActions from './TimelineEventActions';
 
 /**
  * V8 — Aba "Operações" (timeline por CPF)
@@ -51,11 +52,15 @@ interface CpfRow {
 
 interface TimelineEvent {
   id: string;
+  rowId: string;
   kind: 'simulation' | 'operation' | 'webhook';
   at: string;
   title: string;
   subtitle?: string;
   status?: string | null;
+  consultId?: string | null;
+  operationId?: string | null;
+  v8SimulationId?: string | null;
   meta?: Record<string, any>;
 }
 
@@ -237,6 +242,7 @@ export default function V8OperacoesTab() {
       (sims ?? []).forEach((s: any) => {
         events.push({
           id: `sim-${s.id}`,
+          rowId: s.id,
           kind: 'simulation',
           at: s.updated_at || s.created_at,
           title: s.config_name ? `Simulação — ${s.config_name}` : 'Simulação',
@@ -246,7 +252,9 @@ export default function V8OperacoesTab() {
             s.last_step,
           ].filter(Boolean).join(' • '),
           status: s.status,
-          meta: { simulate_status: s.simulate_status, error: s.error_message, v8_simulation_id: s.v8_simulation_id, consult_id: s.consult_id },
+          consultId: s.consult_id,
+          v8SimulationId: s.v8_simulation_id,
+          meta: { simulate_status: s.simulate_status, error: s.error_message },
         });
       });
 
@@ -265,11 +273,15 @@ export default function V8OperacoesTab() {
         (whs ?? []).forEach((w: any) => {
           events.push({
             id: `wh-${w.id}`,
+            rowId: w.id,
             kind: 'webhook',
             at: w.received_at,
             title: `Webhook — ${w.event_type || 'evento'}`,
             subtitle: w.operation_id ? `Operação ${w.operation_id.slice(0, 12)}…` : undefined,
             status: w.status,
+            consultId: w.consult_id,
+            operationId: w.operation_id,
+            v8SimulationId: w.v8_simulation_id,
             meta: { event_type: w.event_type },
           });
         });
@@ -284,11 +296,15 @@ export default function V8OperacoesTab() {
         (ops ?? []).forEach((o: any) => {
           events.push({
             id: `op-${o.id}`,
+            rowId: o.id,
             kind: 'operation',
             at: o.last_updated_at || o.first_seen_at,
             title: `Operação ${o.operation_id?.slice(0, 12) || ''}…`,
             subtitle: o.status,
             status: o.status,
+            consultId: o.consult_id,
+            operationId: o.operation_id,
+            v8SimulationId: o.v8_simulation_id,
           });
         });
       }
@@ -428,6 +444,15 @@ export default function V8OperacoesTab() {
                                       ⚠️ {ev.meta.error}
                                     </div>
                                   )}
+                                  <TimelineEventActions
+                                    kind={ev.kind}
+                                    rowId={ev.rowId}
+                                    status={ev.status}
+                                    consultId={ev.consultId}
+                                    operationId={ev.operationId}
+                                    v8SimulationId={ev.v8SimulationId}
+                                    title={ev.title}
+                                  />
                                 </li>
                               ))}
                             </ol>
