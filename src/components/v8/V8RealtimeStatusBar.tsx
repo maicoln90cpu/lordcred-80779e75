@@ -32,7 +32,7 @@ export function V8RealtimeStatusBar() {
   const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const soundOn = settings?.sound_on_complete ?? false;
 
-  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
+  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null });
   const [conn, setConn] = useState<ConnectionState>('connecting');
   const lastBatchStateRef = useRef<Map<string, { status: string; success: number; failure: number }>>(new Map());
   const aggRef = useRef(agg);
@@ -41,6 +41,16 @@ export function V8RealtimeStatusBar() {
   const refresh = async () => {
     const last24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const activeSinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    // Última varredura do cron de retry (saúde visível para o usuário)
+    const { data: cronLog } = await supabase
+      .from('audit_logs')
+      .select('created_at')
+      .eq('action', 'v8_retry_cron_cycle')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastCronAt = cronLog?.created_at ?? null;
 
     // Lotes ativos visíveis = recentes; lotes antigos não entram na badge do topo.
     const { data: batches } = await supabase
@@ -59,7 +69,6 @@ export function V8RealtimeStatusBar() {
       for (const b of batches as any[]) {
         const prev = lastBatchStateRef.current.get(b.id);
         if (prev && prev.status !== 'completed' && b.status === 'completed') {
-          // sucesso quando >50% ok; do contrário, "falha"
           const ok = b.success_count >= b.failure_count;
           playBatchCompleteSound(ok);
           toast(ok ? '✅ Lote concluído com sucesso' : '⚠️ Lote concluído com falhas', {
@@ -75,7 +84,7 @@ export function V8RealtimeStatusBar() {
     }
 
     if (activeBatches.length === 0) {
-      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
+      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt });
       return;
     }
 
@@ -91,10 +100,24 @@ export function V8RealtimeStatusBar() {
       return isRetriableErrorKind(kind);
     });
 
+    // "Aguardando V8" = não vamos retentar do nosso lado, a V8 que precisa responder/liberar
+    // (active_consult, pending sem kind aguardando webhook). Honesto separar isto do retry.
+    const awaitingV8 = (sims || []).filter((s: any) => {
+      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      if (isRetriableErrorKind(kind)) return false;
+      return kind === 'active_consult' || (s.status === 'pending' && !kind);
+    }).length;
+
     const retryingCount = retriableSims.filter((s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso).length;
     const staleRetryingCount = retriableSims.length - retryingCount;
 
-    setAgg({ active_batches: activeBatches.length, retrying_simulations: retryingCount, stale_retrying_simulations: staleRetryingCount });
+    setAgg({
+      active_batches: activeBatches.length,
+      retrying_simulations: retryingCount,
+      stale_retrying_simulations: staleRetryingCount,
+      awaiting_v8: awaitingV8,
+      last_cron_at: lastCronAt,
+    });
   };
 
   useEffect(() => {
