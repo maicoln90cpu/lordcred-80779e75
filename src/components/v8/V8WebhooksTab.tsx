@@ -193,12 +193,14 @@ export default function V8WebhooksTab() {
 
     const map: Record<string, string> = {};
     rows.forEach((r) => {
-      const fromPayload = cpfFromPayload(r.payload);
+      // Frente D: payload não vem mais na listagem, então o fallback
+      // cpfFromPayload foi removido. Na prática a V8 nunca envia CPF
+      // mesmo (verificado: 110k webhooks, 0 com CPF no payload).
       const viaConsult = r.consult_id ? consultToCpf[r.consult_id] : undefined;
       const viaOperation = r.operation_id
         ? consultToCpf[opToConsult[r.operation_id] ?? '']
         : undefined;
-      const cpf = fromPayload || viaConsult || viaOperation;
+      const cpf = viaConsult || viaOperation;
       if (cpf) map[r.id] = cpf;
     });
     setCpfMap(map);
