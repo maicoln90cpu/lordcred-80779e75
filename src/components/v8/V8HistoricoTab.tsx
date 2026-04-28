@@ -135,6 +135,9 @@ function BatchDetail({ batchId }: { batchId: string }) {
   const { toast } = useToast();
   const [retrying, setRetrying] = useState(false);
   const [replaying, setReplaying] = useState(false);
+  // IDs em retry "otimista": mantemos spinner na linha até o attempt_count
+  // mudar no banco (via realtime), o que confirma que a V8 já recebeu.
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
   const status = useV8StatusOnV8();
 
   const failedRetriable = simulations.filter((s) => isRetriableNow(s));
@@ -143,22 +146,56 @@ function BatchDetail({ batchId }: { batchId: string }) {
   ).length;
   const hasPending = simulations.some((s) => s.status === 'pending');
 
+  // Limpa o "retryingIds" assim que vemos attempt_count avançar.
+  useEffect(() => {
+    if (retryingIds.size === 0) return;
+    setRetryingIds((prev) => {
+      const next = new Set(prev);
+      for (const sim of simulations) {
+        if (next.has(sim.id) && (sim.attempt_count ?? 0) > 0) {
+          // se atualização chegou pelo realtime, removemos o spinner.
+          if (sim.last_attempt_at && new Date(sim.last_attempt_at).getTime() > Date.now() - 30_000) {
+            next.delete(sim.id);
+          }
+        }
+      }
+      return next;
+    });
+  }, [simulations]);
+
   const handleRetry = async () => {
     if (failedRetriable.length === 0) return;
     setRetrying(true);
+    const ids = new Set(failedRetriable.map((s) => s.id));
+    setRetryingIds((prev) => new Set([...prev, ...ids]));
     try {
       const { data, error } = await supabase.functions.invoke('v8-retry-cron', {
         body: { batch_id: batchId, manual: true },
       });
       if (error) throw error;
       toast({
-        title: 'Retentativa iniciada',
-        description: `${(data as any)?.eligible ?? failedRetriable.length} simulações reenviadas.`,
+        title: '🔄 Retentativa enviada para a V8',
+        description: `${(data as any)?.eligible ?? failedRetriable.length} simulação(ões) reenviadas. Acompanhe pela coluna "Tentativas" — atualiza ao vivo.`,
+        duration: 6000,
       });
     } catch (err: any) {
+      // Limpa optimistic em caso de erro
+      setRetryingIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
       toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
     } finally {
       setRetrying(false);
+      // failsafe: limpa após 30s mesmo se realtime falhar
+      setTimeout(() => {
+        setRetryingIds((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) next.delete(id);
+          return next;
+        });
+      }, 30_000);
     }
   };
 
