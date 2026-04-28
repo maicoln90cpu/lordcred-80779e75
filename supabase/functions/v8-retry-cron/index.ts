@@ -31,16 +31,38 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Manual invocation: aceita { batch_id?, manual?: true } no body
+  // Manual invocation: aceita { batch_id?, manual?: true, sub_pass? } no body
+  // sub_pass: índice da sub-execução (0/1/2). Quando ausente e for chamada do cron
+  // (sem batch_id), agendamos 2 sub-passes adicionais com setTimeout(20s/40s)
+  // para ter efeito prático de "varredura a cada ~20s" sem violar o limite de 1 min do pg_cron.
   let manualBatchId: string | null = null;
   let manualMode = false;
+  let subPass = 0;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as any));
       manualBatchId = body?.batch_id ?? null;
       manualMode = body?.manual === true || !!manualBatchId;
+      subPass = Number(body?.sub_pass ?? 0);
     }
   } catch (_) { /* ignore */ }
+
+  // Se for primeira passada do cron (não manual), agenda 2 sub-passes em background.
+  // Resultado: cron de 1 min -> 3 varreduras a 0s/20s/40s.
+  if (!manualMode && subPass === 0) {
+    for (const delaySec of [20, 40]) {
+      setTimeout(() => {
+        fetch(`${supabaseUrl}/functions/v1/v8-retry-cron`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ sub_pass: delaySec === 20 ? 1 : 2 }),
+        }).catch((e) => console.error("[v8-retry-cron] sub_pass dispatch err", e));
+      }, delaySec * 1000);
+    }
+  }
 
   try {
     // 1) Lê config
