@@ -204,11 +204,21 @@ serve(async (req) => {
         if (updErr) {
           console.error("[v8-active-consult-poller] update err", row.id, updErr);
           failed += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "update_failed", error: updErr.message });
         } else {
           updated += 1;
+          perSimResults.push({
+            simulation_id: row.id,
+            cpf_masked: maskCpf(row.cpf),
+            outcome: "snapshot_updated",
+            v8_status: snapshot?.status ?? snapshot?.latest?.status ?? null,
+            margem_valor: margemFromSnapshot,
+            ...packPayloadForAudit(snapshot, "snapshot_full"),
+          });
         }
       } catch (err) {
         failed += 1;
+        perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "exception", error: String((err as Error)?.message || err) });
         console.error("[v8-active-consult-poller] fetch err", row.id, err);
       }
 
