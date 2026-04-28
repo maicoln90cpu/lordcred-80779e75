@@ -21,10 +21,8 @@ import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
-  getV8ErrorHeadline,
+  getV8ErrorMessageDeduped,
   getV8ErrorMeta,
-  getV8ErrorSecondary,
-  stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
