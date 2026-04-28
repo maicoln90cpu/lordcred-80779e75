@@ -1866,6 +1866,96 @@ const handler = async (req: Request) => {
           },
         });
         break;
+      case "simulate_consult_only": {
+        // ESTRATÉGIA WEBHOOK_ONLY — só consulta de margem, sem /simulation.
+        result = await actionSimulateConsultOnly(supabase, params);
+        if (params?.simulation_id) {
+          const _success = !!(result as any)?.success;
+          if (_success) {
+            await supabase.from("v8_simulations").update({
+              status: "pending",
+              simulation_strategy: "webhook_only",
+              consult_id: (result as any).data.consult_id,
+              raw_response: (result as any).data.raw_response,
+              last_step: "consult_only",
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              error_kind: null,
+              error_message: null,
+            }).eq("id", params.simulation_id);
+          } else {
+            await supabase.from("v8_simulations").update({
+              status: "failed",
+              simulation_strategy: "webhook_only",
+              error_kind: (result as any).kind ?? null,
+              error_message: String((result as any).user_message || (result as any).error || "Erro"),
+              raw_response: { kind: (result as any).kind, step: (result as any).step, payload: (result as any).raw },
+              last_step: (result as any).step ?? "consult_only",
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              processed_at: new Date().toISOString(),
+            }).eq("id", params.simulation_id);
+            if (params.batch_id) {
+              await supabase.rpc("v8_increment_batch_failure", { _batch_id: params.batch_id });
+            }
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_simulate_consult_only",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_simulations",
+          targetId: params?.simulation_id ?? null,
+          details: {
+            cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+            kind: (result as any)?.kind ?? null,
+            step: (result as any)?.step ?? null,
+            consult_id: (result as any)?.data?.consult_id ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "simulate_only_for_consult": {
+        // Roda /simulation usando consult_id já validado (botão "Simular selecionados").
+        result = await actionSimulateOnlyForConsult(supabase, params);
+        if (params?.simulation_id) {
+          await supabase.from("v8_simulations").update({
+            simulate_attempted_at: new Date().toISOString(),
+            simulate_status: (result as any)?.success ? "done" : "failed",
+          }).eq("id", params.simulation_id);
+          if ((result as any)?.success) {
+            await supabase.from("v8_simulations").update({
+              released_value: (result as any).data.released_value,
+              installment_value: (result as any).data.installment_value,
+              interest_rate: (result as any).data.interest_rate,
+              total_value: (result as any).data.total_value,
+              company_margin: (result as any).data.company_margin,
+              amount_to_charge: (result as any).data.amount_to_charge,
+              v8_simulation_id: (result as any).data.simulation_id ?? null,
+              config_id: params.config_id,
+              installments: params.parcelas,
+              last_step: "simulate_only",
+            }).eq("id", params.simulation_id);
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_simulate_only_for_consult",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_simulations",
+          targetId: params?.simulation_id ?? null,
+          details: {
+            consult_id: params?.consult_id ?? null,
+            config_id: params?.config_id ?? null,
+            parcelas: params?.parcelas ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
       default:
         result = { success: false, error: `Ação desconhecida: ${action}` };
     }
