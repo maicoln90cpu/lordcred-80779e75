@@ -39,7 +39,9 @@ type WebhookLog = {
   consult_id: string | null;
   operation_id: string | null;
   v8_simulation_id: string | null;
-  payload: any;
+  // Frente D: payload (JSONB grande) NÃO vem na listagem para reduzir egress.
+  // Só é carregado sob demanda quando o usuário clica em "Ver detalhes".
+  payload?: any;
   processed: boolean | null;
   process_error: string | null;
   received_at: string;
