@@ -296,7 +296,7 @@ export default function V8ConsultasTab() {
           </div>
 
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1140px] text-sm">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-3 py-2 text-left">Status</th>
@@ -304,6 +304,8 @@ export default function V8ConsultasTab() {
                   <th className="px-3 py-2 text-left">CPF</th>
                   <th className="px-3 py-2 text-right">Valor bruto</th>
                   <th className="px-3 py-2 text-right">Valor líquido liberado</th>
+                  <th className="px-3 py-2 text-right">Parcela</th>
+                  <th className="px-3 py-2 text-center">Nº parcelas</th>
                   <th className="px-3 py-2 text-left">Nº contrato</th>
                   <th className="px-3 py-2 text-left">Data de criação</th>
                   <th className="px-3 py-2 text-right">Ação</th>
@@ -312,7 +314,7 @@ export default function V8ConsultasTab() {
               <tbody>
                 {!loading && !hasSearched && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                       Defina o período e clique em <strong>Buscar propostas</strong> para carregar os dados da V8.
                     </td>
                   </tr>
@@ -320,7 +322,7 @@ export default function V8ConsultasTab() {
 
                 {!loading && hasSearched && filteredOperations.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                       Nenhuma proposta encontrada para o período informado.
                     </td>
                   </tr>
@@ -335,6 +337,8 @@ export default function V8ConsultasTab() {
                     <td className="px-3 py-2 font-mono">{formatCpf(operation.documentNumber)}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(operation.issueAmount)}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(operation.disbursedIssueAmount)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(operation.installmentFaceValue)}</td>
+                    <td className="px-3 py-2 text-center">{operation.numberOfInstallments ?? '—'}</td>
                     <td className="px-3 py-2">{operation.contractNumber || '—'}</td>
                     <td className="px-3 py-2">{formatDateTime(operation.createdAt)}</td>
                     <td className="px-3 py-2 text-right">
