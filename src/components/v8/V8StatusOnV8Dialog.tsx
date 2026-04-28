@@ -150,6 +150,7 @@ export function V8StatusOnV8Dialog({
   const latest = data.result?.latest ?? null;
   const all: any[] = Array.isArray(data.result?.all) ? data.result.all : [];
   const sim = extractSimulationData(latest);
+  const limits = extractV8Limits(data.result);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
