@@ -1499,6 +1499,7 @@ const handler = async (req: Request) => {
           details: {
             request_payload: { action: "register_webhooks" },
             response_payload: result,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
