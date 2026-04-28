@@ -1465,6 +1465,23 @@ const handler = async (req: Request) => {
         break;
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
+        await writeAuditLog(supabase, {
+          action: "v8_list_batches",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          details: {
+            request_payload: { action: "list_batches" },
+            response_payload: {
+              success: !!(result as any)?.success,
+              count: Array.isArray((result as any)?.data) ? (result as any).data.length : 0,
+              error: (result as any)?.error ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
         break;
       case "register_webhooks": {
         if (!isPriv) {
