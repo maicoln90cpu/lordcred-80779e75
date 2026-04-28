@@ -61,12 +61,16 @@ serve(async (req) => {
     const minBackoffSec: number = Number(settings.retry_min_backoff_seconds ?? 10);
     const batchSize: number = Number(settings.retry_batch_size ?? 25);
 
-    // 2) Busca candidatos: status=failed + kind retentável + attempt_count < max + last_attempt_at antigo o suficiente
+    // 2) Busca candidatos retentáveis.
+    // IMPORTANTE: incluímos 'pending' além de 'failed' porque o rate-limit da V8
+    // pode chegar de forma assíncrona pelo webhook (HTTP 200 + REJECTED depois),
+    // deixando a linha "presa" em pending. Sem isso, essas linhas nunca eram retentadas
+    // e o attempt_count ficava congelado em 1.
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, last_attempt_at, created_by")
-      .eq("status", "failed")
+      .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, status")
+      .in("status", ["failed", "pending"])
       .or(`last_attempt_at.is.null,last_attempt_at.lte.${cutoffIso}`)
       .lt("attempt_count", maxAttempts)
       .order("last_attempt_at", { ascending: true, nullsFirst: true })
@@ -80,7 +84,8 @@ serve(async (req) => {
     }
 
     const eligible = (candidates ?? []).filter((s: any) => {
-      const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
+      // Prioriza coluna dedicada error_kind; cai para o JSON como fallback (linhas antigas).
+      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
       return kind && RETRIABLE_KINDS.has(kind);
     });
 

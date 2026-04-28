@@ -1315,6 +1315,9 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: newStatus,
+                // Persiste error_kind em coluna dedicada para o cron de retry.
+                // Sem isso, retentativas seguintes perdem a classificação e ficam órfãs.
+                error_kind: (result as any).kind ?? null,
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
                 raw_response: {
                   kind: (result as any).kind ?? null,
@@ -1334,6 +1337,8 @@ const handler = async (req: Request) => {
               .from("v8_simulations")
               .update({
                 status: "failed",
+                // Persiste error_kind em coluna dedicada para o cron de retry.
+                error_kind: (result as any).kind ?? null,
                 error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
                 raw_response: {
                   kind: (result as any).kind ?? null,

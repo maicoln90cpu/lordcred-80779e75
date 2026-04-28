@@ -97,3 +97,24 @@ export function getV8ErrorMessageDeduped(
   const combined = [headline, errorMessage].filter(Boolean).join('\n');
   return dedupeLines(combined);
 }
+
+/**
+ * Tradução PT-BR dos status crus do banco (`v8_simulations.status` e
+ * `v8_batches.status`). Use como fallback genérico — quando houver kind
+ * de erro classificado, prefira `getSimulationStatusLabel` que é mais rico.
+ */
+const V8_STATUS_PTBR: Record<string, string> = {
+  success: 'sucesso',
+  failed: 'falha',
+  pending: 'aguardando V8',
+  processing: 'processando',
+  completed: 'concluído',
+  cancelled: 'cancelado',
+  canceled: 'cancelado',
+};
+
+export function translateV8Status(status: string | null | undefined): string {
+  if (!status) return '—';
+  const key = String(status).trim().toLowerCase();
+  return V8_STATUS_PTBR[key] ?? status;
+}
