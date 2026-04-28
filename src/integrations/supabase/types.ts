@@ -4162,6 +4162,7 @@ export type Database = {
           total_value: number | null
           updated_at: string
           v8_simulation_id: string | null
+          v8_status_snapshot_at: string | null
           webhook_status: string | null
         }
         Insert: {
@@ -4195,6 +4196,7 @@ export type Database = {
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
+          v8_status_snapshot_at?: string | null
           webhook_status?: string | null
         }
         Update: {
@@ -4228,6 +4230,7 @@ export type Database = {
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
+          v8_status_snapshot_at?: string | null
           webhook_status?: string | null
         }
         Relationships: [
