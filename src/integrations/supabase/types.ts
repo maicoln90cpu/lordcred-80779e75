@@ -4042,6 +4042,7 @@ export type Database = {
           retry_max_backoff_seconds: number
           retry_min_backoff_seconds: number
           singleton: boolean
+          sound_on_complete: boolean
           updated_at: string
           updated_by: string | null
         }
@@ -4054,6 +4055,7 @@ export type Database = {
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number
           singleton?: boolean
+          sound_on_complete?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -4066,6 +4068,7 @@ export type Database = {
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number
           singleton?: boolean
+          sound_on_complete?: boolean
           updated_at?: string
           updated_by?: string | null
         }
