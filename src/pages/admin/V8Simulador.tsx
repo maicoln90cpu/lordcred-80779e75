@@ -7,7 +7,9 @@ import V8ConfigTab from '@/components/v8/V8ConfigTab';
 import V8ConsultasTab from '@/components/v8/V8ConsultasTab';
 import V8PropostasTab from '@/components/v8/V8PropostasTab';
 import V8WebhooksTab from '@/components/v8/V8WebhooksTab';
+import V8OperacoesTab from '@/components/v8/V8OperacoesTab';
 import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
+import { Badge } from '@/components/ui/badge';
 
 export default function V8Simulador() {
   return (
