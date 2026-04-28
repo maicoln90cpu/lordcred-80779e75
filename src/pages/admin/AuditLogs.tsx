@@ -434,10 +434,21 @@ export default function AuditLogs() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={String(windowHours)} onValueChange={(v) => setWindowHours(Number(v))}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Janela" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Última 1 hora</SelectItem>
+                  <SelectItem value="24">Últimas 24 horas</SelectItem>
+                  <SelectItem value="72">Últimos 3 dias</SelectItem>
+                  <SelectItem value="120">Últimos 5 dias (máx)</SelectItem>
+                </SelectContent>
+              </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
-                {filteredLogs.length} de {logs.length} registros
-                {hasMore && ' (mais disponíveis)'}
+                {filteredLogs.length} de {logs.length} carregados
+                {hasMore && ' (+)'}
               </Badge>
             </div>
 
