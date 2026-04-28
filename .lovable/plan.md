@@ -1,150 +1,231 @@
-## Respostas às suas dúvidas (linguagem leiga)
+## Diagnóstico atual, em linguagem leiga
 
-### 1) O auto-retry é de no mínimo 1 minuto mesmo?
+### 1) Por que fica “Buscando status na V8... atualiza em até 1 min” e não muda?
 
-**Não.** Na prática roda a cada **20 segundos**, mas com um truque:
+O problema não é só o front-end. Achei dois pontos no backend:
 
-- O Supabase só permite agendar cron **no mínimo a cada 1 minuto** (limite da plataforma).
-- Para contornar isso, quando o cron `v8-retry-cron-every-minute` dispara (1x por minuto), ele:
-  1. Roda a **passada principal** imediatamente (segundo 0).
-  2. Agenda **2 sub-passadas extras** para rodar nos segundos **20** e **40** do mesmo minuto.
-- Resultado: dentro de 1 minuto rodam **3 ciclos** de retry (0s, 20s, 40s).
-- Além disso, quando você cria um lote novo, são agendadas mais 3 chamadas extras em **30s, 60s e 90s** para acelerar a primeira retentativa.
+- O `v8-active-consult-poller` está tentando consultar muitas linhas de uma vez e chamar outra Edge Function (`v8-clt-api`) repetidamente. Nos logs apareceu erro de limite interno:
+  - `RateLimitError: Rate limit exceeded for function`
+- Além disso, o `v8-clt-api` hoje reconhece como chamada interna apenas o `v8-retry-cron`. O poller de consulta ativa chama com `x-cron-trigger: v8-active-consult-poller`, mas essa origem não está liberada no mesmo fluxo interno.
 
-Então o que você vê de fato é: **uma varredura a cada ~20s**, não a cada 60s.
+Resultado prático:
 
----
+- A linha recebe `v8_status_snapshot_at` atualizado, então parece que o robô tentou buscar.
+- Mas o `raw_response.v8_status_snapshot` não é gravado.
+- Por isso o front-end continua sem dados para renderizar inline e mostra “buscando status” por vários minutos.
 
-### 2) Por que itens com "consulta ativa" não renderizam o resultado e preciso abrir o modal?
+Na varredura do banco agora:
 
-**Diagnóstico:** o snapshot inline JÁ existe no código (`V8HistoricoTab` e `V8NovaSimulacaoTab` leem `raw_response.v8_status_snapshot`), mas ele **só aparece quando o poller `v8-active-consult-poller` já rodou e gravou o snapshot**.
+- Existem `98` linhas com `error_kind = active_consult`.
+- `0` delas têm `raw_response.v8_status_snapshot` gravado.
+- Ou seja: o poller está rodando, mas não está conseguindo salvar o snapshot útil.
 
-O fluxo é:
-1. Linha cai em `active_consult` → fica mostrando "Buscando status na V8…" + botão "Ver status na V8".
-2. O poller (`v8-active-consult-poller-every-minute`) roda **1x por minuto** e busca o status na V8.
-3. Quando o snapshot é gravado, a UI passa a mostrar inline (Status: REJECTED / CONSENT_APPROVED / etc.).
+### 2) Existiu algum payload com sucesso financeiro liberado, valor e parcela?
 
-**Problema atual:** o poller pode estar deixando linhas para trás (filtra por `v8_status_snapshot_at` antigo/nulo, mas o limite por execução pode estar baixo) — por isso você vê linhas paradas em "Buscando status na V8… (atualiza em até 1 min)" sem nunca atualizar.
+Fiz a varredura nas tabelas/payloads disponíveis:
 
-**Correção planejada:**
-- Disparar o poller **imediatamente** quando uma linha vira `active_consult` (não esperar o tick do cron).
-- Aumentar o limite por execução do poller e agendar sub-passadas (igual ao retry-cron).
-- Atualizar `v8_status_snapshot_at` mesmo quando a V8 retorna "não encontrado", para não ficar repolando o mesmo CPF.
+- `v8_simulations`: `8.925` linhas totais.
+- `238` linhas estão como `success`, mas elas são principalmente sucesso de consulta/webhook, não sucesso financeiro de simulação.
+- `0` linhas têm `released_value > 0`.
+- `0` linhas têm `installment_value > 0`.
+- `0` tentativas em `v8_simulation_attempts` terminaram como sucesso financeiro.
+- `v8_webhook_logs` tem muitos eventos `SUCCESS` de consulta, mas o payload traz campos como:
+  - `simulationLimit.valueMin/valueMax`
+  - `simulationLimit.installmentsMin/installmentsMax`
+  - `availableMarginValue`
+  - Não traz `valor liberado final` nem `valor da parcela`.
 
----
+Conclusão: até agora, pelo que está persistido, não apareceu uma simulação financeira completa com valor liberado e parcela. O que existe é “consulta aprovada / limite disponível”, que é uma etapa anterior.
 
-### 3) O modal "Status da consulta na V8" mostra o payload completo?
+### 3) A coluna “Margem” é realmente necessária? Ela importa na chamada da API V8?
 
-**Não.** Hoje o modal (`V8StatusOnV8Dialog`) mostra apenas:
-- Status
-- Nome
-- Criada em
-- Detail (opcional)
+Hoje existem duas coisas diferentes chamadas de “margem”, o que confunde:
 
-A V8 retorna **muito mais** no `check_consult_status`: parcelas, valor liberado, valor da parcela, margem, taxa, banco, prazo, motivo de rejeição etc. — tudo está em `data.latest` mas é descartado pela UI.
+1. `availableMarginValue` da V8
+   - É a margem disponível do trabalhador retornada pela V8 na consulta.
+   - Exemplo: quanto de margem consignável o cliente tem.
+   - Isso vem da V8; não é enviado por nós para simular.
 
-**Correção planejada:** expandir o modal para mostrar:
-- Bloco "Resultado da simulação" (se disponível): valor liberado, parcela, margem, prazo, banco, taxa.
-- Bloco "Histórico de consultas" (`data.all`): lista cronológica com status de cada uma.
-- Bloco "Payload bruto" colapsável usando `JsonTreeView` (já existe em `src/components/admin/JsonTreeView.tsx`) para inspeção total.
+2. `company_margin` / `margem_valor` interna LordCred
+   - É uma conta interna: percentual configurado em `v8_margin_config` sobre o valor liberado.
+   - Hoje default é 5%.
+   - Isso NÃO entra no payload enviado para a V8.
+   - Só faria sentido depois que existir `released_value` real.
 
----
+Payload atual da API V8:
 
-### 4) Para que servem "Retentar falhados" e "Buscar resultados pendentes"?
+```text
+Consulta:
+CPF, nome, nascimento, gênero, telefone, provider
 
-**"Retentar falhados" (botão amarelo/azul):**
-> "Refaz a consulta **do zero** na V8 para CPFs que falharam por problema temporário."
-- Pega linhas com `status=failed` e tipo de erro `temporary_v8` (instabilidade da V8) ou `analysis_pending` (V8 ainda analisando).
-- **Reenvia a simulação** — incrementa a coluna "Tentativas".
-- **Não mexe** em `active_consult`, `existing_proposal` nem `invalid_data` (esses precisam de ação humana).
-- Use quando: você vê linhas em vermelho com motivo "instável" ou "análise pendente".
+Simulação:
+consult_id, config_id, número de parcelas, provider
+Opcional: valor liberado desejado OU valor da parcela desejada
+```
 
-**"Buscar resultados pendentes" (botão cinza):**
-> "Pergunta para a V8 se ela já tem resposta para consultas que enviamos mas o webhook nunca chegou."
-- Não reenvia nada. Apenas chama a V8 e pergunta: *"você terminou a análise daquele CPF que pedi antes?"*
-- Atualiza linhas que estão em `pending` há muito tempo (webhook perdido, V8 demorou).
-- **Não incrementa "Tentativas"** — é uma consulta de status, não nova simulação.
-- Use quando: você vê linhas presas em "aguardando V8" / "em análise" há mais de 2 minutos.
-
-**Resumo:**
-| Botão | O que faz | Quando usar |
-|---|---|---|
-| Retentar falhados | Reenvia simulação | Linha vermelha "instável" |
-| Buscar resultados pendentes | Pergunta status | Linha amarela "aguardando" há +2min |
+A margem interna não é necessária para a chamada da V8. Ela é apenas cálculo comercial interno. Minha recomendação é renomear/higienizar a UI para não parecer que a margem faz parte da V8.
 
 ---
 
-### 5) Por que no Histórico tem 3 botões e na Nova Simulação só 2?
+## Plano de correção seguro
 
-**Você está certo, é inconsistente.** Hoje:
+### 1. Corrigir o poller de “consulta ativa”
 
-- **Histórico** tem 3 botões:
-  1. **"Retentar agora (N)"** — no header de cada lote (sem precisar expandir).
-  2. **"Retentar falhados (N)"** — dentro do lote expandido.
-  3. **"Buscar resultados pendentes"** — dentro do lote expandido.
+Arquivos:
+- `supabase/functions/v8-clt-api/index.ts`
+- `supabase/functions/v8-active-consult-poller/index.ts`
 
-- **Nova Simulação** tem 2 botões (no card "Progresso do Lote"):
-  1. **"Retentar falhados"**
-  2. **"Buscar resultados pendentes"**
+O que será feito:
 
-O **"Retentar agora (N)"** do Histórico e o **"Retentar falhados (N)"** fazem **a mesma coisa** (chamam `v8-retry-cron` com `manual: true`). A diferença é só onde aparecem: o do header é um atalho para não precisar expandir o lote.
+- Liberar `v8-active-consult-poller` como chamada interna autorizada, igual ao `v8-retry-cron`.
+- Reduzir o volume por ciclo do poller para evitar estouro de limite da Edge Function.
+- Remover ou controlar melhor as subpassadas agressivas quando houver muitas consultas ativas.
+- Quando a V8 responder “encontrado”, salvar em `raw_response.v8_status_snapshot`.
+- Quando a V8 responder “não encontrado” ou “rate limit”, gravar um estado legível para o front-end não ficar eternamente em “buscando”.
 
-**Correção planejada:** padronizar para **2 botões em ambas as telas**, com nomes idênticos:
-- "Retentar falhados (N)"
-- "Buscar resultados pendentes"
+Resultado esperado:
 
-E **remover** o "Retentar agora" duplicado do header (ou transformá-lo em badge clicável que apenas expande o lote e foca no botão correto). Assim você sabe que é a mesma coisa nas duas telas.
+- A linha de consulta ativa deixa de ficar presa.
+- O front-end passa a mostrar inline status real como `SUCCESS`, `REJECTED`, `WAITING_CONSENT`, `WAITING_CREDIT_ANALYSIS`, etc.
+- Se houver limite da V8/Supabase, aparece mensagem clara: “V8 limitou a busca, nova tentativa automática em X minutos”.
+
+### 2. Persistir o resultado quando o usuário clicar em “Ver status na V8”
+
+Arquivos:
+- `src/components/v8/V8StatusOnV8Dialog.tsx`
+- `src/components/v8/V8HistoricoTab.tsx`
+- `src/components/v8/V8NovaSimulacaoTab.tsx`
+
+O que será feito:
+
+- O botão “Ver status na V8” continuará abrindo o modal.
+- Quando a consulta manual retornar dados, além de mostrar no modal, vamos salvar o snapshot naquela linha.
+- Assim a própria linha passa a atualizar inline depois do clique.
+
+Resultado esperado:
+
+- Você não precisa depender só do poller automático.
+- Se clicar no modal e a V8 responder, a tabela também aprende aquele status.
+
+### 3. Corrigir a mensagem do front-end para não prometer “1 min” quando há rate limit
+
+Arquivos:
+- `src/lib/v8ErrorPresentation.ts`
+- `src/components/v8/V8HistoricoTab.tsx`
+- `src/components/v8/V8NovaSimulacaoTab.tsx`
+
+O que será feito:
+
+- Trocar texto fixo “atualiza em até 1 min” por estado real:
+  - “Buscando status...” quando ainda não tentou.
+  - “Última busca sem retorno da V8” quando não encontrou.
+  - “V8 limitou as consultas, tentando de novo em instantes” quando tiver rate limit.
+  - “Clique em Ver status na V8 para consultar manualmente” quando fizer sentido.
+
+Resultado esperado:
+
+- A tela deixa de dar a impressão de que está travada sem explicação.
+
+### 4. Ajustar a varredura de payload financeiro
+
+Arquivos:
+- `supabase/functions/v8-clt-api/index.ts`
+- `src/components/v8/V8StatusOnV8Dialog.tsx`
+- `docs/V8-INTEGRATION.md`
+
+O que será feito:
+
+- Separar visualmente “Consulta aprovada / limite disponível” de “Simulação financeira concluída”.
+- No modal, mostrar claramente:
+  - Status da consulta.
+  - Limite mínimo/máximo retornado pela V8.
+  - Margem disponível V8.
+  - E só mostrar “Valor liberado / Parcela” quando realmente existir payload financeiro de simulação.
+
+Resultado esperado:
+
+- Uma consulta `SUCCESS` não será confundida com financiamento liberado.
+- Se ainda não houver `released_value`/`installment_value`, a UI vai dizer isso claramente.
+
+### 5. Renomear/ajustar a coluna “Margem”
+
+Arquivos:
+- `src/components/v8/V8HistoricoTab.tsx`
+- `src/components/v8/V8NovaSimulacaoTab.tsx`
+- `src/components/v8/V8StatusOnV8Dialog.tsx`
+- `src/components/v8/V8ConfigTab.tsx`
+
+O que será feito:
+
+- Renomear a margem interna para algo como “Margem LordCred” ou “Margem empresa”.
+- Mostrar `availableMarginValue` como “Margem disponível V8”, quando vier no payload de consulta.
+- Deixar claro no texto de ajuda que essa margem não é enviada para a V8.
+- Manter o cálculo interno apenas para quando houver valor liberado real.
+
+Resultado esperado:
+
+- Menos confusão operacional.
+- A equipe entende o que vem da V8 e o que é cálculo interno.
 
 ---
 
-## Plano de implementação (Etapa única, segura)
+## Antes vs Depois
 
-### 1. Modal de status V8 — mostrar payload completo
-**Arquivo:** `src/components/v8/V8StatusOnV8Dialog.tsx`
-- Adicionar bloco "Resultado da simulação" mostrando: valor liberado, parcela, margem, prazo, banco, taxa (quando presentes em `data.latest`).
-- Adicionar bloco "Todas as consultas" (lista de `data.all`) com status, data e detail de cada uma.
-- Adicionar accordion "Ver dados completos (JSON)" usando `JsonTreeView` para inspeção total.
-- Manter compatibilidade com snapshot inline (mesma fonte de dados).
+Antes:
+- Consulta ativa fica mostrando “buscando status” por muitos minutos.
+- O poller atualiza timestamp, mas não salva snapshot útil.
+- Modal/linha confundem consulta aprovada com simulação financeira.
+- “Margem” parece ser campo da V8, mas é cálculo interno.
 
-### 2. Render inline mais agressivo em "consulta ativa"
-**Arquivos:** `supabase/functions/v8-active-consult-poller/index.ts`, `supabase/functions/v8-clt-api/index.ts`
-- Aumentar o limite do poller por execução (de 50 → 200) e adicionar sub-passadas a 20s/40s (igual ao retry-cron).
-- Sempre atualizar `v8_status_snapshot_at` mesmo quando a V8 responde "not found", para evitar repolling infinito do mesmo CPF.
-- No `v8-clt-api/simulate_one`, quando detectar `active_consult`, **agendar imediatamente** (`EdgeRuntime.waitUntil`) uma chamada ao poller para aquele CPF específico, em vez de esperar o cron.
-- **Resultado:** snapshot aparece em 5-10s em vez de até 1 min.
+Depois:
+- Consulta ativa terá status inline real ou erro claro de rate limit.
+- Clique em “Ver status na V8” também salva o snapshot na linha.
+- A UI separa “consulta/limite” de “financiamento simulado”.
+- Margem interna e margem disponível da V8 ficam com nomes diferentes.
 
-### 3. Padronização de botões entre Histórico e Nova Simulação
-**Arquivos:** `src/components/v8/V8HistoricoTab.tsx`, `src/components/v8/V8NovaSimulacaoTab.tsx`
-- **Remover** `BatchRetryHeaderButton` do header do lote no Histórico (era duplicado com o botão de dentro).
-- **Manter** apenas 2 botões em ambas as telas, com tooltips e textos **idênticos**:
-  - "Retentar falhados (N)" — só aparece quando N > 0.
-  - "Buscar resultados pendentes" — só aparece quando há pending.
-- Substituir o header do lote por um **badge informativo** mostrando "N para retentar" que, ao clicar, expande o lote e rola até o botão.
+## Melhorias
 
-### 4. Tooltips com explicação leiga (vai além do que tem hoje)
-- Tooltip do "Retentar falhados": *"Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade. Aumenta o número de Tentativas."*
-- Tooltip do "Buscar resultados pendentes": *"Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram. Não conta como nova tentativa."*
+- Menos tela presa.
+- Menos dúvida entre Histórico e Progresso do Lote.
+- Menos chamadas agressivas que estouram limite.
+- Diagnóstico visual mais honesto quando a V8 limita ou não retorna dados.
 
-### 5. Documentação
-**Arquivo:** `docs/V8-INTEGRATION.md`
-- Documentar as 3 perguntas de hoje em uma seção "FAQ operacional".
-- Documentar a cadência real do auto-retry (20s, não 60s).
-- Documentar para que serve cada botão.
+## Vantagens e desvantagens
 
----
+Vantagens:
+- Mais estabilidade.
+- Menos rate limit.
+- Status mais confiável no front-end.
+- Dados financeiros só aparecem quando realmente existem.
 
-## Resumo do que vai mudar (REGRA DE OURO)
+Desvantagens:
+- O poller será menos agressivo por segurança, então em momentos de fila grande pode levar alguns ciclos para atualizar tudo.
+- Separar “consulta aprovada” de “simulação financeira” pode mostrar mais estados intermediários, mas evita falsa impressão de sucesso financeiro.
 
-**Antes vs Depois:**
-- Antes: modal só mostra status/nome → Depois: modal mostra resultado da simulação + histórico + JSON completo.
-- Antes: linhas "consulta ativa" demoram até 60s para mostrar snapshot inline → Depois: 5-10s.
-- Antes: Histórico tem 3 botões / Nova Simulação 2 → Depois: 2 botões idênticos nos dois lugares.
-- Antes: tooltips genéricos → Depois: tooltips em linguagem leiga.
+## Checklist manual para validar depois da implementação
 
-**Pendências (depois desta etapa):**
-- Avaliar criar uma aba "Detalhes do CPF" dentro do próprio modal (clicável da tabela), em vez de dialog.
-- Considerar diminuir o cron do poller para 30s usando o mesmo truque de sub-passadas (hoje só o retry usa).
+1. Abrir `/admin/v8-simulador`.
+2. Ir em “Nova Simulação” ou “Histórico”.
+3. Abrir um lote com linhas “consulta ativa”.
+4. Confirmar se a linha muda para status real ou mensagem clara de limite.
+5. Clicar em “Ver status na V8”.
+6. Fechar o modal e confirmar se a linha passou a mostrar o snapshot inline.
+7. Ir na aba “Consultas”.
+8. Buscar pelo período atual e confirmar se consultas `SUCCESS` mostram limite/margem disponível, sem fingir que já têm valor liberado/parcela.
+9. Confirmar que a coluna de margem ficou com nome mais claro.
 
-**Prevenção de regressão:**
-- Tooltip dos botões vira fonte única de verdade — qualquer mudança de comportamento atualiza o tooltip junto.
-- Documentação do FAQ no `V8-INTEGRATION.md` evita que a confusão volte.
+## Pendências após esta correção
+
+- Se a V8 exigir outro endpoint para transformar uma consulta `SUCCESS` em simulação financeira completa, vamos precisar implementar uma etapa específica: “Simular a partir da consulta aprovada”.
+- Hoje não encontrei payload financeiro completo persistido; então a próxima melhoria pode ser criar essa ação quando tivermos o fluxo exato validado.
+
+## Prevenção de regressão
+
+- Adicionar logs resumidos no poller: quantas consultas encontrou, quantas salvou snapshot, quantas bateram rate limit.
+- Atualizar `docs/V8-INTEGRATION.md` explicando a diferença entre:
+  - consulta ativa,
+  - consulta aprovada,
+  - simulação financeira,
+  - operação/proposta.
+- Evitar `BATCH_LIMIT` alto em poller que chama Edge Function em loop.
+- Não prometer “atualiza em 1 min” se o backend estiver em cooldown/rate limit.

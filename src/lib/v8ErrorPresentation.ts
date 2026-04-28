@@ -132,13 +132,32 @@ export interface V8StatusSnapshot {
   detail: string | null;
   totalConsults: number;
   hasData: boolean;
+  /** V8 ou Edge runtime negou a consulta por limite — front-end mostra mensagem dedicada. */
+  rateLimited: boolean;
+  /** Quando o poller tentou pela última vez (ISO). */
+  probedAt: string | null;
+  /** Mensagem amigável quando found=false (ex: "Sem retorno da V8 para este CPF"). */
+  message: string | null;
 }
 
 export function getV8StatusSnapshot(rawResponse: V8RawResponse): V8StatusSnapshot {
   const snap = rawResponse?.v8_status_snapshot;
-  if (!snap || snap.found === false) {
-    return { status: null, name: null, detail: null, totalConsults: 0, hasData: false };
+  const empty: V8StatusSnapshot = {
+    status: null, name: null, detail: null, totalConsults: 0,
+    hasData: false, rateLimited: false, probedAt: null, message: null,
+  };
+  if (!snap) return empty;
+
+  const probedAt = firstNonEmpty(snap.probed_at);
+  const message = firstNonEmpty(snap.message);
+
+  if (snap.rate_limited === true) {
+    return { ...empty, rateLimited: true, probedAt, message };
   }
+  if (snap.found === false) {
+    return { ...empty, probedAt, message };
+  }
+
   const latest = snap.latest ?? null;
   const all = Array.isArray(snap.all) ? snap.all : [];
   return {
@@ -147,5 +166,8 @@ export function getV8StatusSnapshot(rawResponse: V8RawResponse): V8StatusSnapsho
     detail: firstNonEmpty(latest?.detail),
     totalConsults: all.length || (latest ? 1 : 0),
     hasData: !!latest,
+    rateLimited: false,
+    probedAt,
+    message,
   };
 }

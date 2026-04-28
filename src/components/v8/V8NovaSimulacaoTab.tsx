@@ -162,7 +162,7 @@ export default function V8NovaSimulacaoTab() {
   const failed = simulations.filter((s) => s.status === 'failed').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  async function handleCheckStatus(cpf: string) {
+  async function handleCheckStatus(cpf: string, simulationId?: string) {
     setStatusDialogOpen(true);
     setStatusDialogData({ cpf, loading: true, result: null, error: null });
     try {
@@ -175,6 +175,30 @@ export default function V8NovaSimulacaoTab() {
         return;
       }
       setStatusDialogData({ cpf, loading: false, result: data.data, error: null });
+
+      // Persistir snapshot na linha — assim a tabela passa a mostrar inline
+      // mesmo sem esperar o cron do poller automático.
+      if (simulationId && data?.data) {
+        try {
+          const probedAtIso = new Date().toISOString();
+          const { data: current } = await supabase
+            .from('v8_simulations')
+            .select('raw_response')
+            .eq('id', simulationId)
+            .maybeSingle();
+          const baseRaw = (current?.raw_response as any) ?? {};
+          await supabase
+            .from('v8_simulations')
+            .update({
+              raw_response: {
+                ...baseRaw,
+                v8_status_snapshot: { ...(data.data as object), probed_at: probedAtIso },
+              },
+              v8_status_snapshot_at: probedAtIso,
+            })
+            .eq('id', simulationId);
+        } catch (_) { /* ignore */ }
+      }
     } catch (err: any) {
       setStatusDialogData({ cpf, loading: false, result: null, error: err?.message || String(err) });
     }
@@ -681,8 +705,8 @@ export default function V8NovaSimulacaoTab() {
                     <th className="px-2 py-1 text-left">Status</th>
                     <th className="px-2 py-1 text-right">Liberado</th>
                     <th className="px-2 py-1 text-right">Parcela</th>
-                    <th className="px-2 py-1 text-right">Margem</th>
-                    <th className="px-2 py-1 text-right">A cobrar</th>
+                    <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
+                    <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                     <th className="px-2 py-1 text-center">Tentativas</th>
                     <th className="px-2 py-1 text-left">Motivo</th>
                   </tr>
@@ -737,21 +761,24 @@ export default function V8NovaSimulacaoTab() {
                                       <div className="text-muted-foreground italic">{snapshot.detail}</div>
                                     )}
                                   </div>
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => handleCheckStatus(s.cpf)}>
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => handleCheckStatus(s.cpf, s.id)}>
                                     <Search className="w-3 h-3 mr-1" /> Ver todas as consultas
                                   </Button>
                                 </div>
                               );
                             }
+                            const subtitle = snapshot?.rateLimited
+                              ? 'V8 limitou as consultas. Nova tentativa automática em instantes.'
+                              : snapshot?.probedAt
+                                ? (snapshot.message || 'Sem retorno da V8 nessa busca. Clique para consultar manualmente.')
+                                : 'Buscando status na V8... pode levar alguns instantes.';
                             return (
                               <div className="space-y-1">
                                 <div className="whitespace-pre-line font-medium text-amber-600">
                                   Já existe consulta ativa para este CPF na V8
                                 </div>
-                                <div className="text-[10px] text-muted-foreground italic">
-                                  Buscando status na V8... (atualiza em até 1 min)
-                                </div>
-                                <Button size="sm" variant="outline" onClick={() => handleCheckStatus(s.cpf)}>
+                                <div className="text-[10px] text-muted-foreground italic">{subtitle}</div>
+                                <Button size="sm" variant="outline" onClick={() => handleCheckStatus(s.cpf, s.id)}>
                                   <Search className="w-3 h-3 mr-1" /> Ver status na V8
                                 </Button>
                               </div>

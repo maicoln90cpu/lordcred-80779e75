@@ -10,6 +10,10 @@
  *
  * Acionado por pg_cron a cada 1 min. Reusa a action 'check_consult_status' da
  * v8-clt-api via fetch interno com SERVICE_ROLE.
+ *
+ * Cuidado de produção: este poller chama a Edge Function v8-clt-api UMA VEZ
+ * por simulação. Para evitar estouro do limite por função do Supabase Edge,
+ * o tamanho do lote é conservador e existe pequeno delay entre chamadas.
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -21,8 +25,11 @@ const corsHeaders = {
 };
 
 // Não revisita snapshots recentes (economia de chamadas à V8).
-const REFRESH_AFTER_SECONDS = 120;
-const BATCH_LIMIT = 200;
+const REFRESH_AFTER_SECONDS = 180;
+// Limite conservador por execução para evitar RateLimitError do runtime.
+const BATCH_LIMIT = 25;
+// Pequeno espaço entre chamadas — evita rajada que estoura limite por função.
+const PER_CALL_DELAY_MS = 250;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,51 +41,28 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Aceita { batch_id?, simulation_id?, sub_pass?, manual? } para chamadas focadas.
+  // Aceita { batch_id?, simulation_id?, manual? } para chamadas focadas (ex: clique do operador).
   let batchId: string | null = null;
   let simulationId: string | null = null;
-  let subPass = 0;
   let manualMode = false;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as any));
       batchId = body?.batch_id ?? null;
       simulationId = body?.simulation_id ?? null;
-      subPass = Number(body?.sub_pass ?? 0) || 0;
       manualMode = !!body?.manual;
     }
   } catch (_) { /* ignore */ }
-
-  // Workaround para o limite de 1 min do pg_cron: agenda 2 sub-passadas extras
-  // a 20s e 40s para efetivar uma cadência de ~20s (igual ao retry-cron).
-  if (!manualMode && !simulationId && subPass === 0) {
-    for (const delaySec of [20, 40]) {
-      try {
-        // @ts-ignore EdgeRuntime is available in Supabase Edge Runtime
-        EdgeRuntime.waitUntil((async () => {
-          await new Promise((r) => setTimeout(r, delaySec * 1000));
-          await fetch(`${supabaseUrl}/functions/v1/v8-active-consult-poller`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${serviceRoleKey}`,
-            },
-            body: JSON.stringify({ sub_pass: delaySec === 20 ? 1 : 2 }),
-          }).catch(() => {});
-        })());
-      } catch (_) { /* EdgeRuntime indisponível em dev: ignora */ }
-    }
-  }
 
   try {
     const cutoffIso = new Date(Date.now() - REFRESH_AFTER_SECONDS * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, v8_status_snapshot_at")
+      .select("id, batch_id, cpf, v8_status_snapshot_at, raw_response")
       .eq("error_kind", "active_consult")
       .or(`v8_status_snapshot_at.is.null,v8_status_snapshot_at.lte.${cutoffIso}`)
       .order("v8_status_snapshot_at", { ascending: true, nullsFirst: true })
-      .limit(BATCH_LIMIT);
+      .limit(simulationId ? 1 : BATCH_LIMIT);
     if (batchId) q = q.eq("batch_id", batchId);
     if (simulationId) q = q.eq("id", simulationId);
 
@@ -93,10 +77,13 @@ serve(async (req) => {
       return ok({ scanned: 0, updated: 0, duration_ms: Date.now() - startedAt });
     }
 
-    let updated = 0;
-    let failed = 0;
+    let updated = 0;        // snapshot encontrado e gravado
+    let notFound = 0;        // V8 respondeu, mas sem dados para o CPF
+    let rateLimited = 0;     // V8 ou Edge Runtime negou por limite
+    let failed = 0;          // erros diversos
 
     for (const row of list) {
+      const probedAtIso = new Date().toISOString();
       try {
         const resp = await fetch(`${supabaseUrl}/functions/v1/v8-clt-api`, {
           method: "POST",
@@ -113,34 +100,67 @@ serve(async (req) => {
 
         const json = await resp.json().catch(() => ({} as any));
 
-        // Mesmo quando a V8 não tem dados (success=false ou data vazio), marcamos
-        // v8_status_snapshot_at para não repolling no próximo ciclo (cooldown 120s).
-        if (!json?.success || !json?.data) {
+        // Detecta rate limit (V8 ou edge runtime)
+        const errorText = String(json?.error ?? json?.message ?? "").toLowerCase();
+        const isRateLimit = errorText.includes("limite de requisições")
+          || errorText.includes("rate limit")
+          || resp.status === 429;
+
+        const baseRaw = (row.raw_response as any) ?? {};
+
+        if (isRateLimit) {
+          rateLimited += 1;
+          // Grava estado legível para o front-end. NÃO atualiza v8_status_snapshot_at
+          // para que o cron tente este CPF de novo no próximo ciclo.
           await supabase
             .from("v8_simulations")
-            .update({ v8_status_snapshot_at: new Date().toISOString() })
+            .update({
+              raw_response: {
+                ...baseRaw,
+                v8_status_snapshot: {
+                  found: false,
+                  rate_limited: true,
+                  probed_at: probedAtIso,
+                  message: "V8 limitou as consultas. Nova tentativa automática em instantes.",
+                },
+              },
+            })
             .eq("id", row.id);
-          failed += 1;
           continue;
         }
 
-        // Pega snapshot atual para mesclar (não sobrescrever campos do webhook).
-        const { data: current } = await supabase
-          .from("v8_simulations")
-          .select("raw_response")
-          .eq("id", row.id)
-          .maybeSingle();
+        if (!json?.success || !json?.data) {
+          // V8 respondeu mas não temos dados — anota cooldown para não repolling agressivo.
+          notFound += 1;
+          await supabase
+            .from("v8_simulations")
+            .update({
+              v8_status_snapshot_at: probedAtIso,
+              raw_response: {
+                ...baseRaw,
+                v8_status_snapshot: {
+                  found: false,
+                  probed_at: probedAtIso,
+                  message: json?.user_message
+                    ?? json?.error
+                    ?? "Sem retorno da V8 para este CPF.",
+                },
+              },
+            })
+            .eq("id", row.id);
+          continue;
+        }
 
-        const merged = {
-          ...((current?.raw_response as any) ?? {}),
-          v8_status_snapshot: json.data,
+        // Sucesso — grava o snapshot completo (dados crus + flag found:true).
+        const snapshot = {
+          ...(json.data as object),
+          probed_at: probedAtIso,
         };
-
         const { error: updErr } = await supabase
           .from("v8_simulations")
           .update({
-            raw_response: merged,
-            v8_status_snapshot_at: new Date().toISOString(),
+            raw_response: { ...baseRaw, v8_status_snapshot: snapshot },
+            v8_status_snapshot_at: probedAtIso,
           })
           .eq("id", row.id);
 
@@ -151,14 +171,24 @@ serve(async (req) => {
           updated += 1;
         }
       } catch (err) {
-        console.error("[v8-active-consult-poller] fetch err", row.id, err);
         failed += 1;
+        console.error("[v8-active-consult-poller] fetch err", row.id, err);
+      }
+
+      if (PER_CALL_DELAY_MS > 0) {
+        await new Promise((r) => setTimeout(r, PER_CALL_DELAY_MS));
       }
     }
+
+    console.log(
+      `[v8-active-consult-poller] scanned=${list.length} updated=${updated} not_found=${notFound} rate_limited=${rateLimited} failed=${failed} manual=${manualMode}`,
+    );
 
     return ok({
       scanned: list.length,
       updated,
+      not_found: notFound,
+      rate_limited: rateLimited,
       failed,
       duration_ms: Date.now() - startedAt,
     });
