@@ -3872,6 +3872,8 @@ export type Database = {
       }
       v8_batches: {
         Row: {
+          canceled_at: string | null
+          canceled_by: string | null
           completed_at: string | null
           config_id: string | null
           config_name: string | null
@@ -3888,6 +3890,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          canceled_at?: string | null
+          canceled_by?: string | null
           completed_at?: string | null
           config_id?: string | null
           config_name?: string | null
@@ -3904,6 +3908,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          canceled_at?: string | null
+          canceled_by?: string | null
           completed_at?: string | null
           config_id?: string | null
           config_name?: string | null
