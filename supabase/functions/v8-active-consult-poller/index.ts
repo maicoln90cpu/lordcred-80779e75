@@ -113,6 +113,7 @@ serve(async (req) => {
 
         if (isRateLimit) {
           rateLimited += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "rate_limited", http_status: resp.status });
           // Grava estado legível para o front-end. NÃO atualiza v8_status_snapshot_at
           // para que o cron tente este CPF de novo no próximo ciclo.
           await supabase
