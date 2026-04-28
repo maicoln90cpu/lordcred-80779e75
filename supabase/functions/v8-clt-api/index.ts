@@ -300,14 +300,10 @@ async function actionListOperations(params: V8OperationListParams = {}) {
     ? operations.filter((item: any) => String(item?.documentNumber ?? item?.document_number ?? "").replace(/\D/g, "") === cpfFilter)
     : operations;
 
-  // Normaliza: garante que valores de parcela/nº de parcelas/bruto/líquido apareçam
-  // tanto no topo (consumido pela tabela) quanto vindos do operation_data (que a V8
-  // às vezes aninha). Mantemos TODOS os campos originais para não quebrar consumidores
-  // antigos — só preenchemos os que estão faltando.
-  const normalized = filteredOperations.map((op: any) => {
+  // Helper: extrai os 4 campos do payload (topo OU operation_data aninhado).
+  const pickAmounts = (op: any) => {
     const od = op?.operation_data || op?.operationData || {};
     return {
-      ...op,
       issueAmount: op?.issueAmount ?? op?.issue_amount ?? od?.issue_amount ?? od?.issueAmount ?? null,
       disbursedIssueAmount:
         op?.disbursedIssueAmount ?? op?.disbursed_issue_amount ?? od?.disbursed_issue_amount ?? od?.disbursedIssueAmount ?? null,
@@ -316,12 +312,57 @@ async function actionListOperations(params: V8OperationListParams = {}) {
       numberOfInstallments:
         op?.numberOfInstallments ?? op?.number_of_installments ?? od?.number_of_installments ?? od?.numberOfInstallments ?? null,
     };
+  };
+
+  // Pré-normaliza o que já veio na listagem.
+  const preNormalized = filteredOperations.map((op: any) => ({ ...op, ...pickAmounts(op) }));
+
+  // ENRICHMENT: o endpoint /operation (listagem) da V8 NÃO retorna issueAmount,
+  // installmentFaceValue nem numberOfInstallments — só o /operation/{id} (detail).
+  // Para que a tabela mostre Valor bruto / Parcela / Nº parcelas, buscamos o detail
+  // dos itens que ficaram com pelo menos um campo faltando, em paralelo (concorrência 6).
+  // Limite de segurança: até 60 detalhes por chamada para não estourar tempo do edge.
+  const needsEnrichment = preNormalized.filter(
+    (op) => op?.id && (op.issueAmount == null || op.installmentFaceValue == null || op.numberOfInstallments == null)
+  );
+  const ENRICH_CAP = 60;
+  const CONCURRENCY = 6;
+  const toEnrich = needsEnrichment.slice(0, ENRICH_CAP);
+  const enrichedById = new Map<string, any>();
+
+  if (toEnrich.length > 0) {
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, toEnrich.length) }, async () => {
+      while (cursor < toEnrich.length) {
+        const idx = cursor++;
+        const item = toEnrich[idx];
+        const opId = String(item.id);
+        try {
+          const r = await v8Fetch(V8_PATHS.operationDetail(opId), { method: "GET" });
+          if (r.ok) {
+            const j = await r.json().catch(() => ({}));
+            const detail = j?.data ?? j ?? {};
+            enrichedById.set(opId, detail);
+          }
+        } catch (_) { /* silencioso — listagem não pode quebrar por enrichment */ }
+      }
+    });
+    await Promise.all(workers);
+  }
+
+  const normalized = preNormalized.map((op: any) => {
+    const detail = op?.id ? enrichedById.get(String(op.id)) : null;
+    if (!detail) return op;
+    const merged = { ...op, operation_data: op?.operation_data ?? detail?.operation_data ?? null };
+    const amounts = pickAmounts({ ...detail, ...op, operation_data: detail?.operation_data ?? op?.operation_data });
+    return { ...merged, ...Object.fromEntries(Object.entries(amounts).filter(([_, v]) => v != null)) };
   });
 
   return {
     success: true,
     data: normalized,
     total: normalized.length,
+    enriched: toEnrich.length,
   };
 }
 
