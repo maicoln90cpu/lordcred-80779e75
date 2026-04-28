@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { forwardRef, useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, FileSearch, Loader2 } from 'lucide-react';
@@ -61,13 +61,16 @@ function DateField({ label, value, onChange }: { label: string; value: Date; onC
   );
 }
 
-function StatusBadge({ status }: { status?: string | null }) {
-  return (
-    <Badge variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
-      {status || '—'}
-    </Badge>
-  );
-}
+// Encaminha ref para o Badge — sem isso o Radix FocusScope (do Dialog) emite warning
+// "Function components cannot be given refs" e tenta jogar foco em outro elemento
+// focável da tela (no caso, o botão verde "Buscar propostas"), dando a impressão
+// de que ele estava sendo clicado sozinho.
+const StatusBadge = forwardRef<HTMLDivElement, { status?: string | null }>(({ status }, ref) => (
+  <Badge ref={ref} variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
+    {status || '—'}
+  </Badge>
+));
+StatusBadge.displayName = 'StatusBadge';
 
 function getStatusHint(status?: string | null) {
   return OPERATION_ROWS.find((row) => row.status === status);
