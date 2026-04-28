@@ -322,16 +322,19 @@ function BatchDetail({ batchId }: { batchId: string }) {
                         <div className="space-y-1">
                           {snapshot?.hasData ? (
                             <>
-                              <div className="font-medium text-amber-600">
-                                Consulta ativa na V8
+                              <div className="font-medium text-amber-600" title="Não conseguimos abrir uma consulta NOVA porque a V8 ainda tem uma consulta deste CPF em aberto. Os dados abaixo são da consulta antiga que está bloqueando.">
+                                Consulta antiga já existe na V8
                               </div>
                               <div className="text-[11px] space-y-0.5">
                                 {snapshot.status && (
                                   <div>
-                                    <span className="text-muted-foreground">Status:</span>{' '}
-                                    <span className={`font-semibold ${snapshot.status === 'REJECTED' ? 'text-destructive' : snapshot.status === 'CONSENT_APPROVED' ? 'text-emerald-600' : ''}`}>
+                                    <span className="text-muted-foreground">Status da consulta antiga:</span>{' '}
+                                    <span className={`font-semibold ${snapshot.status === 'REJECTED' || snapshot.status === 'FAILED' ? 'text-destructive' : (snapshot.status === 'SUCCESS' || snapshot.status === 'CONSENT_APPROVED') ? 'text-emerald-600' : ''}`}>
                                       {snapshot.status}
                                     </span>
+                                    {snapshot.status === 'SUCCESS' && (
+                                      <span className="text-[10px] text-emerald-600 ml-1">(margem já liberada — pode aproveitar)</span>
+                                    )}
                                   </div>
                                 )}
                                 {snapshot.name && (
