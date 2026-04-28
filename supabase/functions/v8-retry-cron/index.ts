@@ -106,13 +106,23 @@ serve(async (req) => {
     }
 
     const eligible = (candidates ?? []).filter((s: any) => {
-      // Prioriza coluna dedicada error_kind; cai para o JSON como fallback (linhas antigas).
       const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return kind && RETRIABLE_KINDS.has(kind);
+      // Caso 1: kind retentável conhecido.
+      if (kind && RETRIABLE_KINDS.has(kind)) return true;
+      // Caso 2: linha "presa" — pending sem kind, com >2 min sem novidade.
+      // Bug clássico: lote criado, V8 nem respondeu, attempt_count=0, kind=null.
+      // Sem isso, a linha NUNCA seria retentada e ficava esperando webhook que não vem.
+      if (s.status === "pending" && !kind) {
+        const ageMs = s.last_attempt_at
+          ? Date.now() - new Date(s.last_attempt_at).getTime()
+          : Date.now() - new Date(s.created_at ?? Date.now()).getTime();
+        return ageMs > 120_000;
+      }
+      return false;
     });
 
     if (eligible.length === 0) {
-      return ok({ scanned: candidates?.length ?? 0, retried: 0, duration_ms: Date.now() - startedAt });
+      return ok({ scanned: candidates?.length ?? 0, retried: 0, sub_pass: subPass, duration_ms: Date.now() - startedAt });
     }
 
     // 3) Para cada candidato, invoca v8-clt-api com triggered_by='cron'
