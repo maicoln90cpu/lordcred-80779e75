@@ -934,6 +934,174 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
 }
 
 /**
+ * NOVA ESTRATÉGIA `webhook_only`: dispara apenas /consult + /authorize na V8,
+ * sem polling síncrono e sem chamar /simulation. O sistema fica "aguardando webhook"
+ * (evento `private.consignment.consult.updated` com status SUCCESS chega em 10–20s
+ * trazendo `availableMarginValue` + `simulationLimit`).
+ *
+ * Vantagens:
+ *  - 1 lote de 200 CPFs = ~400 requests V8 (vs 800–3000 do fluxo síncrono antigo)
+ *  - Sem rate-limit em massa, sem "consulta ativa duplicada" induzida
+ *  - Webhook traz dados mais ricos (faixa de parcelas/valor) do que /simulation rápido
+ */
+async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
+  const cpf = (input.cpf || "").replace(/\D/g, "");
+  if (cpf.length !== 11) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "CPF inválido" };
+  }
+  const birthDate = normalizeBirthDate(input.data_nascimento);
+  if (!birthDate) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "Data de nascimento inválida (use dd/mm/aaaa)" };
+  }
+  if (!input.nome || input.nome.trim().length < 3) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "Nome é obrigatório (mínimo 3 caracteres)" };
+  }
+
+  const consultBody = buildConsultBody(input);
+  const consultResp = await v8FetchWithRetry(V8_PATHS.consult, {
+    method: "POST",
+    body: JSON.stringify(consultBody),
+  }, MAX_RETRIES_CONSULT, "consult");
+  const consultJson = await consultResp.json().catch(() => ({}));
+
+  if (!consultResp.ok) {
+    return buildV8ErrorResult('consult', {
+      title: consultJson?.title ?? null,
+      detail: consultJson?.detail ?? null,
+      message: consultJson?.message ?? null,
+      error: consultJson?.error ?? null,
+      status: consultResp.status,
+      raw: consultJson,
+    });
+  }
+
+  const consultData = consultJson?.data ?? consultJson;
+  const consultId = String(
+    consultData?.id ?? consultData?.consult_id ?? consultData?.consultId ?? ""
+  );
+  if (!consultId) {
+    return { success: false, step: "consult", error: "consult_id não retornado pela V8", raw: consultJson };
+  }
+
+  // Authorize — opcional, mas a V8 só dispara webhook após termo aceito.
+  const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
+    method: "POST",
+  }, MAX_RETRIES_AUTHORIZE, "authorize");
+  const authJson = await authResp.json().catch(() => ({}));
+  if (!authResp.ok) {
+    return buildV8ErrorResult('authorize', {
+      title: authJson?.title ?? null,
+      detail: authJson?.detail ?? null,
+      message: authJson?.message ?? null,
+      error: authJson?.error ?? null,
+      status: authResp.status,
+      raw: { consult: consultJson, authorize: authJson },
+    });
+  }
+
+  // Sucesso parcial — agora a linha fica `pending` aguardando webhook V8.
+  return {
+    success: true,
+    data: {
+      consult_id: consultId,
+      strategy: 'webhook_only',
+      raw_response: {
+        upstream_request: { consult: consultBody },
+        consult: consultJson,
+        authorize: authJson,
+        awaiting_webhook: true,
+      },
+    },
+  };
+}
+
+/**
+ * Roda apenas POST /simulation usando um consult_id existente (já SUCCESS).
+ * Usado pelo botão "Simular selecionados" (ou auto-simulate após webhook).
+ */
+async function actionSimulateOnlyForConsult(supabase: any, params: {
+  simulation_id: string;
+  consult_id: string;
+  config_id: string;
+  parcelas: number;
+  simulation_mode?: "disbursed_amount" | "installment_face_value";
+  simulation_value?: number;
+}) {
+  if (!params?.consult_id) return { success: false, error: "consult_id é obrigatório" };
+  if (!params?.config_id) return { success: false, error: "config_id é obrigatório" };
+  if (!Number.isInteger(params?.parcelas) || params.parcelas <= 0) {
+    return { success: false, error: "parcelas inválido" };
+  }
+
+  const simulationBody = buildSimulationBodyWithValue(params, params.consult_id);
+  const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
+    method: "POST",
+    body: JSON.stringify(simulationBody),
+  }, MAX_RETRIES_SIMULATE, "simulate");
+
+  if (!simResp.ok) {
+    const simError = await readUpstreamErrorBody(simResp);
+    return buildV8ErrorResult('simulate', {
+      ...simError,
+      raw: {
+        upstream_request: { simulation: simulationBody },
+        simulate: simError.parsed,
+        simulate_text: simError.rawText || null,
+        simulate_status: simResp.status,
+      },
+    });
+  }
+
+  const simJson = await simResp.json().catch(() => ({}));
+  const result = simJson?.data ?? simJson;
+  const dispOpt =
+    result?.disbursement_option ??
+    (Array.isArray(result?.disbursement_options) ? result.disbursement_options[0] : null) ??
+    result?.disbursementOption ??
+    null;
+
+  const released_value = Number(
+    dispOpt?.final_disbursement_amount ?? dispOpt?.finalDisbursementAmount ??
+    result?.disbursement_amount ?? dispOpt?.net_amount ?? result?.netAmount ?? 0
+  );
+  const installment_value = Number(
+    result?.installment_value ?? dispOpt?.installment_amount ?? dispOpt?.installmentAmount ?? 0
+  );
+  const interest_rate = Number(
+    result?.monthly_interest_rate ?? dispOpt?.monthly_interest_rate ?? dispOpt?.interest_rate ?? 0
+  );
+  const total_value = Number(
+    result?.operation_amount ?? dispOpt?.total_amount ?? dispOpt?.totalAmount ??
+    installment_value * params.parcelas
+  );
+
+  const { data: marginRow } = await supabase
+    .from("v8_margin_config").select("margin_percent").limit(1).maybeSingle();
+  const marginPct = Number(marginRow?.margin_percent ?? 5);
+  const company_margin = Number(((released_value * marginPct) / 100).toFixed(2));
+  const amount_to_charge = Number((released_value - company_margin).toFixed(2));
+
+  return {
+    success: true,
+    data: {
+      simulation_id: String(result?.id_simulation ?? result?.simulation_id ?? ""),
+      consult_id: params.consult_id,
+      released_value,
+      installment_value,
+      interest_rate,
+      total_value,
+      company_margin,
+      margem_valor: company_margin,
+      amount_to_charge,
+      raw_response: {
+        upstream_request: { simulation: simulationBody },
+        simulate: simJson,
+      },
+    },
+  };
+}
+
+/**
  * Verifica o status de uma consulta existente na V8 SEM disparar nova simulação.
  * Aceita { cpf } ou { consult_id }. Útil quando a V8 retorna "já existe consulta ativa"
  * e o operador quer só ver onde ela está.
