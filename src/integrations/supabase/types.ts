@@ -4135,6 +4135,7 @@ export type Database = {
       }
       v8_simulations: {
         Row: {
+          admission_months_diff: number | null
           amount_to_charge: number | null
           attempt_count: number
           batch_id: string | null
@@ -4161,6 +4162,12 @@ export type Database = {
           processed_at: string | null
           raw_response: Json | null
           released_value: number | null
+          sim_installments_max: number | null
+          sim_installments_min: number | null
+          sim_month_max: number | null
+          sim_month_min: number | null
+          sim_value_max: number | null
+          sim_value_min: number | null
           status: string
           total_value: number | null
           updated_at: string
@@ -4169,6 +4176,7 @@ export type Database = {
           webhook_status: string | null
         }
         Insert: {
+          admission_months_diff?: number | null
           amount_to_charge?: number | null
           attempt_count?: number
           batch_id?: string | null
@@ -4195,6 +4203,12 @@ export type Database = {
           processed_at?: string | null
           raw_response?: Json | null
           released_value?: number | null
+          sim_installments_max?: number | null
+          sim_installments_min?: number | null
+          sim_month_max?: number | null
+          sim_month_min?: number | null
+          sim_value_max?: number | null
+          sim_value_min?: number | null
           status?: string
           total_value?: number | null
           updated_at?: string
@@ -4203,6 +4217,7 @@ export type Database = {
           webhook_status?: string | null
         }
         Update: {
+          admission_months_diff?: number | null
           amount_to_charge?: number | null
           attempt_count?: number
           batch_id?: string | null
@@ -4229,6 +4244,12 @@ export type Database = {
           processed_at?: string | null
           raw_response?: Json | null
           released_value?: number | null
+          sim_installments_max?: number | null
+          sim_installments_min?: number | null
+          sim_month_max?: number | null
+          sim_month_min?: number | null
+          sim_value_max?: number | null
+          sim_value_min?: number | null
           status?: string
           total_value?: number | null
           updated_at?: string

@@ -19,27 +19,22 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { writeAuditLog } from "../_shared/auditLog.ts";
 import { packPayloadForAudit, safeHeaders } from "../_shared/v8AuditPayload.ts";
+import {
+  mapV8ConsultStatus,
+  extractConsultExtras,
+  applyConsultExtras,
+  isKnownConsultStatus,
+  isKnownOperationStatus,
+} from "../_shared/v8Status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * Mapeia o status bruto da V8 para o status interno em v8_simulations.
- * Mantemos o original em raw_response para auditoria completa.
- */
+/** Wrapper para preservar nome legado nas chamadas internas. */
 function mapV8StatusToInternal(v8Status?: string): string | null {
-  if (!v8Status) return null;
-  const s = v8Status.toUpperCase();
-  if (s === "SUCCESS" || s === "CONSENT_APPROVED") return "success";
-  if (s === "FAILED" || s === "REJECTED" || s === "ERROR") return "failed";
-  if (
-    s === "WAITING_CONSENT" ||
-    s === "WAITING_CONSULT" ||
-    s === "WAITING_CREDIT_ANALYSIS"
-  ) return "pending";
-  return null;
+  return mapV8ConsultStatus(v8Status);
 }
 
 /**
@@ -94,18 +89,7 @@ async function processV8Payload(
       processed = true;
     } else if (eventType === "consult" && consultId) {
       const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
-      const margemStr = (payload as any)?.availableMarginValue;
-      const margem = margemStr != null && !Number.isNaN(Number(margemStr)) ? Number(margemStr) : null;
-
-      const updates: Record<string, unknown> = {
-        raw_response: payload,
-        processed_at: new Date().toISOString(),
-        last_webhook_at: new Date().toISOString(),
-        webhook_status: v8Status,
-      };
-      if (internalStatus) updates.status = internalStatus;
-      if (v8SimulationId) updates.v8_simulation_id = v8SimulationId;
-      if (margem != null) updates.margem_valor = margem;
+      const extras = extractConsultExtras(payload);
 
       // GUARD 1: ler estado atual antes de sobrescrever — webhook não pode regredir
       // (failed → pending) nem promover (any → success) sem valores monetários reais.
@@ -121,7 +105,7 @@ async function processV8Payload(
           last_webhook_at: new Date().toISOString(),
           webhook_status: v8Status,
         };
-        if (margem != null) safeUpdates.margem_valor = margem;
+        applyConsultExtras(safeUpdates, extras);
         if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
 
         const wantsSuccess = internalStatus === "success";
@@ -151,7 +135,7 @@ async function processV8Payload(
         else { processed = true; action = "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
-        const { error: insErr } = await supabase.from("v8_simulations").insert({
+        const insertRow: Record<string, unknown> = {
           consult_id: consultId,
           v8_simulation_id: v8SimulationId,
           status: internalStatus ?? "pending",
@@ -159,12 +143,13 @@ async function processV8Payload(
           last_webhook_at: new Date().toISOString(),
           processed_at: new Date().toISOString(),
           raw_response: payload,
-          margem_valor: margem,
           name: "(via webhook V8)",
           cpf: "",
           installments: 0,
           is_orphan: true,
-        });
+        };
+        applyConsultExtras(insertRow, extras);
+        const { error: insErr } = await supabase.from("v8_simulations").insert(insertRow);
         if (insErr) processError = insErr.message;
         else { processed = true; action = "consult_insert_orphan"; }
       }
@@ -363,8 +348,7 @@ serve(async (req) => {
     // --- 3. Eventos de consulta — usa MESMO guard do processV8Payload
     else if (eventType === "consult" && consultId) {
       const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
-      const margemStr = (payload as any)?.availableMarginValue;
-      const margem = margemStr != null && !Number.isNaN(Number(margemStr)) ? Number(margemStr) : null;
+      const extras = extractConsultExtras(payload);
 
       const { data: currentRow } = await supabase
         .from("v8_simulations")
@@ -378,7 +362,7 @@ serve(async (req) => {
           last_webhook_at: new Date().toISOString(),
           webhook_status: v8Status,
         };
-        if (margem != null) safeUpdates.margem_valor = margem;
+        applyConsultExtras(safeUpdates, extras);
         if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
 
         const wantsSuccess = internalStatus === "success";
@@ -408,7 +392,7 @@ serve(async (req) => {
         // CRÍTICO: marcar is_orphan=true para satisfazer o check constraint
         // v8_sim_owner_or_orphan (is_orphan OR (batch_id IS NOT NULL AND created_by IS NOT NULL)).
         // Sem essa flag o INSERT é rejeitado e o evento é perdido (regressão histórica).
-        const { error: insErr } = await supabase.from("v8_simulations").insert({
+        const insertRow: Record<string, unknown> = {
           consult_id: consultId,
           v8_simulation_id: v8SimulationId,
           status: internalStatus ?? "pending",
@@ -416,18 +400,22 @@ serve(async (req) => {
           last_webhook_at: new Date().toISOString(),
           processed_at: new Date().toISOString(),
           raw_response: payload,
-          margem_valor: margem,
           name: "(via webhook V8)",
           cpf: "",
           installments: 0,
           is_orphan: true,
-        });
+        };
+        applyConsultExtras(insertRow, extras);
+        const { error: insErr } = await supabase.from("v8_simulations").insert(insertRow);
         if (insErr) processError = insErr.message;
         else { processed = true; action = "consult_insert_orphan"; }
       }
     }
-    // --- 4. Eventos de operação (proposta)
+    // --- 4. Eventos de operação (proposta) — vocabulário oficial:
+    // generating_ccb | formalization | analysis | manual_analysis | awaiting_call |
+    // processing | paid | canceled | awaiting_cancel | pending | refunded | rejected
     else if (eventType === "operation" && operationId) {
+      const opStatusKnown = isKnownOperationStatus(v8Status);
       const { error: upErr } = await supabase
         .from("v8_operations_local")
         .upsert(
@@ -442,7 +430,18 @@ serve(async (req) => {
           { onConflict: "operation_id" },
         );
       if (upErr) processError = upErr.message;
-      else { processed = true; action = "operation_upsert"; }
+      else {
+        processed = true;
+        action = "operation_upsert";
+        if (!opStatusKnown && v8Status) {
+          // Não bloqueia, só anota — assim a doc oficial pode evoluir e nós descobrimos.
+          processError = `unknown_operation_status:${v8Status}`;
+        }
+      }
+    }
+    // --- 5. Status de consulta desconhecido (defensivo)
+    else if (eventType === "consult" && v8Status && !isKnownConsultStatus(v8Status)) {
+      processError = `unknown_consult_status:${v8Status}`;
     }
   } catch (err) {
     processError = (err as Error)?.message || String(err);

@@ -108,6 +108,34 @@ function extractSimulationData(latest: any) {
   return hasAny ? out : null;
 }
 
+/**
+ * Extrai os "Limites V8" oficiais (`simulationLimit` + `admissionDateMonthsDifference`)
+ * do payload de consulta SUCCESS. Vem direto da doc oficial V8.
+ */
+function extractV8Limits(result: any) {
+  if (!result || typeof result !== 'object') return null;
+  const candidates = [result, result.latest, result.data, result.result].filter(Boolean);
+  const num = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  let admission: number | null = null;
+  let monthMin: number | null = null, monthMax: number | null = null;
+  let instMin: number | null = null, instMax: number | null = null;
+  let valueMin: number | null = null, valueMax: number | null = null;
+  for (const c of candidates) {
+    admission ??= num(c?.admissionDateMonthsDifference);
+    monthMin ??= num(c?.simulationLimit?.monthMin);
+    monthMax ??= num(c?.simulationLimit?.monthMax);
+    instMin ??= num(c?.simulationLimit?.installmentsMin);
+    instMax ??= num(c?.simulationLimit?.installmentsMax);
+    valueMin ??= num(c?.simulationLimit?.valueMin);
+    valueMax ??= num(c?.simulationLimit?.valueMax);
+  }
+  const hasAny = [admission, monthMin, monthMax, instMin, instMax, valueMin, valueMax].some((v) => v != null);
+  return hasAny ? { admission, monthMin, monthMax, instMin, instMax, valueMin, valueMax } : null;
+}
+
 export function V8StatusOnV8Dialog({
   open,
   onOpenChange,
@@ -122,6 +150,7 @@ export function V8StatusOnV8Dialog({
   const latest = data.result?.latest ?? null;
   const all: any[] = Array.isArray(data.result?.all) ? data.result.all : [];
   const sim = extractSimulationData(latest);
+  const limits = extractV8Limits(data.result);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,7 +203,45 @@ export function V8StatusOnV8Dialog({
               );
             })()}
 
-            {/* Bloco 1 — Resumo */}
+            {/* Bloco DESTAQUE — Limites de Simulação V8 (doc oficial: simulationLimit + admissionDateMonthsDifference) */}
+            {limits && (
+              <div
+                className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3"
+                title="Limites operacionais retornados pela V8 (simulationLimit). Use para escolher tabela e parcelas dentro do que a V8 aceita para este CPF."
+              >
+                <div className="text-xs uppercase tracking-wide text-blue-700 font-semibold mb-2">
+                  📐 Limites de simulação V8
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {(limits.monthMin != null || limits.monthMax != null) && (
+                    <div>
+                      <div className="text-muted-foreground">Faixa de meses</div>
+                      <div className="font-semibold">{limits.monthMin ?? '?'}–{limits.monthMax ?? '?'} m</div>
+                    </div>
+                  )}
+                  {(limits.instMin != null || limits.instMax != null) && (
+                    <div>
+                      <div className="text-muted-foreground">Parcelas</div>
+                      <div className="font-semibold">{limits.instMin ?? '?'}–{limits.instMax ?? '?'} x</div>
+                    </div>
+                  )}
+                  {(limits.valueMin != null || limits.valueMax != null) && (
+                    <div>
+                      <div className="text-muted-foreground">Valor da operação</div>
+                      <div className="font-semibold">
+                        {formatBRL(limits.valueMin) ?? '?'} – {formatBRL(limits.valueMax) ?? '?'}
+                      </div>
+                    </div>
+                  )}
+                  {limits.admission != null && (
+                    <div className="col-span-3">
+                      <div className="text-muted-foreground">Tempo desde admissão</div>
+                      <div className="font-semibold">{limits.admission} meses</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <section className="space-y-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Última consulta
