@@ -134,36 +134,45 @@ export default function V8WebhooksTab() {
   }
 
   /**
-   * Cruza consult_id com v8_simulations e operation_id com v8_operations_local
-   * para descobrir o CPF de cada webhook. Faz dois IN() em batches.
+   * Descobre CPF de cada webhook cruzando IDs com nosso banco:
+   *  1. consult_id (direto) → v8_simulations.cpf
+   *  2. operation_id → v8_operations_local.consult_id → v8_simulations.cpf
+   *
+   * Em v8_operations_local não temos CPF próprio; ele vive na simulação que
+   * originou a operação. Por isso o passo 2 faz dois lookups encadeados.
    */
   async function enrichCpfs(rows: WebhookLog[]) {
-    const consultIds = Array.from(new Set(rows.map((r) => r.consult_id).filter((x): x is string => !!x)));
+    const directConsultIds = rows.map((r) => r.consult_id).filter((x): x is string => !!x);
     const operationIds = Array.from(new Set(rows.map((r) => r.operation_id).filter((x): x is string => !!x)));
 
-    const consultMap: Record<string, string> = {};
-    const operationMap: Record<string, string> = {};
-
-    if (consultIds.length > 0) {
-      const { data } = await supabase
-        .from('v8_simulations')
-        .select('consult_id, document_number')
-        .in('consult_id', consultIds);
-      (data ?? []).forEach((row: any) => {
-        if (row?.consult_id && row?.document_number) {
-          consultMap[row.consult_id] = String(row.document_number).replace(/\D/g, '');
-        }
-      });
-    }
-
+    // Passo 2a: operation_id -> consult_id
+    const opToConsult: Record<string, string> = {};
     if (operationIds.length > 0) {
       const { data } = await supabase
         .from('v8_operations_local')
-        .select('operation_id, document_number')
+        .select('operation_id, consult_id')
         .in('operation_id', operationIds);
       (data ?? []).forEach((row: any) => {
-        if (row?.operation_id && row?.document_number) {
-          operationMap[row.operation_id] = String(row.document_number).replace(/\D/g, '');
+        if (row?.operation_id && row?.consult_id) opToConsult[row.operation_id] = row.consult_id;
+      });
+    }
+
+    // Conjunto final de consult_ids para olhar em v8_simulations.
+    const allConsultIds = Array.from(new Set([
+      ...directConsultIds,
+      ...Object.values(opToConsult),
+    ]));
+
+    // Passo 1 + 2b: consult_id -> cpf
+    const consultToCpf: Record<string, string> = {};
+    if (allConsultIds.length > 0) {
+      const { data } = await supabase
+        .from('v8_simulations')
+        .select('consult_id, cpf')
+        .in('consult_id', allConsultIds);
+      (data ?? []).forEach((row: any) => {
+        if (row?.consult_id && row?.cpf) {
+          consultToCpf[row.consult_id] = String(row.cpf).replace(/\D/g, '');
         }
       });
     }
@@ -171,9 +180,11 @@ export default function V8WebhooksTab() {
     const map: Record<string, string> = {};
     rows.forEach((r) => {
       const fromPayload = cpfFromPayload(r.payload);
-      const fromConsult = r.consult_id ? consultMap[r.consult_id] : undefined;
-      const fromOperation = r.operation_id ? operationMap[r.operation_id] : undefined;
-      const cpf = fromPayload || fromConsult || fromOperation;
+      const viaConsult = r.consult_id ? consultToCpf[r.consult_id] : undefined;
+      const viaOperation = r.operation_id
+        ? consultToCpf[opToConsult[r.operation_id] ?? '']
+        : undefined;
+      const cpf = fromPayload || viaConsult || viaOperation;
       if (cpf) map[r.id] = cpf;
     });
     setCpfMap(map);
