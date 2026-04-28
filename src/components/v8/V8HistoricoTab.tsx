@@ -235,6 +235,9 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                   💰 Margem Disponível
                 </th>
+                <th className="px-2 py-1 text-left" title="Faixa de meses e valores que a V8 aceita simular para este trabalhador (simulationLimit).">
+                  📐 Limites V8
+                </th>
                 <th className="px-2 py-1 text-right">Liberado</th>
                 <th className="px-2 py-1 text-right">Parcela</th>
                 <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
