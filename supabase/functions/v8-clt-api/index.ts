@@ -996,6 +996,10 @@ async function actionCreateBatch(
     .single();
   if (batchErr) return { success: false, error: batchErr.message };
 
+  // Cinto + suspensório: marca toda nova simulação como `analysis_pending` desde
+  // o nascimento. Assim, mesmo que a 1ª chamada simulate_one nunca rode (timeout
+  // de browser, refresh de página, falha de rede), o cron `v8-retry-cron` já
+  // identifica como elegível para auto-retry — não fica "órfã" no banco.
   const sims = validRows.map((r) => ({
     batch_id: batch.id,
     created_by: userId,
@@ -1003,6 +1007,7 @@ async function actionCreateBatch(
     name: r.nome ?? null,
     birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
     status: "pending",
+    error_kind: "analysis_pending",
   }));
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
