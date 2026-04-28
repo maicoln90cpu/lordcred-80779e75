@@ -1,48 +1,92 @@
+## Plano — Fix CONSENT_APPROVED + Cancelar lote
 
-# Plano — Correção dos 4 problemas do V8 Simulador
-
-## Diagnóstico (linguagem leiga)
-
-### Problema 1 — Botão "Buscar propostas" pisca/aperta sozinho e seção "Consultas ativas" pisca
-**Causa real:** A aba **Consultas** tem uma "escuta em tempo real" da tabela `v8_simulations` (linha 188 de `V8ConsultasTab.tsx`). Como a barra superior mostra "**102 aguardando V8 · 12 lotes ativos · varredura há 13s**", essa tabela está sendo atualizada DEZENAS de vezes por segundo pelo cron de retry. Cada update dispara uma nova chamada `loadConsults()` à V8, que coloca o botão em estado "loading" (animação de loader) — dando impressão de que ele se aperta sozinho. A seção pisca pelo mesmo motivo (re-render constante).
-
-### Problema 2 — `CONSENT_APPROVED` significa que a V8 vai calcular?
-**Resposta:** Sim, mas só quando você pedir. `CONSENT_APPROVED` significa "o trabalhador autorizou a consulta de margem na Dataprev e a V8 já tem o valor liberado mensal disponível". O **cálculo de parcela** (simulação propriamente dita: quanto o cliente recebe, parcela, taxa) é uma chamada SEPARADA `/simulation` que precisa ser disparada por nós. Hoje o código já faz isso quando o toggle está ligado (auto-simulate) ou quando o usuário clica em "Simular selecionados".
-
-### Problema 3 — Toggle "Simular automaticamente após consulta" desligado: o que acontece?
-**Estado atual:** Quando desligado, o sistema só chama `/consult` e `/authorize`. Os webhooks chegam e gravam `availableMarginValue` (margem disponível). **Nada mais acontece automaticamente.** Para gerar parcela/valor liberado, é preciso clicar no botão "**Simular selecionados**" (canto superior direito do bloco "Progresso do Lote"). Hoje não está claro pro usuário que essa é a ação obrigatória — não há nenhum aviso visual indicando "este lote tem X consultas aguardando simulação manual".
-
-### Problema 4 — Tabelas Consultas e Propostas mostram R$ 0,00 mesmo quando o "Ver detalhes" mostra os valores
-**Causa real (confirmada nos logs do banco):** A V8 retorna na **listagem** (`/operation`) um JSON com os campos `issueAmount: null`, `installmentFaceValue: null`, `numberOfInstallments: null` — ela não preenche esses 3 campos na lista. O código tem um "enriquecimento" que, para cada linha incompleta, busca o detalhe individual (`/operation/{id}`) que SIM tem esses dados.
-
-**Mas o filtro que decide quem precisa de enriquecimento usa `op?.id`** (linha 326 de `v8-clt-api/index.ts`). Acontece que o item já vem mapeado da V8 com o nome `operationId` (não `id`). Resultado: `op?.id` é sempre undefined, o filtro retorna lista vazia, **nenhum enriquecimento acontece**, e os 3 campos ficam `null` para sempre — virando "R$ 0,00" e "—" na tela.
+Escopo enxuto: 2 frentes só. Rotação de logins V8 fica adiada (próximo plano).
 
 ---
 
-## Correções
+### Frente 1 — `active_consult` deixa de ser "falha" e auto-promove quando antiga concluir
 
-### Fix #1 — Realtime sem spam (Consultas)
-Em `src/components/v8/V8ConsultasTab.tsx`:
-- Adicionar **debounce de 2 segundos** ao `loadConsults` disparado pelo realtime (acumula múltiplos eventos e só recarrega 1 vez).
-- Filtrar a subscription para reagir só a UPDATEs em linhas com `error_kind='active_consult'` (que são o que essa seção mostra), ignorando o ruído dos demais.
-- Não recarregar enquanto o usuário já estiver com `loading=true` (evita sobreposição).
+**Diagnóstico (linguagem leiga):**
 
-### Fix #2 — Documentar CONSENT_APPROVED no glossário
-Em `src/components/v8/V8StatusGlossary.tsx`: adicionar entrada explicando que `CONSENT_APPROVED` = autorização concedida, mas a parcela só aparece após `/simulation` rodar (manual via "Simular selecionados" ou automático via toggle).
+Os CPFs do print **não estão falhando**. Acontece o seguinte:
 
-### Fix #3 — Aviso visual quando há linhas aguardando simulação manual
-Em `src/components/v8/V8NovaSimulacaoTab.tsx`:
-- Adicionar **banner amarelo dentro do bloco "Progresso do Lote"** quando o toggle está desligado E existem linhas com `status='success'` + `simulate_status='not_started'`: "⚠️ X consulta(s) com margem aprovada aguardando simulação. Clique em 'Simular selecionados' para calcular parcela e valor liberado."
-- Tornar o botão **"Simular selecionados" pulsante (animate-pulse)** quando existirem candidatos, chamando atenção visual.
+1. Você dispara consulta para o CPF X.
+2. A V8 responde 4xx **"Já existe uma consulta ativa para este CPF"** — porque outra plataforma (ou nós antes) já abriu uma consulta para ele e ela ainda está rodando lá.
+3. Hoje o código classifica isso como `error_kind='active_consult'` e **marca a linha como `failed`** (vermelho "falha").
+4. Em paralelo, o `v8-active-consult-poller` (cron 1min) busca o status da consulta antiga e grava em `raw_response.v8_status_snapshot` — daí aparece "Status da consulta antiga: CONSENT_APPROVED" no painel.
+5. Quando a V8 conclui a consulta antiga, o webhook `consult.updated` chega com `SUCCESS` + `availableMarginValue` + `simulationLimit`. **MAS** o webhook hoje só promove para success se `released_value` e `installment_value` já estavam preenchidos — e nessas linhas órfãs de `active_consult` não estavam. Resultado: webhook chega, atualiza `webhook_status='SUCCESS'` e `margem_valor`, mas **mantém status=failed**. Operador continua vendo vermelho.
 
-### Fix #4 — Enriquecimento que de fato roda (BUG CRÍTICO)
-Em `supabase/functions/v8-clt-api/index.ts`, função `actionListOperations`:
-- Trocar `op?.id` por `op?.operationId ?? op?.id` no filtro `needsEnrichment` (linha 326).
-- Trocar `op.id` por `op.operationId ?? op.id` no loop do worker (linhas 339, 354).
-- Garantir que `enrichedById` use a mesma chave que está sendo lida no map final.
-- Adicionar log: `console.log('[list_operations] enrichment:', preNormalized.length, '→', toEnrich.length, 'detalhes buscados')` para auditoria.
+**Correções:**
 
-Após o fix, em uma listagem com 50 linhas que vêm sem esses 3 campos, o código vai disparar até 50 chamadas paralelas (concorrência 8) ao `/operation/{id}` da V8 e popular Valor bruto, Parcela e Nº parcelas em todas elas — exatamente como o "Ver detalhes" já mostra.
+#### 1.1 Novo status visual `waiting_external` (amarelo)
+
+Em `supabase/functions/v8-clt-api/index.ts` (~linha 1592, função `simulate_one`):
+- Quando detectar `kind === 'active_consult'`, em vez de inserir com `status='failed'`, inserir com `status='pending'` + `error_kind='active_consult'` + `webhook_status='WAITING_EXTERNAL'`.
+
+Em `src/components/v8/V8ConsultasTab.tsx`, `V8NovaSimulacaoTab.tsx`, `V8HistoricoTab.tsx` (todas as renderizações de status):
+- Quando `error_kind='active_consult'` e ainda não promoveu, mostrar badge **amarelo** "aguardando consulta antiga" em vez de "falha".
+
+#### 1.2 Webhook auto-promove `active_consult` usando `simulationLimit`
+
+Em `v8-webhook/index.ts` (linhas 91-152 do `processV8Payload` E o bloco gêmeo no handler principal ~linha 415):
+- Quando `internalStatus === 'success'` E `currentRow.error_kind === 'active_consult'` (ou `currentRow.status !== 'success'` mas extras tem `simValueMax`+`simInstallmentsMax`):
+  - Promover usando o `simulationLimit` (mesma lógica do `webhook_only`):
+    - `released_value = simValueMax`
+    - `installments = simInstallmentsMax`
+    - `installment_value = simValueMax / simInstallmentsMax`
+    - `total_value = simValueMax`
+    - `status = 'success'`
+    - `error_kind = null`
+    - `simulate_status = 'not_started'` (operador pode rodar `/simulate` real depois)
+- Quando `internalStatus === 'failed'` E `currentRow.error_kind === 'active_consult'`:
+  - Promover para `status='failed'` com `error_message = 'Consulta antiga rejeitada na V8'`.
+
+#### 1.3 Poller também pode promover
+
+Em `supabase/functions/v8-active-consult-poller/index.ts`:
+- Quando o snapshot capturado for `SUCCESS` ou `REJECTED`, fazer a mesma promoção que o webhook faria (caso o webhook não chegue).
+
+**Resultado prático:** o operador cola CPFs, vê linhas amarelas "aguardando consulta antiga" — sem precisar fazer nada — e elas **viram verdes automaticamente** assim que a V8 concluir, com margem disponível e parcela estimada já preenchidas.
+
+---
+
+### Frente 2 — Botão "Cancelar lote em andamento"
+
+**Hoje:** se você cola 500 CPFs por engano, o cron continua tentando indefinidamente até esgotar `max_auto_retry_attempts` (15 tentativas/linha). Sem botão de parar.
+
+**Mudança:**
+
+#### 2.1 Schema (migration)
+
+```sql
+-- v8_batches.status já existe? Verificar enum/text. Adicionar valor 'canceled' se for enum.
+ALTER TABLE v8_batches ADD COLUMN IF NOT EXISTS canceled_at timestamptz;
+ALTER TABLE v8_batches ADD COLUMN IF NOT EXISTS canceled_by uuid REFERENCES auth.users(id);
+```
+
+#### 2.2 Edge function — nova action `cancel_batch`
+
+Em `v8-clt-api/index.ts`:
+- `actionCancelBatch(batchId)`:
+  - Verifica que o usuário é dono do lote OU `is_privileged()`.
+  - `UPDATE v8_batches SET status='canceled', canceled_at=now(), canceled_by=auth.uid() WHERE id=batchId`.
+  - `UPDATE v8_simulations SET status='failed', error_message='Lote cancelado pelo operador', error_kind='canceled' WHERE batch_id=batchId AND status='pending'` (só pending — preserva sucessos já obtidos).
+  - Audit log.
+
+#### 2.3 Cron ignora cancelados
+
+Em `v8-retry-cron/index.ts`:
+- Filtro `WHERE batch.status != 'canceled'` na query de elegíveis.
+
+Em `v8-active-consult-poller/index.ts`:
+- Mesmo filtro.
+
+#### 2.4 UI
+
+Em `V8NovaSimulacaoTab.tsx` (header do bloco "Progresso do Lote") e `V8HistoricoTab.tsx` (cabeçalho de cada lote):
+- Botão **"Cancelar lote"** (vermelho outline) visível apenas se `batch.status='processing'` ou existe alguma simulação `pending`.
+- Confirmação modal ("Tem certeza? Linhas pendentes serão marcadas como canceladas. Linhas já com sucesso/falha permanecem.").
+- Após cancelar, recarregar lista.
 
 ---
 
@@ -50,12 +94,14 @@ Após o fix, em uma listagem com 50 linhas que vêm sem esses 3 campos, o códig
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/v8-clt-api/index.ts` (linhas 326, 339, 354) | `op?.id` → `op?.operationId ?? op?.id` (3 ocorrências) + log de enriquecimento |
-| `src/components/v8/V8ConsultasTab.tsx` (linhas 188-215) | Debounce 2s + filtro de evento + check de loading no handler de realtime |
-| `src/components/v8/V8NovaSimulacaoTab.tsx` (linhas 700-770 e bloco "Progresso do Lote") | Banner de aviso + animate-pulse no botão "Simular selecionados" |
-| `src/components/v8/V8StatusGlossary.tsx` | Adicionar item `CONSENT_APPROVED` com explicação |
-
-Não toca em: schema do banco, edge functions de webhook, retry cron, settings.
+| `supabase/functions/v8-clt-api/index.ts` | (a) `simulate_one`: `active_consult` insere `status=pending` em vez de `failed`. (b) Nova `actionCancelBatch`. |
+| `supabase/functions/v8-webhook/index.ts` | Auto-promoção quando `currentRow.error_kind='active_consult'` E webhook traz SUCCESS com `simulationLimit`. Mesma lógica em ambos os blocos (`processV8Payload` linha ~91 e handler inline ~415). |
+| `supabase/functions/v8-active-consult-poller/index.ts` | Auto-promoção espelhando o webhook. Filtro `batch.status != 'canceled'`. |
+| `supabase/functions/v8-retry-cron/index.ts` | Filtro `batch.status != 'canceled'`. |
+| `src/components/v8/V8ConsultasTab.tsx`, `V8NovaSimulacaoTab.tsx`, `V8HistoricoTab.tsx` | Badge amarelo "aguardando consulta antiga" para `error_kind='active_consult' AND status='pending'`. Botão Cancelar lote. |
+| `src/lib/v8ErrorPresentation.ts` | Texto "aguardando consulta antiga concluir na V8" (em vez de "falha"). |
+| Migration | `canceled_at`, `canceled_by` em `v8_batches`. |
+| Testes | `v8-webhook/payloadSchema_test.ts` ou novo `v8AutoPromote_test.ts`: dado `active_consult` + webhook SUCCESS com simulationLimit, deve promover. |
 
 ---
 
@@ -63,34 +109,35 @@ Não toca em: schema do banco, edge functions de webhook, retry cron, settings.
 
 | Item | Antes | Depois |
 |---|---|---|
-| Tabela Consultas/Propostas | Valor bruto / Parcela / Nº parcelas em zero | Valores reais idênticos ao "Ver detalhes" |
-| Botão "Buscar propostas" | Pisca constantemente (loader animando sozinho) | Estável; recarrega no máximo 1x a cada 2s |
-| Seção "Consultas ativas" | Pisca a cada update de simulação | Atualiza suavemente, sem flicker |
-| Toggle desligado | Usuário fica perdido sem entender que precisa clicar manual | Banner amarelo + botão pulsante explicam o passo |
-| Glossário | Não fala de CONSENT_APPROVED | Explica que é autorização ≠ cálculo |
+| CPF com "consulta antiga" | Vermelho "falha" — operador acha que deu errado | Amarelo "aguardando consulta antiga" — operador entende que vai resolver sozinho |
+| Quando antiga conclui SUCCESS | Linha continua "failed" mesmo com webhook chegando | Linha vira automaticamente "success" com margem + parcela estimada do simulationLimit |
+| Quando antiga conclui REJECTED | Linha continua "failed" (texto antigo) | Linha vira "failed" com motivo claro "Consulta antiga rejeitada" |
+| Lote disparado por engano (500 CPFs errados) | Cron tenta 15x cada linha por horas — sem botão de parar | Botão "Cancelar lote" vermelho. Pendentes viram canceladas, sucessos preservados |
 
 ## Vantagens / Desvantagens
 
-**Vantagens:** corrige o problema raiz das tabelas zeradas (1 linha de código), elimina N chamadas/seg desnecessárias à V8 (economia de quota), torna o fluxo manual evidente.
-**Desvantagens:** o enriquecimento adiciona ~1-3s de latência na listagem (até 200 chamadas extras à V8 com concorrência 8) — aceitável porque hoje a tela está inutilizável.
+**Vantagens:** elimina a confusão "está tudo falhando!" (são 90% só aguardando), recupera dados gratuitos da V8 (consulta antiga já paga, vamos aproveitar), dá controle ao operador (cancelar).
+
+**Desvantagens:** linhas amarelas "aguardando" podem ficar dias parecendo abertas se a consulta antiga foi feita por outra plataforma e ela nunca dispara webhook pra gente — o poller precisa estar saudável (já está). Vale revisitar se virar problema.
 
 ## Checklist manual de validação
 
-1. Aba **Consultas** → "Buscar propostas" → confirmar que **Valor bruto, Parcela e Nº parcelas** aparecem preenchidos (não mais R$ 0,00 / —).
-2. Aba **Propostas** → mesma validação.
-3. Comparar 1 linha com o modal "Ver detalhes" — valores devem bater.
-4. Aba **Consultas** com lote ativo rodando → confirmar que botão "Buscar propostas" **não fica piscando** e seção "Consultas ativas" **não pisca**.
-5. Aba **Nova Simulação** → criar lote, deixar toggle desligado → confirmar **banner amarelo aparece** com contagem e **botão "Simular selecionados" pulsa**.
-6. Clicar "Simular selecionados" → confirmar que parcela/valor liberado aparecem nas linhas.
-7. Hover no glossário "?" → confirmar que **CONSENT_APPROVED** está documentado.
+1. Disparar lote com CPFs sabidamente com consulta antiga → confirmar que aparecem **amarelo "aguardando consulta antiga"** (não vermelho).
+2. Aguardar webhook V8 chegar → linha vira **verde "sucesso"** com margem e parcela preenchidas, sem clique manual.
+3. Disparar lote com 50 CPFs → clicar **Cancelar lote** → confirmar que pendentes viram canceladas e sucessos permanecem.
+4. Tentar cancelar lote já completo → botão não aparece.
+5. Cron continua processando outros lotes normalmente (não afetou).
+6. Modal "Ver detalhes" mostra `webhook_status` correto e snapshot.
 
 ## Pendências (futuro)
 
-- Cache do enriquecimento por 30 min em `v8_operations_local` para evitar re-buscar detalhes que já foram buscados (otimização — hoje cada listagem refaz tudo).
-- Indicador visual em tempo real (spinner discreto) enquanto enriquecimento está rodando.
+- **Rotação de múltiplos logins V8** (próximo plano — você precisa me dizer quantas contas extras tem).
+- Tela "Aproveitar consulta existente" se quiser disparar manualmente o `/simulate` para uma linha amarela mesmo antes da consulta antiga concluir (hoje só rodaria depois).
+- Métrica no painel "X lotes cancelados nos últimos 7 dias".
 
 ## Prevenção de regressão
 
-- Adicionar **teste vitest** em `src/lib/__tests__/` que monta um payload V8 sintético com `operationId` (sem `id`) e valida que o filtro de enriquecimento marca a linha como elegível.
-- Adicionar comentário em destaque no `actionListOperations` avisando que a V8 usa `operationId` (camelCase), não `id` — para não regredir.
-- Manter o log `[list_operations] enrichment: X → Y detalhes buscados` para que qualquer regressão futura seja visível em audit_logs imediatamente.
+- Teste vitest: `active_consult` insertion vai pra `pending` (não `failed`).
+- Teste edge function: webhook SUCCESS sobre linha `error_kind='active_consult'` promove para success com valores do simulationLimit.
+- Comentário no `v8-webhook` destacando que `active_consult` é caso especial de promoção via `simulationLimit`.
+- Audit log em todo cancelamento de lote (rastreabilidade).

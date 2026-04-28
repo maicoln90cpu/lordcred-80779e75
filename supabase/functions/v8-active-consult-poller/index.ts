@@ -60,8 +60,9 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - REFRESH_AFTER_SECONDS * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, v8_status_snapshot_at, raw_response")
+      .select("id, batch_id, cpf, v8_status_snapshot_at, raw_response, simulation_strategy, v8_batches!inner(status)")
       .eq("error_kind", "active_consult")
+      .neq("v8_batches.status", "canceled")
       .or(`v8_status_snapshot_at.is.null,v8_status_snapshot_at.lte.${cutoffIso}`)
       .order("v8_status_snapshot_at", { ascending: true, nullsFirst: true })
       .limit(simulationId ? 1 : BATCH_LIMIT);
@@ -188,12 +189,40 @@ serve(async (req) => {
         }
         const margemFromSnapshot = extractMarginFromSnapshot(json.data);
 
+        // Auto-promoção: se a consulta antiga concluiu na V8 (SUCCESS / REJECTED),
+        // promovemos a linha local — mesma lógica do v8-webhook quando recebe consult.updated.
+        // Isso garante que mesmo se o webhook não chegar, o poller resolve sozinho.
+        const latestStatus = String(
+          (json.data as any)?.latest?.status
+            ?? (json.data as any)?.status
+            ?? '',
+        ).toUpperCase();
+        const limit = (json.data as any)?.latest?.simulationLimit ?? (json.data as any)?.simulationLimit ?? null;
+        const valueMax = limit?.valueMax != null ? Number(limit.valueMax) : null;
+        const instMax = limit?.installmentsMax != null ? Number(limit.installmentsMax) : null;
+        const canPromote = Number.isFinite(valueMax!) && Number.isFinite(instMax!) && (valueMax as number) > 0 && (instMax as number) > 0;
+
         const updatePayload: Record<string, unknown> = {
           raw_response: { ...baseRaw, v8_status_snapshot: snapshot },
           v8_status_snapshot_at: probedAtIso,
         };
         if (margemFromSnapshot != null) {
           updatePayload.margem_valor = margemFromSnapshot;
+        }
+        if (latestStatus === 'SUCCESS' && canPromote) {
+          updatePayload.released_value = valueMax;
+          updatePayload.installments = instMax;
+          updatePayload.installment_value = Number(((valueMax as number) / (instMax as number)).toFixed(2));
+          updatePayload.total_value = valueMax;
+          updatePayload.status = 'success';
+          updatePayload.error_kind = null;
+          updatePayload.error_message = null;
+          updatePayload.simulate_status = 'not_started';
+          updatePayload.processed_at = probedAtIso;
+        } else if (latestStatus === 'REJECTED' || latestStatus === 'FAILED') {
+          updatePayload.status = 'failed';
+          updatePayload.error_message = 'Consulta antiga rejeitada na V8';
+          updatePayload.processed_at = probedAtIso;
         }
 
         const { error: updErr } = await supabase
