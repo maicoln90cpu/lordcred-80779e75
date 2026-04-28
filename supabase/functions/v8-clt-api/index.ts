@@ -1390,6 +1390,42 @@ const handler = async (req: Request) => {
             error: (result as any)?.error ?? null,
           },
         });
+        // Kick-start do auto-retry: agenda 3 disparos do v8-retry-cron nos próximos 90s,
+        // sem esperar pg_cron (que roda a cada 1min). Assim, falhas da 1ª passada já são
+        // retentadas em ~30s, evitando que o usuário precise clicar manualmente em "Retentar".
+        // Não bloqueia a resposta: roda em background com EdgeRuntime.waitUntil quando disponível.
+        try {
+          const batchId = (result as any)?.data?.batch_id;
+          if (batchId) {
+            const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-retry-cron`;
+            const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+            const kickStart = (async () => {
+              for (const delayMs of [30_000, 60_000, 90_000]) {
+                await new Promise((r) => setTimeout(r, delayMs));
+                try {
+                  await fetch(url, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${serviceKey}`,
+                      "x-cron-trigger": "v8-clt-api-kickstart",
+                    },
+                    body: JSON.stringify({ batch_id: batchId, manual: true }),
+                  });
+                } catch (e) {
+                  console.warn("[v8-clt-api] kick-start fail", e);
+                }
+              }
+            })();
+            // @ts-ignore EdgeRuntime existe em Supabase Edge runtime
+            if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+              // @ts-ignore
+              EdgeRuntime.waitUntil(kickStart);
+            }
+          }
+        } catch (e) {
+          console.warn("[v8-clt-api] kick-start setup error", e);
+        }
         break;
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
