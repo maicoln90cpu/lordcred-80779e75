@@ -13,6 +13,7 @@ export interface V8OperationSummary {
   status: string | null;
   installmentFaceValue?: string | null;
   numberOfInstallments?: number | null;
+  history: Array<{
     id: string;
     action: string;
     description: string;
