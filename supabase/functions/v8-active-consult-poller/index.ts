@@ -22,7 +22,7 @@ const corsHeaders = {
 
 // Não revisita snapshots recentes (economia de chamadas à V8).
 const REFRESH_AFTER_SECONDS = 120;
-const BATCH_LIMIT = 30;
+const BATCH_LIMIT = 200;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

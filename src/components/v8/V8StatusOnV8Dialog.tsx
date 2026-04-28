@@ -1,5 +1,5 @@
 import { useState, useCallback, forwardRef } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -8,12 +8,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { JsonTreeView } from '@/components/admin/JsonTreeView';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Dialog reutilizável "Ver status na V8".
- * Antes vivia embutido em V8NovaSimulacaoTab; agora é compartilhado com V8HistoricoTab
- * para garantir paridade de UX entre as duas telas.
+ *
+ * Mostra (quando disponível na resposta da V8):
+ *  - Status / Nome / Data
+ *  - Resultado da simulação (valor liberado, parcela, margem, prazo, banco, taxa)
+ *  - Histórico de todas as consultas para o CPF
+ *  - Payload bruto (JSON) colapsável para inspeção total
  */
 export function useV8StatusOnV8() {
   const [open, setOpen] = useState(false);
@@ -45,6 +51,34 @@ export function useV8StatusOnV8() {
   return { open, setOpen, data, check };
 }
 
+function formatBRL(n: any): string | null {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return null;
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
+ * Extrai os campos financeiros que a V8 retorna (variam de plano para plano).
+ * Procura tanto no nó "latest" quanto em "raw" / "data" / sub-objetos comuns.
+ */
+function extractSimulationData(latest: any) {
+  if (!latest || typeof latest !== 'object') return null;
+  // V8 às vezes aninha em "result", "simulation", "data", etc.
+  const candidates = [latest, latest.result, latest.simulation, latest.data, latest.proposal].filter(Boolean);
+  const out: Record<string, any> = {};
+  for (const c of candidates) {
+    out.released_value ??= c.released_value ?? c.disbursed_amount ?? c.valor_liberado;
+    out.installment_value ??= c.installment_value ?? c.installment_face_value ?? c.valor_parcela;
+    out.installments ??= c.installments ?? c.number_of_installments ?? c.parcelas ?? c.prazo;
+    out.interest_rate ??= c.interest_rate ?? c.rate ?? c.taxa;
+    out.bank_name ??= c.bank_name ?? c.bank ?? c.banco;
+    out.company_margin ??= c.company_margin ?? c.margem ?? c.margin;
+    out.amount_to_charge ??= c.amount_to_charge ?? c.total_value ?? c.valor_total;
+  }
+  const hasAny = Object.values(out).some((v) => v != null);
+  return hasAny ? out : null;
+}
+
 export function V8StatusOnV8Dialog({
   open,
   onOpenChange,
@@ -54,15 +88,22 @@ export function V8StatusOnV8Dialog({
   onOpenChange: (v: boolean) => void;
   data: { cpf: string; loading: boolean; result: any | null; error: string | null };
 }) {
+  const [showJson, setShowJson] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const latest = data.result?.latest ?? null;
+  const all: any[] = Array.isArray(data.result?.all) ? data.result.all : [];
+  const sim = extractSimulationData(latest);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Status da consulta na V8</DialogTitle>
           <DialogDescription>
             CPF: <span className="font-mono">{data.cpf}</span>
           </DialogDescription>
         </DialogHeader>
+
         {data.loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
             <Loader2 className="w-4 h-4 animate-spin" /> Buscando na V8...
@@ -70,20 +111,141 @@ export function V8StatusOnV8Dialog({
         ) : data.error ? (
           <div className="text-sm text-destructive whitespace-pre-line">{data.error}</div>
         ) : data.result?.found === false ? (
-          <div className="text-sm text-muted-foreground">{data.result.message}</div>
-        ) : data.result?.latest ? (
-          <div className="space-y-2 text-sm">
-            <div><strong>Status:</strong> {data.result.latest.status ?? '—'}</div>
-            <div><strong>Nome:</strong> {data.result.latest.name ?? '—'}</div>
-            <div>
-              <strong>Criada em:</strong>{' '}
-              {data.result.latest.createdAt
-                ? new Date(data.result.latest.createdAt).toLocaleString('pt-BR')
-                : '—'}
-            </div>
-            {data.result.latest.detail && (
-              <div className="text-muted-foreground">{data.result.latest.detail}</div>
+          <div className="text-sm text-muted-foreground">
+            {data.result.message || 'Nenhuma consulta encontrada na V8 para este CPF.'}
+          </div>
+        ) : latest ? (
+          <div className="space-y-4 text-sm">
+            {/* Bloco 1 — Resumo */}
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Última consulta
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-muted-foreground">Status</div>
+                  <Badge
+                    variant={latest.status === 'CONSENT_APPROVED' || latest.status === 'SUCCESS' ? 'default' : latest.status === 'REJECTED' ? 'destructive' : 'secondary'}
+                  >
+                    {latest.status ?? '—'}
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Criada em</div>
+                  <div>
+                    {latest.createdAt ? new Date(latest.createdAt).toLocaleString('pt-BR') : '—'}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-xs text-muted-foreground">Nome</div>
+                  <div>{latest.name ?? '—'}</div>
+                </div>
+                {latest.detail && (
+                  <div className="col-span-2">
+                    <div className="text-xs text-muted-foreground">Motivo / detalhe</div>
+                    <div className="text-muted-foreground whitespace-pre-line">{latest.detail}</div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Bloco 2 — Resultado da simulação (quando V8 já calculou) */}
+            {sim && (
+              <section className="space-y-2 border-t pt-3">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Resultado da simulação
+                </h3>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {sim.released_value != null && (
+                    <div>
+                      <div className="text-muted-foreground">Valor liberado</div>
+                      <div className="font-semibold">{formatBRL(sim.released_value) ?? '—'}</div>
+                    </div>
+                  )}
+                  {sim.installment_value != null && (
+                    <div>
+                      <div className="text-muted-foreground">Valor da parcela</div>
+                      <div className="font-semibold">{formatBRL(sim.installment_value) ?? '—'}</div>
+                    </div>
+                  )}
+                  {sim.installments != null && (
+                    <div>
+                      <div className="text-muted-foreground">Parcelas</div>
+                      <div className="font-semibold">{sim.installments}x</div>
+                    </div>
+                  )}
+                  {sim.interest_rate != null && (
+                    <div>
+                      <div className="text-muted-foreground">Taxa</div>
+                      <div className="font-semibold">{sim.interest_rate}{typeof sim.interest_rate === 'number' && sim.interest_rate < 1 ? '%' : ''}</div>
+                    </div>
+                  )}
+                  {sim.bank_name && (
+                    <div>
+                      <div className="text-muted-foreground">Banco</div>
+                      <div className="font-semibold">{sim.bank_name}</div>
+                    </div>
+                  )}
+                  {sim.company_margin != null && (
+                    <div>
+                      <div className="text-muted-foreground">Margem</div>
+                      <div className="font-semibold">{formatBRL(sim.company_margin) ?? '—'}</div>
+                    </div>
+                  )}
+                  {sim.amount_to_charge != null && (
+                    <div>
+                      <div className="text-muted-foreground">A cobrar</div>
+                      <div className="font-semibold">{formatBRL(sim.amount_to_charge) ?? '—'}</div>
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
+
+            {/* Bloco 3 — Histórico de todas as consultas */}
+            {all.length > 1 && (
+              <section className="space-y-2 border-t pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+                >
+                  {showAll ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  Todas as consultas ({all.length})
+                </button>
+                {showAll && (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {all.map((c: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs border rounded px-2 py-1">
+                        <Badge variant={c.status === 'REJECTED' ? 'destructive' : c.status === 'CONSENT_APPROVED' ? 'default' : 'secondary'}>
+                          {c.status ?? '—'}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {c.createdAt ? new Date(c.createdAt).toLocaleString('pt-BR') : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Bloco 4 — JSON bruto */}
+            <section className="space-y-2 border-t pt-3">
+              <button
+                type="button"
+                onClick={() => setShowJson((v) => !v)}
+                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+              >
+                {showJson ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                Ver dados completos (JSON)
+              </button>
+              {showJson && (
+                <div className="border rounded p-2 max-h-64 overflow-auto bg-muted/30">
+                  <JsonTreeView data={data.result} />
+                </div>
+              )}
+            </section>
           </div>
         ) : (
           <div className="text-sm text-muted-foreground">Sem dados.</div>
