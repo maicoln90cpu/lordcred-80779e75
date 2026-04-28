@@ -182,12 +182,23 @@ serve(async (req) => {
             },
           }),
         });
-        if (resp.ok) okCount += 1;
-        else failCount += 1;
+        const respJson = await resp.json().catch(() => ({}));
+        if (resp.ok) okCount += 1; else failCount += 1;
         touchedBatchIds.add(sim.batch_id);
+        perSimResults.push({
+          simulation_id: sim.id,
+          cpf_masked: sim.cpf ? String(sim.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+          attempt: Number(sim.attempt_count ?? 0) + 1,
+          http_status: resp.status,
+          success: !!respJson?.success,
+          kind: respJson?.kind ?? null,
+          step: respJson?.step ?? null,
+          user_message: respJson?.user_message ?? null,
+        });
       } catch (err) {
         console.error("[v8-retry-cron] invoke err", sim.id, err);
         failCount += 1;
+        perSimResults.push({ simulation_id: sim.id, outcome: "exception", error: String((err as Error)?.message || err) });
       }
     }
 
