@@ -22,7 +22,7 @@ export default function RatesCLTTab() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RateCLT | null>(null);
-  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
+  const [form, setForm] = useState({ effective_date: '', bank: '', term_min: '0', term_max: '999', min_value: '0', max_value: '999999999', has_insurance: false, rate: '', obs: '', table_key: '' });
   const { sort, toggle } = useSortState();
   const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -41,7 +41,7 @@ export default function RatesCLTTab() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', has_insurance: false, rate: '', obs: '', table_key: '' });
+    setForm({ effective_date: new Date().toISOString().slice(0, 10), bank: '', term_min: '0', term_max: '999', min_value: '0', max_value: '999999999', has_insurance: false, rate: '', obs: '', table_key: '' });
     setDialogOpen(true);
   };
 
@@ -50,6 +50,7 @@ export default function RatesCLTTab() {
     setForm({
       effective_date: r.effective_date, bank: r.bank,
       term_min: r.term_min.toString(), term_max: r.term_max.toString(),
+      min_value: (r.min_value ?? 0).toString(), max_value: (r.max_value ?? 999999999).toString(),
       has_insurance: r.has_insurance, rate: r.rate.toString(), obs: r.obs || '',
       table_key: r.table_key || ''
     });
@@ -61,6 +62,7 @@ export default function RatesCLTTab() {
     const payload = {
       effective_date: form.effective_date, bank: form.bank,
       term_min: parseInt(form.term_min) || 0, term_max: parseInt(form.term_max) || 999,
+      min_value: parseFloat(form.min_value) || 0, max_value: parseFloat(form.max_value) || 999999999,
       has_insurance: form.has_insurance, rate: parseFloat(form.rate) || 0, obs: form.obs || null,
       table_key: form.table_key || null,
     };
@@ -82,10 +84,12 @@ export default function RatesCLTTab() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
-      ['BANCO C6', 'SONHO', '0', '999', 'Não', '5.5', 'CLT padrão'],
+      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
+      ['BANCO C6', 'SONHO', '0', '999', '0', '999999999', 'Não', '5.5', 'CLT padrão'],
+      ['REP CLT', '', '6', '36', '1000', '5000', 'Não', '3.0', 'REP faixa 1k-5k'],
+      ['REP CLT', '', '6', '36', '5000', '10000', 'Não', '5.0', 'REP faixa 5k-10k'],
     ]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 25 }];
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 10 }, { wch: 25 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo CLT');
     XLSX.writeFile(wb, 'modelo_taxas_clt.xlsx');
@@ -98,11 +102,14 @@ export default function RatesCLTTab() {
       const tableKey = r['Tabela'] || r['tabela'] || r['table_key'] || '';
       const termMin = parseInt(r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0') || 0;
       const termMax = parseInt(r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999') || 999;
+      const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || r['min_value'] || '0').toString().replace(',', '.')) || 0;
+      const maxValueRaw = (r['Valor Max'] || r['valor_max'] || r['max_value'] || '999999999').toString().replace(',', '.');
+      const maxValue = parseFloat(maxValueRaw) || 999999999;
       const seguroRaw = (r['Seguro (Sim/Não)'] || r['seguro'] || r['has_insurance'] || 'Não').toLowerCase();
       const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
       const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').replace(',', '.')) || 0;
       const obs = r['Obs'] || r['obs'] || '';
-      return { effective_date: today, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, has_insurance: hasInsurance, rate, obs: obs || null };
+      return { effective_date: today, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
     }).filter(r => r.bank);
   };
 
@@ -121,7 +128,7 @@ export default function RatesCLTTab() {
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text');
-    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs']);
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs']);
     setImportPreview(parseImportData(parsed.rows));
   };
 
