@@ -207,14 +207,15 @@ export default function V8WebhooksTab() {
   async function load() {
     setLoading(true);
     try {
+      // Frente D: payload (JSONB) excluído da listagem — reduz egress em ~80%
+      // (cada payload V8 é 2-10 KB; 200 linhas = até 2 MB extras à toa).
+      // O payload é buscado sob demanda em handleOpenDetails().
       let query = supabase
         .from('v8_webhook_logs')
-        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, payload, processed, process_error, received_at')
+        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, processed, process_error, received_at')
         .order('received_at', { ascending: false })
         .limit(200);
 
-      // Frente 2: quando o filtro de tipo está ativo, busca já filtrada no banco
-      // para garantir 200 linhas DAQUELE tipo (e não 200 globais que viram tudo 'consult').
       if (typeFilter !== '__all__') {
         query = query.eq('event_type', typeFilter);
       }
