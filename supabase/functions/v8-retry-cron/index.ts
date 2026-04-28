@@ -40,11 +40,13 @@ serve(async (req) => {
   let manualBatchId: string | null = null;
   let manualMode = false;
   let subPass = 0;
+  let manualSimIds: string[] = [];
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as any));
       manualBatchId = body?.batch_id ?? null;
-      manualMode = body?.manual === true || !!manualBatchId;
+      manualSimIds = Array.isArray(body?.simulation_ids) ? body.simulation_ids.filter(Boolean) : [];
+      manualMode = body?.manual === true || !!manualBatchId || manualSimIds.length > 0;
       subPass = Number(body?.sub_pass ?? 0);
     }
   } catch (_) { /* ignore */ }
@@ -101,6 +103,7 @@ serve(async (req) => {
       .order("last_attempt_at", { ascending: true, nullsFirst: true })
       .limit(batchSize);
     if (manualBatchId) q = q.eq("batch_id", manualBatchId);
+    if (manualSimIds.length > 0) q = q.in("id", manualSimIds);
     const { data: candidates, error: candErr } = await q;
 
     if (candErr) {
