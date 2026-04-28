@@ -250,21 +250,35 @@ function BatchDetail({ batchId }: { batchId: string }) {
             <tbody>
               {simulations.map((s) => {
                 const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                const ws = ((s as any).webhook_status || '').toUpperCase();
                 const isActiveConsult = kind === 'active_consult';
+                // NOVO: pending+WAITING_EXTERNAL (active_consult que aguarda promoção) também mostra snapshot
+                const isWaitingExternal = s.status === 'pending' && (isActiveConsult || ws === 'WAITING_EXTERNAL');
+                const isCanceled = kind === 'canceled';
                 const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
                 const meta = getV8ErrorMeta(s.raw_response);
                 const hasInfo = !!(message || s.raw_response);
-                const snapshot = isActiveConsult ? getV8StatusSnapshot(s.raw_response) : null;
+                const snapshot = (isActiveConsult || isWaitingExternal) ? getV8StatusSnapshot(s.raw_response) : null;
                 const isRetryingRow = retryingIds.has(s.id);
+                // Badge: amarelo (outline) para waiting_external e canceled
+                const badgeVariant: any = isWaitingExternal || isCanceled
+                  ? 'outline'
+                  : s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary';
+                const badgeLabel = isWaitingExternal
+                  ? 'aguardando consulta antiga'
+                  : isCanceled
+                    ? 'cancelado'
+                    : translateV8Status(s.status);
                 return (
                   <tr key={s.id} className={`border-t ${isRetryingRow ? 'animate-pulse bg-amber-500/5' : ''}`}>
                     <td className="px-2 py-1 font-mono">{s.cpf}</td>
                     <td className="px-2 py-1">{s.name || '—'}</td>
                     <td className="px-2 py-1">
                       <Badge
-                        variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
+                        variant={badgeVariant}
+                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
                       >
-                        {translateV8Status(s.status)}
+                        {badgeLabel}
                       </Badge>
                       {(() => {
                         const ss = (s as any).simulate_status as string | null | undefined;

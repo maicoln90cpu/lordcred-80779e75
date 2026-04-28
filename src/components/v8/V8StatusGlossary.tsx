@@ -44,7 +44,9 @@ export const OPERATION_ROWS: Row[] = [
 const INTERNAL_ROWS: Row[] = [
   { status: 'temporary_v8', meaning: 'Instabilidade ou rate limit da V8 (HTTP 429/503).', action: 'Botão "Retentar falhados".', tone: 'warn' },
   { status: 'analysis_pending', meaning: 'V8 ainda processando do lado dela.', action: '"Buscar resultados pendentes".', tone: 'warn' },
-  { status: 'active_consult', meaning: 'Já existe consulta ativa na V8 para este CPF.', action: 'Sistema busca status sozinho; ou "Ver status na V8".', tone: 'warn' },
+  { status: 'active_consult', meaning: 'Já existe consulta ativa na V8 para este CPF (lote anterior ainda processando).', action: 'AGUARDAR — sistema promove sozinho assim que a antiga concluir. Não precisa retentar.', tone: 'warn' },
+  { status: 'aguardando consulta antiga', meaning: 'Marca AMARELA — versão "esperando" do active_consult. Sistema vai promover automaticamente.', action: 'Não fazer nada. Em até alguns minutos vira success ou failed.', tone: 'warn' },
+  { status: 'cancelado', meaning: 'Lote foi cancelado manualmente pelo botão "Cancelar lote".', action: 'Disparar novamente em outro lote se quiser reprocessar.', tone: 'bad' },
 ];
 
 const TONE: Record<Tone, string> = {

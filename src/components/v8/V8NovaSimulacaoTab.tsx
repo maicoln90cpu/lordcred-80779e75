@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Play, Loader2, Search } from 'lucide-react';
+import { RefreshCw, Play, Loader2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,9 +36,17 @@ import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+  const ws = (simulation.webhook_status || '').toUpperCase();
 
+  // NOVO: active_consult agora fica como pending + WAITING_EXTERNAL (amarelo, aguarda promoção)
+  if (simulation.status === 'pending' && (errorKind === 'active_consult' || ws === 'WAITING_EXTERNAL')) {
+    return 'aguardando consulta antiga';
+  }
   if (simulation.status === 'failed' && errorKind === 'active_consult') {
     return 'consulta ativa';
+  }
+  if (simulation.status === 'failed' && errorKind === 'canceled') {
+    return 'cancelado';
   }
   if (simulation.status === 'failed' && errorKind === 'existing_proposal') {
     return 'proposta existente';
@@ -50,22 +58,23 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     return 'dados inválidos';
   }
   if (simulation.status === 'pending') {
-    // Sem nenhuma chamada ainda → estamos disparando AGORA
     if (!simulation.last_attempt_at) return 'processando';
-    // V8 explicitamente em estado de espera
-    const ws = (simulation.webhook_status || '').toUpperCase();
     if (ws.startsWith('WAITING_')) return 'em análise';
     return 'aguardando V8';
   }
   return translateV8Status(simulation.status);
 }
 
-function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {
+function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+  const ws = (simulation.webhook_status || '').toUpperCase();
 
   if (simulation.status === 'success') return 'default' as const;
+  // amarelo (outline) para aguardando consulta antiga
+  if (simulation.status === 'pending' && (errorKind === 'active_consult' || ws === 'WAITING_EXTERNAL')) return 'outline' as const;
   if (simulation.status === 'pending') return 'secondary' as const;
   if (simulation.status === 'failed' && errorKind === 'active_consult') return 'outline' as const;
+  if (simulation.status === 'failed' && errorKind === 'canceled') return 'outline' as const;
   return 'destructive' as const;
 }
 
@@ -853,6 +862,40 @@ export default function V8NovaSimulacaoTab() {
                     Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!activeBatchId) return;
+                        const pending = simulations.filter((s: any) => s.status === 'pending').length;
+                        const ok = window.confirm(
+                          `Cancelar este lote?\n\n` +
+                          `• ${pending} consulta(s) pendente(s) serão marcadas como FALHA (cancelado).\n` +
+                          `• Os crons de retry e poller vão ignorar este lote a partir de agora.\n` +
+                          `• Resultados já recebidos (success) serão preservados.\n\n` +
+                          `Esta ação NÃO pode ser desfeita.`,
+                        );
+                        if (!ok) return;
+                        try {
+                          const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+                            body: { action: 'cancel_batch', batch_id: activeBatchId },
+                          });
+                          if (error) throw error;
+                          toast.success(`Lote cancelado · ${data?.canceled ?? 0} pendente(s) marcadas como falha.`);
+                        } catch (e: any) {
+                          toast.error(`Falha ao cancelar lote: ${e?.message || e}`);
+                        }
+                      }}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Cancelar lote
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Para imediatamente o processamento deste lote. Pendentes viram FALHA (cancelado), retry/poller param de tocar nele. Use se um lote estiver "preso" ou se você disparou por engano.
+                  </TooltipContent>
+                </Tooltip>
               </TooltipProvider>
             </div>
           </CardHeader>
@@ -906,11 +949,19 @@ export default function V8NovaSimulacaoTab() {
                     <tr key={s.id} className="border-t">
                       <td className="px-2 py-1 font-mono">{s.cpf}</td>
                       <td className="px-2 py-1">
-                        <Badge
-                          variant={getSimulationStatusVariant(s)}
-                        >
-                          {getSimulationStatusLabel(s)}
-                        </Badge>
+                        {(() => {
+                          const ws = ((s as any).webhook_status || '').toUpperCase();
+                          const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                          const isWaitingExternal = s.status === 'pending' && (k === 'active_consult' || ws === 'WAITING_EXTERNAL');
+                          return (
+                            <Badge
+                              variant={getSimulationStatusVariant(s)}
+                              className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
+                            >
+                              {getSimulationStatusLabel(s)}
+                            </Badge>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-1 text-right">
                         {(() => {
