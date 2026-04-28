@@ -4820,6 +4820,13 @@ export type Database = {
         Args: { _batch_id: string }
         Returns: undefined
       }
+      v8_webhook_type_counts: {
+        Args: never
+        Returns: {
+          event_type: string
+          total: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "seller" | "support" | "master" | "manager"
