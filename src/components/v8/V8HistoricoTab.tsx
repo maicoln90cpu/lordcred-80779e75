@@ -232,8 +232,8 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <th className="px-2 py-1 text-left">Status</th>
                 <th className="px-2 py-1 text-right">Liberado</th>
                 <th className="px-2 py-1 text-right">Parcela</th>
-                <th className="px-2 py-1 text-right">Margem</th>
-                <th className="px-2 py-1 text-right">A cobrar</th>
+                <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
+                <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
                 <th className="px-2 py-1 text-left">Motivo</th>
               </tr>
@@ -304,7 +304,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                                 {snapshot.totalConsults > 1 && (
                                   <button
                                     type="button"
-                                    onClick={() => status.check(s.cpf)}
+                                    onClick={() => status.check(s.cpf, s.id)}
                                     className="text-[10px] underline text-muted-foreground hover:text-foreground"
                                   >
                                     Ver todas as {snapshot.totalConsults} consultas
@@ -312,15 +312,31 @@ function BatchDetail({ batchId }: { batchId: string }) {
                                 )}
                               </div>
                             </>
+                          ) : snapshot?.rateLimited ? (
+                            <>
+                              <div className="font-medium text-amber-600">Já existe consulta ativa para este CPF na V8</div>
+                              <div className="text-[10px] text-muted-foreground italic">
+                                V8 limitou as consultas. Nova tentativa automática em instantes.
+                              </div>
+                              <ViewV8StatusButton onClick={() => status.check(s.cpf, s.id)} />
+                            </>
+                          ) : snapshot?.probedAt ? (
+                            <>
+                              <div className="font-medium text-amber-600">Já existe consulta ativa para este CPF na V8</div>
+                              <div className="text-[10px] text-muted-foreground italic">
+                                {snapshot.message || 'Sem retorno da V8 nessa busca.'} Clique para consultar manualmente.
+                              </div>
+                              <ViewV8StatusButton onClick={() => status.check(s.cpf, s.id)} />
+                            </>
                           ) : (
                             <>
                               <div className="whitespace-pre-line font-medium text-amber-600">
                                 Já existe consulta ativa para este CPF na V8
                               </div>
                               <div className="text-[10px] text-muted-foreground italic">
-                                Buscando status na V8... (atualiza em até 1 min)
+                                Buscando status na V8... pode levar alguns instantes.
                               </div>
-                              <ViewV8StatusButton onClick={() => status.check(s.cpf)} />
+                              <ViewV8StatusButton onClick={() => status.check(s.cpf, s.id)} />
                             </>
                           )}
                         </div>
