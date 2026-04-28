@@ -89,18 +89,7 @@ async function processV8Payload(
       processed = true;
     } else if (eventType === "consult" && consultId) {
       const internalStatus = mapV8StatusToInternal(v8Status ?? undefined);
-      const margemStr = (payload as any)?.availableMarginValue;
-      const margem = margemStr != null && !Number.isNaN(Number(margemStr)) ? Number(margemStr) : null;
-
-      const updates: Record<string, unknown> = {
-        raw_response: payload,
-        processed_at: new Date().toISOString(),
-        last_webhook_at: new Date().toISOString(),
-        webhook_status: v8Status,
-      };
-      if (internalStatus) updates.status = internalStatus;
-      if (v8SimulationId) updates.v8_simulation_id = v8SimulationId;
-      if (margem != null) updates.margem_valor = margem;
+      const extras = extractConsultExtras(payload);
 
       // GUARD 1: ler estado atual antes de sobrescrever — webhook não pode regredir
       // (failed → pending) nem promover (any → success) sem valores monetários reais.
@@ -116,7 +105,7 @@ async function processV8Payload(
           last_webhook_at: new Date().toISOString(),
           webhook_status: v8Status,
         };
-        if (margem != null) safeUpdates.margem_valor = margem;
+        applyConsultExtras(safeUpdates, extras);
         if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
 
         const wantsSuccess = internalStatus === "success";
@@ -146,7 +135,7 @@ async function processV8Payload(
         else { processed = true; action = "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
-        const { error: insErr } = await supabase.from("v8_simulations").insert({
+        const insertRow: Record<string, unknown> = {
           consult_id: consultId,
           v8_simulation_id: v8SimulationId,
           status: internalStatus ?? "pending",
@@ -154,12 +143,13 @@ async function processV8Payload(
           last_webhook_at: new Date().toISOString(),
           processed_at: new Date().toISOString(),
           raw_response: payload,
-          margem_valor: margem,
           name: "(via webhook V8)",
           cpf: "",
           installments: 0,
           is_orphan: true,
-        });
+        };
+        applyConsultExtras(insertRow, extras);
+        const { error: insErr } = await supabase.from("v8_simulations").insert(insertRow);
         if (insErr) processError = insErr.message;
         else { processed = true; action = "consult_insert_orphan"; }
       }
