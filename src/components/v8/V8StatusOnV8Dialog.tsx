@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
