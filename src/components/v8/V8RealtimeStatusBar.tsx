@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Wifi, WifiOff, Activity } from 'lucide-react';
+import { Loader2, Wifi, WifiOff, Activity, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
@@ -12,6 +12,8 @@ interface BatchAggregate {
   active_batches: number;
   retrying_simulations: number;
   stale_retrying_simulations: number;
+  awaiting_v8: number; // active_consult / pending sem kind — V8 ainda vai responder, NÃO é retry nosso
+  last_cron_at: string | null;
 }
 
 /**
