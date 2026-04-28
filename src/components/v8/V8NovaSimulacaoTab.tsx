@@ -159,6 +159,45 @@ export default function V8NovaSimulacaoTab() {
     }
   }, [parcelOptions, parcelas]);
 
+  // Auto-simulação após consulta (toggle no UI). Quando ligado, dispara
+  // /simulation throttled para cada SUCCESS novo com simulate_status != done.
+  const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!v8Settings?.auto_simulate_after_consult || !activeBatchId || !configId) return;
+    const candidates = simulations.filter((s: any) =>
+      s.status === 'success'
+      && s.consult_id
+      && (s.simulate_status ?? 'not_started') === 'not_started'
+      && !autoSimQueue.has(s.id),
+    );
+    if (candidates.length === 0) return;
+    const throttle = v8Settings?.simulate_throttle_ms ?? 1200;
+    const ids = candidates.map((c) => c.id);
+    setAutoSimQueue((prev) => new Set([...prev, ...ids]));
+
+    (async () => {
+      for (let i = 0; i < candidates.length; i++) {
+        const sim: any = candidates[i];
+        try {
+          await supabase.functions.invoke('v8-clt-api', {
+            body: {
+              action: 'simulate_only_for_consult',
+              params: {
+                simulation_id: sim.id,
+                consult_id: sim.consult_id,
+                config_id: sim.config_id || configId,
+                parcelas: sim.installments || parcelas,
+              },
+            },
+          });
+        } catch (err) {
+          console.error('[auto-simulate] erro', sim.cpf, err);
+        }
+        if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttle));
+      }
+    })();
+  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas]);
+
   const total = simulations.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
   const success = simulations.filter((s) => s.status === 'success').length;
