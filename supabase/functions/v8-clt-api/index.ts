@@ -208,7 +208,26 @@ function detectV8ErrorKind(input: Record<string, any> = {}) {
   return 'unknown';
 }
 
-function formatV8Guidance(kind: string) {
+// Frente C: rótulo amigável da action que disparou o erro — usado no toast/dialog
+// para o operador saber EXATAMENTE o que pausar quando a V8 limita.
+function formatStepLabel(step?: string | null): string | null {
+  if (!step) return null;
+  const map: Record<string, string> = {
+    simulate_one: 'simulação de CPF',
+    simulate_consult_only: 'consulta de CPF',
+    simulate_only_for_consult: 'simulação de proposta',
+    create_batch: 'criação de lote',
+    list_operations: 'busca de propostas',
+    list_consults: 'busca de consultas',
+    check_consult_status: 'verificação de status na V8',
+    get_operation: 'detalhes da proposta',
+    get_consult: 'detalhes da consulta',
+  };
+  return map[step] ?? null;
+}
+
+function formatV8Guidance(kind: string, step?: string | null) {
+  const stepLabel = formatStepLabel(step);
   switch (kind) {
     case 'active_consult':
       return 'Já existe consulta ativa para este CPF na V8.\nConsulte as operações existentes ou aguarde a análise em andamento.';
@@ -217,7 +236,10 @@ function formatV8Guidance(kind: string) {
     case 'existing_proposal':
       return 'Já existe proposta para este cliente na V8.\nConsulte as operações existentes antes de tentar uma nova simulação.';
     case 'temporary_v8':
-      return 'A V8 está com instabilidade ou rate limit.\nAguarde 1–2 minutos e use "Retentar" para tentar novamente.';
+      // Frente C: contextualiza qual operação estourou o limite (ex: "ao buscar propostas").
+      return stepLabel
+        ? `A V8 limitou as requisições durante ${stepLabel}.\nAguarde 1–2 minutos antes de repetir essa ação. Outras operações podem continuar normalmente.`
+        : 'A V8 está com instabilidade ou rate limit.\nAguarde 1–2 minutos e use "Retentar" para tentar novamente.';
     case 'invalid_data':
       return 'A V8 recusou os dados enviados.\nRevise CPF, data de nascimento, tabela e valor informado.';
     default:
@@ -228,7 +250,7 @@ function formatV8Guidance(kind: string) {
 function buildV8ErrorResult(step: string, source: Record<string, any> = {}) {
   const kind = source.kind ?? detectV8ErrorKind(source);
   const baseMessage = source.userMessage ?? formatV8UserMessage(source);
-  const guidance = formatV8Guidance(kind);
+  const guidance = formatV8Guidance(kind, step);
   return {
     success: false,
     step,
