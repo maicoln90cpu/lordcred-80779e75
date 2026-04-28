@@ -11,6 +11,7 @@ type ConnectionState = 'connecting' | 'live' | 'polling' | 'offline';
 interface BatchAggregate {
   active_batches: number;
   retrying_simulations: number;
+  stale_retrying_simulations: number;
 }
 
 /**
@@ -29,17 +30,21 @@ export function V8RealtimeStatusBar() {
   const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const soundOn = settings?.sound_on_complete ?? false;
 
-  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0 });
+  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
   const [conn, setConn] = useState<ConnectionState>('connecting');
   const lastBatchStateRef = useRef<Map<string, { status: string; success: number; failure: number }>>(new Map());
   const aggRef = useRef(agg);
   aggRef.current = agg;
 
   const refresh = async () => {
-    // Lotes ativos = ainda não 'completed' nem 'cancelled'
+    const last24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const activeSinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    // Lotes ativos visíveis = recentes; lotes antigos não entram na badge do topo.
     const { data: batches } = await supabase
       .from('v8_batches')
-      .select('id, status, success_count, failure_count, total_count')
+      .select('id, status, success_count, failure_count, total_count, created_at')
+      .gte('created_at', last24hIso)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -68,7 +73,7 @@ export function V8RealtimeStatusBar() {
     }
 
     if (activeBatches.length === 0) {
-      setAgg({ active_batches: 0, retrying_simulations: 0 });
+      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
       return;
     }
 
@@ -79,12 +84,15 @@ export function V8RealtimeStatusBar() {
       .in('batch_id', ids)
       .in('status', ['failed', 'pending']);
 
-    const retryingCount = (sims || []).filter((s: any) => {
+    const retriableSims = (sims || []).filter((s: any) => {
       const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
       return isRetriableErrorKind(kind);
-    }).length;
+    });
 
-    setAgg({ active_batches: activeBatches.length, retrying_simulations: retryingCount });
+    const retryingCount = retriableSims.filter((s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso).length;
+    const staleRetryingCount = retriableSims.length - retryingCount;
+
+    setAgg({ active_batches: activeBatches.length, retrying_simulations: retryingCount, stale_retrying_simulations: staleRetryingCount });
   };
 
   useEffect(() => {
@@ -161,6 +169,7 @@ export function V8RealtimeStatusBar() {
         {agg.retrying_simulations === 0 && agg.active_batches > 0 && (
           <span className="text-muted-foreground">
             {agg.active_batches} lote(s) ativo(s) — todas as simulações estão respondendo normalmente
+            {agg.stale_retrying_simulations > 0 && ` · ${agg.stale_retrying_simulations} retentável(eis) sem tentativa recente`}
           </span>
         )}
         {agg.active_batches === 0 && (

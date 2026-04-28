@@ -2,58 +2,8 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { checkPermission, type PermissionEntry } from '@/lib/permissionLogic';
+import { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP } from '@/lib/featureRouteMap';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-/** Maps feature_key → route path(s) */
-const FEATURE_ROUTE_MAP: Record<string, string[]> = {
-  dashboard: ['/dashboard'],
-  chips: ['/chips'],
-  settings_warming: ['/settingsaquecimento'],
-  warming_reports: ['/admin/warming-reports'],
-  users: ['/admin/users'],
-  leads: ['/admin/leads'],
-  performance: ['/admin/performance'],
-  kanban: ['/admin/kanban'],
-  product_info: ['/admin/product-info'],
-  commissions: ['/admin/commissions'],
-  commission_reports: ['/admin/commission-reports'],
-  chip_monitor: ['/admin/chip-monitor'],
-  queue: ['/admin/queue'],
-  webhooks: ['/admin/webhooks'],
-  templates: ['/admin/templates'],
-  quick_replies: ['/admin/quick-replies'],
-  tickets: ['/admin/tickets'],
-  internal_chat: ['/chat'],
-  links: ['/admin/links'],
-  remote_assistance: ['/admin/remote'],
-  audit_logs: ['/admin/audit-logs'],
-  permissions: ['/admin/permissions'],
-  corban_dashboard: ['/admin/corban'],
-  corban_propostas: ['/admin/corban/propostas'],
-  corban_fgts: ['/admin/corban/fgts'],
-  corban_assets: ['/admin/corban/assets'],
-  corban_config: ['/admin/corban/config'],
-  seller_propostas: ['/corban/propostas'],
-  seller_fgts: ['/corban/fgts'],
-  whatsapp: ['/whatsapp'],
-  master_admin: ['/admin/master'],
-  bank_credentials: ['/admin/bancos'],
-  partners: ['/admin/parceiros', '/admin/parceiros/template'],
-  contract_template: ['/admin/parceiros/template'],
-  broadcasts: ['/admin/broadcasts'],
-  hr: ['/admin/hr'],
-  // Adicionados 2026-04-28 — sem mapeamento, hasRoutePermission retornava true
-  // e o toggle do Master era ignorado para essas rotas.
-  v8_simulador: ['/admin/v8-simulador'],
-  commissions_v2: ['/admin/commissions-v2'],
-  integrations: ['/admin/integrations'],
-};
-
-/** Builds reverse map: route → feature_key */
-const ROUTE_FEATURE_MAP: Record<string, string> = {};
-Object.entries(FEATURE_ROUTE_MAP).forEach(([key, routes]) => {
-  routes.forEach(route => { ROUTE_FEATURE_MAP[route] = key; });
-});
 
 export { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP };
 
