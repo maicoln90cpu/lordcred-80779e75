@@ -15,9 +15,11 @@ import {
   getV8StatusSnapshot,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
+import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
 import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import { AnimatedCountBadge } from './V8AnimatedCountBadge';
+import { V8StatusGlossary } from './V8StatusGlossary';
 
 // Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
 function isRetriableNow(s: any): boolean {

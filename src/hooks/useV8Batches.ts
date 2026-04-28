@@ -67,6 +67,9 @@ export interface V8Simulation {
   total_value: number | null;
   company_margin: number | null;
   amount_to_charge: number | null;
+  /** Margem CONSIGNÁVEL DISPONÍVEL do trabalhador (vem da V8 como `availableMarginValue`).
+   *  É o teto de parcela CLT — a info que o operador usa para qualificar o lead. */
+  margem_valor: number | null;
   error_message: string | null;
   error_kind?: string | null;
   attempt_count?: number | null;
