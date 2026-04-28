@@ -196,13 +196,14 @@ const PAYLOAD_PLACEHOLDER = `{
   }
 }`;
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 100;
 
 export default function AuditLogs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [filterCategory, setFilterCategory] = useState<'all' | AuditCategory>('all');
@@ -225,18 +226,31 @@ export default function AuditLogs() {
     if (reset) {
       setLoading(true);
       setLogs([]);
+      setLoadError(null);
     } else {
       setLoadingMore(true);
     }
     const from = reset ? 0 : logs.length;
+    // Etapa 2 / Item 5: o `details` jsonb pode ter até 250KB por linha.
+    // 500 linhas × 250KB = 125MB → Supabase falhava silenciosamente (timeout / payload-too-large)
+    // retornando data=null SEM error, e a tela ficava em "0 de 0".
+    // Fix: paginar menor (100) + capturar erros explicitamente.
     const { data, error } = await supabase
       .from('audit_logs')
       .select('*')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
-    if (!error && data) {
+    if (error) {
+      console.error('[AuditLogs] erro ao carregar logs:', error);
+      setLoadError(error.message || 'Falha ao carregar logs');
+      setHasMore(false);
+    } else if (data) {
       setLogs(prev => reset ? data : [...prev, ...data]);
       setHasMore(data.length === PAGE_SIZE);
+    } else {
+      // data=null sem error → falha silenciosa (tamanho/timeout)
+      setLoadError('Resposta vazia do servidor (provável limite de tamanho). Tente filtrar por categoria.');
+      setHasMore(false);
     }
     setLoading(false);
     setLoadingMore(false);
