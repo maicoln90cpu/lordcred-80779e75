@@ -157,7 +157,7 @@ export default function V8PropostasTab() {
           </div>
 
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[1080px] text-sm">
+            <table className="w-full min-w-[1240px] text-sm">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-3 py-2 text-left">Status</th>
@@ -166,6 +166,8 @@ export default function V8PropostasTab() {
                   <th className="px-3 py-2 text-left">CPF</th>
                   <th className="px-3 py-2 text-right">Valor bruto</th>
                   <th className="px-3 py-2 text-right">Valor liberado</th>
+                  <th className="px-3 py-2 text-right">Parcela</th>
+                  <th className="px-3 py-2 text-center">Nº parcelas</th>
                   <th className="px-3 py-2 text-left">Contrato</th>
                   <th className="px-3 py-2 text-left">Data</th>
                   <th className="px-3 py-2 text-right">Ação</th>
@@ -173,10 +175,10 @@ export default function V8PropostasTab() {
               </thead>
               <tbody>
                 {!loading && !hasSearched && (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">Defina o período e clique em <strong>Buscar propostas</strong>.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">Defina o período e clique em <strong>Buscar propostas</strong>.</td></tr>
                 )}
                 {!loading && hasSearched && filteredOperations.length === 0 && (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">Nenhuma proposta encontrada para o período informado.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">Nenhuma proposta encontrada para o período informado.</td></tr>
                 )}
                 {filteredOperations.map((operation) => {
                   const hint = getStatusHint(operation.status);
@@ -188,6 +190,8 @@ export default function V8PropostasTab() {
                       <td className="px-3 py-2 font-mono">{formatCpf(operation.documentNumber)}</td>
                       <td className="px-3 py-2 text-right">{formatCurrency(operation.issueAmount)}</td>
                       <td className="px-3 py-2 text-right">{formatCurrency(operation.disbursedIssueAmount)}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(operation.installmentFaceValue)}</td>
+                      <td className="px-3 py-2 text-center">{operation.numberOfInstallments ?? '—'}</td>
                       <td className="px-3 py-2">{operation.contractNumber || '—'}</td>
                       <td className="px-3 py-2">{formatDateTime(operation.createdAt)}</td>
                       <td className="px-3 py-2 text-right"><Button variant="outline" size="sm" onClick={() => handleOpenDetails(operation.operationId)}>Ver detalhes</Button></td>
