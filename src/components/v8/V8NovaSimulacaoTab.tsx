@@ -30,6 +30,8 @@ import {
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
+import { V8StatusGlossary } from './V8StatusGlossary';
+import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -485,10 +487,13 @@ export default function V8NovaSimulacaoTab() {
       <Card>
         <CardHeader className="flex-row justify-between items-center">
           <CardTitle>Configurar Simulação</CardTitle>
-          <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar tabelas V8
-          </Button>
+          <div className="flex items-center gap-2">
+            <V8StatusGlossary />
+            <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Atualizar tabelas V8
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -703,6 +708,9 @@ export default function V8NovaSimulacaoTab() {
                   <tr>
                     <th className="px-2 py-1 text-left">CPF</th>
                     <th className="px-2 py-1 text-left">Status</th>
+                    <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
+                      💰 Margem Disp.
+                    </th>
                     <th className="px-2 py-1 text-right">Liberado</th>
                     <th className="px-2 py-1 text-right">Parcela</th>
                     <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
@@ -721,6 +729,16 @@ export default function V8NovaSimulacaoTab() {
                         >
                           {getSimulationStatusLabel(s)}
                         </Badge>
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        {(() => {
+                          const m = (s as any).margem_valor ?? extractAvailableMargin(s.raw_response);
+                          return m != null ? (
+                            <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>

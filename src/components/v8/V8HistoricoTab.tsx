@@ -15,9 +15,11 @@ import {
   getV8StatusSnapshot,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
+import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
 import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import { AnimatedCountBadge } from './V8AnimatedCountBadge';
+import { V8StatusGlossary } from './V8StatusGlossary';
 
 // Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
 function isRetriableNow(s: any): boolean {
@@ -230,6 +232,9 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <th className="px-2 py-1 text-left">CPF</th>
                 <th className="px-2 py-1 text-left">Nome</th>
                 <th className="px-2 py-1 text-left">Status</th>
+                <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
+                  💰 Margem Disponível
+                </th>
                 <th className="px-2 py-1 text-right">Liberado</th>
                 <th className="px-2 py-1 text-right">Parcela</th>
                 <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
@@ -257,6 +262,16 @@ function BatchDetail({ batchId }: { batchId: string }) {
                       >
                         {translateV8Status(s.status)}
                       </Badge>
+                    </td>
+                    <td className="px-2 py-1 text-right">
+                      {(() => {
+                        const m = s.margem_valor ?? extractAvailableMargin(s.raw_response);
+                        return m != null ? (
+                          <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
@@ -377,7 +392,10 @@ export default function V8HistoricoTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Histórico de Lotes</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>Histórico de Lotes</span>
+          <V8StatusGlossary />
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}

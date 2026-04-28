@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useV8Operations } from '@/hooks/useV8Operations';
 import { supabase } from '@/integrations/supabase/client';
+import { V8StatusGlossary } from './V8StatusGlossary';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
@@ -249,7 +250,10 @@ export default function V8ConsultasTab() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Consultas já existentes</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Consultas já existentes</span>
+            <V8StatusGlossary />
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">

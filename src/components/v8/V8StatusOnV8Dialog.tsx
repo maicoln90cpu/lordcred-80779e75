@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -144,6 +145,35 @@ export function V8StatusOnV8Dialog({
           </div>
         ) : latest ? (
           <div className="space-y-4 text-sm">
+            {/* Bloco DESTAQUE — Margem Disponível do trabalhador */}
+            {(() => {
+              const margin =
+                extractAvailableMargin(data.result) ??
+                extractAvailableMargin(latest) ??
+                (Array.isArray(data.result?.all)
+                  ? data.result.all
+                      .map((c: any) => extractAvailableMargin(c))
+                      .find((v: number | null) => v != null) ?? null
+                  : null);
+              if (margin == null) return null;
+              return (
+                <div
+                  className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/10 p-4"
+                  title="Margem consignável disponível do trabalhador (vem da V8). Diferente da Margem LordCred (cálculo interno de 5%)."
+                >
+                  <div className="text-xs uppercase tracking-wide text-emerald-700 font-semibold flex items-center gap-1">
+                    💰 Margem disponível
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-700 mt-1">
+                    {formatMarginBRL(margin)} <span className="text-xs font-normal text-emerald-700/80">/ mês</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Teto de parcela CLT consignável que o cliente pode contratar.
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Bloco 1 — Resumo */}
             <section className="space-y-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
