@@ -336,3 +336,43 @@ Status agregados do lote são derivados em tempo real no frontend
 | Configs | — | `{ configs: [...] }` | aceita objeto **ou** array plano |
 | Cancelamento | documentado | — | não implementado |
 | Webhooks | listados | listados | não implementado |
+
+---
+
+## FAQ Operacional (linguagem leiga)
+
+### O auto-retry é de no mínimo 1 minuto?
+
+**Não.** Roda a cada **~20 segundos** efetivos. O cron do Supabase tem
+limite mínimo de 1 min, então cada execução agenda mais 2 sub-passadas
+(em 20s e 40s do mesmo minuto). Resultado: 3 ciclos por minuto.
+
+### Por que linhas com "consulta ativa" demoram para mostrar o resultado?
+
+A função `v8-active-consult-poller` busca o status na V8 e grava o snapshot
+em `raw_response.v8_status_snapshot`. Quando o snapshot existe, a UI mostra
+inline (sem precisar abrir o modal). O snapshot aparece em **5-10s** depois
+que a linha vira `active_consult` (graças ao disparo imediato do poller via
+`EdgeRuntime.waitUntil` em `v8-clt-api`). Se o WebSocket cair, a UI faz
+polling de 10s como fallback.
+
+### O modal "Ver status na V8" mostra tudo?
+
+Sim. Ele exibe:
+- **Resumo** (status, nome, criada em, motivo).
+- **Resultado da simulação** (valor liberado, parcela, margem, taxa, banco) — quando a V8 já calculou.
+- **Histórico** de todas as consultas para o CPF (`data.all`).
+- **Payload bruto (JSON)** colapsável, com `JsonTreeView`, para inspeção total.
+
+### Para que servem os botões "Retentar falhados" e "Buscar resultados pendentes"?
+
+| Botão | O que faz | Quando usar |
+|---|---|---|
+| **Retentar falhados (N)** | Reenvia a simulação do zero. Aumenta "Tentativas". Pega só `temporary_v8` e `analysis_pending`. | Linhas vermelhas com motivo "instável" ou "análise pendente". |
+| **Buscar resultados pendentes** | Pergunta à V8 se já existe resposta para consultas que enviamos mas o webhook nunca chegou. Não conta como nova tentativa. | Linhas amarelas em "aguardando V8" há +2 min. |
+
+Esses dois botões aparecem **idênticos** na Nova Simulação e no Histórico
+(paridade total). No header dos lotes do Histórico há apenas um **badge
+informativo** ("N p/ retentar") — clicar nele não dispara nada, é só
+indicador visual; a ação fica no botão dentro do lote expandido.
+

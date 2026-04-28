@@ -1,88 +1,150 @@
-Plano seguro para corrigir a falha do retry automático no V8
+## Respostas às suas dúvidas (linguagem leiga)
 
-Diagnóstico confirmado
+### 1) O auto-retry é de no mínimo 1 minuto mesmo?
 
-1. O auto-retry está rodando, mas está reenviando parte das linhas sem `config_id` e sem `parcelas`.
-   - No banco, os lotes têm `v8_batches.config_id` e `v8_batches.installments` preenchidos.
-   - Porém várias linhas em `v8_simulations` estão com `config_id = null` e `installments = null`.
-   - O cron atual usa apenas os campos da própria simulação. Quando chama `v8-clt-api/simulate_one`, a função responde `config_id é obrigatório`.
-   - Resultado visível: a tentativa sobe para 2, 3, 4 etc., mas a linha continua falhando sem realmente consultar/simular corretamente na V8.
+**Não.** Na prática roda a cada **20 segundos**, mas com um truque:
 
-2. A barra global conta apenas `temporary_v8` e `analysis_pending`.
-   - Depois que a linha vira `config_id é obrigatório`, `error_kind` fica `null`, então ela desaparece do contador de auto-retry.
-   - Por isso parece que o retry automático parou.
+- O Supabase só permite agendar cron **no mínimo a cada 1 minuto** (limite da plataforma).
+- Para contornar isso, quando o cron `v8-retry-cron-every-minute` dispara (1x por minuto), ele:
+  1. Roda a **passada principal** imediatamente (segundo 0).
+  2. Agenda **2 sub-passadas extras** para rodar nos segundos **20** e **40** do mesmo minuto.
+- Resultado: dentro de 1 minuto rodam **3 ciclos** de retry (0s, 20s, 40s).
+- Além disso, quando você cria um lote novo, são agendadas mais 3 chamadas extras em **30s, 60s e 90s** para acelerar a primeira retentativa.
 
-3. O webhook da V8 atualiza status da simulação, mas não recalcula os contadores do lote.
-   - Isso pode deixar Histórico/Nova Simulação/Consultas com números inconsistentes até outra ação atualizar.
+Então o que você vê de fato é: **uma varredura a cada ~20s**, não a cada 60s.
 
-4. Existe também um aviso React no console:
-   - `Function components cannot be given refs` vindo de `ViewV8StatusButton` dentro de Tooltip.
-   - Não é a causa principal do retry, mas é regressão visual/técnica que deve ser corrigida.
+---
 
-O que vou implementar
+### 2) Por que itens com "consulta ativa" não renderizam o resultado e preciso abrir o modal?
 
-Etapa única e segura
+**Diagnóstico:** o snapshot inline JÁ existe no código (`V8HistoricoTab` e `V8NovaSimulacaoTab` leem `raw_response.v8_status_snapshot`), mas ele **só aparece quando o poller `v8-active-consult-poller` já rodou e gravou o snapshot**.
 
-1. Corrigir `v8-retry-cron`
-   - Buscar também os dados do lote junto com a simulação.
-   - Ao reenviar para `v8-clt-api`, usar fallback:
-     - `config_id = simulation.config_id || batch.config_id`
-     - `parcelas = simulation.installments || batch.installments`
-   - Se mesmo assim faltar configuração, não gastar tentativa inútil; registrar log e pular a linha.
-   - Corrigir o retorno para mostrar claramente `retried_ok`, `retried_fail` e `skipped_missing_config`.
+O fluxo é:
+1. Linha cai em `active_consult` → fica mostrando "Buscando status na V8…" + botão "Ver status na V8".
+2. O poller (`v8-active-consult-poller-every-minute`) roda **1x por minuto** e busca o status na V8.
+3. Quando o snapshot é gravado, a UI passa a mostrar inline (Status: REJECTED / CONSENT_APPROVED / etc.).
 
-2. Corrigir `create_batch` no `v8-clt-api`
-   - Ao criar cada linha em `v8_simulations`, já salvar:
-     - `config_id`
-     - `config_name`
-     - `installments`
-     - `error_kind = 'analysis_pending'`
-   - Isso evita que novos lotes voltem a nascer sem os dados necessários para retry.
+**Problema atual:** o poller pode estar deixando linhas para trás (filtra por `v8_status_snapshot_at` antigo/nulo, mas o limite por execução pode estar baixo) — por isso você vê linhas paradas em "Buscando status na V8… (atualiza em até 1 min)" sem nunca atualizar.
 
-3. Classificar corretamente erro local de validação
-   - Quando `simulate_one` falhar antes de chamar a V8 por falta de `config_id`, `parcelas`, nome ou nascimento, salvar como `invalid_data` em vez de `null`.
-   - Assim o auto-retry não fica insistindo em erro que só configuração/dados corrigem.
+**Correção planejada:**
+- Disparar o poller **imediatamente** quando uma linha vira `active_consult` (não esperar o tick do cron).
+- Aumentar o limite por execução do poller e agendar sub-passadas (igual ao retry-cron).
+- Atualizar `v8_status_snapshot_at` mesmo quando a V8 retorna "não encontrado", para não ficar repolando o mesmo CPF.
 
-4. Criar proteção no banco para recalcular contadores do lote
-   - Adicionar função segura para recalcular `pending_count`, `success_count`, `failure_count` a partir da tabela `v8_simulations`.
-   - Usar essa função após retries e após atualizações relevantes, evitando contador travado.
-   - Isso corrige inconsistência em Histórico e Nova Simulação sem depender só de incremento manual.
+---
 
-5. Melhorar realtime/fallback nas telas
-   - Em `useV8BatchSimulations`, manter subscription e adicionar polling fallback leve de 10s enquanto o lote estiver ativo.
-   - Em `V8ConsultasTab`, também colocar fallback de 10s depois de uma busca manual, para a aba Consultas atualizar mesmo se o WebSocket cair.
-   - Ajustar a barra global para contar também linhas que estão presas com erro local conhecido, separando:
-     - auto-retry realmente ativo
-     - bloqueadas por configuração/dados
+### 3) O modal "Status da consulta na V8" mostra o payload completo?
 
-6. Corrigir aviso do Tooltip com `ViewV8StatusButton`
-   - Transformar o botão em `forwardRef` ou remover o uso problemático dentro de `TooltipTrigger asChild`.
-   - Isso limpa o console e evita comportamento estranho no botão.
+**Não.** Hoje o modal (`V8StatusOnV8Dialog`) mostra apenas:
+- Status
+- Nome
+- Criada em
+- Detail (opcional)
 
-7. Documentar e testar
-   - Atualizar a documentação V8 com a regra: retries usam fallback do lote quando a linha não tem config.
-   - Rodar testes/build aplicáveis.
-   - Verificar logs da Edge Function `v8-retry-cron` depois da correção.
+A V8 retorna **muito mais** no `check_consult_status`: parcelas, valor liberado, valor da parcela, margem, taxa, banco, prazo, motivo de rejeição etc. — tudo está em `data.latest` mas é descartado pela UI.
 
-Resultado esperado
+**Correção planejada:** expandir o modal para mostrar:
+- Bloco "Resultado da simulação" (se disponível): valor liberado, parcela, margem, prazo, banco, taxa.
+- Bloco "Histórico de consultas" (`data.all`): lista cronológica com status de cada uma.
+- Bloco "Payload bruto" colapsável usando `JsonTreeView` (já existe em `src/components/admin/JsonTreeView.tsx`) para inspeção total.
 
-- O retry automático passa a reenviar usando a tabela e parcelas corretas do lote.
-- Linhas novas não nascem mais sem `config_id`/`installments`.
-- Linhas antigas com `config_id = null` ainda conseguem retry porque o cron recupera do lote.
-- Histórico, Nova Simulação e Consultas atualizam melhor em tempo real e com fallback de 10s.
-- O botão/contador deixa de dar falsa impressão de que o retry rodou quando só aumentou tentativa com erro local.
+---
 
-Validação manual após implementação
+### 4) Para que servem "Retentar falhados" e "Buscar resultados pendentes"?
 
-1. Abrir `/admin/v8-simulador`.
-2. Criar um lote pequeno de teste.
-3. Confirmar que as linhas têm tentativas subindo apenas quando a função realmente consegue reenviar com `config_id`.
-4. Em Histórico, abrir o lote e verificar se o motivo muda sem trocar de aba.
-5. Em Consultas, buscar período e confirmar atualização automática/pulso em tempo real ou fallback.
-6. Conferir a barra global: deve mostrar retry ativo apenas quando houver itens realmente retentáveis.
-7. Verificar console: o aviso de `Function components cannot be given refs` não deve mais aparecer.
+**"Retentar falhados" (botão amarelo/azul):**
+> "Refaz a consulta **do zero** na V8 para CPFs que falharam por problema temporário."
+- Pega linhas com `status=failed` e tipo de erro `temporary_v8` (instabilidade da V8) ou `analysis_pending` (V8 ainda analisando).
+- **Reenvia a simulação** — incrementa a coluna "Tentativas".
+- **Não mexe** em `active_consult`, `existing_proposal` nem `invalid_data` (esses precisam de ação humana).
+- Use quando: você vê linhas em vermelho com motivo "instável" ou "análise pendente".
 
-Pendências depois desta correção
+**"Buscar resultados pendentes" (botão cinza):**
+> "Pergunta para a V8 se ela já tem resposta para consultas que enviamos mas o webhook nunca chegou."
+- Não reenvia nada. Apenas chama a V8 e pergunta: *"você terminou a análise daquele CPF que pedi antes?"*
+- Atualiza linhas que estão em `pending` há muito tempo (webhook perdido, V8 demorou).
+- **Não incrementa "Tentativas"** — é uma consulta de status, não nova simulação.
+- Use quando: você vê linhas presas em "aguardando V8" / "em análise" há mais de 2 minutos.
 
-- Se houver linhas antigas já marcadas como `failed` com erro `config_id é obrigatório`, elas devem voltar a ser processáveis pelo cron porque o fallback usará o `config_id` do lote. Se ainda ficarem bloqueadas, será necessário um pequeno reparo de dados para reclassificar essas linhas antigas como `analysis_pending` ou acionar uma retentativa manual controlada.
-- Não vou alterar `src/integrations/supabase/types.ts`, respeitando a regra do projeto.
+**Resumo:**
+| Botão | O que faz | Quando usar |
+|---|---|---|
+| Retentar falhados | Reenvia simulação | Linha vermelha "instável" |
+| Buscar resultados pendentes | Pergunta status | Linha amarela "aguardando" há +2min |
+
+---
+
+### 5) Por que no Histórico tem 3 botões e na Nova Simulação só 2?
+
+**Você está certo, é inconsistente.** Hoje:
+
+- **Histórico** tem 3 botões:
+  1. **"Retentar agora (N)"** — no header de cada lote (sem precisar expandir).
+  2. **"Retentar falhados (N)"** — dentro do lote expandido.
+  3. **"Buscar resultados pendentes"** — dentro do lote expandido.
+
+- **Nova Simulação** tem 2 botões (no card "Progresso do Lote"):
+  1. **"Retentar falhados"**
+  2. **"Buscar resultados pendentes"**
+
+O **"Retentar agora (N)"** do Histórico e o **"Retentar falhados (N)"** fazem **a mesma coisa** (chamam `v8-retry-cron` com `manual: true`). A diferença é só onde aparecem: o do header é um atalho para não precisar expandir o lote.
+
+**Correção planejada:** padronizar para **2 botões em ambas as telas**, com nomes idênticos:
+- "Retentar falhados (N)"
+- "Buscar resultados pendentes"
+
+E **remover** o "Retentar agora" duplicado do header (ou transformá-lo em badge clicável que apenas expande o lote e foca no botão correto). Assim você sabe que é a mesma coisa nas duas telas.
+
+---
+
+## Plano de implementação (Etapa única, segura)
+
+### 1. Modal de status V8 — mostrar payload completo
+**Arquivo:** `src/components/v8/V8StatusOnV8Dialog.tsx`
+- Adicionar bloco "Resultado da simulação" mostrando: valor liberado, parcela, margem, prazo, banco, taxa (quando presentes em `data.latest`).
+- Adicionar bloco "Todas as consultas" (lista de `data.all`) com status, data e detail de cada uma.
+- Adicionar accordion "Ver dados completos (JSON)" usando `JsonTreeView` para inspeção total.
+- Manter compatibilidade com snapshot inline (mesma fonte de dados).
+
+### 2. Render inline mais agressivo em "consulta ativa"
+**Arquivos:** `supabase/functions/v8-active-consult-poller/index.ts`, `supabase/functions/v8-clt-api/index.ts`
+- Aumentar o limite do poller por execução (de 50 → 200) e adicionar sub-passadas a 20s/40s (igual ao retry-cron).
+- Sempre atualizar `v8_status_snapshot_at` mesmo quando a V8 responde "not found", para evitar repolling infinito do mesmo CPF.
+- No `v8-clt-api/simulate_one`, quando detectar `active_consult`, **agendar imediatamente** (`EdgeRuntime.waitUntil`) uma chamada ao poller para aquele CPF específico, em vez de esperar o cron.
+- **Resultado:** snapshot aparece em 5-10s em vez de até 1 min.
+
+### 3. Padronização de botões entre Histórico e Nova Simulação
+**Arquivos:** `src/components/v8/V8HistoricoTab.tsx`, `src/components/v8/V8NovaSimulacaoTab.tsx`
+- **Remover** `BatchRetryHeaderButton` do header do lote no Histórico (era duplicado com o botão de dentro).
+- **Manter** apenas 2 botões em ambas as telas, com tooltips e textos **idênticos**:
+  - "Retentar falhados (N)" — só aparece quando N > 0.
+  - "Buscar resultados pendentes" — só aparece quando há pending.
+- Substituir o header do lote por um **badge informativo** mostrando "N para retentar" que, ao clicar, expande o lote e rola até o botão.
+
+### 4. Tooltips com explicação leiga (vai além do que tem hoje)
+- Tooltip do "Retentar falhados": *"Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade. Aumenta o número de Tentativas."*
+- Tooltip do "Buscar resultados pendentes": *"Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram. Não conta como nova tentativa."*
+
+### 5. Documentação
+**Arquivo:** `docs/V8-INTEGRATION.md`
+- Documentar as 3 perguntas de hoje em uma seção "FAQ operacional".
+- Documentar a cadência real do auto-retry (20s, não 60s).
+- Documentar para que serve cada botão.
+
+---
+
+## Resumo do que vai mudar (REGRA DE OURO)
+
+**Antes vs Depois:**
+- Antes: modal só mostra status/nome → Depois: modal mostra resultado da simulação + histórico + JSON completo.
+- Antes: linhas "consulta ativa" demoram até 60s para mostrar snapshot inline → Depois: 5-10s.
+- Antes: Histórico tem 3 botões / Nova Simulação 2 → Depois: 2 botões idênticos nos dois lugares.
+- Antes: tooltips genéricos → Depois: tooltips em linguagem leiga.
+
+**Pendências (depois desta etapa):**
+- Avaliar criar uma aba "Detalhes do CPF" dentro do próprio modal (clicável da tabela), em vez de dialog.
+- Considerar diminuir o cron do poller para 30s usando o mesmo truque de sub-passadas (hoje só o retry usa).
+
+**Prevenção de regressão:**
+- Tooltip dos botões vira fonte única de verdade — qualquer mudança de comportamento atualiza o tooltip junto.
+- Documentação do FAQ no `V8-INTEGRATION.md` evita que a confusão volte.

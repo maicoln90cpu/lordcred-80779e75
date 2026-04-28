@@ -623,7 +623,7 @@ export default function V8NovaSimulacaoTab() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    Refaz a consulta do zero na V8 para falhas temporárias (rate limit / análise pendente). Não toca em consulta ativa, proposta existente ou dados inválidos.
+                    Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade ou análise pendente. Aumenta o número de "Tentativas". Não toca em consulta ativa, proposta existente ou dados inválidos.
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -647,7 +647,7 @@ export default function V8NovaSimulacaoTab() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
+                    Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

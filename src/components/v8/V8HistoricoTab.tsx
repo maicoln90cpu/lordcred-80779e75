@@ -41,11 +41,11 @@ function isRetriableSoon(s: any): boolean {
   return ageMs <= 60_000;
 }
 
-// Botão "Retentar agora (N)" no header de cada lote — não exige expandir o detalhe.
-function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
-  const { toast } = useToast();
+// Badge informativo "N para retentar" no header de cada lote (NÃO é botão de ação).
+// Clicar nele apenas serve como indicador visual; a ação fica no botão padrão dentro do lote
+// expandido, garantindo paridade total com a tela "Nova Simulação".
+function BatchRetryHeaderBadge({ batchId }: { batchId: string }) {
   const [counts, setCounts] = useState<{ now: number; soon: number }>({ now: 0, soon: 0 });
-  const [retrying, setRetrying] = useState(false);
 
   const loadCount = async () => {
     const { data } = await supabase
@@ -70,7 +70,6 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
         () => loadCount(),
       )
       .subscribe();
-    // tick a cada 30s para reavaliar "soon → now" mesmo sem evento
     const tick = setInterval(loadCount, 30_000);
     return () => {
       supabase.removeChannel(channel);
@@ -78,48 +77,17 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
     };
   }, [batchId]);
 
-  const handleRetry = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (counts.now === 0) return;
-    setRetrying(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('v8-retry-cron', {
-        body: { batch_id: batchId, manual: true },
-      });
-      if (error) throw error;
-      toast({
-        title: 'Retentativa iniciada',
-        description: `${(data as any)?.eligible ?? counts.now} simulações reenviadas. Resultados aparecerão nesta tela em segundos.`,
-      });
-      setTimeout(loadCount, 3000);
-    } catch (err: any) {
-      toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
-    } finally {
-      setRetrying(false);
-    }
-  };
-
   if (counts.now === 0 && counts.soon === 0) return null;
 
-  const tooltip = `Conta apenas linhas que já passaram do tempo de espera (60s). Linhas recentes serão retentadas automaticamente pelo cron a cada 1 min.${counts.soon > 0 ? `\n\n${counts.soon} pendente(s) ainda no cooldown.` : ''}`;
+  const tooltip = `${counts.now} simulação(ões) prontas para retentar (clique no lote para abrir e usar "Retentar falhados").${counts.soon > 0 ? `\n${counts.soon} ainda em cooldown — o auto-retry pega automaticamente.` : ''}`;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleRetry}
-            disabled={retrying || counts.now === 0}
-            className="h-7 border-yellow-500/40 text-yellow-600 hover:bg-yellow-500/10"
-          >
-            {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-            Retentar agora ({counts.now})
-            {counts.soon > 0 && (
-              <span className="ml-1 text-[10px] text-muted-foreground">+{counts.soon} aguard.</span>
-            )}
-          </Button>
+          <Badge variant="outline" className="border-yellow-500/40 text-yellow-600 cursor-help">
+            {counts.now > 0 ? `${counts.now} p/ retentar` : `${counts.soon} aguard.`}
+          </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-xs">
           {tooltip}
@@ -235,7 +203,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  Refaz a consulta do zero na V8 para falhas temporárias (rate limit / análise pendente).
+                  Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade ou análise pendente. Aumenta o número de "Tentativas".
                 </TooltipContent>
               </Tooltip>
             )}
@@ -248,7 +216,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook.
+                  Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa.
                 </TooltipContent>
               </Tooltip>
             )}
@@ -430,7 +398,7 @@ export default function V8HistoricoTab() {
                     {b.failure_count} falha
                   </AnimatedCountBadge>
                   <Badge variant="outline">{successRate}%</Badge>
-                  <BatchRetryHeaderButton batchId={b.id} />
+                  <BatchRetryHeaderBadge batchId={b.id} />
                 </div>
                 {isOpen && <div className="px-3 pb-3"><BatchDetail batchId={b.id} /></div>}
               </div>

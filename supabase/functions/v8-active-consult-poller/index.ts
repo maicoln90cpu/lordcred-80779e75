@@ -22,7 +22,7 @@ const corsHeaders = {
 
 // Não revisita snapshots recentes (economia de chamadas à V8).
 const REFRESH_AFTER_SECONDS = 120;
-const BATCH_LIMIT = 30;
+const BATCH_LIMIT = 200;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,16 +34,41 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Aceita { batch_id?, simulation_id? } para chamadas manuais focadas.
+  // Aceita { batch_id?, simulation_id?, sub_pass?, manual? } para chamadas focadas.
   let batchId: string | null = null;
   let simulationId: string | null = null;
+  let subPass = 0;
+  let manualMode = false;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as any));
       batchId = body?.batch_id ?? null;
       simulationId = body?.simulation_id ?? null;
+      subPass = Number(body?.sub_pass ?? 0) || 0;
+      manualMode = !!body?.manual;
     }
   } catch (_) { /* ignore */ }
+
+  // Workaround para o limite de 1 min do pg_cron: agenda 2 sub-passadas extras
+  // a 20s e 40s para efetivar uma cadência de ~20s (igual ao retry-cron).
+  if (!manualMode && !simulationId && subPass === 0) {
+    for (const delaySec of [20, 40]) {
+      try {
+        // @ts-ignore EdgeRuntime is available in Supabase Edge Runtime
+        EdgeRuntime.waitUntil((async () => {
+          await new Promise((r) => setTimeout(r, delaySec * 1000));
+          await fetch(`${supabaseUrl}/functions/v1/v8-active-consult-poller`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({ sub_pass: delaySec === 20 ? 1 : 2 }),
+          }).catch(() => {});
+        })());
+      } catch (_) { /* EdgeRuntime indisponível em dev: ignora */ }
+    }
+  }
 
   try {
     const cutoffIso = new Date(Date.now() - REFRESH_AFTER_SECONDS * 1000).toISOString();
@@ -87,7 +112,14 @@ serve(async (req) => {
         });
 
         const json = await resp.json().catch(() => ({} as any));
+
+        // Mesmo quando a V8 não tem dados (success=false ou data vazio), marcamos
+        // v8_status_snapshot_at para não repolling no próximo ciclo (cooldown 120s).
         if (!json?.success || !json?.data) {
+          await supabase
+            .from("v8_simulations")
+            .update({ v8_status_snapshot_at: new Date().toISOString() })
+            .eq("id", row.id);
           failed += 1;
           continue;
         }

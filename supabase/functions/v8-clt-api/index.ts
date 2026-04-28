@@ -1341,6 +1341,26 @@ const handler = async (req: Request) => {
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
+
+            // Quando cai em "consulta ativa", dispara o poller IMEDIATAMENTE para
+            // este CPF, sem esperar o tick de 1 min do cron — snapshot inline aparece em ~5-10s.
+            if ((result as any).kind === "active_consult") {
+              try {
+                const supabaseUrl2 = Deno.env.get("SUPABASE_URL")!;
+                const serviceRoleKey2 = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                // @ts-ignore EdgeRuntime exists in Supabase Edge Runtime
+                EdgeRuntime.waitUntil(
+                  fetch(`${supabaseUrl2}/functions/v1/v8-active-consult-poller`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${serviceRoleKey2}`,
+                    },
+                    body: JSON.stringify({ simulation_id: params.simulation_id, manual: true }),
+                  }).catch(() => {}),
+                );
+              } catch (_) { /* ignore */ }
+            }
           } else {
             await supabase
               .from("v8_simulations")
