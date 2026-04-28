@@ -150,7 +150,7 @@ export default function RatesCLTTab() {
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
             <Button variant="outline" size="sm" onClick={() => {
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
-              const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': r.table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));
+              const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': r.table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Valor Min': r.min_value ?? 0, 'Valor Max': r.max_value ?? 999999999, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));
               const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas CLT'); XLSX.writeFile(wb, 'taxas_clt_parceiros.xlsx');
               toast({ title: `${rates.length} taxas exportadas` });
             }}><Download className="w-4 h-4 mr-1" /> Exportar Taxas</Button>
@@ -181,6 +181,8 @@ export default function RatesCLTTab() {
                 <TSHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
                 <TSHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
                 <TSHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
+                <TSHead label="Valor Min" sortKey="min_value" sort={sort} toggle={toggle} className="text-right" />
+                <TSHead label="Valor Max" sortKey="max_value" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
                 <TSHead label="Taxa" sortKey="rate" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Obs" sortKey="obs" sort={sort} toggle={toggle} />
@@ -198,6 +200,8 @@ export default function RatesCLTTab() {
                   <TableCell className="text-xs">{r.table_key || '-'}</TableCell>
                   <TableCell>{r.term_min}</TableCell>
                   <TableCell>{r.term_max}</TableCell>
+                  <TableCell className="text-right text-xs">{(r.min_value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                  <TableCell className="text-right text-xs">{(r.max_value ?? 999999999) >= 999999999 ? '∞' : (r.max_value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
                   <TableCell>{r.has_insurance ? 'Sim' : 'Não'}</TableCell>
                   <TableCell className="text-right">{r.rate}%</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.obs || '-'}</TableCell>
@@ -221,10 +225,12 @@ export default function RatesCLTTab() {
               <div><Label>Banco *</Label><Input value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })} /></div>
               <div><Label>Prazo Min</Label><Input type="number" value={form.term_min} onChange={e => setForm({ ...form, term_min: e.target.value })} /></div>
               <div><Label>Prazo Max</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
+              <div><Label>Valor Mín. (R$)</Label><Input type="number" step="0.01" value={form.min_value} onChange={e => setForm({ ...form, min_value: e.target.value })} placeholder="0" /></div>
+              <div><Label>Valor Máx. (R$)</Label><Input type="number" step="0.01" value={form.max_value} onChange={e => setForm({ ...form, max_value: e.target.value })} placeholder="999999999 = sem limite" /></div>
               <div className="flex items-end gap-2 pb-1"><Switch checked={form.has_insurance} onCheckedChange={v => setForm({ ...form, has_insurance: v })} /><Label>Seguro</Label></div>
               <div><Label>Taxa (%) *</Label><Input type="number" step="0.01" value={form.rate} onChange={e => setForm({ ...form, rate: e.target.value })} /></div>
               <div><Label>Chave Tabela</Label><Input value={form.table_key} onChange={e => setForm({ ...form, table_key: e.target.value })} placeholder="Ex: SONHO, FOCO, 2 Parcela" /></div>
-              <div><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: CLT - Ambos seguro" /></div>
+              <div><Label>Observação</Label><Input value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Ex: REP CLT faixa 1k-5k" /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
@@ -254,6 +260,7 @@ export default function RatesCLTTab() {
                         <TableHead className="text-xs p-1">Banco</TableHead>
                         <TableHead className="text-xs p-1">Tabela</TableHead>
                         <TableHead className="text-xs p-1">Prazo</TableHead>
+                        <TableHead className="text-xs p-1">Valor</TableHead>
                         <TableHead className="text-xs p-1">Seguro</TableHead>
                         <TableHead className="text-xs p-1 text-right">Taxa</TableHead>
                       </TableRow></TableHeader>
@@ -263,11 +270,14 @@ export default function RatesCLTTab() {
                             <TableCell className="p-1">{r.bank}</TableCell>
                             <TableCell className="p-1">{r.table_key || '-'}</TableCell>
                             <TableCell className="p-1">{r.term_min}-{r.term_max}</TableCell>
+                            <TableCell className="p-1 text-xs">
+                              {(r.min_value ?? 0).toLocaleString('pt-BR')}–{(r.max_value ?? 0) >= 999999999 ? '∞' : (r.max_value ?? 0).toLocaleString('pt-BR')}
+                            </TableCell>
                             <TableCell className="p-1">{r.has_insurance ? 'Sim' : 'Não'}</TableCell>
                             <TableCell className="p-1 text-right">{r.rate}%</TableCell>
                           </TableRow>
                         ))}
-                        {importPreview.length > 10 && <TableRow><TableCell colSpan={5} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
+                        {importPreview.length > 10 && <TableRow><TableCell colSpan={6} className="p-1 text-center text-muted-foreground">...e mais {importPreview.length - 10}</TableCell></TableRow>}
                       </TableBody>
                     </Table>
                   </div>
