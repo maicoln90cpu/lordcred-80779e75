@@ -4034,43 +4034,58 @@ export type Database = {
       }
       v8_settings: {
         Row: {
+          auto_simulate_after_consult: boolean | null
           background_retry_enabled: boolean
+          consult_throttle_ms: number | null
           created_at: string
           id: string
           max_auto_retry_attempts: number
           retry_batch_size: number
           retry_max_backoff_seconds: number
           retry_min_backoff_seconds: number
+          simulate_throttle_ms: number | null
+          simulation_strategy: string | null
           singleton: boolean
           sound_on_complete: boolean
           updated_at: string
           updated_by: string | null
+          webhook_wait_timeout_min: number | null
         }
         Insert: {
+          auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
+          consult_throttle_ms?: number | null
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
           retry_batch_size?: number
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number
+          simulate_throttle_ms?: number | null
+          simulation_strategy?: string | null
           singleton?: boolean
           sound_on_complete?: boolean
           updated_at?: string
           updated_by?: string | null
+          webhook_wait_timeout_min?: number | null
         }
         Update: {
+          auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
+          consult_throttle_ms?: number | null
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
           retry_batch_size?: number
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number
+          simulate_throttle_ms?: number | null
+          simulation_strategy?: string | null
           singleton?: boolean
           sound_on_complete?: boolean
           updated_at?: string
           updated_by?: string | null
+          webhook_wait_timeout_min?: number | null
         }
         Relationships: []
       }
@@ -4168,6 +4183,9 @@ export type Database = {
           sim_month_min: number | null
           sim_value_max: number | null
           sim_value_min: number | null
+          simulate_attempted_at: string | null
+          simulate_status: string | null
+          simulation_strategy: string | null
           status: string
           total_value: number | null
           updated_at: string
@@ -4209,6 +4227,9 @@ export type Database = {
           sim_month_min?: number | null
           sim_value_max?: number | null
           sim_value_min?: number | null
+          simulate_attempted_at?: string | null
+          simulate_status?: string | null
+          simulation_strategy?: string | null
           status?: string
           total_value?: number | null
           updated_at?: string
@@ -4250,6 +4271,9 @@ export type Database = {
           sim_month_min?: number | null
           sim_value_max?: number | null
           sim_value_min?: number | null
+          simulate_attempted_at?: string | null
+          simulate_status?: string | null
+          simulation_strategy?: string | null
           status?: string
           total_value?: number | null
           updated_at?: string
