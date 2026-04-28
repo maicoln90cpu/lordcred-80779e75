@@ -16,7 +16,7 @@ type Row = { status: string; meaning: string; action: string; tone?: Tone };
 /** Status oficiais do ciclo de CONSULTA de margem. */
 const CONSULT_ROWS: Row[] = [
   { status: 'WAITING_CONSENT', meaning: 'Termo de consentimento criado, aguardando autorização.', action: 'Aguardar — sistema autoriza sozinho.', tone: 'wait' },
-  { status: 'CONSENT_APPROVED', meaning: 'Termo autorizado. V8 vai iniciar a consulta na Dataprev.', action: 'Aguardar — ainda NÃO é resultado final.', tone: 'wait' },
+  { status: 'CONSENT_APPROVED', meaning: 'Trabalhador autorizou a consulta de margem. A V8 já tem o valor mensal disponível (availableMarginValue), MAS o cálculo de parcela/valor liberado ainda NÃO foi feito — é uma chamada separada (/simulation).', action: 'Clicar em "Simular selecionados" no lote OU ativar o toggle "Simular automaticamente após consulta".', tone: 'wait' },
   { status: 'WAITING_CONSULT', meaning: 'Aguardando retorno da consulta Dataprev.', action: 'Aguardar.', tone: 'wait' },
   { status: 'WAITING_CREDIT_ANALYSIS', meaning: 'Aguardando análise de crédito da V8.', action: 'Aguardar.', tone: 'wait' },
   { status: 'SUCCESS', meaning: 'Consulta concluída com margem disponível. RESULTADO FINAL POSITIVO.', action: 'Trabalhar o lead / rodar simulação financeira.', tone: 'ok' },
