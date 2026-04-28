@@ -1008,6 +1008,10 @@ async function actionCreateBatch(
     birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
     status: "pending",
     error_kind: "analysis_pending",
+    // Persistir tabela e parcelas no nascimento — auto-retry depende disso.
+    config_id: payload.config_id,
+    config_name: payload.config_label ?? null,
+    installments: payload.parcelas,
   }));
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
