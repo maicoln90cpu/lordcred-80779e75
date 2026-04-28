@@ -64,3 +64,36 @@ export function stringifyV8Payload(rawResponse: V8RawResponse) {
     return String(payload);
   }
 }
+
+/**
+ * Remove linhas duplicadas (preservando a ordem) de uma string multilinha.
+ * Útil porque tentativas sucessivas concatenam o mesmo texto de orientação
+ * em `error_message`, gerando 3+ repetições da mesma frase na UI.
+ */
+export function dedupeLines(text: string | null | undefined): string {
+  if (!text) return '';
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/**
+ * Mensagem única e limpa para exibir na UI: combina headline + error_message
+ * removendo linhas repetidas. Mantém apenas a primeira ocorrência de cada frase.
+ */
+export function getV8ErrorMessageDeduped(
+  rawResponse: V8RawResponse,
+  errorMessage?: string | null,
+): string {
+  const headline = getV8ErrorHeadline(rawResponse, errorMessage);
+  const combined = [headline, errorMessage].filter(Boolean).join('\n');
+  return dedupeLines(combined);
+}
