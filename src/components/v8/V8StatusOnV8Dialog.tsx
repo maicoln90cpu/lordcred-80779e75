@@ -95,11 +95,15 @@ export function V8StatusOnV8Dialog({
 
 /**
  * Botão padrão "Ver status na V8" — reutilizado nas tabelas de Nova Simulação e Histórico.
+ * Usa forwardRef porque pode ser embrulhado em <TooltipTrigger asChild>.
  */
-export function ViewV8StatusButton({ onClick }: { onClick: () => void }) {
+export const ViewV8StatusButton = forwardRef<
+  HTMLButtonElement,
+  { onClick: () => void } & React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function ViewV8StatusButton({ onClick, ...rest }, ref) {
   return (
-    <Button size="sm" variant="outline" onClick={onClick}>
+    <Button ref={ref} size="sm" variant="outline" onClick={onClick} {...rest}>
       <Search className="w-3 h-3 mr-1" /> Ver status na V8
     </Button>
   );
-}
+});
