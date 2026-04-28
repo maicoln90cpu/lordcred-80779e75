@@ -1278,6 +1278,7 @@ const handler = async (req: Request) => {
             guidance: (result as any)?.guidance ?? null,
             error: (result as any)?.error ?? null,
             released_value: (result as any)?.data?.released_value ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         if (params?.simulation_id) {
