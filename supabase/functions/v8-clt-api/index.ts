@@ -1617,13 +1617,16 @@ const handler = async (req: Request) => {
               } catch (_) { /* ignore */ }
             }
           } else {
+            // Mesma proteção de active_consult — pode chegar aqui se a classificação
+            // vier do step `consult` (não `consult_status`). Nunca virar failed.
+            const isActiveConsult = (result as any).kind === "active_consult";
             await supabase
               .from("v8_simulations")
               .update({
-                status: "failed",
-                // Persiste error_kind em coluna dedicada para o cron de retry.
+                status: isActiveConsult ? "pending" : "failed",
                 error_kind: (result as any).kind ?? null,
                 error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
+                webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
                 raw_response: {
                   kind: (result as any).kind ?? null,
                   step: (result as any).step ?? null,
@@ -1636,7 +1639,7 @@ const handler = async (req: Request) => {
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
-            if (params.batch_id) {
+            if (params.batch_id && !isActiveConsult) {
               await supabase.rpc("v8_increment_batch_failure", {
                 _batch_id: params.batch_id,
               });
