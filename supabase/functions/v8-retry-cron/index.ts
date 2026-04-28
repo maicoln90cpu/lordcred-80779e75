@@ -132,6 +132,7 @@ serve(async (req) => {
     let failCount = 0;
     let skippedMissingConfig = 0;
     const touchedBatchIds = new Set<string>();
+    const perSimResults: Array<Record<string, unknown>> = [];
 
     for (const sim of eligible) {
       // Fallback: usa config/parcelas do lote quando a sim está sem
