@@ -404,11 +404,24 @@ export default function V8WebhooksTab() {
                     Nenhum webhook encontrado com esses filtros.
                   </td></tr>
                 )}
-                {!loading && filtered.map((log) => (
+                {!loading && filtered.map((log) => {
+                  const cpf = cpfMap[log.id];
+                  return (
                   <tr key={log.id} className="border-t">
                     <td className="px-2 py-1 whitespace-nowrap">{formatDateTime(log.received_at)}</td>
                     <td className="px-2 py-1">{getTypeBadge(log.event_type)}</td>
-                    <td className="px-2 py-1 font-mono">{maskCpfDigits(cpfMap[log.id])}</td>
+                    <td className="px-2 py-1 font-mono">
+                      {cpf ? (
+                        maskCpfDigits(cpf)
+                      ) : (
+                        <span
+                          className="text-muted-foreground cursor-help"
+                          title="Sem CPF: a V8 não envia CPF nos webhooks. Provavelmente esta consulta foi aberta fora do LordCred (em outra plataforma ou direto na V8). Se for um contrato seu, abra os detalhes para ver o consult_id e cruzar manualmente."
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-1">{log.status || '—'}</td>
                     <td className="px-2 py-1">{getResultBadge(log)}</td>
                     <td className="px-2 py-1 text-right">
