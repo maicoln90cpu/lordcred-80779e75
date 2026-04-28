@@ -433,3 +433,54 @@ Quando o poller pergunta à V8 e a V8 responde `success` mas sem dados,
 gravamos uma marcação amigável. A linha mostra essa frase + botão
 "Ver status na V8" para o operador forçar nova consulta manual.
 
+
+---
+
+## Margem Disponível vs Margem LordCred
+
+Dois conceitos com o mesmo nome — **não confundir**:
+
+| Conceito | Origem | Significado | Onde aparece na UI |
+|---|---|---|---|
+| **Margem Disponível** (`availableMarginValue`) | V8 (webhook + check_consult_status) | Valor LIVRE mensal que o trabalhador tem para comprometer com nova operação consignada CLT. É a info que o operador usa para qualificar o lead. | Coluna "💰 Margem Disp." (verde) na Nova Simulação e Histórico. Bloco em destaque no topo do modal "Ver status na V8". |
+| **Margem LordCred** (`company_margin` / `margem_valor`) — *atenção: o nome da coluna do banco `margem_valor` é usado para a margem da V8, NÃO para a interna* | Cálculo interno LordCred | 5% sobre o `released_value` (configurável). Não é enviado à V8. Indica o quanto a empresa cobra acima do valor liberado. | Coluna "Margem LordCred" nas tabelas e linha "Margem LordCred" no modal. |
+
+⚠️ **Atenção semântica**: a coluna `v8_simulations.margem_valor` armazena o
+`availableMarginValue` (margem do TRABALHADOR), não a margem da empresa.
+A margem da empresa fica em `company_margin`.
+
+### Onde a margem disponível é extraída
+
+Helper puro: `src/lib/v8MarginExtractor.ts → extractAvailableMargin()`. Tenta
+caminhos conhecidos do payload V8 nesta ordem:
+
+1. `availableMarginValue` (raiz — formato webhook)
+2. `available_margin_value` (snake_case)
+3. `availableMargin`, `marginValue` (aliases)
+4. `result.availableMarginValue`, `data.availableMarginValue`, `consult.result.availableMarginValue`
+5. `latest.availableMarginValue`, `v8_status_snapshot.latest.availableMarginValue` (snapshot do poller)
+
+Mantenha esta lista sincronizada com:
+- `supabase/functions/v8-webhook/index.ts` (extração no webhook)
+- `supabase/functions/v8-active-consult-poller/index.ts` (extração no snapshot)
+
+Cobertura: `src/lib/__tests__/v8MarginExtractor.test.ts` (10 testes).
+
+---
+
+## Glossário de Status V8 (UI)
+
+Componente: `src/components/v8/V8StatusGlossary.tsx`. Aparece como um botão
+"O que cada status significa?" no header das três abas (Nova Simulação,
+Consultas, Histórico).
+
+| Status | Significado | Próxima ação |
+|---|---|---|
+| `WAITING_CONSENT` | Termo criado, aguardando autorização interna. | Aguardar (sistema autoriza sozinho). |
+| `CONSENT_APPROVED` | Termo autorizado, V8 consultando o averbador. | Aguardar resultado. |
+| `SUCCESS` | Consulta concluída com margem disponível. | Trabalhar lead / rodar simulação. |
+| `REJECTED` | Cliente sem margem ou inelegível. | Descartar lead. |
+| `WAITING_*` (outros) | Etapas intermediárias da V8. | Aguardar. |
+| `temporary_v8` | Instabilidade ou rate limit da V8. | Botão "Retentar falhados". |
+| `analysis_pending` | V8 ainda processando do lado dela. | Aguardar / "Buscar resultados pendentes". |
+| `active_consult` | Já existe consulta ativa para o CPF. | Sistema busca status sozinho; manualmente "Ver status na V8". |
