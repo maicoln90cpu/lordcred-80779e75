@@ -443,7 +443,7 @@ export default function V8WebhooksTab() {
                     <td className="px-2 py-1">{log.status || '—'}</td>
                     <td className="px-2 py-1">{getResultBadge(log)}</td>
                     <td className="px-2 py-1 text-right">
-                      <Button variant="outline" size="sm" onClick={() => setSelected(log)}>
+                      <Button variant="outline" size="sm" onClick={() => openDetails(log)}>
                         Ver detalhes
                       </Button>
                     </td>
