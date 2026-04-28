@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface V8Batch {
@@ -75,42 +75,78 @@ export interface V8Simulation {
   raw_response: any;
   processed_at: string | null;
   created_at: string;
+  webhook_status?: string | null;
 }
 
+/**
+ * Hook realtime para simulações de um lote.
+ *
+ * Padrão "subscribe-then-fetch" para evitar perder updates rápidos entre
+ * o fetch inicial e o subscribe. Também expõe `lastUpdateAt` para a UI
+ * mostrar "atualizado há Xs" e dar feedback de que o realtime está vivo.
+ *
+ * Pré-requisito: tabela `v8_simulations` precisa estar na publicação
+ * `supabase_realtime` com REPLICA IDENTITY FULL (migração 2026-04-28).
+ */
 export function useV8BatchSimulations(batchId: string | null) {
   const [simulations, setSimulations] = useState<V8Simulation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastUpdateAt, setLastUpdateAt] = useState<Date | null>(null);
+  const reloadingRef = useRef(false);
 
   const reload = useCallback(async () => {
     if (!batchId) {
       setSimulations([]);
       return;
     }
+    if (reloadingRef.current) return;
+    reloadingRef.current = true;
     setLoading(true);
     const { data, error } = await supabase
       .from('v8_simulations')
       .select('*')
       .eq('batch_id', batchId)
       .order('created_at', { ascending: true });
-    if (!error && data) setSimulations(data as unknown as V8Simulation[]);
+    if (!error && data) {
+      setSimulations(data as unknown as V8Simulation[]);
+      setLastUpdateAt(new Date());
+    }
     setLoading(false);
+    reloadingRef.current = false;
   }, [batchId]);
 
   useEffect(() => {
-    reload();
     if (!batchId) return;
+    let cancelled = false;
+
+    // Subscribe-then-fetch: primeiro liga o canal, depois faz a 1ª carga.
+    // Assim qualquer UPDATE que chegue durante o fetch já vai ser refletido
+    // no próximo reload disparado pelo evento.
     const channel = supabase
       .channel(`v8-sims-${batchId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'v8_simulations', filter: `batch_id=eq.${batchId}` },
-        () => reload()
+        {
+          event: '*',
+          schema: 'public',
+          table: 'v8_simulations',
+          filter: `batch_id=eq.${batchId}`,
+        },
+        () => {
+          if (!cancelled) reload();
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED' && !cancelled) {
+          reload();
+        }
+      });
+
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [batchId, reload]);
 
-  return { simulations, loading, reload };
+  return { simulations, loading, reload, lastUpdateAt };
 }

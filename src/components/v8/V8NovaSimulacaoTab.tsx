@@ -9,6 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Play, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import {
   Dialog,
   DialogContent,
@@ -114,7 +116,7 @@ export default function V8NovaSimulacaoTab() {
   const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
   const backgroundRetryEnabled = v8Settings?.background_retry_enabled ?? true;
 
-  const { simulations } = useV8BatchSimulations(activeBatchId);
+  const { simulations, lastUpdateAt } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
   const invalidDateIssue = pasteAnalysis.issues.find((issue) => issue.code === 'invalid_date');
   const blockingIssues = pasteAnalysis.issues.filter(
@@ -607,39 +609,64 @@ export default function V8NovaSimulacaoTab() {
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Progresso do Lote</CardTitle>
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={running}
-                onClick={handleRetryFailed}
-                title="Re-dispara apenas falhas temporárias (rate limit / análise pendente). Não toca em consulta ativa, proposta existente ou dados inválidos."
-              >
-                <RefreshCw className="w-3 h-3 mr-1" /> Retentar falhados
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    const { data, error } = await supabase.functions.invoke('v8-webhook', {
-                      body: { action: 'replay_pending', limit: 500 },
-                    });
-                    if (error) throw error;
-                    toast.success(`Reprocessado: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
-                  } catch (e: any) {
-                    toast.error(`Falha ao reprocessar: ${e?.message || e}`);
-                  }
-                }}
-                title="Use se as linhas ficarem em 'aguardando' por mais de 2 minutos"
-              >
-                <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar pendentes
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={running}
+                      onClick={handleRetryFailed}
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" /> Retentar falhados
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Refaz a consulta do zero na V8 para falhas temporárias (rate limit / análise pendente). Não toca em consulta ativa, proposta existente ou dados inválidos.
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const { data, error } = await supabase.functions.invoke('v8-webhook', {
+                            body: { action: 'replay_pending', limit: 500, batch_id: activeBatchId },
+                          });
+                          if (error) throw error;
+                          toast.success(`Resultados pendentes buscados: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
+                        } catch (e: any) {
+                          toast.error(`Falha ao buscar pendentes: ${e?.message || e}`);
+                        }
+                      }}
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" /> Buscar resultados pendentes
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {(() => {
+              const autoRetryActive = simulations.filter((s: any) => {
+                const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                if (!isRetriableErrorKind(kind)) return false;
+                if (s.status === 'failed') return true;
+                if (s.status === 'pending' && s.last_attempt_at) return true;
+                return false;
+              }).length;
+              return <AutoRetryIndicator retryCount={autoRetryActive} maxAttempts={maxAutoRetry} />;
+            })()}
             <div className="flex justify-between text-sm">
               <span>{done} / {total} ({pct}%)</span>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <RealtimeFreshness since={lastUpdateAt} />
                 <Badge variant="default">{success} ok</Badge>
                 <Badge variant="destructive">{failed} falha</Badge>
               </div>
