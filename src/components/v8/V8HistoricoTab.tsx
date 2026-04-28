@@ -34,13 +34,10 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
   const loadCount = async () => {
     const { data } = await supabase
       .from('v8_simulations')
-      .select('id, raw_response')
+      .select('id, status, raw_response, error_kind, last_attempt_at')
       .eq('batch_id', batchId)
-      .eq('status', 'failed');
-    const retriable = (data || []).filter((s: any) => {
-      const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return isRetriableErrorKind(kind);
-    });
+      .in('status', ['failed', 'pending']);
+    const retriable = (data || []).filter((s: any) => isRetriableSimulation(s));
     setCount(retriable.length);
   };
 
