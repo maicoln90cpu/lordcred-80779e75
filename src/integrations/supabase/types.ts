@@ -4152,6 +4152,13 @@ export type Database = {
             referencedRelation: "v8_simulations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "v8_simulation_attempts_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "v8_simulations_audit"
+            referencedColumns: ["simulation_id"]
+          },
         ]
       }
       v8_simulations: {
@@ -4556,6 +4563,78 @@ export type Database = {
           total_released: number | null
         }
         Relationships: []
+      }
+      v8_simulations_audit: {
+        Row: {
+          batch_id: string | null
+          cpf: string | null
+          created_at: string | null
+          current_error_kind: string | null
+          current_error_message: string | null
+          current_status: string | null
+          installment_value: number | null
+          installments: number | null
+          margem_valor: number | null
+          migration_action: string | null
+          migration_fixed_at: string | null
+          name: string | null
+          processed_at: string | null
+          released_value: number | null
+          simulation_id: string | null
+          v8_snapshot_status: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          current_error_kind?: string | null
+          current_error_message?: string | null
+          current_status?: string | null
+          installment_value?: number | null
+          installments?: number | null
+          margem_valor?: number | null
+          migration_action?: never
+          migration_fixed_at?: never
+          name?: string | null
+          processed_at?: string | null
+          released_value?: number | null
+          simulation_id?: string | null
+          v8_snapshot_status?: never
+        }
+        Update: {
+          batch_id?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          current_error_kind?: string | null
+          current_error_message?: string | null
+          current_status?: string | null
+          installment_value?: number | null
+          installments?: number | null
+          margem_valor?: number | null
+          migration_action?: never
+          migration_fixed_at?: never
+          name?: string | null
+          processed_at?: string | null
+          released_value?: number | null
+          simulation_id?: string | null
+          v8_snapshot_status?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v8_simulations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batch_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v8_simulations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {

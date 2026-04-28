@@ -33,6 +33,7 @@ import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { V8StatusGlossary } from './V8StatusGlossary';
 import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
+import { MargemDispCell } from './MargemDispCell';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -964,14 +965,7 @@ export default function V8NovaSimulacaoTab() {
                         })()}
                       </td>
                       <td className="px-2 py-1 text-right">
-                        {(() => {
-                          const m = (s as any).margem_valor ?? extractAvailableMargin(s.raw_response);
-                          return m != null ? (
-                            <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          );
-                        })()}
+                        <MargemDispCell simulation={s as any} />
                       </td>
                       <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>

@@ -16,6 +16,7 @@ import {
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
+import { MargemDispCell } from './MargemDispCell';
 import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import { AnimatedCountBadge } from './V8AnimatedCountBadge';
@@ -293,14 +294,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                       })()}
                     </td>
                     <td className="px-2 py-1 text-right">
-                      {(() => {
-                        const m = s.margem_valor ?? extractAvailableMargin(s.raw_response);
-                        return m != null ? (
-                          <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        );
-                      })()}
+                      <MargemDispCell simulation={s as any} />
                     </td>
                     <td className="px-2 py-1 text-left">
                       {(() => {
