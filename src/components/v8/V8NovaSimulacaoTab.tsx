@@ -23,6 +23,7 @@ import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
@@ -50,7 +51,7 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     if (ws.startsWith('WAITING_')) return 'em análise';
     return 'aguardando V8';
   }
-  return simulation.status;
+  return translateV8Status(simulation.status);
 }
 
 function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {

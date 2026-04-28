@@ -10,11 +10,12 @@ import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 
 // Retentável: status failed OU pending "preso" (já tentou + classificado como retentável + última tentativa há +60s).
 function isRetriableSimulation(s: any): boolean {
-  const kind = s?.raw_response?.kind || s?.raw_response?.error_kind || s?.error_kind || null;
+  const kind = s?.error_kind || s?.raw_response?.kind || s?.raw_response?.error_kind || null;
   if (!kind || !isRetriableErrorKind(kind)) return false;
   if (s.status === 'failed') return true;
   if (s.status === 'pending') {
@@ -41,8 +42,21 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
     setCount(retriable.length);
   };
 
+  // Realtime: recarrega contagem sempre que qualquer simulação do lote mudar (insert/update).
+  // Sem isso o número ficava parado e o usuário precisava trocar de aba pra ver o cron progredir.
   useEffect(() => {
     loadCount();
+    const channel = supabase
+      .channel(`v8-retry-count-${batchId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'v8_simulations', filter: `batch_id=eq.${batchId}` },
+        () => loadCount(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [batchId]);
 
   const handleRetry = async (e: React.MouseEvent) => {
@@ -150,7 +164,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <Badge
                   variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
                 >
-                  {s.status}
+                  {translateV8Status(s.status)}
                 </Badge>
               </td>
               <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
@@ -221,7 +235,7 @@ export default function V8HistoricoTab() {
                     </div>
                   </div>
                   <Badge variant={b.status === 'completed' ? 'default' : 'secondary'}>
-                    {b.status}
+                    {translateV8Status(b.status)}
                   </Badge>
                   <Badge variant="outline">{b.success_count}/{b.total_count} ok</Badge>
                   <Badge variant="outline">{successRate}%</Badge>
