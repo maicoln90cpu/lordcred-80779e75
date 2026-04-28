@@ -1029,7 +1029,8 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <DialogContent className="max-w-lg">
