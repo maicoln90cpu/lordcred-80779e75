@@ -23,6 +23,7 @@ import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
@@ -50,7 +51,7 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     if (ws.startsWith('WAITING_')) return 'em análise';
     return 'aguardando V8';
   }
-  return simulation.status;
+  return translateV8Status(simulation.status);
 }
 
 function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {
@@ -395,9 +396,15 @@ export default function V8NovaSimulacaoTab() {
       if (!fresh) break;
 
       const candidates = fresh.filter((s: any) => {
-        if (s.status !== 'failed') return false;
+        // Inclui pending "preso" (rate-limit assíncrono via webhook), não só failed.
         const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-        return shouldAutoRetry(kind, s.attempt_count, maxAutoRetry);
+        if (!isRetriableErrorKind(kind)) return false;
+        if (s.status === 'failed') return shouldAutoRetry(kind, s.attempt_count, maxAutoRetry);
+        if (s.status === 'pending' && s.last_attempt_at) {
+          const ageMs = Date.now() - new Date(s.last_attempt_at).getTime();
+          return ageMs > 60_000 && shouldAutoRetry(kind, s.attempt_count, maxAutoRetry);
+        }
+        return false;
       });
 
       if (candidates.length === 0) {

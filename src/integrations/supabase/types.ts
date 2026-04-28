@@ -4143,6 +4143,7 @@ export type Database = {
           cpf: string
           created_at: string
           created_by: string | null
+          error_kind: string | null
           error_message: string | null
           id: string
           installment_value: number | null
@@ -4175,6 +4176,7 @@ export type Database = {
           cpf: string
           created_at?: string
           created_by?: string | null
+          error_kind?: string | null
           error_message?: string | null
           id?: string
           installment_value?: number | null
@@ -4207,6 +4209,7 @@ export type Database = {
           cpf?: string
           created_at?: string
           created_by?: string | null
+          error_kind?: string | null
           error_message?: string | null
           id?: string
           installment_value?: number | null
