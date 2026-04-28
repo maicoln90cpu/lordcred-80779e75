@@ -1423,6 +1423,7 @@ const handler = async (req: Request) => {
             },
             total: (result as any)?.data?.total ?? null,
             error: (result as any)?.error ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         // Kick-start do auto-retry: agenda 3 disparos do v8-retry-cron nos próximos 90s,
