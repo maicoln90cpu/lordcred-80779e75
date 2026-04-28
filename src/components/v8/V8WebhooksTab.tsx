@@ -39,6 +39,9 @@ type WebhookLog = {
   consult_id: string | null;
   operation_id: string | null;
   v8_simulation_id: string | null;
+  // Frente E: cpf agora é coluna nativa, populada por trigger BEFORE INSERT
+  // (v8_webhook_logs_set_cpf) + backfill em webhooks antigos.
+  cpf: string | null;
   // Frente D: payload (JSONB grande) NÃO vem na listagem para reduzir egress.
   // Só é carregado sob demanda quando o usuário clica em "Ver detalhes".
   payload?: any;
@@ -227,7 +230,7 @@ export default function V8WebhooksTab() {
       // O payload é buscado sob demanda em handleOpenDetails().
       let query = supabase
         .from('v8_webhook_logs')
-        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, processed, process_error, received_at')
+        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, cpf, processed, process_error, received_at')
         .order('received_at', { ascending: false })
         .limit(200);
 
@@ -239,8 +242,12 @@ export default function V8WebhooksTab() {
       if (error) throw error;
       const rows = (data ?? []) as WebhookLog[];
       setLogs(rows);
-      // Enriquece CPF e atualiza contadores em paralelo (sem bloquear a tela).
-      void enrichCpfs(rows);
+      // Frente E: pré-popula cpfMap com a coluna nativa (já vem do trigger/backfill).
+      // O enrichCpfs() abaixo só completa os que ainda estão NULL na coluna.
+      const initialMap: Record<string, string> = {};
+      rows.forEach((r) => { if (r.cpf) initialMap[r.id] = r.cpf; });
+      setCpfMap(initialMap);
+      void enrichCpfs(rows.filter((r) => !r.cpf));
       void loadTypeCounts();
     } catch (err: any) {
       toast.error(`Falha ao carregar webhooks: ${err?.message || err}`);

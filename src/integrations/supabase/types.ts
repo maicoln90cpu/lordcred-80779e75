@@ -4332,6 +4332,7 @@ export type Database = {
       v8_webhook_logs: {
         Row: {
           consult_id: string | null
+          cpf: string | null
           event_type: string
           headers: Json | null
           id: string
@@ -4345,6 +4346,7 @@ export type Database = {
         }
         Insert: {
           consult_id?: string | null
+          cpf?: string | null
           event_type: string
           headers?: Json | null
           id?: string
@@ -4358,6 +4360,7 @@ export type Database = {
         }
         Update: {
           consult_id?: string | null
+          cpf?: string | null
           event_type?: string
           headers?: Json | null
           id?: string
@@ -4819,6 +4822,15 @@ export type Database = {
       v8_recalc_batch_counters: {
         Args: { _batch_id: string }
         Returns: undefined
+      }
+      v8_resolve_webhook_cpf: {
+        Args: {
+          _consult_id: string
+          _operation_id: string
+          _payload: Json
+          _v8_simulation_id: string
+        }
+        Returns: string
       }
       v8_webhook_type_counts: {
         Args: never
