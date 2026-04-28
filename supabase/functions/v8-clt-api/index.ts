@@ -1555,6 +1555,7 @@ const handler = async (req: Request) => {
               error: (result as any)?.error ?? null,
               title: (result as any)?.title ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
