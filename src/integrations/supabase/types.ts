@@ -4529,6 +4529,7 @@ export type Database = {
       }
     }
     Functions: {
+      audit_logs_estimated_count: { Args: never; Returns: number }
       auto_match_corban_sellers: { Args: never; Returns: Json }
       calculate_commission_audit: {
         Args: { _date_from?: string; _date_to?: string }

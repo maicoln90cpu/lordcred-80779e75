@@ -209,6 +209,8 @@ export default function AuditLogs() {
   const [filterCategory, setFilterCategory] = useState<'all' | AuditCategory>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | LogStatus>('all');
   const [filterOrigin, setFilterOrigin] = useState<'all' | LogOrigin>('all');
+  // Janela temporal padrão = últimas 24h. Sem isto, com 100k+ linhas a query estoura statement_timeout.
+  const [windowHours, setWindowHours] = useState<number>(24);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
@@ -220,7 +222,9 @@ export default function AuditLogs() {
 
   useEffect(() => {
     loadLogs(true);
-  }, []);
+    // Recarrega quando o usuário muda categoria ou janela (filtros server-side).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategory, windowHours]);
 
   const loadLogs = async (reset = false) => {
     if (reset) {
@@ -231,15 +235,21 @@ export default function AuditLogs() {
       setLoadingMore(true);
     }
     const from = reset ? 0 : logs.length;
-    // Etapa 2 / Item 5: o `details` jsonb pode ter até 250KB por linha.
-    // 500 linhas × 250KB = 125MB → Supabase falhava silenciosamente (timeout / payload-too-large)
-    // retornando data=null SEM error, e a tela ficava em "0 de 0".
-    // Fix: paginar menor (100) + capturar erros explicitamente.
-    const { data, error } = await supabase
+    // FILTROS SERVER-SIDE para evitar statement_timeout em tabela de 100k+ linhas:
+    //  - janela temporal (default 24h) corta drasticamente o escopo
+    //  - categoria empurra o filtro para o índice idx_audit_logs_category
+    //  - selecionamos apenas as colunas necessárias (não puxa o jsonb inteiro de cara)
+    const cutoffIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+    let query = supabase
       .from('audit_logs')
-      .select('*')
+      .select('id, user_id, user_email, action, target_table, target_id, details, created_at')
+      .gte('created_at', cutoffIso)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
+    if (filterCategory !== 'all') {
+      query = query.eq('details->>category', filterCategory);
+    }
+    const { data, error } = await query;
     if (error) {
       console.error('[AuditLogs] erro ao carregar logs:', error);
       setLoadError(error.message || 'Falha ao carregar logs');
@@ -424,10 +434,21 @@ export default function AuditLogs() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={String(windowHours)} onValueChange={(v) => setWindowHours(Number(v))}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Janela" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Última 1 hora</SelectItem>
+                  <SelectItem value="24">Últimas 24 horas</SelectItem>
+                  <SelectItem value="72">Últimos 3 dias</SelectItem>
+                  <SelectItem value="120">Últimos 5 dias (máx)</SelectItem>
+                </SelectContent>
+              </Select>
               <Badge variant="outline" className="gap-1">
                 <Clock className="w-3 h-3" />
-                {filteredLogs.length} de {logs.length} registros
-                {hasMore && ' (mais disponíveis)'}
+                {filteredLogs.length} de {logs.length} carregados
+                {hasMore && ' (+)'}
               </Badge>
             </div>
 

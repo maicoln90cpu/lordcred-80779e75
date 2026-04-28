@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Wifi, WifiOff, Activity } from 'lucide-react';
+import { Loader2, Wifi, WifiOff, Activity, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
@@ -12,6 +12,8 @@ interface BatchAggregate {
   active_batches: number;
   retrying_simulations: number;
   stale_retrying_simulations: number;
+  awaiting_v8: number; // active_consult / pending sem kind — V8 ainda vai responder, NÃO é retry nosso
+  last_cron_at: string | null;
 }
 
 /**
@@ -30,7 +32,7 @@ export function V8RealtimeStatusBar() {
   const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const soundOn = settings?.sound_on_complete ?? false;
 
-  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
+  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null });
   const [conn, setConn] = useState<ConnectionState>('connecting');
   const lastBatchStateRef = useRef<Map<string, { status: string; success: number; failure: number }>>(new Map());
   const aggRef = useRef(agg);
@@ -39,6 +41,16 @@ export function V8RealtimeStatusBar() {
   const refresh = async () => {
     const last24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const activeSinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    // Última varredura do cron de retry (saúde visível para o usuário)
+    const { data: cronLog } = await supabase
+      .from('audit_logs')
+      .select('created_at')
+      .eq('action', 'v8_retry_cron_cycle')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastCronAt = cronLog?.created_at ?? null;
 
     // Lotes ativos visíveis = recentes; lotes antigos não entram na badge do topo.
     const { data: batches } = await supabase
@@ -57,7 +69,6 @@ export function V8RealtimeStatusBar() {
       for (const b of batches as any[]) {
         const prev = lastBatchStateRef.current.get(b.id);
         if (prev && prev.status !== 'completed' && b.status === 'completed') {
-          // sucesso quando >50% ok; do contrário, "falha"
           const ok = b.success_count >= b.failure_count;
           playBatchCompleteSound(ok);
           toast(ok ? '✅ Lote concluído com sucesso' : '⚠️ Lote concluído com falhas', {
@@ -73,7 +84,7 @@ export function V8RealtimeStatusBar() {
     }
 
     if (activeBatches.length === 0) {
-      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0 });
+      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt });
       return;
     }
 
@@ -89,10 +100,24 @@ export function V8RealtimeStatusBar() {
       return isRetriableErrorKind(kind);
     });
 
+    // "Aguardando V8" = não vamos retentar do nosso lado, a V8 que precisa responder/liberar
+    // (active_consult, pending sem kind aguardando webhook). Honesto separar isto do retry.
+    const awaitingV8 = (sims || []).filter((s: any) => {
+      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      if (isRetriableErrorKind(kind)) return false;
+      return kind === 'active_consult' || (s.status === 'pending' && !kind);
+    }).length;
+
     const retryingCount = retriableSims.filter((s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso).length;
     const staleRetryingCount = retriableSims.length - retryingCount;
 
-    setAgg({ active_batches: activeBatches.length, retrying_simulations: retryingCount, stale_retrying_simulations: staleRetryingCount });
+    setAgg({
+      active_batches: activeBatches.length,
+      retrying_simulations: retryingCount,
+      stale_retrying_simulations: staleRetryingCount,
+      awaiting_v8: awaitingV8,
+      last_cron_at: lastCronAt,
+    });
   };
 
   useEffect(() => {
@@ -158,24 +183,48 @@ export function V8RealtimeStatusBar() {
         <span className="font-medium">{label}</span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 justify-end">
         {agg.retrying_simulations > 0 && (
-          <span className="inline-flex items-center gap-1 text-amber-600">
+          <span className="inline-flex items-center gap-1 text-amber-600" title="Simulações com erro retentável (temporary_v8 / analysis_pending) que tiveram tentativa nos últimos 5 min.">
             <Loader2 className="w-3 h-3 animate-spin" />
-            <strong>Auto-retry:</strong> {agg.retrying_simulations} simulação(ões) em {agg.active_batches} lote(s) ativo(s)
+            <strong>{agg.retrying_simulations} em retry ativo</strong>
             <span className="text-muted-foreground">· teto {maxAttempts} tent.</span>
           </span>
         )}
-        {agg.retrying_simulations === 0 && agg.active_batches > 0 && (
-          <span className="text-muted-foreground">
-            {agg.active_batches} lote(s) ativo(s) — todas as simulações estão respondendo normalmente
-            {agg.stale_retrying_simulations > 0 && ` · ${agg.stale_retrying_simulations} retentável(eis) sem tentativa recente`}
+        {agg.awaiting_v8 > 0 && (
+          <span className="inline-flex items-center gap-1 text-sky-600" title="Aguardando a V8: 'consulta ativa' bloqueada ou pending sem resposta. NÃO é nosso retry — é a V8 quem precisa responder/liberar.">
+            <Clock className="w-3 h-3" />
+            <strong>{agg.awaiting_v8} aguardando V8</strong>
           </span>
         )}
-        {agg.active_batches === 0 && (
+        {agg.stale_retrying_simulations > 0 && (
+          <span className="text-muted-foreground" title="Retentáveis sem tentativa nos últimos 5 min — o cron pode estar atrasado.">
+            · {agg.stale_retrying_simulations} sem tentativa recente
+          </span>
+        )}
+        {agg.active_batches > 0 && (
+          <span className="text-muted-foreground">
+            · {agg.active_batches} lote(s) ativo(s)
+          </span>
+        )}
+        {agg.active_batches === 0 && agg.awaiting_v8 === 0 && agg.retrying_simulations === 0 && (
           <span className="text-muted-foreground">Sem lotes em processamento</span>
+        )}
+        {agg.last_cron_at && (
+          <span className="text-[11px] text-muted-foreground" title="Última execução do cron de retry (varredura a cada ~20s).">
+            · varredura {timeAgo(agg.last_cron_at)}
+          </span>
         )}
       </div>
     </div>
   );
+}
+
+function timeAgo(iso: string): string {
+  const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (sec < 60) return `há ${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  return `há ${h}h`;
 }
