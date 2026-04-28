@@ -320,10 +320,17 @@ async function actionListOperations(params: V8OperationListParams = {}) {
   // ENRICHMENT: o endpoint /operation (listagem) da V8 NÃO retorna issueAmount,
   // installmentFaceValue nem numberOfInstallments — só o /operation/{id} (detail).
   // Para que a tabela mostre Valor bruto / Parcela / Nº parcelas, buscamos o detail
-  // dos itens que ficaram com pelo menos um campo faltando, em paralelo (concorrência 6).
-  // Limite de segurança: até 60 detalhes por chamada para não estourar tempo do edge.
+  // dos itens que ficaram com pelo menos um campo faltando, em paralelo (concorrência 8).
+  // Limite de segurança: até 200 detalhes por chamada para não estourar tempo do edge.
+  // ATENÇÃO: a V8 expõe o id da operação como `operationId` (camelCase) no JSON da
+  // listagem — NÃO como `id`. Não regredir esse fallback ou o enrichment para de rodar
+  // e a tabela volta a mostrar "R$ 0,00" / "—".
+  const getOpId = (op: any): string | null => {
+    const v = op?.operationId ?? op?.id ?? op?.operation_id ?? null;
+    return v ? String(v) : null;
+  };
   const needsEnrichment = preNormalized.filter(
-    (op) => op?.id && (op.issueAmount == null || op.installmentFaceValue == null || op.numberOfInstallments == null)
+    (op) => getOpId(op) && (op.issueAmount == null || op.installmentFaceValue == null || op.numberOfInstallments == null)
   );
   const ENRICH_CAP = 200;
   const CONCURRENCY = 8;
@@ -336,7 +343,8 @@ async function actionListOperations(params: V8OperationListParams = {}) {
       while (cursor < toEnrich.length) {
         const idx = cursor++;
         const item = toEnrich[idx];
-        const opId = String(item.id);
+        const opId = getOpId(item);
+        if (!opId) continue;
         try {
           const r = await v8Fetch(V8_PATHS.operationDetail(opId), { method: "GET" });
           if (r.ok) {
@@ -349,9 +357,13 @@ async function actionListOperations(params: V8OperationListParams = {}) {
     });
     await Promise.all(workers);
   }
+  console.log(
+    `[list_operations] enrichment: ${preNormalized.length} linhas, ${toEnrich.length} candidatas, ${enrichedById.size} detalhes obtidos`,
+  );
 
   const normalized = preNormalized.map((op: any) => {
-    const detail = op?.id ? enrichedById.get(String(op.id)) : null;
+    const opId = getOpId(op);
+    const detail = opId ? enrichedById.get(opId) : null;
     if (!detail) return op;
     const merged = { ...op, operation_data: op?.operation_data ?? detail?.operation_data ?? null };
     const amounts = pickAmounts({ ...detail, ...op, operation_data: detail?.operation_data ?? op?.operation_data });

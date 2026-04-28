@@ -185,30 +185,42 @@ export default function V8ConsultasTab() {
   // Realtime: quando o webhook V8 atualiza qualquer simulação (status/raw_response),
   // reexecuta a última busca silenciosamente para refletir o novo estado das consultas
   // ativas. Sem subscription, era preciso clicar em "Buscar propostas" de novo.
+  //
+  // ATENÇÃO: o cron de retry pode emitir DEZENAS de updates por segundo quando há
+  // lotes ativos (102 aguardando V8, 12 lotes ativos etc.). Sem debounce, isso
+  // dispara `loadConsults` em loop, deixando o botão "Buscar propostas" preso em
+  // estado loading (parecendo que se aperta sozinho) e fazendo a tabela piscar.
+  // Solução: agrega tudo numa janela de 2s, ignora updates enquanto já está
+  // carregando, e só reage a UPDATEs (não a INSERTs ruidosos do cron).
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!hasSearched) return;
     const channel = supabase
       .channel('v8-consultas-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'v8_simulations' },
+        { event: 'UPDATE', schema: 'public', table: 'v8_simulations' },
         () => {
           const last = lastSearchRef.current;
           if (!last) return;
           setRtPulse(true);
           setTimeout(() => setRtPulse(false), 800);
-          // Recarrega só consultas ativas (mais barato que operations)
-          void loadConsults({
-            startDate: toRangeBoundary(last.start, 'start'),
-            endDate: toRangeBoundary(last.end, 'end'),
-            limit: 200,
-            page: 1,
-            search: last.term,
-          });
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = setTimeout(() => {
+            if (loading) return; // não sobrepor a uma busca em andamento
+            void loadConsults({
+              startDate: toRangeBoundary(last.start, 'start'),
+              endDate: toRangeBoundary(last.end, 'end'),
+              limit: 200,
+              page: 1,
+              search: last.term,
+            });
+          }, 2000);
         },
       )
       .subscribe();
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

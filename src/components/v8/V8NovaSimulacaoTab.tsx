@@ -783,7 +783,16 @@ export default function V8NovaSimulacaoTab() {
         </CardContent>
       </Card>
 
-      {activeBatchId && (
+      {activeBatchId && (() => {
+        // Linhas com margem aprovada (status=success) que ainda não rodaram /simulation.
+        // Quando o toggle "auto-simulate" está desligado, a parcela só aparece após o
+        // usuário clicar em "Simular selecionados" — sem esse aviso fica invisível.
+        const awaitingManualSim = simulations.filter(
+          (s: any) => s.status === 'success' && (s.simulate_status ?? 'not_started') === 'not_started',
+        ).length;
+        const autoOn = !!v8Settings?.auto_simulate_after_consult;
+        const showManualWarning = !autoOn && awaitingManualSim > 0;
+        return (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Progresso do Lote</CardTitle>
@@ -796,8 +805,9 @@ export default function V8NovaSimulacaoTab() {
                       variant="default"
                       disabled={running}
                       onClick={handleSimulateSelected}
+                      className={showManualWarning ? 'animate-pulse ring-2 ring-yellow-400' : undefined}
                     >
-                      <Play className="w-3 h-3 mr-1" /> Simular selecionados
+                      <Play className="w-3 h-3 mr-1" /> Simular selecionados{showManualWarning ? ` (${awaitingManualSim})` : ''}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
@@ -847,6 +857,14 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {showManualWarning && (
+              <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs leading-relaxed">
+                ⚠️ <strong>{awaitingManualSim} consulta(s) com margem aprovada aguardando simulação.</strong>{' '}
+                A V8 já liberou a margem desses CPFs, mas o cálculo de parcela e valor liberado ainda não foi feito.
+                Clique em <strong>"Simular selecionados"</strong> (botão amarelo pulsante acima) para finalizar.
+                Ou ative o toggle <em>"Simular automaticamente após consulta"</em> em Configurações.
+              </div>
+            )}
             {(() => {
               const autoRetryActive = simulations.filter((s: any) => {
                 const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
@@ -1019,7 +1037,8 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <DialogContent className="max-w-lg">
