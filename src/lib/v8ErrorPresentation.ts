@@ -118,3 +118,34 @@ export function translateV8Status(status: string | null | undefined): string {
   const key = String(status).trim().toLowerCase();
   return V8_STATUS_PTBR[key] ?? status;
 }
+
+/**
+ * Extrai o snapshot de status da V8 (gravado pelo poller v8-active-consult-poller)
+ * para renderizar inline em linhas com kind='active_consult', sem precisar abrir o modal.
+ *
+ * Retorna { status, name, detail, totalConsults } a partir de
+ * raw_response.v8_status_snapshot.{latest, found, all}.
+ */
+export interface V8StatusSnapshot {
+  status: string | null;
+  name: string | null;
+  detail: string | null;
+  totalConsults: number;
+  hasData: boolean;
+}
+
+export function getV8StatusSnapshot(rawResponse: V8RawResponse): V8StatusSnapshot {
+  const snap = rawResponse?.v8_status_snapshot;
+  if (!snap || snap.found === false) {
+    return { status: null, name: null, detail: null, totalConsults: 0, hasData: false };
+  }
+  const latest = snap.latest ?? null;
+  const all = Array.isArray(snap.all) ? snap.all : [];
+  return {
+    status: firstNonEmpty(latest?.status),
+    name: firstNonEmpty(latest?.name),
+    detail: firstNonEmpty(latest?.detail),
+    totalConsults: all.length || (latest ? 1 : 0),
+    hasData: !!latest,
+  };
+}

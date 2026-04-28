@@ -31,16 +31,38 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Manual invocation: aceita { batch_id?, manual?: true } no body
+  // Manual invocation: aceita { batch_id?, manual?: true, sub_pass? } no body
+  // sub_pass: índice da sub-execução (0/1/2). Quando ausente e for chamada do cron
+  // (sem batch_id), agendamos 2 sub-passes adicionais com setTimeout(20s/40s)
+  // para ter efeito prático de "varredura a cada ~20s" sem violar o limite de 1 min do pg_cron.
   let manualBatchId: string | null = null;
   let manualMode = false;
+  let subPass = 0;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as any));
       manualBatchId = body?.batch_id ?? null;
       manualMode = body?.manual === true || !!manualBatchId;
+      subPass = Number(body?.sub_pass ?? 0);
     }
   } catch (_) { /* ignore */ }
+
+  // Se for primeira passada do cron (não manual), agenda 2 sub-passes em background.
+  // Resultado: cron de 1 min -> 3 varreduras a 0s/20s/40s.
+  if (!manualMode && subPass === 0) {
+    for (const delaySec of [20, 40]) {
+      setTimeout(() => {
+        fetch(`${supabaseUrl}/functions/v1/v8-retry-cron`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ sub_pass: delaySec === 20 ? 1 : 2 }),
+        }).catch((e) => console.error("[v8-retry-cron] sub_pass dispatch err", e));
+      }, delaySec * 1000);
+    }
+  }
 
   try {
     // 1) Lê config
@@ -69,7 +91,7 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, status")
+      .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status")
       .in("status", ["failed", "pending"])
       .or(`last_attempt_at.is.null,last_attempt_at.lte.${cutoffIso}`)
       .lt("attempt_count", maxAttempts)
@@ -84,13 +106,23 @@ serve(async (req) => {
     }
 
     const eligible = (candidates ?? []).filter((s: any) => {
-      // Prioriza coluna dedicada error_kind; cai para o JSON como fallback (linhas antigas).
       const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return kind && RETRIABLE_KINDS.has(kind);
+      // Caso 1: kind retentável conhecido.
+      if (kind && RETRIABLE_KINDS.has(kind)) return true;
+      // Caso 2: linha "presa" — pending sem kind, com >2 min sem novidade.
+      // Bug clássico: lote criado, V8 nem respondeu, attempt_count=0, kind=null.
+      // Sem isso, a linha NUNCA seria retentada e ficava esperando webhook que não vem.
+      if (s.status === "pending" && !kind) {
+        const ageMs = s.last_attempt_at
+          ? Date.now() - new Date(s.last_attempt_at).getTime()
+          : Date.now() - new Date(s.created_at ?? Date.now()).getTime();
+        return ageMs > 120_000;
+      }
+      return false;
     });
 
     if (eligible.length === 0) {
-      return ok({ scanned: candidates?.length ?? 0, retried: 0, duration_ms: Date.now() - startedAt });
+      return ok({ scanned: candidates?.length ?? 0, retried: 0, sub_pass: subPass, duration_ms: Date.now() - startedAt });
     }
 
     // 3) Para cada candidato, invoca v8-clt-api com triggered_by='cron'
@@ -134,11 +166,26 @@ serve(async (req) => {
       }
     }
 
+    // Dispara o poller de active_consult em background — atualiza o snapshot
+    // de status (REJECTED, CONSENT_APPROVED, etc.) das linhas que ficaram
+    // com kind='active_consult' para a UI mostrar inline.
+    fetch(`${supabaseUrl}/functions/v1/v8-active-consult-poller`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify(manualBatchId ? { batch_id: manualBatchId } : {}),
+    }).catch((e) => console.error("[v8-retry-cron] poller dispatch err", e));
+
+    console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount}`);
+
     return ok({
       scanned: candidates?.length ?? 0,
       eligible: eligible.length,
       retried_ok: okCount,
       retried_fail: failCount,
+      sub_pass: subPass,
       duration_ms: Date.now() - startedAt,
     });
   } catch (err: any) {
