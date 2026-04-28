@@ -1558,13 +1558,22 @@ const handler = async (req: Request) => {
               });
             }
           } else if ((result as any)?.step === "consult_status") {
-            // Não rebaixar: se a linha já é 'failed', manter — apenas anexar info ao raw_response.
+            // CASO ESPECIAL active_consult: não é falha real — é a V8 dizendo que
+            // outra plataforma (ou nós antes) já tem uma consulta em andamento p/ o CPF.
+            // Tratamos como "aguardando consulta antiga concluir": status=pending +
+            // webhook_status=WAITING_EXTERNAL. Quando o poller/webhook trouxer SUCCESS
+            // da consulta antiga, a linha é auto-promovida (ver v8-webhook & poller).
+            const isActiveConsult = (result as any).kind === "active_consult";
             const { data: existing } = await supabase
               .from("v8_simulations")
               .select("status")
               .eq("id", params.simulation_id)
               .maybeSingle();
-            const newStatus = existing?.status === "failed" ? "failed" : "pending";
+            // active_consult NUNCA vira failed pelo simulate_one — mesmo se já estava failed
+            // (de tentativa anterior buggada), agora reclassifica para pending.
+            const newStatus = isActiveConsult
+              ? "pending"
+              : (existing?.status === "failed" ? "failed" : "pending");
             await supabase
               .from("v8_simulations")
               .update({
@@ -1573,6 +1582,7 @@ const handler = async (req: Request) => {
                 // Sem isso, retentativas seguintes perdem a classificação e ficam órfãs.
                 error_kind: (result as any).kind ?? null,
                 error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
+                webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
                 raw_response: {
                   kind: (result as any).kind ?? null,
                   step: (result as any).step ?? null,
@@ -1589,7 +1599,7 @@ const handler = async (req: Request) => {
 
             // Quando cai em "consulta ativa", dispara o poller IMEDIATAMENTE para
             // este CPF, sem esperar o tick de 1 min do cron — snapshot inline aparece em ~5-10s.
-            if ((result as any).kind === "active_consult") {
+            if (isActiveConsult) {
               try {
                 const supabaseUrl2 = Deno.env.get("SUPABASE_URL")!;
                 const serviceRoleKey2 = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
