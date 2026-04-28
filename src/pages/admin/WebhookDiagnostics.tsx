@@ -36,6 +36,8 @@ export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const { sort, toggle } = useSortState();
   const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
+  const [connectedChips, setConnectedChips] = useState<number>(0);
+  const [totalChips, setTotalChips] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEvent, setFilterEvent] = useState('all');
@@ -50,7 +52,7 @@ export default function WebhookDiagnostics() {
   const loadData = async () => {
     const [logsRes, chipsRes] = await Promise.all([
       supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(500),
-      supabase.from('chips').select('id, instance_name, nickname, chip_type'),
+      supabase.from('chips').select('id, instance_name, nickname, chip_type, status'),
     ]);
     if (logsRes.data) setLogs(logsRes.data);
     if (chipsRes.data) {
@@ -59,6 +61,8 @@ export default function WebhookDiagnostics() {
         map[c.id] = { name: c.nickname || c.instance_name, chipType: c.chip_type || 'warming' };
       });
       setChipsMap(map);
+      setTotalChips(chipsRes.data.length);
+      setConnectedChips(chipsRes.data.filter((c: any) => c.status === 'connected').length);
     }
     setLoading(false);
   };
