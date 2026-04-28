@@ -276,8 +276,10 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
                 const meta = getV8ErrorMeta(s.raw_response);
                 const hasInfo = !!(message || s.raw_response);
+                const snapshot = isActiveConsult ? getV8StatusSnapshot(s.raw_response) : null;
+                const isRetryingRow = retryingIds.has(s.id);
                 return (
-                  <tr key={s.id} className="border-t">
+                  <tr key={s.id} className={`border-t ${isRetryingRow ? 'animate-pulse bg-amber-500/5' : ''}`}>
                     <td className="px-2 py-1 font-mono">{s.cpf}</td>
                     <td className="px-2 py-1">{s.name || '—'}</td>
                     <td className="px-2 py-1">
@@ -292,18 +294,66 @@ function BatchDetail({ batchId }: { batchId: string }) {
                     <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
                     <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
-                      {s.attempt_count ?? 0}
-                      {(s.attempt_count ?? 0) >= maxAttempts && (
-                        <span className="text-[10px] block text-destructive">(máx)</span>
+                      {isRetryingRow ? (
+                        <span className="inline-flex items-center gap-1 text-amber-600">
+                          <Loader2 className="w-3 h-3 animate-spin" /> {s.attempt_count ?? 0}
+                        </span>
+                      ) : (
+                        <>
+                          {s.attempt_count ?? 0}
+                          {(s.attempt_count ?? 0) >= maxAttempts && (
+                            <span className="text-[10px] block text-destructive">(máx)</span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="px-2 py-1 align-top">
                       {isActiveConsult ? (
                         <div className="space-y-1">
-                          <div className="whitespace-pre-line font-medium text-amber-600">
-                            Já existe consulta ativa para este CPF na V8
-                          </div>
-                          <ViewV8StatusButton onClick={() => status.check(s.cpf)} />
+                          {snapshot?.hasData ? (
+                            <>
+                              <div className="font-medium text-amber-600">
+                                Consulta ativa na V8
+                              </div>
+                              <div className="text-[11px] space-y-0.5">
+                                {snapshot.status && (
+                                  <div>
+                                    <span className="text-muted-foreground">Status:</span>{' '}
+                                    <span className={`font-semibold ${snapshot.status === 'REJECTED' ? 'text-destructive' : snapshot.status === 'CONSENT_APPROVED' ? 'text-emerald-600' : ''}`}>
+                                      {snapshot.status}
+                                    </span>
+                                  </div>
+                                )}
+                                {snapshot.name && (
+                                  <div>
+                                    <span className="text-muted-foreground">Nome:</span> {snapshot.name}
+                                  </div>
+                                )}
+                                {snapshot.detail && (
+                                  <div className="text-muted-foreground italic">{snapshot.detail}</div>
+                                )}
+                                {snapshot.totalConsults > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => status.check(s.cpf)}
+                                    className="text-[10px] underline text-muted-foreground hover:text-foreground"
+                                  >
+                                    Ver todas as {snapshot.totalConsults} consultas
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="whitespace-pre-line font-medium text-amber-600">
+                                Já existe consulta ativa para este CPF na V8
+                              </div>
+                              <div className="text-[10px] text-muted-foreground italic">
+                                Buscando status na V8... (atualiza em até 1 min)
+                              </div>
+                              <ViewV8StatusButton onClick={() => status.check(s.cpf)} />
+                            </>
+                          )}
                         </div>
                       ) : hasInfo ? (
                         <div className="space-y-1">
