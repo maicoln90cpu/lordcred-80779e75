@@ -1124,7 +1124,11 @@ const handler = async (req: Request) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const isCronCall = req.headers.get("x-cron-trigger") === "v8-retry-cron"
+    // Aceita chamadas internas tanto do v8-retry-cron quanto do v8-active-consult-poller
+    // (ambas usam SERVICE_ROLE e não têm usuário humano associado).
+    const cronTriggerHeader = req.headers.get("x-cron-trigger");
+    const isCronCall =
+      (cronTriggerHeader === "v8-retry-cron" || cronTriggerHeader === "v8-active-consult-poller")
       && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     let userId: string;
