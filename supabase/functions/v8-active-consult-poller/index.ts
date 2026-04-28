@@ -18,6 +18,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { writeAuditLog } from "../_shared/auditLog.ts";
+import { packPayloadForAudit } from "../_shared/v8AuditPayload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,6 +83,7 @@ serve(async (req) => {
     let notFound = 0;        // V8 respondeu, mas sem dados para o CPF
     let rateLimited = 0;     // V8 ou Edge Runtime negou por limite
     let failed = 0;          // erros diversos
+    const perSimResults: Array<Record<string, unknown>> = [];
 
     for (const row of list) {
       const probedAtIso = new Date().toISOString();
@@ -110,6 +113,7 @@ serve(async (req) => {
 
         if (isRateLimit) {
           rateLimited += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "rate_limited", http_status: resp.status });
           // Grava estado legível para o front-end. NÃO atualiza v8_status_snapshot_at
           // para que o cron tente este CPF de novo no próximo ciclo.
           await supabase
@@ -132,6 +136,7 @@ serve(async (req) => {
         if (!json?.success || !json?.data) {
           // V8 respondeu mas não temos dados — anota cooldown para não repolling agressivo.
           notFound += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "not_found", message: json?.user_message ?? json?.error ?? null });
           await supabase
             .from("v8_simulations")
             .update({
@@ -199,11 +204,21 @@ serve(async (req) => {
         if (updErr) {
           console.error("[v8-active-consult-poller] update err", row.id, updErr);
           failed += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "update_failed", error: updErr.message });
         } else {
           updated += 1;
+          perSimResults.push({
+            simulation_id: row.id,
+            cpf_masked: maskCpf(row.cpf),
+            outcome: "snapshot_updated",
+            v8_status: snapshot?.status ?? snapshot?.latest?.status ?? null,
+            margem_valor: margemFromSnapshot,
+            ...packPayloadForAudit(snapshot, "snapshot_full"),
+          });
         }
       } catch (err) {
         failed += 1;
+        perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "exception", error: String((err as Error)?.message || err) });
         console.error("[v8-active-consult-poller] fetch err", row.id, err);
       }
 
@@ -216,6 +231,26 @@ serve(async (req) => {
       `[v8-active-consult-poller] scanned=${list.length} updated=${updated} not_found=${notFound} rate_limited=${rateLimited} failed=${failed} manual=${manualMode}`,
     );
 
+    // Auditoria: 1 entrada por ciclo (visível em /admin/audit-logs)
+    await writeAuditLog(supabase, {
+      action: "v8_poller_cycle",
+      category: "simulator",
+      success: failed === 0,
+      targetTable: "v8_simulations",
+      details: {
+        trigger_source: manualMode ? "manual" : "cron",
+        batch_id: batchId,
+        focused_simulation_id: simulationId,
+        scanned: list.length,
+        updated,
+        not_found: notFound,
+        rate_limited: rateLimited,
+        failed,
+        duration_ms: Date.now() - startedAt,
+        ...packPayloadForAudit(perSimResults, "per_simulation_results"),
+      },
+    });
+
     return ok({
       scanned: list.length,
       updated,
@@ -226,9 +261,21 @@ serve(async (req) => {
     });
   } catch (err: any) {
     console.error("[v8-active-consult-poller] fatal", err);
+    await writeAuditLog(supabase, {
+      action: "v8_poller_cycle",
+      category: "simulator",
+      success: false,
+      targetTable: "v8_simulations",
+      details: { fatal_error: String(err?.message || err), trigger_source: manualMode ? "manual" : "cron", batch_id: batchId, focused_simulation_id: simulationId },
+    });
     return ok({ success: false, error: String(err?.message || err) });
   }
 });
+
+function maskCpf(cpf?: string | null): string | null {
+  if (!cpf) return null;
+  return String(cpf).replace(/\d(?=\d{4})/g, "*");
+}
 
 function ok(body: unknown, status = 200) {
   return new Response(JSON.stringify({ success: true, ...((body as object) ?? {}) }), {

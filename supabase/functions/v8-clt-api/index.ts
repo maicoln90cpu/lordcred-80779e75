@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { writeAuditLog } from "../_shared/auditLog.ts";
+import { packPayloadForAudit } from "../_shared/v8AuditPayload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1277,6 +1278,7 @@ const handler = async (req: Request) => {
             guidance: (result as any)?.guidance ?? null,
             error: (result as any)?.error ?? null,
             released_value: (result as any)?.data?.released_value ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         if (params?.simulation_id) {
@@ -1421,6 +1423,7 @@ const handler = async (req: Request) => {
             },
             total: (result as any)?.data?.total ?? null,
             error: (result as any)?.error ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         // Kick-start do auto-retry: agenda 3 disparos do v8-retry-cron nos próximos 90s,
@@ -1462,6 +1465,23 @@ const handler = async (req: Request) => {
         break;
       case "list_batches":
         result = await actionListBatches(supabase, userId, isPriv);
+        await writeAuditLog(supabase, {
+          action: "v8_list_batches",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          details: {
+            request_payload: { action: "list_batches" },
+            response_payload: {
+              success: !!(result as any)?.success,
+              count: Array.isArray((result as any)?.data) ? (result as any).data.length : 0,
+              error: (result as any)?.error ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
         break;
       case "register_webhooks": {
         if (!isPriv) {
@@ -1479,6 +1499,7 @@ const handler = async (req: Request) => {
           details: {
             request_payload: { action: "register_webhooks" },
             response_payload: result,
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
@@ -1495,6 +1516,19 @@ const handler = async (req: Request) => {
           .limit(1)
           .maybeSingle();
         result = { success: true, data: { registrations: regs ?? [], last_log: lastLog ?? null } };
+        await writeAuditLog(supabase, {
+          action: "v8_get_webhook_status",
+          category: "simulator",
+          success: true,
+          userId,
+          userEmail,
+          targetTable: "v8_webhook_registrations",
+          details: {
+            request_payload: { action: "get_webhook_status" },
+            response_payload: result,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
         break;
       }
       case "list_operations":
@@ -1522,6 +1556,7 @@ const handler = async (req: Request) => {
               error: (result as any)?.error ?? null,
               title: (result as any)?.title ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
@@ -1551,6 +1586,7 @@ const handler = async (req: Request) => {
               error: (result as any)?.error ?? null,
               title: (result as any)?.title ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
@@ -1574,6 +1610,7 @@ const handler = async (req: Request) => {
               error: (result as any)?.error ?? null,
               title: (result as any)?.title ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
@@ -1598,6 +1635,7 @@ const handler = async (req: Request) => {
               latest_status: (result as any)?.data?.latest?.status ?? null,
               error: (result as any)?.error ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;

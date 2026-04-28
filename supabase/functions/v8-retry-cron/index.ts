@@ -13,6 +13,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { writeAuditLog } from "../_shared/auditLog.ts";
+import { packPayloadForAudit } from "../_shared/v8AuditPayload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,6 +132,7 @@ serve(async (req) => {
     let failCount = 0;
     let skippedMissingConfig = 0;
     const touchedBatchIds = new Set<string>();
+    const perSimResults: Array<Record<string, unknown>> = [];
 
     for (const sim of eligible) {
       // Fallback: usa config/parcelas do lote quando a sim está sem
@@ -179,12 +182,23 @@ serve(async (req) => {
             },
           }),
         });
-        if (resp.ok) okCount += 1;
-        else failCount += 1;
+        const respJson = await resp.json().catch(() => ({}));
+        if (resp.ok) okCount += 1; else failCount += 1;
         touchedBatchIds.add(sim.batch_id);
+        perSimResults.push({
+          simulation_id: sim.id,
+          cpf_masked: sim.cpf ? String(sim.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+          attempt: Number(sim.attempt_count ?? 0) + 1,
+          http_status: resp.status,
+          success: !!respJson?.success,
+          kind: respJson?.kind ?? null,
+          step: respJson?.step ?? null,
+          user_message: respJson?.user_message ?? null,
+        });
       } catch (err) {
         console.error("[v8-retry-cron] invoke err", sim.id, err);
         failCount += 1;
+        perSimResults.push({ simulation_id: sim.id, outcome: "exception", error: String((err as Error)?.message || err) });
       }
     }
 
@@ -205,6 +219,26 @@ serve(async (req) => {
 
     console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount} skipped_missing_config=${skippedMissingConfig}`);
 
+    await writeAuditLog(supabase, {
+      action: "v8_retry_cron_cycle",
+      category: "simulator",
+      success: failCount === 0,
+      targetTable: "v8_simulations",
+      details: {
+        trigger_source: manualMode ? "manual" : "cron",
+        sub_pass: subPass,
+        batch_id: manualBatchId,
+        scanned: candidates?.length ?? 0,
+        eligible: eligible.length,
+        retried_ok: okCount,
+        retried_fail: failCount,
+        skipped_missing_config: skippedMissingConfig,
+        touched_batch_ids: Array.from(touchedBatchIds),
+        duration_ms: Date.now() - startedAt,
+        ...packPayloadForAudit(perSimResults, "per_simulation_results"),
+      },
+    });
+
     return ok({
       scanned: candidates?.length ?? 0,
       eligible: eligible.length,
@@ -216,6 +250,13 @@ serve(async (req) => {
     });
   } catch (err: any) {
     console.error("[v8-retry-cron] fatal", err);
+    await writeAuditLog(supabase, {
+      action: "v8_retry_cron_cycle",
+      category: "simulator",
+      success: false,
+      targetTable: "v8_simulations",
+      details: { fatal_error: String(err?.message || err), trigger_source: manualMode ? "manual" : "cron", sub_pass: subPass, batch_id: manualBatchId },
+    });
     return ok({ success: false, error: String(err?.message || err) }, 200);
   }
 });

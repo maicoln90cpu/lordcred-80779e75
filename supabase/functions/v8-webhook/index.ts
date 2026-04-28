@@ -18,6 +18,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { writeAuditLog } from "../_shared/auditLog.ts";
+import { packPayloadForAudit, safeHeaders } from "../_shared/v8AuditPayload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -474,6 +475,9 @@ serve(async (req) => {
         processed,
         process_error: processError,
         payload_keys: Object.keys(payload || {}),
+        headers_safe: safeHeaders(headersObj),
+        webhook_log_id: logId,
+        ...packPayloadForAudit(payload, "payload_full"),
       },
     });
   }

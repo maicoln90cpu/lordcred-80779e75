@@ -1,95 +1,153 @@
-## Objetivo
 
-Tornar a **margem disponível do trabalhador** (campo `availableMarginValue` da V8) visível e acionável no LordCred — hoje ela fica escondida no JSON bruto. Adicionalmente, criar um **glossário visual de status V8** para o operador entender o ciclo de vida sem precisar abrir documentação.
+# Plano — Auditoria completa dos payloads V8
+
+## Objetivo (em linguagem leiga)
+Hoje a tela de **Logs de Auditoria** registra apenas **resumos** dos eventos da V8 (CPF mascarado, status, kind, total). Quando algo dá errado — ou quando você quer entender exatamente o que a V8 devolveu — você precisa abrir o modal "Status na V8" ou ir direto na tabela `v8_webhook_logs` para ver o JSON cru.
+
+A meta deste plano é garantir que **todo evento V8** (chamadas que saem daqui pra V8 + webhooks que a V8 manda pra cá + ciclos automáticos do poller e do retry-cron) deixe um registro em `audit_logs` com **o payload completo de request e response**, sem truncar e sem perder nenhum campo.
 
 ---
 
-## Escopo
+## Diagnóstico do que existe hoje
 
-### 1. Extrair e persistir a margem disponível
-
-- Adicionar coluna **`available_margin_value`** (numeric, nullable) em `v8_simulations`.
-- Atualizar a Edge Function `v8-active-consult-poller` e o webhook `v8-webhook` para extrair `availableMarginValue` do payload da V8 (procurando em múltiplos caminhos possíveis: `consult.result.availableMarginValue`, `data.availableMarginValue`, `availableMargin`, `marginValue`) e gravar na coluna nova.
-- Backfill: rodar uma query única que percorre `v8_simulations.raw_response` existente e popula a coluna para registros antigos com `status='success'`.
-
-### 2. Tornar visível na UI
-
-- **Tabela do Histórico** (`V8HistoricoTab`) e **aba Consultas** (`V8ConsultasTab`): adicionar coluna **"Margem Disponível"** formatada em R$/mês, com ordenação clicável (usando o padrão `useSortState`).
-- **Modal "Ver status na V8"** (`V8StatusOnV8Dialog`): adicionar bloco em destaque no topo da seção "Resultado da Consulta":
-  ```text
-  ┌─────────────────────────────────────────┐
-  │ 💰 Margem disponível                    │
-  │     R$ 412,30 / mês                     │
-  │     (teto de parcela CLT consignável)    │
-  └─────────────────────────────────────────┘
-  ```
-- Tooltip explicando que é o valor livre mensal do trabalhador junto ao averbador, **não** a Margem LordCred.
-
-### 3. Glossário de status V8 (novo)
-
-Criar componente `V8StatusGlossary` (popover acionado por ícone "?" no header das abas Histórico, Consultas e Nova Simulação) com tabela leiga:
-
-| Status | Significado | Próxima ação |
+### O que JÁ é auditado
+| Origem | Ação | O que grava |
 |---|---|---|
-| `WAITING_CONSENT` | Termo criado, aguardando autorização interna | Aguardar (sistema autoriza sozinho) |
-| `CONSENT_APPROVED` | Termo autorizado, V8 consultando averbador | Aguardar resultado |
-| `SUCCESS` | Consulta concluída com margem disponível | Rodar simulação |
-| `REJECTED` | Cliente sem margem ou inelegível | Descartar lead |
-| `WAITING_*` (outros) | Etapas intermediárias da V8 | Aguardar |
-| `temporary_v8` | Instabilidade/rate limit da V8 | Retentar (botão) |
-| `analysis_pending` | V8 ainda processando | Aguardar / Buscar resultados pendentes |
-| `active_consult` | Já existe consulta ativa para o CPF | Buscar resultado existente |
+| `v8-clt-api` `simulate_one` | `v8_simulate_one` | Resumo + `data` + `raw` (parcial) |
+| `v8-clt-api` `get_configs` | `v8_get_configs` | Lista completa |
+| `v8-clt-api` `create_batch` | `v8_create_batch` | Resumo (sem rows) |
+| `v8-clt-api` `register_webhooks` | `v8_register_webhooks` | Response completo |
+| `v8-clt-api` `list_operations` / `list_consults` / `get_operation` / `check_consult_status` | sim, mas só **sumário** (sem `data`, sem `raw`) |
+| `v8-webhook` (eventos reais) | `v8_webhook_<eventType>` | Resumo + `payload_keys` (não o payload!) |
 
-### 4. Documentação
+### O que NÃO é auditado
+| Origem | Problema |
+|---|---|
+| `v8-active-consult-poller` | **Zero** chamadas a `writeAuditLog`. Snapshot vai só pra `v8_simulations.raw_response` |
+| `v8-retry-cron` | **Zero** auditoria — só atualiza linhas |
+| `v8-clt-api` `list_batches` | Sem auditoria |
+| `v8-clt-api` `get_webhook_status` | Sem auditoria |
+| Webhook V8 | Payload completo só em `v8_webhook_logs.payload` (JSON, sem ligação clara com `audit_logs`) |
+| `simulate_one` | `request_payload` é **reconstruído** com placeholder `<consult_id>`. O body real enviado pra V8 (consult, authorize, simulate, status) **não é capturado** |
 
-- Atualizar `docs/V8-INTEGRATION.md` com:
-  - Seção dedicada **"Margem Disponível vs Margem LordCred"** (tabela comparativa).
-  - Glossário de status (mesmo conteúdo do popover).
-- Atualizar memória `mem://features/v8-margin-display` (criar) com a regra: margem disponível sempre exposta em coluna + destaque no modal.
+---
+
+## O que vai mudar
+
+### 1. Helper compartilhado para "payload completo"
+Criar `supabase/functions/_shared/v8AuditPayload.ts` com helper `truncateForAudit(value, maxBytes)` que:
+- Serializa o JSON.
+- Se exceder ~256KB (limite seguro pra coluna `jsonb`), guarda os primeiros 250KB em `details.payload_truncated_preview` e marca `details.payload_truncated = true` + `details.payload_full_size_bytes = N`.
+- Senão, grava `details.payload_full = <objeto>`.
+
+Isso garante que payloads gigantes da V8 (operação completa com 60 parcelas) não estourem `audit_logs` mas continuem rastreáveis.
+
+### 2. `v8-clt-api` — capturar request/response brutos
+Para **toda chamada `v8Fetch()`** (consult, authorize, simulate, status, list_consults, list_operations, get_operation):
+- Guardar em variáveis locais o `body` enviado, o `status HTTP`, e o **JSON cru** retornado.
+- Anexar em `details.v8_http_calls = [{ step, url, method, request_body, http_status, response_body, duration_ms }, ...]`.
+
+Isso é o ganho principal: hoje o operador vê "kind=active_consult", mas não vê o JSON exato que a V8 mandou. Com isso, vê.
+
+### 3. Adicionar auditoria nas ações que faltam
+- `list_batches` → `v8_list_batches` (com `count` + `data` truncado).
+- `get_webhook_status` → `v8_get_webhook_status` (com registrations + last_log).
+
+### 4. `v8-active-consult-poller` — auditar cada ciclo
+Adicionar 1 entrada por ciclo:
+- `action: "v8_poller_cycle"`, `category: "simulator"`.
+- `details`: `{ scanned, updated, not_found, rate_limited, failed, manual, simulation_ids: [...], v8_http_calls: [...] }`.
+
+E 1 entrada por simulação atualizada quando o snapshot muda de status (com `payload_full = json.data`).
+
+### 5. `v8-retry-cron` — auditar cada execução
+Adicionar 1 entrada por ciclo:
+- `action: "v8_retry_cron_cycle"`.
+- `details`: `{ trigger_source, batch_id, total_eligible, retried, skipped_cooloff, max_attempts_reached, results: [{ simulation_id, attempt, kind, success }] }`.
+
+### 6. `v8-webhook` — gravar payload bruto no audit
+Hoje o webhook grava `payload_keys`. Vai passar a gravar o **payload completo** (com truncamento) e os `headers seguros` (sem auth).
+
+### 7. Promover ações `list_*` a auditoria completa
+Em `list_operations`, `list_consults`, `get_operation`, `check_consult_status` — passar a incluir `payload_full = result.data` (com truncamento).
+
+### 8. Tela de Logs de Auditoria (frontend)
+- Ajustar `JsonTreeView` para destacar visualmente blocos `payload_full`, `v8_http_calls`, `payload_truncated_preview`.
+- Adicionar **filtro rápido por categoria "simulator"** + filtro por sub-ação (`v8_simulate_one`, `v8_webhook_*`, `v8_poller_cycle`, `v8_retry_cron_cycle`).
+- Botão **"Copiar payload completo"** no modal de detalhe (já existe parcialmente, validar que cobre `payload_full` e `v8_http_calls`).
+
+### 9. Documentação
+Anexar seção em `docs/V8-INTEGRATION.md`:
+- Tabela com cada ação V8 e o que aparece no audit.
+- Como filtrar / interpretar `v8_http_calls`.
+- Política de truncamento (250KB).
 
 ---
 
 ## Detalhes técnicos
 
-- **Migração SQL**: `ALTER TABLE v8_simulations ADD COLUMN available_margin_value numeric;` + backfill `UPDATE` lendo `raw_response->'consult'->'result'->>'availableMarginValue'` (com COALESCE entre 4–5 caminhos).
-- **Edge Functions afetadas**: `v8-webhook/index.ts`, `v8-active-consult-poller/index.ts`, `v8-clt-api/index.ts` (para garantir que extrai e grava em todos os pontos onde recebe payload V8).
-- **Frontend**: `V8HistoricoTab.tsx`, `V8ConsultasTab.tsx`, `V8StatusOnV8Dialog.tsx`, novo `V8StatusGlossary.tsx`.
-- **Helper puro**: `extractAvailableMargin(rawResponse)` em `src/lib/v8MarginExtractor.ts` + teste Vitest cobrindo os 4–5 caminhos possíveis (prevenção de regressão).
-- Sem mudança em `types.ts` (regenerado automaticamente após migração).
+**Arquivos a criar**
+- `supabase/functions/_shared/v8AuditPayload.ts` — helper de truncamento.
+
+**Arquivos a editar**
+- `supabase/functions/v8-clt-api/index.ts` — capturar request/response em todas as `v8Fetch`; adicionar auditoria em `list_batches`, `get_webhook_status`; expandir `details` de `simulate_one`, `list_operations`, `list_consults`, `get_operation`, `check_consult_status` com `payload_full`.
+- `supabase/functions/v8-webhook/index.ts` — incluir `payload_full` (com truncamento) e `headers_safe` no audit.
+- `supabase/functions/v8-active-consult-poller/index.ts` — adicionar `writeAuditLog` por ciclo + por simulação atualizada.
+- `supabase/functions/v8-retry-cron/index.ts` — adicionar `writeAuditLog` por ciclo + por tentativa.
+- `src/components/audit/JsonTreeView.tsx` (ou equivalente) — destaque visual para blocos especiais.
+- `src/pages/admin/AuditLogs.tsx` (ou equivalente) — filtro por sub-ação.
+- `docs/V8-INTEGRATION.md` — seção "Auditoria de payloads".
+
+**Sem migrações** — tudo cabe nas colunas existentes de `audit_logs.details (jsonb)`. O índice já existe (`audit_logs_action_idx`).
 
 ---
 
-## Antes vs Depois
+## Antes vs Depois (preview)
 
-- **Antes**: margem disponível só visível abrindo modal → "Payload bruto (JSON)" → expandindo nós até achar o campo. Status `WAITING_CONSENT`/`CONSENT_APPROVED` sem explicação na UI.
-- **Depois**: margem em coluna ordenável + destaque visual no modal. Glossário acessível por ícone "?" em todas as abas.
+**Hoje** (audit `v8_simulate_one`):
+```
+{ category: "simulator", success: false, kind: "active_consult",
+  step: "consult_status", cpf_masked: "***1234", error: "..." }
+```
+
+**Depois**:
+```
+{ category: "simulator", success: false, kind: "active_consult", step: "consult_status",
+  cpf_masked: "***1234",
+  v8_http_calls: [
+    { step: "consult", method: "POST", url: ".../private-consignment/consult",
+      request_body: { documentNumber: "***", ... }, http_status: 201, response_body: {...}, duration_ms: 412 },
+    { step: "consult_status", method: "GET", url: ".../consult?...", http_status: 200,
+      response_body: { ..., availableMarginValue: 1234.56, ... }, duration_ms: 280 }
+  ],
+  payload_full: { ...resultado completo... }
+}
+```
+
+---
 
 ## Vantagens
+- Diagnóstico de falhas V8 sem precisar abrir modal nem inspecionar `v8_simulations.raw_response` no SQL Editor.
+- Replay confiável: dá pra reproduzir qualquer chamada porque o request bruto está salvo.
+- Suporte a auditoria regulatória/compliance — um único lugar (`audit_logs`) tem 100% do histórico V8.
 
-- Operador prioriza leads pela margem em segundos (ordenando coluna).
-- Reduz erro de confundir Margem LordCred (5% interno) com margem do cliente.
-- Glossário evita perguntas recorrentes sobre status V8.
+## Desvantagens
+- `audit_logs` cresce mais rápido (estimativa: +30% a +60% de tamanho por linha V8). Mitigação: a política `cleanup_audit_logs` já remove > 15 dias.
+- Pequeno overhead (5–15ms) por chamada para serializar e medir.
 
-## Desvantagens / trade-offs
+## Checklist manual (após implementação)
+1. Rodar uma simulação CLT em `/admin/v8-simulador` → abrir `/admin/audit-logs` → filtrar por `v8_simulate_one` → expandir → confirmar que `v8_http_calls` aparece com request e response brutos.
+2. Esperar 1 minuto → confirmar entrada `v8_poller_cycle` e `v8_retry_cron_cycle`.
+3. Forçar uma falha (CPF inválido) → conferir que `payload_full` traz a resposta de erro completa da V8.
+4. Disparar manualmente `register_webhooks` → confirmar audit com response completo.
+5. Conferir que payload > 250KB aparece como `payload_truncated_preview` + tamanho informado.
 
-- +1 coluna na tabela do Histórico (já está densa) — mitigação: posicionar logo após "Status" e antes de "Liberado".
-- Backfill toca todos os registros `success` existentes (única vez, query rápida).
-
-## Checklist manual (pós-implementação)
-
-1. Rodar uma nova consulta CLT com CPF válido → confirmar que a margem aparece na coluna assim que vira `SUCCESS`.
-2. Abrir modal "Ver status na V8" → confirmar destaque do bloco margem no topo.
-3. Clicar no ícone "?" no header → confirmar que o glossário abre e está legível.
-4. Ordenar coluna "Margem Disponível" decrescente → confirmar que leads de maior margem sobem.
-5. Verificar registros antigos no Histórico → confirmar que o backfill preencheu a coluna.
-
-## Pendências (futuro, fora deste escopo)
-
-- Filtro por faixa de margem (ex.: "mostrar só leads com margem > R$ 300").
-- Exportar Histórico para Excel já com a coluna margem.
-- Alerta automático quando margem cai abaixo de threshold configurável.
+## Pendências (futuro, não agora)
+- Página dedicada **"Auditoria V8"** com timeline visual por CPF.
+- Botão "Replay" que reenvia o `request_body` salvo (útil em incidentes).
+- Exportar em CSV/JSON o histórico V8 filtrado.
 
 ## Prevenção de regressão
-
-- Teste Vitest em `extractAvailableMargin()` cobrindo os 5 formatos de payload conhecidos da V8.
-- Memória `mem://features/v8-margin-display` registrando a decisão (evita futura remoção da coluna por engano).
+- Adicionar teste Vitest em `src/lib/__tests__/v8AuditPayload.test.ts` cobrindo: payload pequeno passa intacto, payload grande é truncado com aviso, payload nulo não quebra.
+- Adicionar teste Deno em `supabase/functions/v8-clt-api/audit_test.ts` validando que `v8_http_calls` é preenchido em todas as ações principais.
+- Comentário no topo de `auditLog.ts` reforçando: "qualquer nova ação V8 deve gravar `request_payload` + `response_payload` completos".
