@@ -93,8 +93,9 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, name, birth_date, config_id, config_name, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status, v8_batches!inner(id, config_id, config_name, installments)")
+      .select("id, batch_id, cpf, name, birth_date, config_id, config_name, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status, v8_batches!inner(id, config_id, config_name, installments, status)")
       .in("status", ["failed", "pending"])
+      .neq("v8_batches.status", "canceled")
       .or(`last_attempt_at.is.null,last_attempt_at.lte.${cutoffIso}`)
       .lt("attempt_count", maxAttempts)
       .order("last_attempt_at", { ascending: true, nullsFirst: true })
