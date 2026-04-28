@@ -216,7 +216,7 @@ export function V8StatusOnV8Dialog({
                   )}
                   {sim.company_margin != null && (
                     <div>
-                      <div className="text-muted-foreground">Margem</div>
+                      <div className="text-muted-foreground">Margem LordCred</div>
                       <div className="font-semibold">{formatBRL(sim.company_margin) ?? '—'}</div>
                     </div>
                   )}
