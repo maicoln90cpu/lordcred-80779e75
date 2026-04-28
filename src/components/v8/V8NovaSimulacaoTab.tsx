@@ -714,6 +714,20 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Simular automaticamente após consulta</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando ligado: assim que cada margem volta da V8, o sistema dispara <code>/simulation</code> automaticamente (throttled). Quando desligado (recomendado): você revisa as margens e clica em "Simular selecionados".
+              </p>
+            </div>
+            <Switch
+              checked={v8Settings?.auto_simulate_after_consult ?? false}
+              onCheckedChange={(v) => saveV8Settings({ auto_simulate_after_consult: v })}
+              disabled={!v8Settings}
+            />
+          </div>
+
           <Button onClick={handleStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
             {running ? (
               <>
