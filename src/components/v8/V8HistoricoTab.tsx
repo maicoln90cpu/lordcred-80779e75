@@ -276,6 +276,29 @@ function BatchDetail({ batchId }: { batchId: string }) {
                         );
                       })()}
                     </td>
+                    <td className="px-2 py-1 text-left">
+                      {(() => {
+                        const mMin = (s as any).sim_month_min;
+                        const mMax = (s as any).sim_month_max;
+                        const vMin = (s as any).sim_value_min;
+                        const vMax = (s as any).sim_value_max;
+                        const hasMonth = mMin != null && mMax != null;
+                        const hasValue = vMin != null && vMax != null;
+                        if (!hasMonth && !hasValue) return <span className="text-muted-foreground">—</span>;
+                        const fmtBR = (n: number) =>
+                          n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                        return (
+                          <div className="text-[11px] leading-tight">
+                            {hasMonth && <div>{Number(mMin)}–{Number(mMax)} meses</div>}
+                            {hasValue && (
+                              <div className="text-muted-foreground">
+                                R$ {fmtBR(Number(vMin))}–{fmtBR(Number(vMax))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
