@@ -862,6 +862,40 @@ export default function V8NovaSimulacaoTab() {
                     Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!activeBatchId) return;
+                        const pending = simulations.filter((s: any) => s.status === 'pending').length;
+                        const ok = window.confirm(
+                          `Cancelar este lote?\n\n` +
+                          `• ${pending} consulta(s) pendente(s) serão marcadas como FALHA (cancelado).\n` +
+                          `• Os crons de retry e poller vão ignorar este lote a partir de agora.\n` +
+                          `• Resultados já recebidos (success) serão preservados.\n\n` +
+                          `Esta ação NÃO pode ser desfeita.`,
+                        );
+                        if (!ok) return;
+                        try {
+                          const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+                            body: { action: 'cancel_batch', batch_id: activeBatchId },
+                          });
+                          if (error) throw error;
+                          toast.success(`Lote cancelado · ${data?.canceled ?? 0} pendente(s) marcadas como falha.`);
+                        } catch (e: any) {
+                          toast.error(`Falha ao cancelar lote: ${e?.message || e}`);
+                        }
+                      }}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Cancelar lote
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Para imediatamente o processamento deste lote. Pendentes viram FALHA (cancelado), retry/poller param de tocar nele. Use se um lote estiver "preso" ou se você disparou por engano.
+                  </TooltipContent>
+                </Tooltip>
               </TooltipProvider>
             </div>
           </CardHeader>
