@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { useV8Settings } from '@/hooks/useV8Settings';
