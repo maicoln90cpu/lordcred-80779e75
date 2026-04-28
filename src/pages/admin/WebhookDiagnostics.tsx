@@ -36,6 +36,8 @@ export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const { sort, toggle } = useSortState();
   const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
+  const [connectedChips, setConnectedChips] = useState<number>(0);
+  const [totalChips, setTotalChips] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEvent, setFilterEvent] = useState('all');
@@ -50,7 +52,7 @@ export default function WebhookDiagnostics() {
   const loadData = async () => {
     const [logsRes, chipsRes] = await Promise.all([
       supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(500),
-      supabase.from('chips').select('id, instance_name, nickname, chip_type'),
+      supabase.from('chips').select('id, instance_name, nickname, chip_type, status'),
     ]);
     if (logsRes.data) setLogs(logsRes.data);
     if (chipsRes.data) {
@@ -59,6 +61,8 @@ export default function WebhookDiagnostics() {
         map[c.id] = { name: c.nickname || c.instance_name, chipType: c.chip_type || 'warming' };
       });
       setChipsMap(map);
+      setTotalChips(chipsRes.data.length);
+      setConnectedChips(chipsRes.data.filter((c: any) => c.status === 'connected').length);
     }
     setLoading(false);
   };
@@ -200,13 +204,27 @@ export default function WebhookDiagnostics() {
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
                         <Webhook className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p>Nenhum log de webhook encontrado</p>
-                        <p className="text-xs mt-2 opacity-70">
-                          Os logs são limpos automaticamente após <strong>3 dias</strong> (rotina <code>cleanup_webhook_logs</code> roda às 04h).
-                        </p>
-                        <p className="text-xs mt-1 opacity-70">
-                          Se nenhum chip está recebendo mensagens há mais de 3 dias, esta tabela ficará vazia — é o comportamento esperado.
-                        </p>
+                        <p className="font-medium">Nenhum log de webhook encontrado</p>
+                        <div className="text-xs mt-3 space-y-1 max-w-md mx-auto">
+                          <p>
+                            <strong>Chips conectados:</strong>{' '}
+                            <span className={connectedChips === 0 ? 'text-destructive font-semibold' : 'text-emerald-600 font-semibold'}>
+                              {connectedChips} de {totalChips}
+                            </span>
+                          </p>
+                          <p className="opacity-80">
+                            Os logs são apagados automaticamente após <strong>3 dias</strong> (rotina <code>cleanup_webhook_logs</code> roda às 04h).
+                          </p>
+                          {connectedChips === 0 ? (
+                            <p className="opacity-80 text-amber-600">
+                              ⚠️ Nenhum chip está conectado. Conecte ao menos 1 chip em <code>/chips</code> para começar a receber webhooks.
+                            </p>
+                          ) : (
+                            <p className="opacity-80">
+                              Há chips conectados, mas nenhuma mensagem chegou nos últimos 3 dias. Verifique se os webhooks da UazAPI estão apontando para esta plataforma em <code>/admin/integrations</code>.
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}

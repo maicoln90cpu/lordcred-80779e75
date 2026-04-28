@@ -235,6 +235,9 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                   💰 Margem Disponível
                 </th>
+                <th className="px-2 py-1 text-left" title="Faixa de meses e valores que a V8 aceita simular para este trabalhador (simulationLimit).">
+                  📐 Limites V8
+                </th>
                 <th className="px-2 py-1 text-right">Liberado</th>
                 <th className="px-2 py-1 text-right">Parcela</th>
                 <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
@@ -270,6 +273,29 @@ function BatchDetail({ batchId }: { batchId: string }) {
                           <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-2 py-1 text-left">
+                      {(() => {
+                        const mMin = (s as any).sim_month_min;
+                        const mMax = (s as any).sim_month_max;
+                        const vMin = (s as any).sim_value_min;
+                        const vMax = (s as any).sim_value_max;
+                        const hasMonth = mMin != null && mMax != null;
+                        const hasValue = vMin != null && vMax != null;
+                        if (!hasMonth && !hasValue) return <span className="text-muted-foreground">—</span>;
+                        const fmtBR = (n: number) =>
+                          n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                        return (
+                          <div className="text-[11px] leading-tight">
+                            {hasMonth && <div>{Number(mMin)}–{Number(mMax)} meses</div>}
+                            {hasValue && (
+                              <div className="text-muted-foreground">
+                                R$ {fmtBR(Number(vMin))}–{fmtBR(Number(vMax))}
+                              </div>
+                            )}
+                          </div>
                         );
                       })()}
                     </td>

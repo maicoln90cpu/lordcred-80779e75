@@ -42,6 +42,11 @@ const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   contract_template: ['/admin/parceiros/template'],
   broadcasts: ['/admin/broadcasts'],
   hr: ['/admin/hr'],
+  // Adicionados 2026-04-28 — sem mapeamento, hasRoutePermission retornava true
+  // e o toggle do Master era ignorado para essas rotas.
+  v8_simulador: ['/admin/v8-simulador'],
+  commissions_v2: ['/admin/commissions-v2'],
+  integrations: ['/admin/integrations'],
 };
 
 /** Builds reverse map: route → feature_key */
