@@ -33,6 +33,7 @@ import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { V8StatusGlossary } from './V8StatusGlossary';
 import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
+import { MargemDispCell } from './MargemDispCell';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
