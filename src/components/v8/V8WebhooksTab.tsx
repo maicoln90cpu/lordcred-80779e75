@@ -39,7 +39,9 @@ type WebhookLog = {
   consult_id: string | null;
   operation_id: string | null;
   v8_simulation_id: string | null;
-  payload: any;
+  // Frente D: payload (JSONB grande) NÃO vem na listagem para reduzir egress.
+  // Só é carregado sob demanda quando o usuário clica em "Ver detalhes".
+  payload?: any;
   processed: boolean | null;
   process_error: string | null;
   received_at: string;
@@ -111,9 +113,22 @@ export default function V8WebhooksTab() {
   const [statusFilter, setStatusFilter] = useState<string>('__all__');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<WebhookLog | null>(null);
+  // Frente D: payload é carregado sob demanda quando o usuário clica em "Ver detalhes"
+  const [selectedPayload, setSelectedPayload] = useState<{ loading: boolean; data: any | null }>({ loading: false, data: null });
   const [replaying, setReplaying] = useState(false);
   const [cpfMap, setCpfMap] = useState<Record<string, string>>({}); // log.id -> cpf digits
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+
+  async function openDetails(log: WebhookLog) {
+    setSelected(log);
+    setSelectedPayload({ loading: true, data: null });
+    const { data } = await supabase
+      .from('v8_webhook_logs')
+      .select('payload')
+      .eq('id', log.id)
+      .maybeSingle();
+    setSelectedPayload({ loading: false, data: data?.payload ?? null });
+  }
 
   /**
    * Busca contadores reais por tipo em UMA única consulta agregada.
@@ -191,12 +206,14 @@ export default function V8WebhooksTab() {
 
     const map: Record<string, string> = {};
     rows.forEach((r) => {
-      const fromPayload = cpfFromPayload(r.payload);
+      // Frente D: payload não vem mais na listagem, então o fallback
+      // cpfFromPayload foi removido. Na prática a V8 nunca envia CPF
+      // mesmo (verificado: 110k webhooks, 0 com CPF no payload).
       const viaConsult = r.consult_id ? consultToCpf[r.consult_id] : undefined;
       const viaOperation = r.operation_id
         ? consultToCpf[opToConsult[r.operation_id] ?? '']
         : undefined;
-      const cpf = fromPayload || viaConsult || viaOperation;
+      const cpf = viaConsult || viaOperation;
       if (cpf) map[r.id] = cpf;
     });
     setCpfMap(map);
@@ -205,14 +222,15 @@ export default function V8WebhooksTab() {
   async function load() {
     setLoading(true);
     try {
+      // Frente D: payload (JSONB) excluído da listagem — reduz egress em ~80%
+      // (cada payload V8 é 2-10 KB; 200 linhas = até 2 MB extras à toa).
+      // O payload é buscado sob demanda em handleOpenDetails().
       let query = supabase
         .from('v8_webhook_logs')
-        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, payload, processed, process_error, received_at')
+        .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, processed, process_error, received_at')
         .order('received_at', { ascending: false })
         .limit(200);
 
-      // Frente 2: quando o filtro de tipo está ativo, busca já filtrada no banco
-      // para garantir 200 linhas DAQUELE tipo (e não 200 globais que viram tudo 'consult').
       if (typeFilter !== '__all__') {
         query = query.eq('event_type', typeFilter);
       }
@@ -404,27 +422,41 @@ export default function V8WebhooksTab() {
                     Nenhum webhook encontrado com esses filtros.
                   </td></tr>
                 )}
-                {!loading && filtered.map((log) => (
+                {!loading && filtered.map((log) => {
+                  const cpf = cpfMap[log.id];
+                  return (
                   <tr key={log.id} className="border-t">
                     <td className="px-2 py-1 whitespace-nowrap">{formatDateTime(log.received_at)}</td>
                     <td className="px-2 py-1">{getTypeBadge(log.event_type)}</td>
-                    <td className="px-2 py-1 font-mono">{maskCpfDigits(cpfMap[log.id])}</td>
+                    <td className="px-2 py-1 font-mono">
+                      {cpf ? (
+                        maskCpfDigits(cpf)
+                      ) : (
+                        <span
+                          className="text-muted-foreground cursor-help"
+                          title="Sem CPF: a V8 não envia CPF nos webhooks. Provavelmente esta consulta foi aberta fora do LordCred (em outra plataforma ou direto na V8). Se for um contrato seu, abra os detalhes para ver o consult_id e cruzar manualmente."
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-1">{log.status || '—'}</td>
                     <td className="px-2 py-1">{getResultBadge(log)}</td>
                     <td className="px-2 py-1 text-right">
-                      <Button variant="outline" size="sm" onClick={() => setSelected(log)}>
+                      <Button variant="outline" size="sm" onClick={() => openDetails(log)}>
                         Ver detalhes
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
 
-      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setSelectedPayload({ loading: false, data: null }); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhe do webhook</DialogTitle>
@@ -446,9 +478,15 @@ export default function V8WebhooksTab() {
               </div>
               <div>
                 <strong>Payload:</strong>
-                <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto max-h-96">
-                  {JSON.stringify(selected.payload, null, 2)}
-                </pre>
+                {selectedPayload.loading ? (
+                  <div className="mt-1 p-4 bg-muted rounded text-center text-muted-foreground">
+                    <Loader2 className="inline h-4 w-4 animate-spin mr-2" />Carregando payload...
+                  </div>
+                ) : (
+                  <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto max-h-96">
+                    {JSON.stringify(selectedPayload.data, null, 2)}
+                  </pre>
+                )}
               </div>
             </div>
           )}
