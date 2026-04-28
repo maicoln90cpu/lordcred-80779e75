@@ -275,23 +275,57 @@ function BatchDetail({ batchId }: { batchId: string }) {
                     <td className="px-2 py-1 font-mono">{s.cpf}</td>
                     <td className="px-2 py-1">{s.name || '—'}</td>
                     <td className="px-2 py-1">
-                      <Badge
-                        variant={badgeVariant}
-                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
-                      >
-                        {badgeLabel}
-                      </Badge>
-                      {(() => {
-                        const ss = (s as any).simulate_status as string | null | undefined;
-                        if (s.status !== 'success' || !ss || ss === 'not_started') return null;
-                        const label = ss === 'done' ? 'simulado' : ss === 'queued' ? 'na fila' : ss;
-                        const cls = ss === 'done'
-                          ? 'border-emerald-500/40 text-emerald-700'
-                          : 'border-blue-500/40 text-blue-700';
-                        return (
-                          <Badge variant="outline" className={`ml-1 text-[10px] ${cls}`}>{label}</Badge>
-                        );
-                      })()}
+                      <div className="flex items-center gap-1">
+                        <Badge
+                          variant={badgeVariant}
+                          className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
+                        >
+                          {badgeLabel}
+                        </Badge>
+                        {(() => {
+                          // Frente B: simulate_status vira ícone discreto, NÃO outro badge "failed"
+                          // que confunde com o status principal. Só mostra quando relevante.
+                          const ss = (s as any).simulate_status as string | null | undefined;
+                          if (s.status !== 'success' || !ss || ss === 'not_started') return null;
+                          if (ss === 'done') {
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 text-[10px] font-bold cursor-help">✓</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-xs">
+                                  Auto-simulação concluída — valores liberado/parcela são reais (não estimativa).
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          }
+                          if (ss === 'queued') {
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Loader2 className="w-3 h-3 text-blue-600 animate-spin cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-xs">
+                                  Auto-simulação na fila — em breve teremos os valores reais.
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          }
+                          if (ss === 'failed') {
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertTriangle className="w-3 h-3 text-amber-500 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-xs">
+                                  Auto-simulação falhou. A consulta foi OK (margem disponível abaixo), mas o cálculo de parcela não rodou. Use "Simular selecionados" no topo do lote para tentar de novo.
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </td>
                     <td className="px-2 py-1 text-right">
                       <MargemDispCell simulation={s as any} />
@@ -307,14 +341,27 @@ function BatchDetail({ batchId }: { batchId: string }) {
                         if (!hasMonth && !hasValue) return <span className="text-muted-foreground">—</span>;
                         const fmtBR = (n: number) =>
                           n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                        // Frente B: 999 é sentinela "ilimitado" da V8 — exibir como "24+ meses"
+                        const renderMonths = () => {
+                          const min = Number(mMin);
+                          const max = Number(mMax);
+                          if (max >= 999) return <div>{min}+ meses</div>;
+                          return <div>{min}–{max} meses</div>;
+                        };
+                        const renderValues = () => {
+                          const min = Number(vMin);
+                          const max = Number(vMax);
+                          const maxLabel = max >= 999_999 ? 'sem teto' : `R$ ${fmtBR(max)}`;
+                          return (
+                            <div className="text-muted-foreground">
+                              R$ {fmtBR(min)}–{maxLabel}
+                            </div>
+                          );
+                        };
                         return (
                           <div className="text-[11px] leading-tight">
-                            {hasMonth && <div>{Number(mMin)}–{Number(mMax)} meses</div>}
-                            {hasValue && (
-                              <div className="text-muted-foreground">
-                                R$ {fmtBR(Number(vMin))}–{fmtBR(Number(vMax))}
-                              </div>
-                            )}
+                            {hasMonth && renderMonths()}
+                            {hasValue && renderValues()}
                           </div>
                         );
                       })()}
