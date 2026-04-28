@@ -857,7 +857,14 @@ export default function V8NovaSimulacaoTab() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {(() => {
+            {showManualWarning && (
+              <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs leading-relaxed">
+                ⚠️ <strong>{awaitingManualSim} consulta(s) com margem aprovada aguardando simulação.</strong>{' '}
+                A V8 já liberou a margem desses CPFs, mas o cálculo de parcela e valor liberado ainda não foi feito.
+                Clique em <strong>"Simular selecionados"</strong> (botão amarelo pulsante acima) para finalizar.
+                Ou ative o toggle <em>"Simular automaticamente após consulta"</em> em Configurações.
+              </div>
+            )}
               const autoRetryActive = simulations.filter((s: any) => {
                 const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                 if (!isRetriableErrorKind(kind)) return false;
