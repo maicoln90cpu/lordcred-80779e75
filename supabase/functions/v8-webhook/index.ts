@@ -26,6 +26,7 @@ import {
   isKnownConsultStatus,
   isKnownOperationStatus,
 } from "../_shared/v8Status.ts";
+import { validateV8WebhookPayload } from "./payloadSchema.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -274,6 +275,55 @@ serve(async (req) => {
   for (const [k, v] of req.headers.entries()) {
     if (k.toLowerCase() === "authorization" || k.toLowerCase() === "cookie") continue;
     headersObj[k] = v;
+  }
+
+  // --- Validação Zod (etapa 2 / item 2): falha cedo em payloads malformados.
+  // Sempre retornamos 200 — V8 não deve reentregar lixo. Apenas registramos
+  // em audit_logs + v8_webhook_logs para diagnóstico no painel.
+  const validation = validateV8WebhookPayload(payload);
+  if (!validation.ok) {
+    try {
+      const { data: invalidLog } = await supabase
+        .from("v8_webhook_logs")
+        .insert({
+          event_type: "invalid",
+          status: validation.reason,
+          payload,
+          headers: headersObj,
+          processed: false,
+          process_error: `zod_invalid:${validation.reason} — ${validation.errors.join(" | ")}`,
+        })
+        .select("id")
+        .single();
+
+      await writeAuditLog(supabase, {
+        action: "v8_webhook_invalid_payload",
+        category: "simulator",
+        success: false,
+        targetTable: "v8_webhook_logs",
+        targetId: invalidLog?.id ?? null,
+        details: {
+          reason: validation.reason,
+          errors: validation.errors,
+          headers_safe: safeHeaders(headersObj),
+          webhook_log_id: invalidLog?.id ?? null,
+          ...packPayloadForAudit(payload, "payload_full"),
+        },
+      });
+    } catch (logErr) {
+      console.error("v8-webhook: failed to log invalid payload", logErr);
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        validation_error: {
+          reason: validation.reason,
+          errors: validation.errors,
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 
   // --- Tipo do evento (query param ?type=, payload.type ou heurística por path)
