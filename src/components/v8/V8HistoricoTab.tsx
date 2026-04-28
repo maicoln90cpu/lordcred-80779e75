@@ -263,6 +263,16 @@ function BatchDetail({ batchId }: { batchId: string }) {
                         {translateV8Status(s.status)}
                       </Badge>
                     </td>
+                    <td className="px-2 py-1 text-right">
+                      {(() => {
+                        const m = s.margem_valor ?? extractAvailableMargin(s.raw_response);
+                        return m != null ? (
+                          <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
