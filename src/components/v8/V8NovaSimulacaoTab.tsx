@@ -36,9 +36,17 @@ import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+  const ws = (simulation.webhook_status || '').toUpperCase();
 
+  // NOVO: active_consult agora fica como pending + WAITING_EXTERNAL (amarelo, aguarda promoção)
+  if (simulation.status === 'pending' && (errorKind === 'active_consult' || ws === 'WAITING_EXTERNAL')) {
+    return 'aguardando consulta antiga';
+  }
   if (simulation.status === 'failed' && errorKind === 'active_consult') {
     return 'consulta ativa';
+  }
+  if (simulation.status === 'failed' && errorKind === 'canceled') {
+    return 'cancelado';
   }
   if (simulation.status === 'failed' && errorKind === 'existing_proposal') {
     return 'proposta existente';
@@ -50,22 +58,23 @@ function getSimulationStatusLabel(simulation: { status: string; error_message: s
     return 'dados inválidos';
   }
   if (simulation.status === 'pending') {
-    // Sem nenhuma chamada ainda → estamos disparando AGORA
     if (!simulation.last_attempt_at) return 'processando';
-    // V8 explicitamente em estado de espera
-    const ws = (simulation.webhook_status || '').toUpperCase();
     if (ws.startsWith('WAITING_')) return 'em análise';
     return 'aguardando V8';
   }
   return translateV8Status(simulation.status);
 }
 
-function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null }) {
+function getSimulationStatusVariant(simulation: { status: string; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
+  const ws = (simulation.webhook_status || '').toUpperCase();
 
   if (simulation.status === 'success') return 'default' as const;
+  // amarelo (outline) para aguardando consulta antiga
+  if (simulation.status === 'pending' && (errorKind === 'active_consult' || ws === 'WAITING_EXTERNAL')) return 'outline' as const;
   if (simulation.status === 'pending') return 'secondary' as const;
   if (simulation.status === 'failed' && errorKind === 'active_consult') return 'outline' as const;
+  if (simulation.status === 'failed' && errorKind === 'canceled') return 'outline' as const;
   return 'destructive' as const;
 }
 
