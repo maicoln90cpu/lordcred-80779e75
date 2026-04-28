@@ -45,39 +45,65 @@ function isRetriableSoon(s: any): boolean {
   return ageMs <= 60_000;
 }
 
-// Badge informativo "N para retentar" no header de cada lote (NÃO é botão de ação).
-// Clicar nele apenas serve como indicador visual; a ação fica no botão padrão dentro do lote
-// expandido, garantindo paridade total com a tela "Nova Simulação".
-function BatchRetryHeaderBadge({ batchId }: { batchId: string }) {
-  const [counts, setCounts] = useState<{ now: number; soon: number }>({ now: 0, soon: 0 });
+// Frente C: 1 query agregada + 1 subscribe global com debounce, em vez de 50
+// queries + 50 canais realtime (1 por lote). Compartilhado por todos os
+// BatchRetryHeaderBadge via contexto-leve baseado em estado de módulo.
+const retryCountListeners = new Set<() => void>();
+let retryCountCache: Record<string, { now: number; soon: number }> = {};
+let retryCountLoaded = false;
+let retryCountLoading = false;
+let retryCountChannel: ReturnType<typeof supabase.channel> | null = null;
+let retryDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const loadCount = async () => {
+async function loadAllRetryCounts(batchIds: string[]) {
+  if (retryCountLoading || batchIds.length === 0) return;
+  retryCountLoading = true;
+  try {
     const { data } = await supabase
       .from('v8_simulations')
-      .select('id, status, raw_response, error_kind, last_attempt_at')
-      .eq('batch_id', batchId)
+      .select('batch_id, status, raw_response, error_kind, last_attempt_at')
+      .in('batch_id', batchIds)
       .in('status', ['failed', 'pending']);
-    const list = data || [];
-    setCounts({
-      now: list.filter((s: any) => isRetriableNow(s)).length,
-      soon: list.filter((s: any) => isRetriableSoon(s)).length,
+    const next: Record<string, { now: number; soon: number }> = {};
+    for (const id of batchIds) next[id] = { now: 0, soon: 0 };
+    (data ?? []).forEach((s: any) => {
+      if (isRetriableNow(s)) next[s.batch_id].now += 1;
+      else if (isRetriableSoon(s)) next[s.batch_id].soon += 1;
     });
-  };
+    retryCountCache = next;
+    retryCountLoaded = true;
+    retryCountListeners.forEach((cb) => cb());
+  } finally {
+    retryCountLoading = false;
+  }
+}
+
+function ensureRetryRealtime(batchIds: string[]) {
+  if (retryCountChannel) return;
+  retryCountChannel = supabase
+    .channel('v8-retry-counts-global')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'v8_simulations' },
+      () => {
+        if (retryDebounceTimer) clearTimeout(retryDebounceTimer);
+        retryDebounceTimer = setTimeout(() => loadAllRetryCounts(batchIds), 2000);
+      },
+    )
+    .subscribe();
+}
+
+function BatchRetryHeaderBadge({ batchId }: { batchId: string }) {
+  const [counts, setCounts] = useState<{ now: number; soon: number }>(
+    () => retryCountCache[batchId] ?? { now: 0, soon: 0 },
+  );
 
   useEffect(() => {
-    loadCount();
-    const channel = supabase
-      .channel(`v8-retry-count-${batchId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'v8_simulations', filter: `batch_id=eq.${batchId}` },
-        () => loadCount(),
-      )
-      .subscribe();
-    const tick = setInterval(loadCount, 30_000);
+    const update = () => setCounts(retryCountCache[batchId] ?? { now: 0, soon: 0 });
+    retryCountListeners.add(update);
+    update();
     return () => {
-      supabase.removeChannel(channel);
-      clearInterval(tick);
+      retryCountListeners.delete(update);
     };
   }, [batchId]);
 
