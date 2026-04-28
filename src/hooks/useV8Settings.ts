@@ -8,6 +8,7 @@ export interface V8Settings {
   retry_max_backoff_seconds: number;
   background_retry_enabled: boolean;
   retry_batch_size: number;
+  sound_on_complete: boolean;
   updated_at: string;
 }
 
@@ -17,6 +18,7 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   retry_max_backoff_seconds: 120,
   background_retry_enabled: true,
   retry_batch_size: 25,
+  sound_on_complete: false,
 };
 
 export function useV8Settings() {

@@ -25,6 +25,7 @@ import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  getV8StatusSnapshot,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
@@ -713,12 +714,42 @@ export default function V8NovaSimulacaoTab() {
                           const meta = getV8ErrorMeta(s.raw_response);
                           const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 
-                          // Caso 1: active_consult em qualquer status — mostrar mensagem amarela + botão
+                          // Caso 1: active_consult — render inline do snapshot (paridade c/ Histórico)
                           if (isActiveConsult) {
+                            const snapshot = getV8StatusSnapshot(s.raw_response);
+                            if (snapshot?.hasData) {
+                              return (
+                                <div className="space-y-1">
+                                  <div className="font-medium text-amber-600">Consulta ativa na V8</div>
+                                  <div className="text-[11px] space-y-0.5">
+                                    {snapshot.status && (
+                                      <div>
+                                        <span className="text-muted-foreground">Status:</span>{' '}
+                                        <span className={`font-semibold ${snapshot.status === 'REJECTED' ? 'text-destructive' : snapshot.status === 'CONSENT_APPROVED' ? 'text-emerald-600' : ''}`}>
+                                          {snapshot.status}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {snapshot.name && (
+                                      <div><span className="text-muted-foreground">Nome:</span> {snapshot.name}</div>
+                                    )}
+                                    {snapshot.detail && (
+                                      <div className="text-muted-foreground italic">{snapshot.detail}</div>
+                                    )}
+                                  </div>
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => handleCheckStatus(s.cpf)}>
+                                    <Search className="w-3 h-3 mr-1" /> Ver todas as consultas
+                                  </Button>
+                                </div>
+                              );
+                            }
                             return (
                               <div className="space-y-1">
                                 <div className="whitespace-pre-line font-medium text-amber-600">
                                   Já existe consulta ativa para este CPF na V8
+                                </div>
+                                <div className="text-[10px] text-muted-foreground italic">
+                                  Buscando status na V8... (atualiza em até 1 min)
                                 </div>
                                 <Button size="sm" variant="outline" onClick={() => handleCheckStatus(s.cpf)}>
                                   <Search className="w-3 h-3 mr-1" /> Ver status na V8

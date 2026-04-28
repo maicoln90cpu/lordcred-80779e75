@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, Zap } from 'lucide-react';
+import { Loader2, Save, Zap, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useV8Settings } from '@/hooks/useV8Settings';
 
@@ -15,6 +15,7 @@ export default function V8RetrySettingsCard() {
   const [maxBackoff, setMaxBackoff] = useState(defaults.retry_max_backoff_seconds);
   const [batchSize, setBatchSize] = useState(defaults.retry_batch_size);
   const [enabled, setEnabled] = useState(defaults.background_retry_enabled);
+  const [soundOn, setSoundOn] = useState(defaults.sound_on_complete);
 
   useEffect(() => {
     if (!settings) return;
@@ -23,6 +24,7 @@ export default function V8RetrySettingsCard() {
     setMaxBackoff(settings.retry_max_backoff_seconds);
     setBatchSize(settings.retry_batch_size);
     setEnabled(settings.background_retry_enabled);
+    setSoundOn(settings.sound_on_complete ?? false);
   }, [settings]);
 
   async function handleSave() {
@@ -36,6 +38,7 @@ export default function V8RetrySettingsCard() {
       retry_max_backoff_seconds: maxBackoff,
       retry_batch_size: batchSize,
       background_retry_enabled: enabled,
+      sound_on_complete: soundOn,
     });
     if (ok) toast.success('Configurações salvas');
     else toast.error('Falha ao salvar (verifique permissões)');
@@ -119,6 +122,17 @@ export default function V8RetrySettingsCard() {
               Teto do backoff exponencial (loop frontend de fallback).
             </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3 rounded border border-border/60 bg-muted/30 p-3">
+          <Volume2 className="w-4 h-4 text-muted-foreground" />
+          <div className="flex-1">
+            <Label className="cursor-pointer">Tocar som ao concluir lote</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Quando ativo, um beep curto é tocado no navegador ao final de cada lote (sucesso ou falha). Útil para acompanhar lotes em segundo plano.
+            </p>
+          </div>
+          <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
         </div>
 
         <Button onClick={handleSave} disabled={saving || loading}>

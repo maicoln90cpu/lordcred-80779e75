@@ -17,6 +17,7 @@ import {
 } from '@/lib/v8ErrorPresentation';
 import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
+import { AnimatedCountBadge } from './V8AnimatedCountBadge';
 
 // Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
 function isRetriableNow(s: any): boolean {
@@ -422,7 +423,12 @@ export default function V8HistoricoTab() {
                   <Badge variant={b.status === 'completed' ? 'default' : 'secondary'}>
                     {translateV8Status(b.status)}
                   </Badge>
-                  <Badge variant="outline">{b.success_count}/{b.total_count} ok</Badge>
+                  <AnimatedCountBadge value={b.success_count} variant="outline" pulseClass="bg-emerald-500/20 border-emerald-500/40">
+                    {b.success_count}/{b.total_count} ok
+                  </AnimatedCountBadge>
+                  <AnimatedCountBadge value={b.failure_count} variant="outline" pulseClass="bg-destructive/20 border-destructive/40">
+                    {b.failure_count} falha
+                  </AnimatedCountBadge>
                   <Badge variant="outline">{successRate}%</Badge>
                   <BatchRetryHeaderButton batchId={b.id} />
                 </div>

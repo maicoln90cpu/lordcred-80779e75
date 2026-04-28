@@ -5,6 +5,7 @@ import V8NovaSimulacaoTab from '@/components/v8/V8NovaSimulacaoTab';
 import V8HistoricoTab from '@/components/v8/V8HistoricoTab';
 import V8ConfigTab from '@/components/v8/V8ConfigTab';
 import V8ConsultasTab from '@/components/v8/V8ConsultasTab';
+import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 
 export default function V8Simulador() {
   return (
@@ -23,6 +24,8 @@ export default function V8Simulador() {
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
           🧪 <strong>Integração em validação</strong> — confira valores antes de fechar com o cliente.
         </div>
+
+        <V8RealtimeStatusBar />
 
         <Tabs defaultValue="nova">
           <TabsList>

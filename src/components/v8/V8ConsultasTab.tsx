@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, FileSearch, Loader2, RefreshCw } from 'lucide-react';
@@ -94,6 +94,8 @@ export default function V8ConsultasTab() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [replaying, setReplaying] = useState(false);
+  const [rtPulse, setRtPulse] = useState(false);
+  const lastSearchRef = useRef<{ start: Date; end: Date; term: string } | null>(null);
 
   const {
     operations,
@@ -149,6 +151,7 @@ export default function V8ConsultasTab() {
     }
 
     setHasSearched(true);
+    lastSearchRef.current = { start: startDate, end: endDate, term: searchTerm };
 
     const result = await loadOperations({
       startDate: toRangeBoundary(startDate, 'start'),
@@ -177,6 +180,38 @@ export default function V8ConsultasTab() {
 
     toast.success(`${result.total} proposta(s) e ${consultResult.total} consulta(s) carregada(s)`);
   }
+
+  // Realtime: quando o webhook V8 atualiza qualquer simulação (status/raw_response),
+  // reexecuta a última busca silenciosamente para refletir o novo estado das consultas
+  // ativas. Sem subscription, era preciso clicar em "Buscar propostas" de novo.
+  useEffect(() => {
+    if (!hasSearched) return;
+    const channel = supabase
+      .channel('v8-consultas-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'v8_simulations' },
+        () => {
+          const last = lastSearchRef.current;
+          if (!last) return;
+          setRtPulse(true);
+          setTimeout(() => setRtPulse(false), 800);
+          // Recarrega só consultas ativas (mais barato que operations)
+          void loadConsults({
+            startDate: toRangeBoundary(last.start, 'start'),
+            endDate: toRangeBoundary(last.end, 'end'),
+            limit: 200,
+            page: 1,
+            search: last.term,
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSearched]);
 
   async function handleOpenDetails(operationId: string) {
     const result = await loadOperationDetail(operationId);
@@ -310,7 +345,15 @@ export default function V8ConsultasTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Consultas ativas / já existentes fora das operações</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Consultas ativas / já existentes fora das operações</span>
+            {hasSearched && (
+              <span className="text-[11px] font-normal inline-flex items-center gap-1 text-muted-foreground">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${rtPulse ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500/60'}`} />
+                tempo real ativo
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
