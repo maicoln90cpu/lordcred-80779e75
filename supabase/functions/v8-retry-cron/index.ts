@@ -91,7 +91,7 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, name, birth_date, config_id, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status")
+      .select("id, batch_id, cpf, name, birth_date, config_id, config_name, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status, v8_batches!inner(id, config_id, config_name, installments)")
       .in("status", ["failed", "pending"])
       .or(`last_attempt_at.is.null,last_attempt_at.lte.${cutoffIso}`)
       .lt("attempt_count", maxAttempts)
@@ -128,17 +128,37 @@ serve(async (req) => {
     // 3) Para cada candidato, invoca v8-clt-api com triggered_by='cron'
     let okCount = 0;
     let failCount = 0;
+    let skippedMissingConfig = 0;
+    const touchedBatchIds = new Set<string>();
 
     for (const sim of eligible) {
+      // Fallback: usa config/parcelas do lote quando a sim está sem
+      const batch = (sim as any).v8_batches || {};
+      const effectiveConfigId = sim.config_id || batch.config_id || null;
+      const effectiveConfigName = sim.config_name || batch.config_name || null;
+      const effectiveInstallments = sim.installments || batch.installments || null;
+
+      if (!effectiveConfigId || !effectiveInstallments) {
+        // Não gasta tentativa: marca como invalid_data e segue.
+        await supabase
+          .from("v8_simulations")
+          .update({
+            status: "failed",
+            error_kind: "invalid_data",
+            error_message: "Tabela ou parcelas do lote não definidas — auto-retry não é possível.",
+            last_step: "simulate",
+          })
+          .eq("id", sim.id);
+        skippedMissingConfig += 1;
+        touchedBatchIds.add(sim.batch_id);
+        continue;
+      }
+
       try {
         const resp = await fetch(`${supabaseUrl}/functions/v1/v8-clt-api`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // Service role autentica internamente; v8-clt-api faz auth.getUser(token) — isso falha
-            // para service-role tokens, então usamos a anon key + impersonation via header customizado
-            // OU chamamos o RPC interno. Simplificação: chamamos v8-clt-api com SERVICE_ROLE via Bearer
-            // e o handler aceita o token (auth.getUser falha graciosamente — ver guard abaixo).
             "Authorization": `Bearer ${serviceRoleKey}`,
             "x-cron-trigger": "v8-retry-cron",
           },
@@ -148,8 +168,9 @@ serve(async (req) => {
               cpf: sim.cpf,
               nome: sim.name,
               data_nascimento: sim.birth_date,
-              config_id: sim.config_id,
-              parcelas: sim.installments,
+              config_id: effectiveConfigId,
+              config_label: effectiveConfigName,
+              parcelas: effectiveInstallments,
               batch_id: sim.batch_id,
               simulation_id: sim.id,
               attempt_count: Number(sim.attempt_count ?? 0) + 1,
@@ -160,15 +181,19 @@ serve(async (req) => {
         });
         if (resp.ok) okCount += 1;
         else failCount += 1;
+        touchedBatchIds.add(sim.batch_id);
       } catch (err) {
         console.error("[v8-retry-cron] invoke err", sim.id, err);
         failCount += 1;
       }
     }
 
-    // Dispara o poller de active_consult em background — atualiza o snapshot
-    // de status (REJECTED, CONSENT_APPROVED, etc.) das linhas que ficaram
-    // com kind='active_consult' para a UI mostrar inline.
+    // Recalcula contadores dos lotes que tocamos — corrige números travados.
+    for (const bid of touchedBatchIds) {
+      await supabase.rpc("v8_recalc_batch_counters", { _batch_id: bid });
+    }
+
+    // Dispara o poller de active_consult em background
     fetch(`${supabaseUrl}/functions/v1/v8-active-consult-poller`, {
       method: "POST",
       headers: {
@@ -178,13 +203,14 @@ serve(async (req) => {
       body: JSON.stringify(manualBatchId ? { batch_id: manualBatchId } : {}),
     }).catch((e) => console.error("[v8-retry-cron] poller dispatch err", e));
 
-    console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount}`);
+    console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount} skipped_missing_config=${skippedMissingConfig}`);
 
     return ok({
       scanned: candidates?.length ?? 0,
       eligible: eligible.length,
       retried_ok: okCount,
       retried_fail: failCount,
+      skipped_missing_config: skippedMissingConfig,
       sub_pass: subPass,
       duration_ms: Date.now() - startedAt,
     });

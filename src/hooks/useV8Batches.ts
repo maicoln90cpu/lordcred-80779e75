@@ -118,10 +118,22 @@ export function useV8BatchSimulations(batchId: string | null) {
   useEffect(() => {
     if (!batchId) return;
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Subscribe-then-fetch: primeiro liga o canal, depois faz a 1ª carga.
-    // Assim qualquer UPDATE que chegue durante o fetch já vai ser refletido
-    // no próximo reload disparado pelo evento.
+    // Fallback de polling 10s — garante que mesmo com WS caído a UI atualiza.
+    const startPolling = () => {
+      if (pollTimer) return;
+      pollTimer = setInterval(() => {
+        if (!cancelled) reload();
+      }, 10_000);
+    };
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
     const channel = supabase
       .channel(`v8-sims-${batchId}`)
       .on(
@@ -137,13 +149,24 @@ export function useV8BatchSimulations(batchId: string | null) {
         },
       )
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED' && !cancelled) {
+        if (cancelled) return;
+        if (status === 'SUBSCRIBED') {
+          stopPolling();
           reload();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          startPolling();
         }
       });
 
+    // Failsafe: se nada vier em 15s, liga polling de qualquer forma.
+    const failsafe = setTimeout(() => {
+      if (!cancelled) startPolling();
+    }, 15_000);
+
     return () => {
       cancelled = true;
+      clearTimeout(failsafe);
+      stopPolling();
       supabase.removeChannel(channel);
     };
   }, [batchId, reload]);

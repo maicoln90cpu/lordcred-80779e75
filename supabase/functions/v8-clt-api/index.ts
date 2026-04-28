@@ -667,30 +667,30 @@ async function waitForConsultReady(supabase: any, consultId: string, cpf: string
 
 async function actionSimulateOne(supabase: any, input: SimulateInput) {
   const cpf = (input.cpf || "").replace(/\D/g, "");
-  if (cpf.length !== 11) return { success: false, error: "CPF inválido" };
+  if (cpf.length !== 11) return { success: false, kind: "invalid_data", step: "consult", error: "CPF inválido" };
 
   const birthDate = normalizeBirthDate(input.data_nascimento);
   if (!birthDate) {
-    return { success: false, step: "consult", error: "Data de nascimento inválida (use dd/mm/aaaa)" };
+    return { success: false, kind: "invalid_data", step: "consult", error: "Data de nascimento inválida (use dd/mm/aaaa)" };
   }
   if (!input.nome || input.nome.trim().length < 3) {
-    return { success: false, step: "consult", error: "Nome do cliente é obrigatório (mínimo 3 caracteres)" };
+    return { success: false, kind: "invalid_data", step: "consult", error: "Nome do cliente é obrigatório (mínimo 3 caracteres)" };
   }
   if (!input.config_id?.trim()) {
-    return { success: false, step: "simulate", error: "config_id é obrigatório" };
+    return { success: false, kind: "invalid_data", step: "simulate", error: "config_id é obrigatório" };
   }
   if (!Number.isInteger(input.parcelas) || input.parcelas <= 0) {
-    return { success: false, step: "simulate", error: "number_of_installments inválido" };
+    return { success: false, kind: "invalid_data", step: "simulate", error: "number_of_installments inválido" };
   }
   // simulation_mode + simulation_value são OPCIONAIS pela doc V8.
   // Se um for informado, o outro deve ser também — senão envia payload mínimo.
   const hasMode = ["disbursed_amount", "installment_face_value"].includes(String(input.simulation_mode || ""));
   const hasValue = Number.isFinite(Number(input.simulation_value)) && Number(input.simulation_value) > 0;
   if (hasMode && !hasValue) {
-    return { success: false, step: "simulate", error: "Tipo da simulação informado mas valor está vazio. Preencha o valor ou remova o tipo." };
+    return { success: false, kind: "invalid_data", step: "simulate", error: "Tipo da simulação informado mas valor está vazio. Preencha o valor ou remova o tipo." };
   }
   if (hasValue && !hasMode) {
-    return { success: false, step: "simulate", error: "Valor informado mas tipo da simulação está vazio." };
+    return { success: false, kind: "invalid_data", step: "simulate", error: "Valor informado mas tipo da simulação está vazio." };
   }
 
   // 1) Consult — builder testável
@@ -1008,6 +1008,10 @@ async function actionCreateBatch(
     birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
     status: "pending",
     error_kind: "analysis_pending",
+    // Persistir tabela e parcelas no nascimento — auto-retry depende disso.
+    config_id: payload.config_id,
+    config_name: payload.config_label ?? null,
+    installments: payload.parcelas,
   }));
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
