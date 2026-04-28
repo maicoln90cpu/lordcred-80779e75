@@ -475,6 +475,9 @@ serve(async (req) => {
         processed,
         process_error: processError,
         payload_keys: Object.keys(payload || {}),
+        headers_safe: safeHeaders(headersObj),
+        webhook_log_id: logId,
+        ...packPayloadForAudit(payload, "payload_full"),
       },
     });
   }
