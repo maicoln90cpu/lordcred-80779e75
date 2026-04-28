@@ -113,9 +113,22 @@ export default function V8WebhooksTab() {
   const [statusFilter, setStatusFilter] = useState<string>('__all__');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<WebhookLog | null>(null);
+  // Frente D: payload é carregado sob demanda quando o usuário clica em "Ver detalhes"
+  const [selectedPayload, setSelectedPayload] = useState<{ loading: boolean; data: any | null }>({ loading: false, data: null });
   const [replaying, setReplaying] = useState(false);
   const [cpfMap, setCpfMap] = useState<Record<string, string>>({}); // log.id -> cpf digits
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+
+  async function openDetails(log: WebhookLog) {
+    setSelected(log);
+    setSelectedPayload({ loading: true, data: null });
+    const { data } = await supabase
+      .from('v8_webhook_logs')
+      .select('payload')
+      .eq('id', log.id)
+      .maybeSingle();
+    setSelectedPayload({ loading: false, data: data?.payload ?? null });
+  }
 
   /**
    * Busca contadores reais por tipo em UMA única consulta agregada.
