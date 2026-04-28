@@ -312,6 +312,8 @@ export default function V8NovaSimulacaoTab() {
     setRunning(true);
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
     const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
+    const strategy = v8Settings?.simulation_strategy ?? 'webhook_only';
+    const throttleMs = v8Settings?.consult_throttle_ms ?? 1200;
     let pendingCount = 0;
 
     try {
@@ -332,7 +334,7 @@ export default function V8NovaSimulacaoTab() {
 
       const batchId = data.data.batch_id as string;
       setActiveBatchId(batchId);
-      toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando...`);
+      toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando (estratégia: ${strategy})...`);
 
       const { data: sims } = await supabase
         .from('v8_simulations')
@@ -342,17 +344,20 @@ export default function V8NovaSimulacaoTab() {
 
       if (!sims) throw new Error('Falha ao carregar simulações');
 
-      let idx = 0;
-      const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
-        while (idx < sims.length) {
-          const myIdx = idx++;
-          const sim = sims[myIdx];
+      // ====== DISPATCH SEQUENCIAL THROTTLED ======
+      // Estratégia webhook_only: 1 CPF a cada throttleMs (padrão 1.2s) — respeitoso
+      // com a V8, sem rate-limit. Para 200 CPFs: ~4 min de disparo, depois aguarda
+      // webhooks chegarem (~10–20s/CPF em paralelo no lado da V8).
+      // Estratégia legacy_sync: mantém concorrência 3 (comportamento antigo).
+      if (strategy === 'webhook_only') {
+        const action = 'simulate_consult_only';
+        for (let i = 0; i < sims.length; i++) {
+          const sim = sims[i];
           try {
-            // Recupera tokens extras (gênero/telefone) parseados na hora da colagem
             const parsedRow = rows.find((r) => r.cpf === sim.cpf);
             await supabase.functions.invoke('v8-clt-api', {
               body: {
-                action: 'simulate_one',
+                action,
                 params: {
                   cpf: sim.cpf,
                   nome: sim.name,
@@ -361,44 +366,134 @@ export default function V8NovaSimulacaoTab() {
                   telefone: parsedRow?.telefone,
                   config_id: configId,
                   parcelas,
-                  simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
-                  simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
                   batch_id: batchId,
                   simulation_id: sim.id,
-                  attempt_count: Number((sim as any).attempt_count ?? 0) + 1,
+                  attempt_count: 1,
                   triggered_by: 'user',
                 },
               },
             });
-            const { data: latestSim } = await supabase
-              .from('v8_simulations')
-              .select('status')
-              .eq('id', sim.id)
-              .maybeSingle();
-            if (latestSim?.status === 'pending') pendingCount += 1;
+            pendingCount += 1;
           } catch (err) {
             console.error('Sim err', sim.cpf, err);
           }
+          if (i < sims.length - 1) {
+            await new Promise((r) => setTimeout(r, throttleMs));
+          }
         }
-      });
-
-      await Promise.all(workers);
-      if (pendingCount > 0) {
-        toast.warning(`Lote enviado. ${pendingCount} consulta(s) ainda estão em análise na V8.`);
+        toast.success(
+          `Lote disparado: ${pendingCount} consulta(s) aguardando webhook V8. Os valores aparecem em ~10–30s por CPF (assim que cada webhook chega).`,
+          { duration: 8000 },
+        );
       } else {
-        toast.success('Lote concluído (1ª passada)!');
+        // Estratégia antiga (legacy_sync): mantida apenas como fallback de segurança.
+        let idx = 0;
+        const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
+          while (idx < sims.length) {
+            const myIdx = idx++;
+            const sim = sims[myIdx];
+            try {
+              const parsedRow = rows.find((r) => r.cpf === sim.cpf);
+              await supabase.functions.invoke('v8-clt-api', {
+                body: {
+                  action: 'simulate_one',
+                  params: {
+                    cpf: sim.cpf,
+                    nome: sim.name,
+                    data_nascimento: sim.birth_date,
+                    genero: parsedRow?.genero,
+                    telefone: parsedRow?.telefone,
+                    config_id: configId,
+                    parcelas,
+                    simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                    simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+                    batch_id: batchId,
+                    simulation_id: sim.id,
+                    attempt_count: Number((sim as any).attempt_count ?? 0) + 1,
+                    triggered_by: 'user',
+                  },
+                },
+              });
+              const { data: latestSim } = await supabase
+                .from('v8_simulations')
+                .select('status').eq('id', sim.id).maybeSingle();
+              if (latestSim?.status === 'pending') pendingCount += 1;
+            } catch (err) {
+              console.error('Sim err', sim.cpf, err);
+            }
+          }
+        });
+        await Promise.all(workers);
+        if (pendingCount > 0) {
+          toast.warning(`Lote enviado. ${pendingCount} consulta(s) ainda em análise.`);
+        } else {
+          toast.success('Lote concluído!');
+        }
       }
 
       // ===== AUTO-RETRY EM BACKGROUND =====
-      // Se o cron `v8-retry-cron` está habilitado, ele assume — o navegador não precisa
-      // ficar aberto. Mantemos o loop frontend apenas como fallback quando o cron está OFF.
       if (backgroundRetryEnabled) {
         toast.info('Auto-retry rodando em segundo plano (cron a cada 1 min). Pode fechar a aba.');
-      } else {
+      } else if (strategy !== 'webhook_only') {
         await runAutoRetryLoop(batchId, rows, normalizedSimulationValue);
       }
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  /**
+   * "Simular selecionados" — pega CPFs com consulta SUCCESS (margem retornada)
+   * e roda /simulation neles, throttled. Substitui as estimativas do webhook
+   * (valueMax distribuído) pelos valores REAIS calculados pela V8.
+   */
+  async function handleSimulateSelected() {
+    if (!activeBatchId) return;
+    if (!configId) {
+      toast.error('Escolha a tabela usada no lote');
+      return;
+    }
+    // Candidatos: status=success com consult_id e simulate_status != done
+    const candidates = simulations.filter((s: any) =>
+      s.status === 'success' && s.consult_id && (s.simulate_status ?? 'not_started') !== 'done'
+    );
+    if (candidates.length === 0) {
+      toast.info('Nenhum CPF pronto para simular (precisa ter consulta SUCCESS).');
+      return;
+    }
+
+    setRunning(true);
+    const throttleMs = v8Settings?.simulate_throttle_ms ?? 1200;
+    const normalizedSimulationValue = simulationMode === 'none' ? 0 : Number(simulationValue.replace(',', '.'));
+    const toastId = toast.loading(`Simulando ${candidates.length} CPF(s)...`);
+    let okCount = 0; let failCount = 0;
+
+    try {
+      for (let i = 0; i < candidates.length; i++) {
+        const sim: any = candidates[i];
+        try {
+          const { data } = await supabase.functions.invoke('v8-clt-api', {
+            body: {
+              action: 'simulate_only_for_consult',
+              params: {
+                simulation_id: sim.id,
+                consult_id: sim.consult_id,
+                config_id: sim.config_id || configId,
+                parcelas: sim.installments || parcelas,
+                simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
+                simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
+              },
+            },
+          });
+          if (data?.success) okCount += 1; else failCount += 1;
+        } catch { failCount += 1; }
+        if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
+      }
+      toast.success(`Simulação concluída: ${okCount} ok · ${failCount} erro`, { id: toastId });
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || err}`, { id: toastId });
     } finally {
       setRunning(false);
     }
