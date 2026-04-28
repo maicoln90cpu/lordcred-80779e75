@@ -183,10 +183,15 @@ export default function V8NovaSimulacaoTab() {
    */
   async function handleRetryFailed() {
     if (!activeBatchId) return;
-    const candidates = simulations.filter((s) => {
-      if (s.status !== 'failed') return false;
-      const kind = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return isRetriableErrorKind(kind);
+    const candidates = simulations.filter((s: any) => {
+      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      if (!isRetriableErrorKind(kind)) return false;
+      if (s.status === 'failed') return true;
+      // pending "preso" há +60s também conta como retentável
+      if (s.status === 'pending' && s.last_attempt_at) {
+        return Date.now() - new Date(s.last_attempt_at).getTime() > 60_000;
+      }
+      return false;
     });
 
     if (candidates.length === 0) {
