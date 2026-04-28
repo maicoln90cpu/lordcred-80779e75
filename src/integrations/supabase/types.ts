@@ -4651,11 +4651,19 @@ export type Database = {
         Args: { _avatar_url?: string; _name?: string }
         Returns: undefined
       }
+      v8_backfill_simulation_config: {
+        Args: { _batch_id?: string }
+        Returns: number
+      }
       v8_increment_batch_failure: {
         Args: { _batch_id: string }
         Returns: undefined
       }
       v8_increment_batch_success: {
+        Args: { _batch_id: string }
+        Returns: undefined
+      }
+      v8_recalc_batch_counters: {
         Args: { _batch_id: string }
         Returns: undefined
       }
