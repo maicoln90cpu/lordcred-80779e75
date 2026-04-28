@@ -392,7 +392,10 @@ export default function V8HistoricoTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Histórico de Lotes</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>Histórico de Lotes</span>
+          <V8StatusGlossary />
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
