@@ -231,6 +231,26 @@ serve(async (req) => {
       `[v8-active-consult-poller] scanned=${list.length} updated=${updated} not_found=${notFound} rate_limited=${rateLimited} failed=${failed} manual=${manualMode}`,
     );
 
+    // Auditoria: 1 entrada por ciclo (visível em /admin/audit-logs)
+    await writeAuditLog(supabase, {
+      action: "v8_poller_cycle",
+      category: "simulator",
+      success: failed === 0,
+      targetTable: "v8_simulations",
+      details: {
+        trigger_source: manualMode ? "manual" : "cron",
+        batch_id: batchId,
+        focused_simulation_id: simulationId,
+        scanned: list.length,
+        updated,
+        not_found: notFound,
+        rate_limited: rateLimited,
+        failed,
+        duration_ms: Date.now() - startedAt,
+        ...packPayloadForAudit(perSimResults, "per_simulation_results"),
+      },
+    });
+
     return ok({
       scanned: list.length,
       updated,
@@ -241,9 +261,21 @@ serve(async (req) => {
     });
   } catch (err: any) {
     console.error("[v8-active-consult-poller] fatal", err);
+    await writeAuditLog(supabase, {
+      action: "v8_poller_cycle",
+      category: "simulator",
+      success: false,
+      targetTable: "v8_simulations",
+      details: { fatal_error: String(err?.message || err), trigger_source: manualMode ? "manual" : "cron", batch_id: batchId, focused_simulation_id: simulationId },
+    });
     return ok({ success: false, error: String(err?.message || err) });
   }
 });
+
+function maskCpf(cpf?: string | null): string | null {
+  if (!cpf) return null;
+  return String(cpf).replace(/\d(?=\d{4})/g, "*");
+}
 
 function ok(body: unknown, status = 200) {
   return new Response(JSON.stringify({ success: true, ...((body as object) ?? {}) }), {
