@@ -1,6 +1,7 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calculator } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import V8NovaSimulacaoTab from '@/components/v8/V8NovaSimulacaoTab';
 import V8HistoricoTab from '@/components/v8/V8HistoricoTab';
 import V8ConfigTab from '@/components/v8/V8ConfigTab';
@@ -12,6 +13,12 @@ import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 import { Badge } from '@/components/ui/badge';
 
 export default function V8Simulador() {
+  // Etapa 11: abas legacy (Consultas, Histórico) ocultas por padrão.
+  // Reaparecem com ?legacy=1 na URL — código permanece para reverter sem deploy
+  // por 30 dias antes da remoção definitiva.
+  const [searchParams] = useSearchParams();
+  const showLegacy = searchParams.get('legacy') === '1';
+
   return (
     <DashboardLayout>
       <div className="p-6 space-y-4">
@@ -40,9 +47,17 @@ export default function V8Simulador() {
             <TabsTrigger value="nova">Nova Simulação</TabsTrigger>
             <div className="mx-2 h-5 w-px bg-border self-center" aria-hidden />
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Avançado</span>
-            <TabsTrigger value="consultas">Consultas</TabsTrigger>
             <TabsTrigger value="propostas">Propostas</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
+            {showLegacy && (
+              <>
+                <TabsTrigger value="consultas">
+                  Consultas <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1">legacy</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="historico">
+                  Histórico <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1">legacy</Badge>
+                </TabsTrigger>
+              </>
+            )}
             <div className="mx-2 h-5 w-px bg-border self-center" aria-hidden />
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Diagnóstico</span>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
@@ -54,15 +69,19 @@ export default function V8Simulador() {
           <TabsContent value="nova" className="mt-4">
             <V8NovaSimulacaoTab />
           </TabsContent>
-          <TabsContent value="consultas" className="mt-4">
-            <V8ConsultasTab />
-          </TabsContent>
           <TabsContent value="propostas" className="mt-4">
             <V8PropostasTab />
           </TabsContent>
-          <TabsContent value="historico" className="mt-4">
-            <V8HistoricoTab />
-          </TabsContent>
+          {showLegacy && (
+            <>
+              <TabsContent value="consultas" className="mt-4">
+                <V8ConsultasTab />
+              </TabsContent>
+              <TabsContent value="historico" className="mt-4">
+                <V8HistoricoTab />
+              </TabsContent>
+            </>
+          )}
           <TabsContent value="webhooks" className="mt-4">
             <V8WebhooksTab />
           </TabsContent>
@@ -74,4 +93,3 @@ export default function V8Simulador() {
     </DashboardLayout>
   );
 }
-
