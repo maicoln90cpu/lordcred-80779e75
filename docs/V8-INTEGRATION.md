@@ -195,18 +195,55 @@ Não usado hoje. Será exposto junto com a tela de gestão de propostas V8.
 
 ---
 
-## 5. Webhooks V8 (futuro)
+## 5. Webhooks V8 (IMPLEMENTADO — alinhado à doc oficial abr/2026)
 
-A V8 disponibiliza dois webhooks que o LordCred ainda **não consome**:
+Recebidos por `supabase/functions/v8-webhook/index.ts`. Endpoints registrados via action `register_webhooks`:
 
 ```
-POST /user/webhook/private-consignment/consult
-POST /user/webhook/private-consignment/operation
+POST /user/webhook/private-consignment/consult    → ?type=consult
+POST /user/webhook/private-consignment/operation  → ?type=operation
 ```
 
-Quando habilitarmos, serão recebidos por uma edge function `v8-webhook` (a
-criar) que vai atualizar `v8_simulations.status` em tempo real, em vez de
-depender do polling síncrono atual.
+### Tipos de evento (vocabulário oficial)
+
+| `payload.type` | Tratamento |
+|---|---|
+| `webhook.test` | Handshake — atualiza `v8_webhook_registrations.last_test_received_at` |
+| `webhook.registered` | Confirmação — `last_confirm_received_at` + `last_status=success` |
+| `private.consignment.consult.updated` | Upsert em `v8_simulations` por `consultId` |
+| `private.consignment.operation.created` | Upsert em `v8_operations_local` por `operationId` |
+| `private.consignment.operation.updated` | idem |
+
+### Status oficiais de CONSULTA → mapa interno
+
+| Status V8 | Interno LordCred | Significado |
+|---|---|---|
+| `WAITING_CONSENT` | `pending` | Aguardando autorização do termo |
+| `CONSENT_APPROVED` | `pending` ⚠️ | Termo autorizado — V8 vai consultar Dataprev. **NÃO é resultado final** (corrigido em 2026-04-28; antes era erradamente `success`) |
+| `WAITING_CONSULT` | `pending` | Aguardando Dataprev |
+| `WAITING_CREDIT_ANALYSIS` | `pending` | Aguardando análise de crédito |
+| `SUCCESS` | `success` | Terminal positivo — único que promove (e ainda exige `released_value`+`installment_value`) |
+| `FAILED` / `REJECTED` | `failed` | Terminal negativo |
+
+### Campos extras capturados em SUCCESS (novo — abr/2026)
+
+A doc oficial diz que em `SUCCESS` chegam: `availableMarginValue`, `admissionDateMonthsDifference`, `simulationLimit.{monthMin,monthMax,installmentsMin,installmentsMax,valueMin,valueMax}`. Agora persistimos em colunas dedicadas em `v8_simulations`:
+
+| Coluna | Origem doc | UI |
+|---|---|---|
+| `margem_valor` | `availableMarginValue` | Coluna "💰 Margem Disp." + bloco verde no modal |
+| `admission_months_diff` | `admissionDateMonthsDifference` | Bloco "📐 Limites de simulação V8" no modal |
+| `sim_month_min` / `sim_month_max` | `simulationLimit.month*` | idem |
+| `sim_installments_min/max` | `simulationLimit.installments*` | idem |
+| `sim_value_min/max` | `simulationLimit.value*` | idem |
+
+### Status oficiais de OPERAÇÃO
+
+`generating_ccb`, `formalization`, `analysis`, `manual_analysis`, `awaiting_call`, `processing`, `paid`, `canceled`, `awaiting_cancel`, `pending`, `refunded`, `rejected`. Validados por `isKnownOperationStatus()` — status fora dessa lista grava `process_error: unknown_operation_status:X` para investigação (sem bloquear upsert).
+
+### Fonte única da verdade
+
+`supabase/functions/_shared/v8Status.ts` exporta as listas oficiais (`V8_CONSULT_STATUSES`, `V8_OPERATION_STATUSES`), o mapeamento (`mapV8ConsultStatus`) e o extrator (`extractConsultExtras`). Glossário UI em `src/components/v8/V8StatusGlossary.tsx` usa o mesmo vocabulário. Cobertura: `supabase/functions/_shared/v8Status_test.ts`.
 
 ---
 
