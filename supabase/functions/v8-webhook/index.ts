@@ -434,7 +434,7 @@ serve(async (req) => {
 
       const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .select("id, status, released_value, installment_value")
+        .select("id, status, released_value, installment_value, simulation_strategy, error_kind")
         .eq("consult_id", consultId)
         .maybeSingle();
 
@@ -450,9 +450,31 @@ serve(async (req) => {
         const wantsSuccess = internalStatus === "success";
         const wantsPending = internalStatus === "pending";
         const hasRealValues = currentRow.released_value != null && currentRow.installment_value != null;
+        const isWebhookOnly = (currentRow as any).simulation_strategy === "webhook_only";
+        const isActiveConsultRecovery = (currentRow as any).error_kind === "active_consult";
+        const valueMax = extras.simValueMax;
+        const instMax = extras.simInstallmentsMax;
+        const canPromoteFromLimit = (isWebhookOnly || isActiveConsultRecovery)
+          && valueMax != null && instMax != null;
 
-        if (wantsSuccess && hasRealValues) {
+        if (wantsSuccess && canPromoteFromLimit) {
+          safeUpdates.released_value = valueMax;
+          safeUpdates.installments = instMax;
+          safeUpdates.installment_value = Number((valueMax / instMax).toFixed(2));
+          safeUpdates.total_value = valueMax;
           safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+          safeUpdates.simulate_status = "not_started";
+          if (isActiveConsultRecovery) {
+            safeUpdates.error_kind = null;
+            safeUpdates.error_message = null;
+          }
+        } else if (wantsSuccess && hasRealValues) {
+          safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (internalStatus === "failed" && isActiveConsultRecovery) {
+          safeUpdates.status = "failed";
+          safeUpdates.error_message = "Consulta antiga rejeitada na V8";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
           safeUpdates.status = "failed";
@@ -468,7 +490,7 @@ serve(async (req) => {
           .eq("id", currentRow.id);
 
         if (updErr) processError = updErr.message;
-        else { processed = true; action = "consult_upsert"; }
+        else { processed = true; action = canPromoteFromLimit && wantsSuccess ? "consult_promoted_from_limit" : "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" para o operador ver via tela de consultas/replay.
         // CRÍTICO: marcar is_orphan=true para satisfazer o check constraint
