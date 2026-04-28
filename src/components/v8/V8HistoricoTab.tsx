@@ -20,6 +20,7 @@ import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8Sta
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import { AnimatedCountBadge } from './V8AnimatedCountBadge';
 import { V8StatusGlossary } from './V8StatusGlossary';
+import { ReuseMarginButton } from './ReuseMarginButton';
 
 // Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
 function isRetriableNow(s: any): boolean {
@@ -354,6 +355,12 @@ function BatchDetail({ batchId }: { batchId: string }) {
                                     Ver todas as {snapshot.totalConsults} consultas
                                   </button>
                                 )}
+                                <div className="pt-1">
+                                  <ReuseMarginButton
+                                    simulationId={s.id}
+                                    rawResponse={s.raw_response}
+                                  />
+                                </div>
                               </div>
                             </>
                           ) : snapshot?.rateLimited ? (

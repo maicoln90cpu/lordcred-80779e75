@@ -4550,6 +4550,10 @@ export type Database = {
           vendedor: string
         }[]
       }
+      classify_v8_error_kind: {
+        Args: { error_message: string; raw_response: Json }
+        Returns: string
+      }
       cleanup_audit_logs: { Args: never; Returns: undefined }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       corban_classify_status: { Args: { _status: string }; Returns: string }
