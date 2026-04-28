@@ -8,11 +8,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 import {
-  getV8ErrorHeadline,
+  getV8ErrorMessageDeduped,
   getV8ErrorMeta,
-  getV8ErrorSecondary,
-  stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
+
+// Retentável: status failed OU pending "preso" (já tentou + classificado como retentável + última tentativa há +60s).
+function isRetriableSimulation(s: any): boolean {
+  const kind = s?.raw_response?.kind || s?.raw_response?.error_kind || s?.error_kind || null;
+  if (!kind || !isRetriableErrorKind(kind)) return false;
+  if (s.status === 'failed') return true;
+  if (s.status === 'pending') {
+    if (!s.last_attempt_at) return false;
+    const ageMs = Date.now() - new Date(s.last_attempt_at).getTime();
+    return ageMs > 60_000; // dá 1min para o webhook chegar antes de oferecer retry
+  }
+  return false;
+}
 
 // Botão "Retentar (N)" exibido no header de cada lote — não exige expandir o detalhe.
 function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
@@ -23,13 +34,10 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
   const loadCount = async () => {
     const { data } = await supabase
       .from('v8_simulations')
-      .select('id, raw_response')
+      .select('id, status, raw_response, error_kind, last_attempt_at')
       .eq('batch_id', batchId)
-      .eq('status', 'failed');
-    const retriable = (data || []).filter((s: any) => {
-      const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return isRetriableErrorKind(kind);
-    });
+      .in('status', ['failed', 'pending']);
+    const retriable = (data || []).filter((s: any) => isRetriableSimulation(s));
     setCount(retriable.length);
   };
 
@@ -80,11 +88,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
   const { toast } = useToast();
   const [retrying, setRetrying] = useState(false);
 
-  const failedRetriable = simulations.filter((s) => {
-    if (s.status !== 'failed') return false;
-    const kind = (s as any).raw_response?.kind || (s as any).raw_response?.error_kind || null;
-    return isRetriableErrorKind(kind);
-  });
+  const failedRetriable = simulations.filter((s) => isRetriableSimulation(s));
 
   const handleRetry = async () => {
     if (failedRetriable.length === 0) return;
@@ -130,11 +134,15 @@ function BatchDetail({ batchId }: { batchId: string }) {
             <th className="px-2 py-1 text-right">Margem</th>
             <th className="px-2 py-1 text-right">A cobrar</th>
             <th className="px-2 py-1 text-center">Tentativas</th>
-            <th className="px-2 py-1 text-left">Motivo / payload</th>
+            <th className="px-2 py-1 text-left">Motivo</th>
           </tr>
         </thead>
         <tbody>
-          {simulations.map((s) => (
+          {simulations.map((s) => {
+            const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
+            const meta = getV8ErrorMeta(s.raw_response);
+            const hasInfo = !!(message || s.raw_response);
+            return (
             <tr key={s.id} className="border-t">
               <td className="px-2 py-1 font-mono">{s.cpf}</td>
               <td className="px-2 py-1">{s.name || '—'}</td>
@@ -151,37 +159,17 @@ function BatchDetail({ batchId }: { batchId: string }) {
               <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
               <td className="px-2 py-1 align-top">
-                {s.error_message || s.raw_response ? (
+                {hasInfo ? (
                   <div className="space-y-1">
                     <div className="whitespace-pre-line font-medium">
-                      {getV8ErrorHeadline(s.raw_response, s.error_message) || 'Sem detalhe informado'}
+                      {message || 'Sem detalhe informado'}
                     </div>
-                    {getV8ErrorSecondary(s.raw_response) && (
-                      <div className="whitespace-pre-line text-muted-foreground">
-                        {getV8ErrorSecondary(s.raw_response)}
-                      </div>
-                    )}
-                    {(getV8ErrorMeta(s.raw_response).step || getV8ErrorMeta(s.raw_response).kind) && (
+                    {(meta.step || meta.kind) && (
                       <div className="text-[11px] text-muted-foreground">
-                        {getV8ErrorMeta(s.raw_response).step ? `etapa: ${getV8ErrorMeta(s.raw_response).step}` : null}
-                        {getV8ErrorMeta(s.raw_response).step && getV8ErrorMeta(s.raw_response).kind ? ' • ' : null}
-                        {getV8ErrorMeta(s.raw_response).kind ? `tipo: ${getV8ErrorMeta(s.raw_response).kind}` : null}
+                        {meta.step ? `etapa: ${meta.step}` : null}
+                        {meta.step && meta.kind ? ' • ' : null}
+                        {meta.kind ? `tipo: ${meta.kind}` : null}
                       </div>
-                    )}
-                    {getV8ErrorMeta(s.raw_response).guidance && (
-                      <div className="whitespace-pre-line text-[11px] text-muted-foreground">
-                        {getV8ErrorMeta(s.raw_response).guidance}
-                      </div>
-                    )}
-                    {stringifyV8Payload(s.raw_response) && (
-                      <details className="rounded border border-border bg-muted/30 p-2">
-                        <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
-                          Ver payload bruto
-                        </summary>
-                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
-                          {stringifyV8Payload(s.raw_response)}
-                        </pre>
-                      </details>
                     )}
                   </div>
                 ) : (
@@ -189,7 +177,8 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>

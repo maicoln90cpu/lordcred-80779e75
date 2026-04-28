@@ -21,10 +21,8 @@ import { useV8Configs } from '@/hooks/useV8Configs';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
-  getV8ErrorHeadline,
+  getV8ErrorMessageDeduped,
   getV8ErrorMeta,
-  getV8ErrorSecondary,
-  stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
@@ -185,10 +183,15 @@ export default function V8NovaSimulacaoTab() {
    */
   async function handleRetryFailed() {
     if (!activeBatchId) return;
-    const candidates = simulations.filter((s) => {
-      if (s.status !== 'failed') return false;
-      const kind = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return isRetriableErrorKind(kind);
+    const candidates = simulations.filter((s: any) => {
+      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+      if (!isRetriableErrorKind(kind)) return false;
+      if (s.status === 'failed') return true;
+      // pending "preso" há +60s também conta como retentável
+      if (s.status === 'pending' && s.last_attempt_at) {
+        return Date.now() - new Date(s.last_attempt_at).getTime() > 60_000;
+      }
+      return false;
     });
 
     if (candidates.length === 0) {
@@ -646,7 +649,7 @@ export default function V8NovaSimulacaoTab() {
                     <th className="px-2 py-1 text-right">Margem</th>
                     <th className="px-2 py-1 text-right">A cobrar</th>
                     <th className="px-2 py-1 text-center">Tentativas</th>
-                    <th className="px-2 py-1 text-left">Observação</th>
+                    <th className="px-2 py-1 text-left">Motivo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -672,11 +675,9 @@ export default function V8NovaSimulacaoTab() {
                         {(() => {
                           const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
                           const isActiveConsult = kind === 'active_consult';
-                          const headline = getV8ErrorHeadline(s.raw_response, s.error_message);
-                          const secondary = getV8ErrorSecondary(s.raw_response);
+                          const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
                           const meta = getV8ErrorMeta(s.raw_response);
-                          const payloadStr = stringifyV8Payload(s.raw_response);
-                          const hasErrorInfo = !!(s.error_message || headline || s.raw_response);
+                          const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 
                           // Caso 1: active_consult em qualquer status — mostrar mensagem amarela + botão
                           if (isActiveConsult) {
@@ -716,37 +717,19 @@ export default function V8NovaSimulacaoTab() {
                             );
                           }
 
-                          // Caso 3: existe info de erro (mesmo em pending) — mostrar
+                          // Caso 3: existe info de erro (mesmo em pending) — mostrar mensagem única
                           if (hasErrorInfo) {
                             return (
                               <div className="space-y-1">
                                 <div className="whitespace-pre-line font-medium">
-                                  {headline || 'Falha sem detalhe retornado'}
+                                  {message || 'Falha sem detalhe retornado'}
                                 </div>
-                                {secondary && (
-                                  <div className="whitespace-pre-line text-muted-foreground">{secondary}</div>
-                                )}
                                 {(meta.step || meta.kind) && (
                                   <div className="text-[11px] text-muted-foreground">
                                     {meta.step ? `etapa: ${meta.step}` : null}
                                     {meta.step && meta.kind ? ' • ' : null}
                                     {meta.kind ? `tipo: ${meta.kind}` : null}
                                   </div>
-                                )}
-                                {meta.guidance && (
-                                  <div className="whitespace-pre-line text-[11px] text-muted-foreground">
-                                    {meta.guidance}
-                                  </div>
-                                )}
-                                {payloadStr && (
-                                  <details className="rounded border border-border bg-muted/30 p-2">
-                                    <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
-                                      Ver payload bruto
-                                    </summary>
-                                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
-                                      {payloadStr}
-                                    </pre>
-                                  </details>
                                 )}
                               </div>
                             );
