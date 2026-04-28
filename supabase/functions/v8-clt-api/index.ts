@@ -1515,6 +1515,19 @@ const handler = async (req: Request) => {
           .limit(1)
           .maybeSingle();
         result = { success: true, data: { registrations: regs ?? [], last_log: lastLog ?? null } };
+        await writeAuditLog(supabase, {
+          action: "v8_get_webhook_status",
+          category: "simulator",
+          success: true,
+          userId,
+          userEmail,
+          targetTable: "v8_webhook_registrations",
+          details: {
+            request_payload: { action: "get_webhook_status" },
+            response_payload: result,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
         break;
       }
       case "list_operations":
