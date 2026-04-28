@@ -60,8 +60,9 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - REFRESH_AFTER_SECONDS * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, v8_status_snapshot_at, raw_response")
+      .select("id, batch_id, cpf, v8_status_snapshot_at, raw_response, simulation_strategy, v8_batches!inner(status)")
       .eq("error_kind", "active_consult")
+      .neq("v8_batches.status", "canceled")
       .or(`v8_status_snapshot_at.is.null,v8_status_snapshot_at.lte.${cutoffIso}`)
       .order("v8_status_snapshot_at", { ascending: true, nullsFirst: true })
       .limit(simulationId ? 1 : BATCH_LIMIT);
