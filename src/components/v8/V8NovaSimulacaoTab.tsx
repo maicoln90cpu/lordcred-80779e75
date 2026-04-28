@@ -162,7 +162,7 @@ export default function V8NovaSimulacaoTab() {
   const failed = simulations.filter((s) => s.status === 'failed').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  async function handleCheckStatus(cpf: string) {
+  async function handleCheckStatus(cpf: string, simulationId?: string) {
     setStatusDialogOpen(true);
     setStatusDialogData({ cpf, loading: true, result: null, error: null });
     try {
@@ -175,6 +175,30 @@ export default function V8NovaSimulacaoTab() {
         return;
       }
       setStatusDialogData({ cpf, loading: false, result: data.data, error: null });
+
+      // Persistir snapshot na linha — assim a tabela passa a mostrar inline
+      // mesmo sem esperar o cron do poller automático.
+      if (simulationId && data?.data) {
+        try {
+          const probedAtIso = new Date().toISOString();
+          const { data: current } = await supabase
+            .from('v8_simulations')
+            .select('raw_response')
+            .eq('id', simulationId)
+            .maybeSingle();
+          const baseRaw = (current?.raw_response as any) ?? {};
+          await supabase
+            .from('v8_simulations')
+            .update({
+              raw_response: {
+                ...baseRaw,
+                v8_status_snapshot: { ...(data.data as object), probed_at: probedAtIso },
+              },
+              v8_status_snapshot_at: probedAtIso,
+            })
+            .eq('id', simulationId);
+        } catch (_) { /* ignore */ }
+      }
     } catch (err: any) {
       setStatusDialogData({ cpf, loading: false, result: null, error: err?.message || String(err) });
     }
