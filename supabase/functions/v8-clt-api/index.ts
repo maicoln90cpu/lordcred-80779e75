@@ -1792,6 +1792,7 @@ const handler = async (req: Request) => {
         });
         break;
       }
+      case "register_webhooks": {
         if (!isPriv) {
           result = { success: false, error: "Apenas administradores podem registrar webhooks" };
           break;
