@@ -203,7 +203,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  Refaz a consulta do zero na V8 para falhas temporárias (rate limit / análise pendente).
+                  Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade ou análise pendente. Aumenta o número de "Tentativas".
                 </TooltipContent>
               </Tooltip>
             )}
@@ -216,7 +216,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook.
+                  Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa.
                 </TooltipContent>
               </Tooltip>
             )}
