@@ -6,6 +6,7 @@ import V8HistoricoTab from '@/components/v8/V8HistoricoTab';
 import V8ConfigTab from '@/components/v8/V8ConfigTab';
 import V8ConsultasTab from '@/components/v8/V8ConsultasTab';
 import V8PropostasTab from '@/components/v8/V8PropostasTab';
+import V8WebhooksTab from '@/components/v8/V8WebhooksTab';
 import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 
 export default function V8Simulador() {
@@ -34,6 +35,7 @@ export default function V8Simulador() {
             <TabsTrigger value="consultas">Consultas</TabsTrigger>
             <TabsTrigger value="propostas">Propostas</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
             <TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
           <TabsContent value="nova" className="mt-4">
@@ -48,6 +50,9 @@ export default function V8Simulador() {
           <TabsContent value="historico" className="mt-4">
             <V8HistoricoTab />
           </TabsContent>
+          <TabsContent value="webhooks" className="mt-4">
+            <V8WebhooksTab />
+          </TabsContent>
           <TabsContent value="config" className="mt-4">
             <V8ConfigTab />
           </TabsContent>
@@ -56,3 +61,4 @@ export default function V8Simulador() {
     </DashboardLayout>
   );
 }
+
