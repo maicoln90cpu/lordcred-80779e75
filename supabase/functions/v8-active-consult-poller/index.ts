@@ -83,6 +83,7 @@ serve(async (req) => {
     let notFound = 0;        // V8 respondeu, mas sem dados para o CPF
     let rateLimited = 0;     // V8 ou Edge Runtime negou por limite
     let failed = 0;          // erros diversos
+    const perSimResults: Array<Record<string, unknown>> = [];
 
     for (const row of list) {
       const probedAtIso = new Date().toISOString();
