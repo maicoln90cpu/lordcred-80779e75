@@ -25,7 +25,7 @@ const CONSULT_ROWS: Row[] = [
 ];
 
 /** Status oficiais do ciclo de OPERAÇÃO/proposta. */
-const OPERATION_ROWS: Row[] = [
+export const OPERATION_ROWS: Row[] = [
   { status: 'generating_ccb', meaning: 'V8 está gerando a CCB (cédula de crédito).', action: 'Aguardar.', tone: 'wait' },
   { status: 'formalization', meaning: 'CCB pronta — em processo de formalização (assinatura).', action: 'Acompanhar assinatura.', tone: 'wait' },
   { status: 'analysis', meaning: 'Em análise automatizada da V8.', action: 'Aguardar.', tone: 'wait' },
@@ -48,11 +48,19 @@ const INTERNAL_ROWS: Row[] = [
 ];
 
 const TONE: Record<Tone, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
-  wait: 'bg-blue-500/15 text-blue-700 border-blue-500/30',
+  ok: 'bg-success/15 text-success border-success/30',
+  wait: 'bg-info/15 text-info border-info/30',
   bad: 'bg-destructive/15 text-destructive border-destructive/30',
-  warn: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  warn: 'bg-warning/15 text-warning border-warning/30',
 };
+
+export function getV8OperationTone(status?: string | null): Tone | undefined {
+  return OPERATION_ROWS.find((row) => row.status === status)?.tone;
+}
+
+export function getV8ToneClass(tone?: Tone) {
+  return tone ? TONE[tone] : '';
+}
 
 function Section({ title, rows }: { title: string; rows: Row[] }) {
   return (
