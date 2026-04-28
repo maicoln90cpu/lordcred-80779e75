@@ -25,6 +25,8 @@ export default function V8Simulador() {
           🧪 <strong>Integração em validação</strong> — confira valores antes de fechar com o cliente.
         </div>
 
+        <V8RealtimeStatusBar />
+
         <Tabs defaultValue="nova">
           <TabsList>
             <TabsTrigger value="nova">Nova Simulação</TabsTrigger>
