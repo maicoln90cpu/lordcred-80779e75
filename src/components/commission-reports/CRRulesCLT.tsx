@@ -17,12 +17,12 @@ import * as XLSX from 'xlsx';
 
 interface RuleCLT {
   id: string; data_vigencia: string; banco: string; tabela_chave: string;
-  seguro: string; prazo_min: number; prazo_max: number; taxa: number; created_at: string;
+  seguro: string; prazo_min: number; prazo_max: number; valor_min: number; valor_max: number; taxa: number; created_at: string;
 }
 
 const EMPTY: Omit<RuleCLT, 'id' | 'created_at'> = {
   data_vigencia: new Date().toISOString().slice(0, 10), banco: '', tabela_chave: '*',
-  seguro: 'Ambos', prazo_min: 0, prazo_max: 999, taxa: 0,
+  seguro: 'Ambos', prazo_min: 0, prazo_max: 999, valor_min: 0, valor_max: 999999999, taxa: 0,
 };
 
 export default function CRRulesCLT() {
@@ -60,7 +60,7 @@ export default function CRRulesCLT() {
     if (!editing || !editing.banco) { toast({ title: 'Banco é obrigatório', variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const payload = { data_vigencia: editing.data_vigencia!, banco: editing.banco!, tabela_chave: editing.tabela_chave || '*', seguro: editing.seguro || 'Ambos', prazo_min: editing.prazo_min ?? 0, prazo_max: editing.prazo_max ?? 999, taxa: editing.taxa ?? 0 };
+      const payload = { data_vigencia: editing.data_vigencia!, banco: editing.banco!, tabela_chave: editing.tabela_chave || '*', seguro: editing.seguro || 'Ambos', prazo_min: editing.prazo_min ?? 0, prazo_max: editing.prazo_max ?? 999, valor_min: editing.valor_min ?? 0, valor_max: editing.valor_max ?? 999999999, taxa: editing.taxa ?? 0 };
       if (editing.id) {
         const { error } = await supabase.from('cr_rules_clt').update(payload).eq('id', editing.id);
         if (error) throw error; toast({ title: 'Regra atualizada' });
@@ -88,10 +88,12 @@ export default function CRRulesCLT() {
   // ===== IMPORT / EXPORT =====
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Taxa (%)'],
-      ['BANCO C6', '*', 'Ambos', '0', '999', '2.5'],
+      ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Valor Mín', 'Valor Máx', 'Taxa (%)'],
+      ['BANCO C6', '*', 'Ambos', '0', '999', '0', '999999999', '2.5'],
+      ['REP CLT', '*', 'Ambos', '6', '36', '1000', '5000', '3.0'],
+      ['REP CLT', '*', 'Ambos', '6', '36', '5000', '10000', '5.0'],
     ]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo CLT');
     XLSX.writeFile(wb, 'modelo_regras_clt.xlsx');
@@ -105,6 +107,8 @@ export default function CRRulesCLT() {
       'Seguro': r.seguro,
       'Prazo Mín': r.prazo_min,
       'Prazo Máx': r.prazo_max,
+      'Valor Mín': r.valor_min ?? 0,
+      'Valor Máx': r.valor_max ?? 999999999,
       'Taxa (%)': r.taxa,
       'Data Vigência': r.data_vigencia,
     }));
@@ -124,8 +128,10 @@ export default function CRRulesCLT() {
       const seguro = ['Sim', 'Não', 'Ambos'].includes(seguroRaw) ? seguroRaw : 'Ambos';
       const prazo_min = parseInt((r['Prazo Mín'] || r['prazo_min'] || r['Prazo Min'] || '0').replace(',', '.')) || 0;
       const prazo_max = parseInt((r['Prazo Máx'] || r['prazo_max'] || r['Prazo Max'] || '999').replace(',', '.')) || 999;
+      const valor_min = parseFloat((r['Valor Mín'] || r['valor_min'] || r['Valor Min'] || '0').toString().replace(',', '.')) || 0;
+      const valor_max = parseFloat((r['Valor Máx'] || r['valor_max'] || r['Valor Max'] || '999999999').toString().replace(',', '.')) || 999999999;
       const taxa = parseFloat((r['Taxa (%)'] || r['taxa'] || r['Taxa'] || '0').replace(',', '.')) || 0;
-      return { data_vigencia: today, banco, tabela_chave, seguro, prazo_min, prazo_max, taxa };
+      return { data_vigencia: today, banco, tabela_chave, seguro, prazo_min, prazo_max, valor_min, valor_max, taxa };
     }).filter(r => r.banco);
   };
 
@@ -144,7 +150,7 @@ export default function CRRulesCLT() {
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text');
-    const parsed = parseClipboardText(text, ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Taxa (%)']);
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Valor Mín', 'Valor Máx', 'Taxa (%)']);
     setImportPreview(parseImportData(parsed.rows));
   };
 
@@ -190,6 +196,8 @@ export default function CRRulesCLT() {
                   <TSHead label="Seguro" sortKey="seguro" sort={sort} toggle={toggle} tooltip={TOOLTIPS_RULES_CLT.seguro} className="text-xs" />
                   <TSHead label="Prazo Mín" sortKey="prazo_min" sort={sort} toggle={toggle} tooltip={TOOLTIPS_RULES_CLT.prazo_min} className="text-xs text-right" />
                   <TSHead label="Prazo Máx" sortKey="prazo_max" sort={sort} toggle={toggle} tooltip={TOOLTIPS_RULES_CLT.prazo_max} className="text-xs text-right" />
+                  <TSHead label="Valor Mín" sortKey="valor_min" sort={sort} toggle={toggle} className="text-xs text-right" />
+                  <TSHead label="Valor Máx" sortKey="valor_max" sort={sort} toggle={toggle} className="text-xs text-right" />
                   <TSHead label="Taxa %" sortKey="taxa" sort={sort} toggle={toggle} tooltip={TOOLTIPS_RULES_CLT.taxa} className="text-xs text-right" />
                   <th className="w-20"></th>
                 </tr>
@@ -203,6 +211,8 @@ export default function CRRulesCLT() {
                     <TableCell className="text-xs"><Badge variant={r.seguro === 'Sim' ? 'default' : r.seguro === 'Não' ? 'outline' : 'secondary'} className="text-[10px]">{r.seguro}</Badge></TableCell>
                     <TableCell className="text-xs text-right">{r.prazo_min}</TableCell>
                     <TableCell className="text-xs text-right">{r.prazo_max >= 999 ? '∞' : r.prazo_max}</TableCell>
+                    <TableCell className="text-xs text-right">{(r.valor_min ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                    <TableCell className="text-xs text-right">{(r.valor_max ?? 999999999) >= 999999999 ? '∞' : (r.valor_max ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
                     <TableCell className="text-xs text-right font-mono">{r.taxa.toFixed(2)}%</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -238,6 +248,10 @@ export default function CRRulesCLT() {
                 <div><label className="text-xs font-medium text-muted-foreground">Prazo Mín</label><Input type="number" value={editing.prazo_min ?? 0} onChange={e => setEditing(p => ({ ...p!, prazo_min: parseInt(e.target.value) || 0 }))} /></div>
                 <div><label className="text-xs font-medium text-muted-foreground">Prazo Máx</label><Input type="number" value={editing.prazo_max ?? 999} onChange={e => setEditing(p => ({ ...p!, prazo_max: parseInt(e.target.value) || 999 }))} /></div>
                 <div><label className="text-xs font-medium text-muted-foreground">Taxa %</label><Input type="number" step="0.01" value={editing.taxa ?? 0} onChange={e => setEditing(p => ({ ...p!, taxa: parseFloat(e.target.value) || 0 }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium text-muted-foreground">Valor Mín. (R$)</label><Input type="number" step="0.01" value={editing.valor_min ?? 0} onChange={e => setEditing(p => ({ ...p!, valor_min: parseFloat(e.target.value) || 0 }))} placeholder="0" /></div>
+                <div><label className="text-xs font-medium text-muted-foreground">Valor Máx. (R$)</label><Input type="number" step="0.01" value={editing.valor_max ?? 999999999} onChange={e => setEditing(p => ({ ...p!, valor_max: parseFloat(e.target.value) || 999999999 }))} placeholder="999999999 = sem limite" /></div>
               </div>
             </div>
           )}

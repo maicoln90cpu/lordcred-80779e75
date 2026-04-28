@@ -39,6 +39,8 @@ export interface RateCLT {
   bank: string;
   term_min: number;
   term_max: number;
+  min_value: number;
+  max_value: number;
   has_insurance: boolean;
   rate: number;
   obs: string | null;

@@ -71,7 +71,7 @@ function findFGTSRate(rules: RuleFGTS[], banco: string, lookupValue: number, tab
   return total;
 }
 
-function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
+function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, valorCalc: number, tabelaChave: string, seguro: string, dataPgt: string | null): number {
   const b = banco.toUpperCase();
   const dt = dataPgt ? toSaoPauloDate(dataPgt) : '9999-12-31';
   const valid = rules.filter(r => r.banco.toUpperCase() === b && r.data_vigencia <= dt);
@@ -82,8 +82,9 @@ function findCLTRate(rules: RuleCLT[], banco: string, prazo: number, tabelaChave
   for (const r of atVig) {
     const keyMatch = tabelaChave === '*' || r.tabela_chave === '*' || tabelaChave.toUpperCase().includes(r.tabela_chave.toUpperCase());
     const rangeMatch = prazo >= r.prazo_min && prazo <= r.prazo_max;
+    const valorMatch = valorCalc >= ((r as any).valor_min ?? 0) && valorCalc <= ((r as any).valor_max ?? 999999999);
     const segMatch = r.seguro === seguro || r.seguro === 'Ambos';
-    if (keyMatch && rangeMatch && segMatch) total += Number(r.taxa);
+    if (keyMatch && rangeMatch && valorMatch && segMatch) total += Number(r.taxa);
   }
   return total;
 }
@@ -155,7 +156,7 @@ export default function CREvolutionChart() {
         esperada = Math.round(valor * findFGTSRate(rulesFGTS, banco, isHub ? valor : prazo, tk, seguro, dataPago) / 100 * 100) / 100;
       } else if (produto.includes('TRABALHADOR')) {
         const tk = extractTableKeyCLT(banco, tabela);
-        esperada = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, tk, seguro, dataPago) / 100 * 100) / 100;
+        esperada = Math.round(valorCalc * findCLTRate(rulesCLT, banco, prazo, valorCalc, tk, seguro, dataPago) / 100 * 100) / 100;
       }
 
       const entry = byMonth.get(month) || { esperada: 0, recebida: 0, count: 0 };

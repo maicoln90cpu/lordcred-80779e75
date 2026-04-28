@@ -576,6 +576,8 @@ export type Database = {
           effective_date: string
           has_insurance: boolean
           id: string
+          max_value: number
+          min_value: number
           obs: string | null
           rate: number
           table_key: string | null
@@ -588,6 +590,8 @@ export type Database = {
           effective_date: string
           has_insurance?: boolean
           id?: string
+          max_value?: number
+          min_value?: number
           obs?: string | null
           rate?: number
           table_key?: string | null
@@ -600,6 +604,8 @@ export type Database = {
           effective_date?: string
           has_insurance?: boolean
           id?: string
+          max_value?: number
+          min_value?: number
           obs?: string | null
           rate?: number
           table_key?: string | null
@@ -615,6 +621,8 @@ export type Database = {
           effective_date: string
           has_insurance: boolean
           id: string
+          max_value: number
+          min_value: number
           obs: string | null
           rate: number
           table_key: string | null
@@ -627,6 +635,8 @@ export type Database = {
           effective_date: string
           has_insurance?: boolean
           id?: string
+          max_value?: number
+          min_value?: number
           obs?: string | null
           rate?: number
           table_key?: string | null
@@ -639,6 +649,8 @@ export type Database = {
           effective_date?: string
           has_insurance?: boolean
           id?: string
+          max_value?: number
+          min_value?: number
           obs?: string | null
           rate?: number
           table_key?: string | null
@@ -1860,6 +1872,8 @@ export type Database = {
           seguro: string
           tabela_chave: string
           taxa: number
+          valor_max: number
+          valor_min: number
         }
         Insert: {
           banco: string
@@ -1871,6 +1885,8 @@ export type Database = {
           seguro?: string
           tabela_chave?: string
           taxa?: number
+          valor_max?: number
+          valor_min?: number
         }
         Update: {
           banco?: string
@@ -1882,6 +1898,8 @@ export type Database = {
           seguro?: string
           tabela_chave?: string
           taxa?: number
+          valor_max?: number
+          valor_min?: number
         }
         Relationships: []
       }

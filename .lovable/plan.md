@@ -1,143 +1,110 @@
-## Plano — Fix CONSENT_APPROVED + Cancelar lote
+## Frente 3 — Comissão CLT por faixa de VALOR (REP CLT)
 
-Escopo enxuto: 2 frentes só. Rotação de logins V8 fica adiada (próximo plano).
+### Contexto (Antes)
 
----
+Hoje todas as 3 tabelas de regras CLT (V1 parceiros, V2 parceiros, Auditoria) procuram a taxa **só pelo prazo** (term_min/term_max). O REP CLT mudou a regra: agora a comissão também depende da **faixa de valor liberado** (ex.: prazo 6–36, valor R$1.000–5.000 = X%; valor R$5.000–10.000 = Y%).
 
-### Frente 1 — `active_consult` deixa de ser "falha" e auto-promove quando antiga concluir
-
-**Diagnóstico (linguagem leiga):**
-
-Os CPFs do print **não estão falhando**. Acontece o seguinte:
-
-1. Você dispara consulta para o CPF X.
-2. A V8 responde 4xx **"Já existe uma consulta ativa para este CPF"** — porque outra plataforma (ou nós antes) já abriu uma consulta para ele e ela ainda está rodando lá.
-3. Hoje o código classifica isso como `error_kind='active_consult'` e **marca a linha como `failed`** (vermelho "falha").
-4. Em paralelo, o `v8-active-consult-poller` (cron 1min) busca o status da consulta antiga e grava em `raw_response.v8_status_snapshot` — daí aparece "Status da consulta antiga: CONSENT_APPROVED" no painel.
-5. Quando a V8 conclui a consulta antiga, o webhook `consult.updated` chega com `SUCCESS` + `availableMarginValue` + `simulationLimit`. **MAS** o webhook hoje só promove para success se `released_value` e `installment_value` já estavam preenchidos — e nessas linhas órfãs de `active_consult` não estavam. Resultado: webhook chega, atualiza `webhook_status='SUCCESS'` e `margem_valor`, mas **mantém status=failed**. Operador continua vendo vermelho.
-
-**Correções:**
-
-#### 1.1 Novo status visual `waiting_external` (amarelo)
-
-Em `supabase/functions/v8-clt-api/index.ts` (~linha 1592, função `simulate_one`):
-- Quando detectar `kind === 'active_consult'`, em vez de inserir com `status='failed'`, inserir com `status='pending'` + `error_kind='active_consult'` + `webhook_status='WAITING_EXTERNAL'`.
-
-Em `src/components/v8/V8ConsultasTab.tsx`, `V8NovaSimulacaoTab.tsx`, `V8HistoricoTab.tsx` (todas as renderizações de status):
-- Quando `error_kind='active_consult'` e ainda não promoveu, mostrar badge **amarelo** "aguardando consulta antiga" em vez de "falha".
-
-#### 1.2 Webhook auto-promove `active_consult` usando `simulationLimit`
-
-Em `v8-webhook/index.ts` (linhas 91-152 do `processV8Payload` E o bloco gêmeo no handler principal ~linha 415):
-- Quando `internalStatus === 'success'` E `currentRow.error_kind === 'active_consult'` (ou `currentRow.status !== 'success'` mas extras tem `simValueMax`+`simInstallmentsMax`):
-  - Promover usando o `simulationLimit` (mesma lógica do `webhook_only`):
-    - `released_value = simValueMax`
-    - `installments = simInstallmentsMax`
-    - `installment_value = simValueMax / simInstallmentsMax`
-    - `total_value = simValueMax`
-    - `status = 'success'`
-    - `error_kind = null`
-    - `simulate_status = 'not_started'` (operador pode rodar `/simulate` real depois)
-- Quando `internalStatus === 'failed'` E `currentRow.error_kind === 'active_consult'`:
-  - Promover para `status='failed'` com `error_message = 'Consulta antiga rejeitada na V8'`.
-
-#### 1.3 Poller também pode promover
-
-Em `supabase/functions/v8-active-consult-poller/index.ts`:
-- Quando o snapshot capturado for `SUCCESS` ou `REJECTED`, fazer a mesma promoção que o webhook faria (caso o webhook não chegue).
-
-**Resultado prático:** o operador cola CPFs, vê linhas amarelas "aguardando consulta antiga" — sem precisar fazer nada — e elas **viram verdes automaticamente** assim que a V8 concluir, com margem disponível e parcela estimada já preenchidas.
-
----
-
-### Frente 2 — Botão "Cancelar lote em andamento"
-
-**Hoje:** se você cola 500 CPFs por engano, o cron continua tentando indefinidamente até esgotar `max_auto_retry_attempts` (15 tentativas/linha). Sem botão de parar.
-
-**Mudança:**
-
-#### 2.1 Schema (migration)
-
-```sql
--- v8_batches.status já existe? Verificar enum/text. Adicionar valor 'canceled' se for enum.
-ALTER TABLE v8_batches ADD COLUMN IF NOT EXISTS canceled_at timestamptz;
-ALTER TABLE v8_batches ADD COLUMN IF NOT EXISTS canceled_by uuid REFERENCES auth.users(id);
+```
+Hoje: banco + tabela + prazo + seguro                  → taxa
+Será: banco + tabela + prazo + VALOR + seguro          → taxa
 ```
 
-#### 2.2 Edge function — nova action `cancel_batch`
+### Mudanças (Depois)
 
-Em `v8-clt-api/index.ts`:
-- `actionCancelBatch(batchId)`:
-  - Verifica que o usuário é dono do lote OU `is_privileged()`.
-  - `UPDATE v8_batches SET status='canceled', canceled_at=now(), canceled_by=auth.uid() WHERE id=batchId`.
-  - `UPDATE v8_simulations SET status='failed', error_message='Lote cancelado pelo operador', error_kind='canceled' WHERE batch_id=batchId AND status='pending'` (só pending — preserva sucessos já obtidos).
-  - Audit log.
+#### 1. Banco de dados (migration)
 
-#### 2.3 Cron ignora cancelados
+Adicionar 2 colunas em **3 tabelas**, com defaults retrocompatíveis (qualquer linha antiga continua válida pois cobre 0 → 999.999.999):
 
-Em `v8-retry-cron/index.ts`:
-- Filtro `WHERE batch.status != 'canceled'` na query de elegíveis.
-
-Em `v8-active-consult-poller/index.ts`:
-- Mesmo filtro.
-
-#### 2.4 UI
-
-Em `V8NovaSimulacaoTab.tsx` (header do bloco "Progresso do Lote") e `V8HistoricoTab.tsx` (cabeçalho de cada lote):
-- Botão **"Cancelar lote"** (vermelho outline) visível apenas se `batch.status='processing'` ou existe alguma simulação `pending`.
-- Confirmação modal ("Tem certeza? Linhas pendentes serão marcadas como canceladas. Linhas já com sucesso/falha permanecem.").
-- Após cancelar, recarregar lista.
-
----
-
-## Detalhes técnicos
-
-| Arquivo | Mudança |
-|---|---|
-| `supabase/functions/v8-clt-api/index.ts` | (a) `simulate_one`: `active_consult` insere `status=pending` em vez de `failed`. (b) Nova `actionCancelBatch`. |
-| `supabase/functions/v8-webhook/index.ts` | Auto-promoção quando `currentRow.error_kind='active_consult'` E webhook traz SUCCESS com `simulationLimit`. Mesma lógica em ambos os blocos (`processV8Payload` linha ~91 e handler inline ~415). |
-| `supabase/functions/v8-active-consult-poller/index.ts` | Auto-promoção espelhando o webhook. Filtro `batch.status != 'canceled'`. |
-| `supabase/functions/v8-retry-cron/index.ts` | Filtro `batch.status != 'canceled'`. |
-| `src/components/v8/V8ConsultasTab.tsx`, `V8NovaSimulacaoTab.tsx`, `V8HistoricoTab.tsx` | Badge amarelo "aguardando consulta antiga" para `error_kind='active_consult' AND status='pending'`. Botão Cancelar lote. |
-| `src/lib/v8ErrorPresentation.ts` | Texto "aguardando consulta antiga concluir na V8" (em vez de "falha"). |
-| Migration | `canceled_at`, `canceled_by` em `v8_batches`. |
-| Testes | `v8-webhook/payloadSchema_test.ts` ou novo `v8AutoPromote_test.ts`: dado `active_consult` + webhook SUCCESS com simulationLimit, deve promover. |
-
----
-
-## Antes vs Depois
-
-| Item | Antes | Depois |
+| Tabela | Colunas novas | Default |
 |---|---|---|
-| CPF com "consulta antiga" | Vermelho "falha" — operador acha que deu errado | Amarelo "aguardando consulta antiga" — operador entende que vai resolver sozinho |
-| Quando antiga conclui SUCCESS | Linha continua "failed" mesmo com webhook chegando | Linha vira automaticamente "success" com margem + parcela estimada do simulationLimit |
-| Quando antiga conclui REJECTED | Linha continua "failed" (texto antigo) | Linha vira "failed" com motivo claro "Consulta antiga rejeitada" |
-| Lote disparado por engano (500 CPFs errados) | Cron tenta 15x cada linha por horas — sem botão de parar | Botão "Cancelar lote" vermelho. Pendentes viram canceladas, sucessos preservados |
+| `commission_rates_clt` (V1) | `min_value numeric`, `max_value numeric` | 0 / 999999999 |
+| `commission_rates_clt_v2` (V2) | `min_value numeric`, `max_value numeric` | 0 / 999999999 |
+| `cr_rules_clt` (Auditoria) | `valor_min numeric`, `valor_max numeric` | 0 / 999999999 |
 
-## Vantagens / Desvantagens
+Índices compostos novos para acelerar o lookup:
+- `(bank, table_key, term_min, term_max, min_value, max_value, effective_date)` em V1 e V2
+- `(banco, tabela_chave, prazo_min, prazo_max, valor_min, valor_max, data_vigencia)` em auditoria
 
-**Vantagens:** elimina a confusão "está tudo falhando!" (são 90% só aguardando), recupera dados gratuitos da V8 (consulta antiga já paga, vamos aproveitar), dá controle ao operador (cancelar).
+#### 2. Triggers de cálculo
 
-**Desvantagens:** linhas amarelas "aguardando" podem ficar dias parecendo abertas se a consulta antiga foi feita por outra plataforma e ela nunca dispara webhook pra gente — o poller precisa estar saudável (já está). Vale revisitar se virar problema.
+Atualizar duas funções para incluir o filtro por valor:
 
-## Checklist manual de validação
+- **`calculate_commission()`** (V1) — adicionar `AND min_value <= NEW.released_value AND max_value >= NEW.released_value` no SELECT da CLT (parte específica e parte genérica).
+- **`calculate_commission_v2()`** (V2) — idem (mesmo padrão que já existe na CLT V2 do FGTS).
 
-1. Disparar lote com CPFs sabidamente com consulta antiga → confirmar que aparecem **amarelo "aguardando consulta antiga"** (não vermelho).
-2. Aguardar webhook V8 chegar → linha vira **verde "sucesso"** com margem e parcela preenchidas, sem clique manual.
-3. Disparar lote com 50 CPFs → clicar **Cancelar lote** → confirmar que pendentes viram canceladas e sucessos permanecem.
-4. Tentar cancelar lote já completo → botão não aparece.
-5. Cron continua processando outros lotes normalmente (não afetou).
-6. Modal "Ver detalhes" mostra `webhook_status` correto e snapshot.
+Os defaults garantem que **nada quebra**: qualquer linha existente passa a valer para "qualquer valor".
 
-## Pendências (futuro)
+#### 3. Auditoria (`calculate_commission_audit`)
 
-- **Rotação de múltiplos logins V8** (próximo plano — você precisa me dizer quantas contas extras tem).
-- Tela "Aproveitar consulta existente" se quiser disparar manualmente o `/simulate` para uma linha amarela mesmo antes da consulta antiga concluir (hoje só rodaria depois).
-- Métrica no painel "X lotes cancelados nos últimos 7 dias".
+Atualizar a query interna do bloco CLT para incluir:
+```
+AND v_valor_calc >= rc.valor_min AND v_valor_calc <= rc.valor_max
+```
 
-## Prevenção de regressão
+#### 4. UI — 3 telas idênticas em padrão
 
-- Teste vitest: `active_consult` insertion vai pra `pending` (não `failed`).
-- Teste edge function: webhook SUCCESS sobre linha `error_kind='active_consult'` promove para success com valores do simulationLimit.
-- Comentário no `v8-webhook` destacando que `active_consult` é caso especial de promoção via `simulationLimit`.
-- Audit log em todo cancelamento de lote (rastreabilidade).
+**a) `RatesCLTTab.tsx` (V1) — `/admin/commissions`**
+- Form: 2 inputs novos "Valor Mín. (R$)" e "Valor Máx. (R$)".
+- Tabela: 2 colunas novas "Valor Min" / "Valor Max" (formatadas em BRL).
+- Importação Excel: 2 colunas novas no template, parser e preview.
+- Export Excel: incluir as 2 colunas.
+
+**b) `RatesCLTTab.tsx` (V2) — `/admin/commissions-v2`**
+- Mesmas mudanças (UI idêntica ao V1).
+
+**c) `CRRulesCLT.tsx` (Auditoria) — `/admin/commission-reports` aba Regras CLT**
+- Mesmas mudanças com naming PT (`valor_min`/`valor_max`).
+
+#### 5. Tipos & utilitários
+
+- `commissionUtils.ts` (V1 e V2): adicionar `min_value?: number; max_value?: number` no type `RateCLT` e ajustar `findCLTRate()` se existir lookup client-side.
+- `src/integrations/supabase/types.ts` será regenerado automaticamente pela migration (não editar manualmente).
+
+#### 6. Documentação
+
+- `docs/COMMISSIONS-V2.md`: documentar a nova lógica + exemplo REP CLT.
+
+### Diagrama de lookup (depois)
+
+```text
+Venda CLT chega no trigger
+        │
+        ▼
+SELECT rate
+WHERE bank = X
+  AND table_key = Y (ou genérico)
+  AND has_insurance = Z
+  AND term BETWEEN term_min AND term_max
+  AND released_value BETWEEN min_value AND max_value   ← NOVO
+  AND effective_date <= data_venda
+ORDER BY effective_date DESC LIMIT 1
+```
+
+### Vantagens
+- Suporta REP CLT por faixa de valor sem afetar bancos antigos (defaults 0 → 999.999.999).
+- Mesma estrutura nas 3 tabelas — fácil manter.
+- Auditoria reflete imediatamente nos relatórios e gráficos.
+
+### Desvantagens / riscos
+- 3 telas + 2 triggers + auditoria = mudança ampla. Mitigado por defaults + testes manuais.
+- Ordem dos índices precisa ser respeitada para performance (já contemplado).
+
+### Pendências futuras (não nesta entrega)
+- FGTS V1 já tem valor; CLT V1 vai ter — paridade total ok.
+- Possível UI de "duplicar linha em várias faixas" para acelerar cadastro do REP.
+
+### Checklist manual após deploy
+1. Abrir `/admin/commissions-v2` → aba Taxas CLT → conferir colunas "Valor Min/Max" na tabela e no form.
+2. Cadastrar 2 taxas REP CLT (ex.: 1.000–5.000 = 3% e 5.000–10.000 = 5%).
+3. Lançar uma venda CLT REP de R$ 3.000 → conferir que pegou 3%. Lançar uma de R$ 7.000 → conferir 5%.
+4. Repetir em `/admin/commissions` (V1) e `/admin/commission-reports` aba Regras CLT.
+5. Conferir que vendas antigas continuam calculando igual (regras sem faixa = abrange tudo).
+
+### Prevenção de regressão
+- Defaults amplos garantem retrocompatibilidade.
+- Documentação atualizada em `COMMISSIONS-V2.md`.
+- Sugestão futura: teste vitest cobrindo `findCLTRate` com faixa de valor.
+
+---
+
+**Pronto para executar?** Confirme e eu rodo a migration + atualizo as 3 telas + triggers + auditoria.
