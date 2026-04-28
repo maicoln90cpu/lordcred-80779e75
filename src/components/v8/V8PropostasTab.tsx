@@ -65,10 +65,16 @@ function DateField({ label, value, onChange }: { label: string; value: Date; onC
 // "Function components cannot be given refs" e tenta jogar foco em outro elemento
 // focável da tela (no caso, o botão verde "Buscar propostas"), dando a impressão
 // de que ele estava sendo clicado sozinho.
-const StatusBadge = forwardRef<HTMLDivElement, { status?: string | null }>(({ status }, ref) => (
-  <Badge ref={ref} variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
-    {status || '—'}
-  </Badge>
+// Encaminha ref para um span wrapper — sem isso o Radix FocusScope (do Dialog) emite
+// warning "Function components cannot be given refs" e tenta jogar foco em outro
+// elemento focável da tela (no caso, o botão verde "Buscar propostas"), dando a
+// impressão de que ele estava sendo clicado sozinho.
+const StatusBadge = forwardRef<HTMLSpanElement, { status?: string | null }>(({ status }, ref) => (
+  <span ref={ref} className="inline-flex">
+    <Badge variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
+      {status || '—'}
+    </Badge>
+  </span>
 ));
 StatusBadge.displayName = 'StatusBadge';
 
