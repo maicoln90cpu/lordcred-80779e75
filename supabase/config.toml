@@ -66,3 +66,6 @@ verify_jwt = false
 [functions.v8-webhook]
 verify_jwt = false
 
+[functions.v8-orphan-reconciler]
+verify_jwt = false
+

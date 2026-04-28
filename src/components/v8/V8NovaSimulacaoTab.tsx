@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Play, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import {
@@ -93,7 +94,7 @@ function loadDraft(): Partial<V8Draft> {
 
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
-  const { settings: v8Settings } = useV8Settings();
+  const { settings: v8Settings, save: saveV8Settings } = useV8Settings();
   const _draft = useMemo(() => loadDraft(), []);
   const [batchName, setBatchName] = useState<string>(_draft.batchName ?? '');
   const [configId, setConfigId] = useState<string>(_draft.configId ?? '');
@@ -157,6 +158,45 @@ export default function V8NovaSimulacaoTab() {
       setParcelas(parcelOptions[0]);
     }
   }, [parcelOptions, parcelas]);
+
+  // Auto-simulação após consulta (toggle no UI). Quando ligado, dispara
+  // /simulation throttled para cada SUCCESS novo com simulate_status != done.
+  const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!v8Settings?.auto_simulate_after_consult || !activeBatchId || !configId) return;
+    const candidates = simulations.filter((s: any) =>
+      s.status === 'success'
+      && s.consult_id
+      && (s.simulate_status ?? 'not_started') === 'not_started'
+      && !autoSimQueue.has(s.id),
+    );
+    if (candidates.length === 0) return;
+    const throttle = v8Settings?.simulate_throttle_ms ?? 1200;
+    const ids = candidates.map((c) => c.id);
+    setAutoSimQueue((prev) => new Set([...prev, ...ids]));
+
+    (async () => {
+      for (let i = 0; i < candidates.length; i++) {
+        const sim: any = candidates[i];
+        try {
+          await supabase.functions.invoke('v8-clt-api', {
+            body: {
+              action: 'simulate_only_for_consult',
+              params: {
+                simulation_id: sim.id,
+                consult_id: sim.consult_id,
+                config_id: sim.config_id || configId,
+                parcelas: sim.installments || parcelas,
+              },
+            },
+          });
+        } catch (err) {
+          console.error('[auto-simulate] erro', sim.cpf, err);
+        }
+        if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttle));
+      }
+    })();
+  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas]);
 
   const total = simulations.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
@@ -711,6 +751,20 @@ export default function V8NovaSimulacaoTab() {
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Simular automaticamente após consulta</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando ligado: assim que cada margem volta da V8, o sistema dispara <code>/simulation</code> automaticamente (throttled). Quando desligado (recomendado): você revisa as margens e clica em "Simular selecionados".
+              </p>
+            </div>
+            <Switch
+              checked={v8Settings?.auto_simulate_after_consult ?? false}
+              onCheckedChange={(v) => saveV8Settings({ auto_simulate_after_consult: v })}
+              disabled={!v8Settings}
+            />
           </div>
 
           <Button onClick={handleStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">

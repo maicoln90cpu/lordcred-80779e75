@@ -266,6 +266,17 @@ function BatchDetail({ batchId }: { batchId: string }) {
                       >
                         {translateV8Status(s.status)}
                       </Badge>
+                      {(() => {
+                        const ss = (s as any).simulate_status as string | null | undefined;
+                        if (s.status !== 'success' || !ss || ss === 'not_started') return null;
+                        const label = ss === 'done' ? 'simulado' : ss === 'queued' ? 'na fila' : ss;
+                        const cls = ss === 'done'
+                          ? 'border-emerald-500/40 text-emerald-700'
+                          : 'border-blue-500/40 text-blue-700';
+                        return (
+                          <Badge variant="outline" className={`ml-1 text-[10px] ${cls}`}>{label}</Badge>
+                        );
+                      })()}
                     </td>
                     <td className="px-2 py-1 text-right">
                       {(() => {
