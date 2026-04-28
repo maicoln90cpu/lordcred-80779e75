@@ -94,7 +94,7 @@ function loadDraft(): Partial<V8Draft> {
 
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
-  const { settings: v8Settings } = useV8Settings();
+  const { settings: v8Settings, save: saveV8Settings } = useV8Settings();
   const _draft = useMemo(() => loadDraft(), []);
   const [batchName, setBatchName] = useState<string>(_draft.batchName ?? '');
   const [configId, setConfigId] = useState<string>(_draft.configId ?? '');
