@@ -456,7 +456,7 @@ export default function V8WebhooksTab() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setSelectedPayload({ loading: false, data: null }); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhe do webhook</DialogTitle>
@@ -478,9 +478,15 @@ export default function V8WebhooksTab() {
               </div>
               <div>
                 <strong>Payload:</strong>
-                <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto max-h-96">
-                  {JSON.stringify(selected.payload, null, 2)}
-                </pre>
+                {selectedPayload.loading ? (
+                  <div className="mt-1 p-4 bg-muted rounded text-center text-muted-foreground">
+                    <Loader2 className="inline h-4 w-4 animate-spin mr-2" />Carregando payload...
+                  </div>
+                ) : (
+                  <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto max-h-96">
+                    {JSON.stringify(selectedPayload.data, null, 2)}
+                  </pre>
+                )}
               </div>
             </div>
           )}
