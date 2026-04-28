@@ -325,8 +325,8 @@ async function actionListOperations(params: V8OperationListParams = {}) {
   const needsEnrichment = preNormalized.filter(
     (op) => op?.id && (op.issueAmount == null || op.installmentFaceValue == null || op.numberOfInstallments == null)
   );
-  const ENRICH_CAP = 60;
-  const CONCURRENCY = 6;
+  const ENRICH_CAP = 200;
+  const CONCURRENCY = 8;
   const toEnrich = needsEnrichment.slice(0, ENRICH_CAP);
   const enrichedById = new Map<string, any>();
 
