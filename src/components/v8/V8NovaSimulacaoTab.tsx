@@ -865,6 +865,7 @@ export default function V8NovaSimulacaoTab() {
                 Ou ative o toggle <em>"Simular automaticamente após consulta"</em> em Configurações.
               </div>
             )}
+            {(() => {
               const autoRetryActive = simulations.filter((s: any) => {
                 const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                 if (!isRetriableErrorKind(kind)) return false;
