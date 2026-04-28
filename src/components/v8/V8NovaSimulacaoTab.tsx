@@ -949,11 +949,19 @@ export default function V8NovaSimulacaoTab() {
                     <tr key={s.id} className="border-t">
                       <td className="px-2 py-1 font-mono">{s.cpf}</td>
                       <td className="px-2 py-1">
-                        <Badge
-                          variant={getSimulationStatusVariant(s)}
-                        >
-                          {getSimulationStatusLabel(s)}
-                        </Badge>
+                        {(() => {
+                          const ws = ((s as any).webhook_status || '').toUpperCase();
+                          const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                          const isWaitingExternal = s.status === 'pending' && (k === 'active_consult' || ws === 'WAITING_EXTERNAL');
+                          return (
+                            <Badge
+                              variant={getSimulationStatusVariant(s)}
+                              className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
+                            >
+                              {getSimulationStatusLabel(s)}
+                            </Badge>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-1 text-right">
                         {(() => {
