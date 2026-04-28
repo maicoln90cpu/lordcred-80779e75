@@ -376,3 +376,60 @@ Esses dois botões aparecem **idênticos** na Nova Simulação e no Histórico
 informativo** ("N p/ retentar") — clicar nele não dispara nada, é só
 indicador visual; a ação fica no botão dentro do lote expandido.
 
+
+---
+
+## FAQ Operacional — Estado, Pagamentos e Margem (atualização)
+
+### Diferença entre "consulta", "simulação" e "operação"
+
+A V8 (Crédito do Trabalhador) tem **3 etapas distintas** que muitas vezes
+são confundidas:
+
+| Etapa | O que é | Onde aparece no LordCred |
+|---|---|---|
+| **Consulta** (`/private-consignment/consult`) | Verifica se o trabalhador é elegível, retorna **margem disponível**, **limite mínimo/máximo de valor** e **prazo aceito**. | Coluna "Status" da tabela. Status SUCCESS / REJECTED / WAITING_*. |
+| **Simulação** (`/private-consignment/simulation`) | Calcula **valor liberado real**, **parcela**, **taxa** com base na consulta aprovada e na tabela escolhida. | Colunas "Liberado", "Parcela" — aparecem apenas após a simulação financeira concluir. |
+| **Operação** (`/private-consignment/operation`) | Cria a proposta efetiva (CCB / contrato). | Aba "Consultas" → "Propostas" e tabela `v8_operations_local`. |
+
+Uma linha pode ter **consulta SUCCESS** sem nunca ter **valor liberado**.
+Isso significa apenas que o cliente é elegível, ainda não simulamos um
+contrato real para ele.
+
+### A "Margem" da tela é enviada para a V8?
+
+**Não.** Existem dois conceitos diferentes com o mesmo nome:
+
+1. **`availableMarginValue`** — vem da V8 no webhook de consulta. É a
+   margem consignável disponível do trabalhador. É só leitura.
+2. **Margem LordCred** (`company_margin` / `margem_valor`) — é cálculo
+   **interno** com o percentual configurado em `v8_margin_config`
+   (default 5%). É aplicado sobre o `released_value` retornado pela V8.
+   **Não vai no payload da simulação V8.** Só é usado para mostrar
+   quanto a empresa cobra acima do valor liberado.
+
+A coluna na tabela é rotulada como **"Margem LordCred"** justamente
+para deixar essa diferença explícita.
+
+### Por que linhas em "consulta ativa" às vezes ficam paradas?
+
+O poller `v8-active-consult-poller` faz uma chamada para a V8 por linha,
+através da Edge Function `v8-clt-api`. Quando há muitas consultas ativas
+ao mesmo tempo, podemos bater no **limite por função do Supabase Edge
+Runtime** ou no **rate limit da V8** (HTTP 429 / "Limite de requisições
+excedido"). Nesse caso:
+
+- A linha mostra a mensagem clara: *"V8 limitou as consultas. Nova
+  tentativa automática em instantes."*
+- O `v8_status_snapshot_at` **não é avançado**, então o próximo ciclo
+  do cron tentará a mesma linha novamente.
+- O usuário também pode forçar manualmente clicando em **"Ver status na
+  V8"**: o resultado é gravado direto na linha (não precisa esperar o
+  poller).
+
+### Por que aparece "Sem retorno da V8 nessa busca"?
+
+Quando o poller pergunta à V8 e a V8 responde `success` mas sem dados,
+gravamos uma marcação amigável. A linha mostra essa frase + botão
+"Ver status na V8" para o operador forçar nova consulta manual.
+
