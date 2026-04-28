@@ -293,14 +293,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                       })()}
                     </td>
                     <td className="px-2 py-1 text-right">
-                      {(() => {
-                        const m = s.margem_valor ?? extractAvailableMargin(s.raw_response);
-                        return m != null ? (
-                          <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        );
-                      })()}
+                      <MargemDispCell simulation={s as any} />
                     </td>
                     <td className="px-2 py-1 text-left">
                       {(() => {

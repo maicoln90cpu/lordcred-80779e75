@@ -964,14 +964,7 @@ export default function V8NovaSimulacaoTab() {
                         })()}
                       </td>
                       <td className="px-2 py-1 text-right">
-                        {(() => {
-                          const m = (s as any).margem_valor ?? extractAvailableMargin(s.raw_response);
-                          return m != null ? (
-                            <span className="font-semibold text-emerald-700">{formatMarginBRL(m)}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          );
-                        })()}
+                        <MargemDispCell simulation={s as any} />
                       </td>
                       <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
                       <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
