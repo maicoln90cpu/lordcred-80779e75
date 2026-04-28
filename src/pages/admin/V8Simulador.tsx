@@ -5,6 +5,7 @@ import V8NovaSimulacaoTab from '@/components/v8/V8NovaSimulacaoTab';
 import V8HistoricoTab from '@/components/v8/V8HistoricoTab';
 import V8ConfigTab from '@/components/v8/V8ConfigTab';
 import V8ConsultasTab from '@/components/v8/V8ConsultasTab';
+import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 
 export default function V8Simulador() {
   return (
