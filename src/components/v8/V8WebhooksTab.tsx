@@ -430,7 +430,8 @@ export default function V8WebhooksTab() {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
