@@ -8,11 +8,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
 import {
-  getV8ErrorHeadline,
+  getV8ErrorMessageDeduped,
   getV8ErrorMeta,
-  getV8ErrorSecondary,
-  stringifyV8Payload,
 } from '@/lib/v8ErrorPresentation';
+
+// Retentável: status failed OU pending "preso" (já tentou + classificado como retentável + última tentativa há +60s).
+function isRetriableSimulation(s: any): boolean {
+  const kind = s?.raw_response?.kind || s?.raw_response?.error_kind || s?.error_kind || null;
+  if (!kind || !isRetriableErrorKind(kind)) return false;
+  if (s.status === 'failed') return true;
+  if (s.status === 'pending') {
+    if (!s.last_attempt_at) return false;
+    const ageMs = Date.now() - new Date(s.last_attempt_at).getTime();
+    return ageMs > 60_000; // dá 1min para o webhook chegar antes de oferecer retry
+  }
+  return false;
+}
 
 // Botão "Retentar (N)" exibido no header de cada lote — não exige expandir o detalhe.
 function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
