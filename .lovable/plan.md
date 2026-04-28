@@ -1,153 +1,102 @@
 
-# Plano — Auditoria completa dos payloads V8
+## Comparação: Doc oficial V8 × nossa implementação
 
-## Objetivo (em linguagem leiga)
-Hoje a tela de **Logs de Auditoria** registra apenas **resumos** dos eventos da V8 (CPF mascarado, status, kind, total). Quando algo dá errado — ou quando você quer entender exatamente o que a V8 devolveu — você precisa abrir o modal "Status na V8" ou ir direto na tabela `v8_webhook_logs` para ver o JSON cru.
+### ✅ O que JÁ está correto
+- **Endpoints de registro** (`POST /user/webhook/private-consignment/consult` e `/operation`) — idênticos.
+- **Body de registro** (`{ "url": "..." }`) — idêntico.
+- **Handshake** `webhook.test` → `webhook.registered` — tratado e grava em `v8_webhook_registrations`.
+- **Resposta HTTP 2xx** sempre — atendido (responde 200 mesmo em erro para não duplicar).
+- **`availableMarginValue`** — capturado e persistido em `v8_simulations.margem_valor`.
+- **`type: private.consignment.consult.updated`** — reconhecido (matching por `payload.type` contendo "operation" senão consult).
+- **`type: private.consignment.operation.created/updated`** — reconhecido e gravado em `v8_operations_local`.
+- **Status `WAITING_CONSENT`, `CONSENT_APPROVED`, `WAITING_CONSULT`, `WAITING_CREDIT_ANALYSIS`, `SUCCESS`, `FAILED`, `REJECTED`** — todos mapeados em `mapV8StatusToInternal`.
 
-A meta deste plano é garantir que **todo evento V8** (chamadas que saem daqui pra V8 + webhooks que a V8 manda pra cá + ciclos automáticos do poller e do retry-cron) deixe um registro em `audit_logs` com **o payload completo de request e response**, sem truncar e sem perder nenhum campo.
+### ⚠️ Divergências encontradas (nossa implementação vs. doc oficial)
 
----
+#### D1 — `CONSENT_APPROVED` mapeado como `success` (BUG)
+Hoje `mapV8StatusToInternal` retorna `success` para `CONSENT_APPROVED`. Pela doc oficial, **`CONSENT_APPROVED` é estado intermediário** (consentimento aprovado, ainda aguarda Dataprev). Só `SUCCESS` é estado terminal positivo.
 
-## Diagnóstico do que existe hoje
+**Impacto real**: o guard atual exige `released_value` + `installment_value` para promover a `success`, então hoje o bug é **mascarado** (CONSENT_APPROVED nunca tem esses campos no webhook → fica bloqueado e cai em "noop"). Mesmo assim a classificação semântica está errada e gera ruído em logs e auditoria.
 
-### O que JÁ é auditado
-| Origem | Ação | O que grava |
-|---|---|---|
-| `v8-clt-api` `simulate_one` | `v8_simulate_one` | Resumo + `data` + `raw` (parcial) |
-| `v8-clt-api` `get_configs` | `v8_get_configs` | Lista completa |
-| `v8-clt-api` `create_batch` | `v8_create_batch` | Resumo (sem rows) |
-| `v8-clt-api` `register_webhooks` | `v8_register_webhooks` | Response completo |
-| `v8-clt-api` `list_operations` / `list_consults` / `get_operation` / `check_consult_status` | sim, mas só **sumário** (sem `data`, sem `raw`) |
-| `v8-webhook` (eventos reais) | `v8_webhook_<eventType>` | Resumo + `payload_keys` (não o payload!) |
+**Correção**: mapear `CONSENT_APPROVED` como `pending` (etapa intermediária).
 
-### O que NÃO é auditado
-| Origem | Problema |
-|---|---|
-| `v8-active-consult-poller` | **Zero** chamadas a `writeAuditLog`. Snapshot vai só pra `v8_simulations.raw_response` |
-| `v8-retry-cron` | **Zero** auditoria — só atualiza linhas |
-| `v8-clt-api` `list_batches` | Sem auditoria |
-| `v8-clt-api` `get_webhook_status` | Sem auditoria |
-| Webhook V8 | Payload completo só em `v8_webhook_logs.payload` (JSON, sem ligação clara com `audit_logs`) |
-| `simulate_one` | `request_payload` é **reconstruído** com placeholder `<consult_id>`. O body real enviado pra V8 (consult, authorize, simulate, status) **não é capturado** |
+#### D2 — Status de operação (proposta) NÃO são reconhecidos como vocabulário oficial
+A doc lista 11 status finitos para operações: `generating_ccb, formalization, analysis, manual_analysis, awaiting_call, processing, paid, canceled, awaiting_cancel, pending, refunded, rejected`. Hoje gravamos em `v8_operations_local.status` o valor cru sem validar / sem glossário, e a UI não tem legenda desses estados (o glossário cobre só consulta).
 
----
+**Correção**: 
+- Adicionar constante `V8_OPERATION_STATUSES` no edge function (validação + audit log marca status desconhecido).
+- Estender `V8StatusGlossary` com seção "Status de Operação (Proposta)" mostrando os 11 status com tradução leiga.
 
-## O que vai mudar
+#### D3 — Campos extras do payload de consulta SUCCESS não são persistidos
+A doc detalha que em `SUCCESS` chegam: `availableMarginValue`, `admissionDateMonthsDifference`, `simulationLimit { monthMin, monthMax, installmentsMin, installmentsMax, valueMin, valueMax }`. Hoje só capturamos `availableMarginValue`. O resto fica enterrado em `raw_response` (jsonb) — operador não vê limite mínimo/máximo de prazo e valor da V8.
 
-### 1. Helper compartilhado para "payload completo"
-Criar `supabase/functions/_shared/v8AuditPayload.ts` com helper `truncateForAudit(value, maxBytes)` que:
-- Serializa o JSON.
-- Se exceder ~256KB (limite seguro pra coluna `jsonb`), guarda os primeiros 250KB em `details.payload_truncated_preview` e marca `details.payload_truncated = true` + `details.payload_full_size_bytes = N`.
-- Senão, grava `details.payload_full = <objeto>`.
+**Correção**:
+- Persistir em colunas dedicadas (migration nova): `admission_months_diff int`, `sim_month_min int`, `sim_month_max int`, `sim_installments_min int`, `sim_installments_max int`, `sim_value_min numeric`, `sim_value_max numeric`.
+- Webhook handler popula essas colunas quando vierem.
+- UI: mostrar no modal "Ver status na V8" um bloco "Limites V8" (mês mín/máx, parcelas mín/máx, valor mín/máx) — útil para o operador escolher tabela/parcelas dentro do permitido.
 
-Isso garante que payloads gigantes da V8 (operação completa com 60 parcelas) não estourem `audit_logs` mas continuem rastreáveis.
+#### D4 — Glossário desatualizado
+`V8StatusGlossary.tsx` mostra `CONSENT_APPROVED` com "V8 está consultando o averbador" — texto OK, mas não inclui `WAITING_CONSULT` nem `WAITING_CREDIT_ANALYSIS` explicitamente (estão sob "WAITING_*"). A doc oficial detalha cada um.
 
-### 2. `v8-clt-api` — capturar request/response brutos
-Para **toda chamada `v8Fetch()`** (consult, authorize, simulate, status, list_consults, list_operations, get_operation):
-- Guardar em variáveis locais o `body` enviado, o `status HTTP`, e o **JSON cru** retornado.
-- Anexar em `details.v8_http_calls = [{ step, url, method, request_body, http_status, response_body, duration_ms }, ...]`.
+**Correção**: detalhar cada `WAITING_*` separadamente (consentimento, Dataprev, análise de crédito) em vez de agrupar.
 
-Isso é o ganho principal: hoje o operador vê "kind=active_consult", mas não vê o JSON exato que a V8 mandou. Com isso, vê.
+#### D5 — Doc interna `docs/V8-INTEGRATION.md` cita seção 5 "Webhooks (futuro)" e item de roadmap H3.1/H3.2 como "não implementado" — está DESATUALIZADA (já implementamos).
 
-### 3. Adicionar auditoria nas ações que faltam
-- `list_batches` → `v8_list_batches` (com `count` + `data` truncado).
-- `get_webhook_status` → `v8_get_webhook_status` (com registrations + last_log).
+**Correção**: reescrever seção 5 com tabela completa de tipos, payloads e status oficiais; remover H3.1/H3.2 do roadmap.
 
-### 4. `v8-active-consult-poller` — auditar cada ciclo
-Adicionar 1 entrada por ciclo:
-- `action: "v8_poller_cycle"`, `category: "simulator"`.
-- `details`: `{ scanned, updated, not_found, rate_limited, failed, manual, simulation_ids: [...], v8_http_calls: [...] }`.
-
-E 1 entrada por simulação atualizada quando o snapshot muda de status (com `payload_full = json.data`).
-
-### 5. `v8-retry-cron` — auditar cada execução
-Adicionar 1 entrada por ciclo:
-- `action: "v8_retry_cron_cycle"`.
-- `details`: `{ trigger_source, batch_id, total_eligible, retried, skipped_cooloff, max_attempts_reached, results: [{ simulation_id, attempt, kind, success }] }`.
-
-### 6. `v8-webhook` — gravar payload bruto no audit
-Hoje o webhook grava `payload_keys`. Vai passar a gravar o **payload completo** (com truncamento) e os `headers seguros` (sem auth).
-
-### 7. Promover ações `list_*` a auditoria completa
-Em `list_operations`, `list_consults`, `get_operation`, `check_consult_status` — passar a incluir `payload_full = result.data` (com truncamento).
-
-### 8. Tela de Logs de Auditoria (frontend)
-- Ajustar `JsonTreeView` para destacar visualmente blocos `payload_full`, `v8_http_calls`, `payload_truncated_preview`.
-- Adicionar **filtro rápido por categoria "simulator"** + filtro por sub-ação (`v8_simulate_one`, `v8_webhook_*`, `v8_poller_cycle`, `v8_retry_cron_cycle`).
-- Botão **"Copiar payload completo"** no modal de detalhe (já existe parcialmente, validar que cobre `payload_full` e `v8_http_calls`).
-
-### 9. Documentação
-Anexar seção em `docs/V8-INTEGRATION.md`:
-- Tabela com cada ação V8 e o que aparece no audit.
-- Como filtrar / interpretar `v8_http_calls`.
-- Política de truncamento (250KB).
+### ❌ Item da doc que NÃO usamos (intencionalmente — informativo)
+A doc mostra um payload "exemplo de falha" com `type: "balance.status.received.success"` — esse é um exemplo confuso da própria doc V8 (parece ser de outro produto, BMS/balance). Não vamos tratar.
 
 ---
 
-## Detalhes técnicos
+## Mudanças propostas (5 itens)
 
-**Arquivos a criar**
-- `supabase/functions/_shared/v8AuditPayload.ts` — helper de truncamento.
+### 1. `supabase/functions/v8-webhook/index.ts`
+- Trocar `CONSENT_APPROVED` para retornar `"pending"` em `mapV8StatusToInternal` (corrige D1).
+- Após o `mapV8StatusToInternal`, extrair `admissionDateMonthsDifference` e `simulationLimit.*` e incluir em `safeUpdates` quando presentes (D3).
+- Validar `status` de operação contra lista oficial; se desconhecido, gravar `process_error: "unknown_operation_status: X"` em `v8_webhook_logs` mas ainda fazer upsert (D2 — defensivo).
 
-**Arquivos a editar**
-- `supabase/functions/v8-clt-api/index.ts` — capturar request/response em todas as `v8Fetch`; adicionar auditoria em `list_batches`, `get_webhook_status`; expandir `details` de `simulate_one`, `list_operations`, `list_consults`, `get_operation`, `check_consult_status` com `payload_full`.
-- `supabase/functions/v8-webhook/index.ts` — incluir `payload_full` (com truncamento) e `headers_safe` no audit.
-- `supabase/functions/v8-active-consult-poller/index.ts` — adicionar `writeAuditLog` por ciclo + por simulação atualizada.
-- `supabase/functions/v8-retry-cron/index.ts` — adicionar `writeAuditLog` por ciclo + por tentativa.
-- `src/components/audit/JsonTreeView.tsx` (ou equivalente) — destaque visual para blocos especiais.
-- `src/pages/admin/AuditLogs.tsx` (ou equivalente) — filtro por sub-ação.
-- `docs/V8-INTEGRATION.md` — seção "Auditoria de payloads".
-
-**Sem migrações** — tudo cabe nas colunas existentes de `audit_logs.details (jsonb)`. O índice já existe (`audit_logs_action_idx`).
-
----
-
-## Antes vs Depois (preview)
-
-**Hoje** (audit `v8_simulate_one`):
-```
-{ category: "simulator", success: false, kind: "active_consult",
-  step: "consult_status", cpf_masked: "***1234", error: "..." }
+### 2. Migration nova
+```sql
+ALTER TABLE v8_simulations
+  ADD COLUMN IF NOT EXISTS admission_months_diff int,
+  ADD COLUMN IF NOT EXISTS sim_month_min int,
+  ADD COLUMN IF NOT EXISTS sim_month_max int,
+  ADD COLUMN IF NOT EXISTS sim_installments_min int,
+  ADD COLUMN IF NOT EXISTS sim_installments_max int,
+  ADD COLUMN IF NOT EXISTS sim_value_min numeric(14,2),
+  ADD COLUMN IF NOT EXISTS sim_value_max numeric(14,2);
 ```
 
-**Depois**:
-```
-{ category: "simulator", success: false, kind: "active_consult", step: "consult_status",
-  cpf_masked: "***1234",
-  v8_http_calls: [
-    { step: "consult", method: "POST", url: ".../private-consignment/consult",
-      request_body: { documentNumber: "***", ... }, http_status: 201, response_body: {...}, duration_ms: 412 },
-    { step: "consult_status", method: "GET", url: ".../consult?...", http_status: 200,
-      response_body: { ..., availableMarginValue: 1234.56, ... }, duration_ms: 280 }
-  ],
-  payload_full: { ...resultado completo... }
-}
-```
+### 3. `src/components/v8/V8StatusGlossary.tsx`
+- Detalhar `WAITING_CONSENT`, `CONSENT_APPROVED`, `WAITING_CONSULT`, `WAITING_CREDIT_ANALYSIS` cada um com explicação leiga (D1, D4).
+- Adicionar segunda seção "📄 Status de Proposta (Operação V8)" com os 11 status oficiais traduzidos.
+
+### 4. `src/components/v8/V8StatusOnV8Dialog.tsx`
+- Acrescentar bloco "Limites de Simulação V8" abaixo do bloco da Margem Disponível, mostrando: prazo (mín–máx meses), parcelas (mín–máx), valor (mín–máx R$). Renderizar só quando houver dados (D3).
+
+### 5. `docs/V8-INTEGRATION.md`
+- Reescrever Seção 5 (Webhooks) com:
+  - Tabela completa de tipos (`webhook.test`, `webhook.registered`, `private.consignment.consult.updated`, `private.consignment.operation.created`, `private.consignment.operation.updated`).
+  - Lista oficial de status de consulta e operação com link para o glossário do app.
+  - Quadro "doc oficial vs LordCred" igual ao que já existe para auth.
+- Remover/atualizar H3.1 e H3.2 do roadmap (já entregues).
+- Atualizar tabela de colunas de `v8_simulations` com os campos novos.
+
+### 6. Testes
+- Adicionar caso em `src/lib/__tests__/v8WebhookGuard.test.ts` (ou criar `v8WebhookStatusMap.test.ts`) garantindo:
+  - `CONSENT_APPROVED` → `pending` (não `success`).
+  - `SUCCESS` → `success`.
+  - `REJECTED`/`FAILED` → `failed`.
+  - `WAITING_*` → `pending`.
 
 ---
 
-## Vantagens
-- Diagnóstico de falhas V8 sem precisar abrir modal nem inspecionar `v8_simulations.raw_response` no SQL Editor.
-- Replay confiável: dá pra reproduzir qualquer chamada porque o request bruto está salvo.
-- Suporte a auditoria regulatória/compliance — um único lugar (`audit_logs`) tem 100% do histórico V8.
+## Protocolo de Resposta (será cumprido na implementação)
 
-## Desvantagens
-- `audit_logs` cresce mais rápido (estimativa: +30% a +60% de tamanho por linha V8). Mitigação: a política `cleanup_audit_logs` já remove > 15 dias.
-- Pequeno overhead (5–15ms) por chamada para serializar e medir.
-
-## Checklist manual (após implementação)
-1. Rodar uma simulação CLT em `/admin/v8-simulador` → abrir `/admin/audit-logs` → filtrar por `v8_simulate_one` → expandir → confirmar que `v8_http_calls` aparece com request e response brutos.
-2. Esperar 1 minuto → confirmar entrada `v8_poller_cycle` e `v8_retry_cron_cycle`.
-3. Forçar uma falha (CPF inválido) → conferir que `payload_full` traz a resposta de erro completa da V8.
-4. Disparar manualmente `register_webhooks` → confirmar audit com response completo.
-5. Conferir que payload > 250KB aparece como `payload_truncated_preview` + tamanho informado.
-
-## Pendências (futuro, não agora)
-- Página dedicada **"Auditoria V8"** com timeline visual por CPF.
-- Botão "Replay" que reenvia o `request_body` salvo (útil em incidentes).
-- Exportar em CSV/JSON o histórico V8 filtrado.
-
-## Prevenção de regressão
-- Adicionar teste Vitest em `src/lib/__tests__/v8AuditPayload.test.ts` cobrindo: payload pequeno passa intacto, payload grande é truncado com aviso, payload nulo não quebra.
-- Adicionar teste Deno em `supabase/functions/v8-clt-api/audit_test.ts` validando que `v8_http_calls` é preenchido em todas as ações principais.
-- Comentário no topo de `auditLog.ts` reforçando: "qualquer nova ação V8 deve gravar `request_payload` + `response_payload` completos".
+1. **Antes vs Depois** — incluído.
+2. **Melhorias** — UI mostra limites operacionais V8; status oficiais no glossário; semântica correta de CONSENT_APPROVED.
+3. **Vantagens/Desvantagens** — vantagens: rastreio fiel à doc oficial, operador vê limites de prazo/valor antes de simular. Desvantagem: migration adiciona 7 colunas (sem breaking change).
+4. **Checklist manual** — registrar webhooks novamente; aguardar próxima consulta SUCCESS; verificar colunas no Supabase + bloco no modal.
+5. **Pendências** — futuro: validar payload via Zod no edge para falhar cedo em payloads malformados.
+6. **Prevenção de regressão** — testes unitários cobrem mapeamento de status; constantes `V8_OPERATION_STATUSES` e `V8_CONSULT_STATUSES` exportadas evitam string mágica.
