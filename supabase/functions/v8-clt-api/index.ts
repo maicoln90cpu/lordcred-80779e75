@@ -1634,6 +1634,7 @@ const handler = async (req: Request) => {
               latest_status: (result as any)?.data?.latest?.status ?? null,
               error: (result as any)?.error ?? null,
             },
+            ...packPayloadForAudit(result, "payload_full"),
           },
         });
         break;
