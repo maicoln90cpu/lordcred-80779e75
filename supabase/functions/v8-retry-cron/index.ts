@@ -219,6 +219,26 @@ serve(async (req) => {
 
     console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount} skipped_missing_config=${skippedMissingConfig}`);
 
+    await writeAuditLog(supabase, {
+      action: "v8_retry_cron_cycle",
+      category: "simulator",
+      success: failCount === 0,
+      targetTable: "v8_simulations",
+      details: {
+        trigger_source: manualMode ? "manual" : "cron",
+        sub_pass: subPass,
+        batch_id: manualBatchId,
+        scanned: candidates?.length ?? 0,
+        eligible: eligible.length,
+        retried_ok: okCount,
+        retried_fail: failCount,
+        skipped_missing_config: skippedMissingConfig,
+        touched_batch_ids: Array.from(touchedBatchIds),
+        duration_ms: Date.now() - startedAt,
+        ...packPayloadForAudit(perSimResults, "per_simulation_results"),
+      },
+    });
+
     return ok({
       scanned: candidates?.length ?? 0,
       eligible: eligible.length,
@@ -230,6 +250,13 @@ serve(async (req) => {
     });
   } catch (err: any) {
     console.error("[v8-retry-cron] fatal", err);
+    await writeAuditLog(supabase, {
+      action: "v8_retry_cron_cycle",
+      category: "simulator",
+      success: false,
+      targetTable: "v8_simulations",
+      details: { fatal_error: String(err?.message || err), trigger_source: manualMode ? "manual" : "cron", sub_pass: subPass, batch_id: manualBatchId },
+    });
     return ok({ success: false, error: String(err?.message || err) }, 200);
   }
 });
