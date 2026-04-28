@@ -517,6 +517,16 @@ export default function V8HistoricoTab() {
   const { batches, loading } = useV8Batches();
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Frente C: 1 query agregada + 1 subscribe global ao carregar os lotes.
+  // Antes: cada BatchRetryHeaderBadge abria seu próprio canal realtime
+  // (50 lotes = 50 canais + 50 queries individuais).
+  useEffect(() => {
+    if (batches.length === 0) return;
+    const ids = batches.map((b) => b.id);
+    void loadAllRetryCounts(ids);
+    ensureRetryRealtime(ids);
+  }, [batches]);
+
   return (
     <Card>
       <CardHeader>
