@@ -112,7 +112,14 @@ serve(async (req) => {
         });
 
         const json = await resp.json().catch(() => ({} as any));
+
+        // Mesmo quando a V8 não tem dados (success=false ou data vazio), marcamos
+        // v8_status_snapshot_at para não repolling no próximo ciclo (cooldown 120s).
         if (!json?.success || !json?.data) {
+          await supabase
+            .from("v8_simulations")
+            .update({ v8_status_snapshot_at: new Date().toISOString() })
+            .eq("id", row.id);
           failed += 1;
           continue;
         }
