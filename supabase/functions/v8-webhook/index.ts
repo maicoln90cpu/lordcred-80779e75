@@ -96,7 +96,7 @@ async function processV8Payload(
       // (failed → pending) nem promover (any → success) sem valores monetários reais.
       const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .select("id, status, released_value, installment_value, simulation_strategy, installments")
+        .select("id, status, released_value, installment_value, simulation_strategy, installments, error_kind")
         .eq("consult_id", consultId)
         .maybeSingle();
 
@@ -119,10 +119,17 @@ async function processV8Payload(
         // Isso é uma ESTIMATIVA — quando o operador rodar /simulate via "Simular selecionados",
         // os valores reais sobrescrevem.
         const isWebhookOnly = currentRow.simulation_strategy === "webhook_only";
+        // CASO ESPECIAL active_consult: linha foi criada como pending pq outra plataforma
+        // já tinha consulta rodando. Quando ESSA consulta concluir e a V8 nos avisar, promovemos
+        // usando os campos do simulationLimit — exatamente como webhook_only. Comportamento
+        // idêntico, apenas o gatilho é diferente.
+        const isActiveConsultRecovery = currentRow.error_kind === "active_consult";
         const valueMax = extras.simValueMax;
         const instMax = extras.simInstallmentsMax;
+        const canPromoteFromLimit = (isWebhookOnly || isActiveConsultRecovery)
+          && valueMax != null && instMax != null;
 
-        if (wantsSuccess && isWebhookOnly && valueMax != null && instMax != null) {
+        if (wantsSuccess && canPromoteFromLimit) {
           // Estima parcela: valueMax distribuído em instMax meses (sem juros — apenas referência visual).
           // O valor REAL vem do /simulate sob demanda.
           safeUpdates.released_value = valueMax;
@@ -132,9 +139,18 @@ async function processV8Payload(
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
           safeUpdates.simulate_status = "not_started"; // operador ainda pode "Simular" para ter valor real
+          if (isActiveConsultRecovery) {
+            safeUpdates.error_kind = null;
+            safeUpdates.error_message = null;
+          }
         } else if (wantsSuccess && hasRealValues) {
           // legacy_sync — valores já vieram do /simulate síncrono
           safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+        } else if (internalStatus === "failed" && isActiveConsultRecovery) {
+          // Consulta antiga foi rejeitada na V8 — promove a linha para failed com motivo claro
+          safeUpdates.status = "failed";
+          safeUpdates.error_message = "Consulta antiga rejeitada na V8";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
           safeUpdates.status = "failed";
@@ -149,7 +165,7 @@ async function processV8Payload(
           .eq("id", currentRow.id);
 
         if (updErr) processError = updErr.message;
-        else { processed = true; action = isWebhookOnly && wantsSuccess && valueMax != null ? "consult_promoted_webhook_only" : "consult_upsert"; }
+        else { processed = true; action = canPromoteFromLimit && wantsSuccess ? (isActiveConsultRecovery ? "consult_promoted_active_consult" : "consult_promoted_webhook_only") : "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
         const insertRow: Record<string, unknown> = {
