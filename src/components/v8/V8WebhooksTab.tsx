@@ -1,15 +1,19 @@
 /**
  * V8WebhooksTab — aba "Webhooks" da página V8 Simulador.
  *
- * Frente D: tela leiga (não-dev) que lista os últimos webhooks recebidos da V8
- * Sistema. Antes, para investigar "esse contrato chegou?" o operador tinha que
- * abrir /admin/audit-logs e filtrar — confuso e cheio de ruído de outras
- * integrações. Aqui tudo já vem pré-filtrado e em linguagem de operação:
+ * Frente D (entrega original): tela leiga (não-dev) que lista os últimos webhooks
+ * recebidos da V8 Sistema.
  *
- *   Data · Tipo (consulta/operação) · CPF · Status V8 · Resultado
- *
- * Lê v8_webhook_logs direto via RLS (mesma política das outras tabelas v8_*).
- * Mostra detalhe (payload bruto) num drawer simples — opcional.
+ * Frentes 1 + 2 (correções desta iteração):
+ *  - CPF: a V8 NÃO envia CPF nos webhooks. Enriquecemos cruzando consult_id com
+ *    v8_simulations e operation_id com v8_operations_local para mostrar o CPF
+ *    que já guardamos no nosso banco.
+ *  - Contadores reais por tipo: buscamos COUNT agregado direto do banco para
+ *    mostrar quantos consult/operation/registration/invalid existem de verdade
+ *    (independente do limite de 200 da listagem).
+ *  - Filtro de tipo passa a refazer a busca no banco (não filtra em memória),
+ *    para que "Operação" sempre retorne os 200 últimos daquele tipo, mesmo se
+ *    'consult' for 99% do volume.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -48,6 +52,8 @@ const TYPE_LABEL: Record<string, string> = {
   invalid: 'Inválido',
 };
 
+const ALL_TYPES = ['consult', 'operation', 'registration', 'invalid'] as const;
+
 function formatDateTime(iso?: string | null) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -55,8 +61,15 @@ function formatDateTime(iso?: string | null) {
   return d.toLocaleString('pt-BR');
 }
 
-function maskCpf(payload: any): string {
-  // Tenta extrair CPF/document number do payload bruto.
+function maskCpfDigits(digits?: string | null): string {
+  if (!digits) return '—';
+  const clean = String(digits).replace(/\D/g, '');
+  if (clean.length !== 11) return '—';
+  return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function cpfFromPayload(payload: any): string | null {
+  // Fallback: se a V8 algum dia mandar CPF no payload, aproveitamos.
   const candidates = [
     payload?.documentNumber,
     payload?.document_number,
@@ -65,14 +78,12 @@ function maskCpf(payload: any): string {
     payload?.borrower?.documentNumber,
   ];
   for (const c of candidates) {
-    if (typeof c === 'string' && c.length >= 11) {
+    if (typeof c === 'string') {
       const digits = c.replace(/\D/g, '');
-      if (digits.length === 11) {
-        return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-      }
+      if (digits.length === 11) return digits;
     }
   }
-  return '—';
+  return null;
 }
 
 function getResultBadge(log: WebhookLog) {
@@ -101,17 +112,95 @@ export default function V8WebhooksTab() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<WebhookLog | null>(null);
   const [replaying, setReplaying] = useState(false);
+  const [cpfMap, setCpfMap] = useState<Record<string, string>>({}); // log.id -> cpf digits
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+
+  /**
+   * Busca contadores reais (head:true não traz linhas, só count) por tipo.
+   * Roda sempre junto do load() para a UI mostrar os totais verdadeiros,
+   * mesmo que a listagem esteja limitada a 200 linhas.
+   */
+  async function loadTypeCounts() {
+    const entries = await Promise.all(
+      ALL_TYPES.map(async (t) => {
+        const { count } = await supabase
+          .from('v8_webhook_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('event_type', t);
+        return [t, count ?? 0] as const;
+      }),
+    );
+    setTypeCounts(Object.fromEntries(entries));
+  }
+
+  /**
+   * Cruza consult_id com v8_simulations e operation_id com v8_operations_local
+   * para descobrir o CPF de cada webhook. Faz dois IN() em batches.
+   */
+  async function enrichCpfs(rows: WebhookLog[]) {
+    const consultIds = Array.from(new Set(rows.map((r) => r.consult_id).filter((x): x is string => !!x)));
+    const operationIds = Array.from(new Set(rows.map((r) => r.operation_id).filter((x): x is string => !!x)));
+
+    const consultMap: Record<string, string> = {};
+    const operationMap: Record<string, string> = {};
+
+    if (consultIds.length > 0) {
+      const { data } = await supabase
+        .from('v8_simulations')
+        .select('consult_id, document_number')
+        .in('consult_id', consultIds);
+      (data ?? []).forEach((row: any) => {
+        if (row?.consult_id && row?.document_number) {
+          consultMap[row.consult_id] = String(row.document_number).replace(/\D/g, '');
+        }
+      });
+    }
+
+    if (operationIds.length > 0) {
+      const { data } = await supabase
+        .from('v8_operations_local')
+        .select('operation_id, document_number')
+        .in('operation_id', operationIds);
+      (data ?? []).forEach((row: any) => {
+        if (row?.operation_id && row?.document_number) {
+          operationMap[row.operation_id] = String(row.document_number).replace(/\D/g, '');
+        }
+      });
+    }
+
+    const map: Record<string, string> = {};
+    rows.forEach((r) => {
+      const fromPayload = cpfFromPayload(r.payload);
+      const fromConsult = r.consult_id ? consultMap[r.consult_id] : undefined;
+      const fromOperation = r.operation_id ? operationMap[r.operation_id] : undefined;
+      const cpf = fromPayload || fromConsult || fromOperation;
+      if (cpf) map[r.id] = cpf;
+    });
+    setCpfMap(map);
+  }
 
   async function load() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('v8_webhook_logs')
         .select('id, event_type, status, consult_id, operation_id, v8_simulation_id, payload, processed, process_error, received_at')
         .order('received_at', { ascending: false })
         .limit(200);
+
+      // Frente 2: quando o filtro de tipo está ativo, busca já filtrada no banco
+      // para garantir 200 linhas DAQUELE tipo (e não 200 globais que viram tudo 'consult').
+      if (typeFilter !== '__all__') {
+        query = query.eq('event_type', typeFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      setLogs((data ?? []) as WebhookLog[]);
+      const rows = (data ?? []) as WebhookLog[];
+      setLogs(rows);
+      // Enriquece CPF e atualiza contadores em paralelo (sem bloquear a tela).
+      void enrichCpfs(rows);
+      void loadTypeCounts();
     } catch (err: any) {
       toast.error(`Falha ao carregar webhooks: ${err?.message || err}`);
     } finally {
@@ -136,20 +225,22 @@ export default function V8WebhooksTab() {
     }
   }
 
+  // Recarrega quando o filtro de tipo muda (busca no banco filtrada).
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFilter]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     const digits = term.replace(/\D/g, '');
     return logs.filter((log) => {
-      if (typeFilter !== '__all__' && log.event_type !== typeFilter) return false;
+      // typeFilter já foi aplicado no banco — não refiltrar aqui.
       if (statusFilter === 'processed' && !log.processed) return false;
       if (statusFilter === 'pending' && log.processed) return false;
       if (statusFilter === 'error' && !log.process_error) return false;
       if (term) {
-        const cpf = maskCpf(log.payload).replace(/\D/g, '');
+        const cpf = cpfMap[log.id] || '';
         const status = String(log.status || '').toLowerCase();
         const consult = String(log.consult_id || '').toLowerCase();
         const operation = String(log.operation_id || '').toLowerCase();
@@ -161,7 +252,7 @@ export default function V8WebhooksTab() {
       }
       return true;
     });
-  }, [logs, typeFilter, statusFilter, search]);
+  }, [logs, statusFilter, search, cpfMap]);
 
   const stats = useMemo(() => {
     const total = logs.length;
@@ -171,12 +262,20 @@ export default function V8WebhooksTab() {
     return { total, processed, pending, error };
   }, [logs]);
 
+  const totalAllTypes = ALL_TYPES.reduce((acc, t) => acc + (typeCounts[t] ?? 0), 0);
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs leading-relaxed">
         <strong>O que aparece aqui?</strong> Cada vez que a V8 nos avisa de algo
         (uma consulta concluiu, um contrato foi pago, etc.), gravamos o evento aqui.
         Se algum contrato "sumiu" ou um status não atualizou, é o primeiro lugar para conferir.
+        <br />
+        <span className="opacity-80">
+          Observação: a V8 não envia CPF no aviso — buscamos o CPF cruzando com
+          a consulta ou contrato que já temos no nosso banco. Se não acharmos,
+          mostramos "—" (geralmente significa que a consulta foi aberta em outra plataforma).
+        </span>
       </div>
 
       <Card>
@@ -196,11 +295,31 @@ export default function V8WebhooksTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Totais REAIS por tipo (do banco inteiro, não dos 200 carregados) */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Badge variant="outline">{stats.total} total</Badge>
+            <Badge variant="outline" className="font-semibold">
+              {totalAllTypes.toLocaleString('pt-BR')} no banco
+            </Badge>
+            {ALL_TYPES.map((t) => (
+              <Badge key={t} variant="outline" className="gap-1">
+                <span className="opacity-70">{TYPE_LABEL[t]}:</span>
+                <strong>{(typeCounts[t] ?? 0).toLocaleString('pt-BR')}</strong>
+              </Badge>
+            ))}
+          </div>
+
+          {/* Stats da listagem visível */}
+          <div className="flex flex-wrap items-center gap-2 text-xs border-t pt-3">
+            <span className="text-muted-foreground">Listagem visível:</span>
+            <Badge variant="outline">{stats.total} carregados</Badge>
             <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40" variant="outline">{stats.processed} processados</Badge>
             <Badge variant="secondary">{stats.pending} pendentes</Badge>
             {stats.error > 0 && <Badge variant="destructive">{stats.error} com erro</Badge>}
+            {typeFilter !== '__all__' && (
+              <Badge variant="outline" className="border-amber-500/40 text-amber-700">
+                Filtrado: {TYPE_LABEL[typeFilter] || typeFilter}
+              </Badge>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -209,10 +328,11 @@ export default function V8WebhooksTab() {
                 <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">Todos os tipos</SelectItem>
-                  <SelectItem value="consult">Consulta</SelectItem>
-                  <SelectItem value="operation">Operação</SelectItem>
-                  <SelectItem value="registration">Registro</SelectItem>
-                  <SelectItem value="invalid">Inválido</SelectItem>
+                  {ALL_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TYPE_LABEL[t]} ({(typeCounts[t] ?? 0).toLocaleString('pt-BR')})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -265,7 +385,7 @@ export default function V8WebhooksTab() {
                   <tr key={log.id} className="border-t">
                     <td className="px-2 py-1 whitespace-nowrap">{formatDateTime(log.received_at)}</td>
                     <td className="px-2 py-1">{getTypeBadge(log.event_type)}</td>
-                    <td className="px-2 py-1 font-mono">{maskCpf(log.payload)}</td>
+                    <td className="px-2 py-1 font-mono">{maskCpfDigits(cpfMap[log.id])}</td>
                     <td className="px-2 py-1">{log.status || '—'}</td>
                     <td className="px-2 py-1">{getResultBadge(log)}</td>
                     <td className="px-2 py-1 text-right">
@@ -294,6 +414,7 @@ export default function V8WebhooksTab() {
                 <div><strong>Tipo:</strong> {selected.event_type || '—'}</div>
                 <div><strong>Status V8:</strong> {selected.status || '—'}</div>
                 <div><strong>Resultado:</strong> {selected.processed ? 'Processado' : 'Pendente'}</div>
+                <div className="col-span-2"><strong>CPF (do nosso banco):</strong> <code>{maskCpfDigits(cpfMap[selected.id])}</code></div>
                 {selected.consult_id && <div className="col-span-2"><strong>consult_id:</strong> <code>{selected.consult_id}</code></div>}
                 {selected.operation_id && <div className="col-span-2"><strong>operation_id:</strong> <code>{selected.operation_id}</code></div>}
                 {selected.process_error && (
