@@ -3,33 +3,46 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
+import { useV8Settings } from '@/hooks/useV8Settings';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { isRetriableErrorKind } from '@/lib/v8ErrorClassification';
+import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
+import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
+import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 
-// Retentável: status failed OU pending "preso" (já tentou + classificado como retentável + última tentativa há +60s).
-function isRetriableSimulation(s: any): boolean {
+// Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
+function isRetriableNow(s: any): boolean {
   const kind = s?.error_kind || s?.raw_response?.kind || s?.raw_response?.error_kind || null;
   if (!kind || !isRetriableErrorKind(kind)) return false;
   if (s.status === 'failed') return true;
   if (s.status === 'pending') {
     if (!s.last_attempt_at) return false;
     const ageMs = Date.now() - new Date(s.last_attempt_at).getTime();
-    return ageMs > 60_000; // dá 1min para o webhook chegar antes de oferecer retry
+    return ageMs > 60_000;
   }
   return false;
 }
 
-// Botão "Retentar (N)" exibido no header de cada lote — não exige expandir o detalhe.
+// Pending dentro do "cooldown" — vai entrar no próximo ciclo do cron.
+function isRetriableSoon(s: any): boolean {
+  const kind = s?.error_kind || s?.raw_response?.kind || s?.raw_response?.error_kind || null;
+  if (!kind || !isRetriableErrorKind(kind)) return false;
+  if (s.status !== 'pending' || !s.last_attempt_at) return false;
+  const ageMs = Date.now() - new Date(s.last_attempt_at).getTime();
+  return ageMs <= 60_000;
+}
+
+// Botão "Retentar agora (N)" no header de cada lote — não exige expandir o detalhe.
 function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
   const { toast } = useToast();
-  const [count, setCount] = useState<number>(0);
+  const [counts, setCounts] = useState<{ now: number; soon: number }>({ now: 0, soon: 0 });
   const [retrying, setRetrying] = useState(false);
 
   const loadCount = async () => {
@@ -38,12 +51,13 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
       .select('id, status, raw_response, error_kind, last_attempt_at')
       .eq('batch_id', batchId)
       .in('status', ['failed', 'pending']);
-    const retriable = (data || []).filter((s: any) => isRetriableSimulation(s));
-    setCount(retriable.length);
+    const list = data || [];
+    setCounts({
+      now: list.filter((s: any) => isRetriableNow(s)).length,
+      soon: list.filter((s: any) => isRetriableSoon(s)).length,
+    });
   };
 
-  // Realtime: recarrega contagem sempre que qualquer simulação do lote mudar (insert/update).
-  // Sem isso o número ficava parado e o usuário precisava trocar de aba pra ver o cron progredir.
   useEffect(() => {
     loadCount();
     const channel = supabase
@@ -54,14 +68,17 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
         () => loadCount(),
       )
       .subscribe();
+    // tick a cada 30s para reavaliar "soon → now" mesmo sem evento
+    const tick = setInterval(loadCount, 30_000);
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(tick);
     };
   }, [batchId]);
 
   const handleRetry = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (count === 0) return;
+    if (counts.now === 0) return;
     setRetrying(true);
     try {
       const { data, error } = await supabase.functions.invoke('v8-retry-cron', {
@@ -70,9 +87,8 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
       if (error) throw error;
       toast({
         title: 'Retentativa iniciada',
-        description: `${(data as any)?.eligible ?? count} simulações reenviadas. Os resultados aparecerão em alguns segundos.`,
+        description: `${(data as any)?.eligible ?? counts.now} simulações reenviadas. Resultados aparecerão nesta tela em segundos.`,
       });
-      // Recarrega a contagem após pequena espera para refletir status atualizado.
       setTimeout(loadCount, 3000);
     } catch (err: any) {
       toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
@@ -81,28 +97,50 @@ function BatchRetryHeaderButton({ batchId }: { batchId: string }) {
     }
   };
 
-  if (count === 0) return null;
+  if (counts.now === 0 && counts.soon === 0) return null;
+
+  const tooltip = `Conta apenas linhas que já passaram do tempo de espera (60s). Linhas recentes serão retentadas automaticamente pelo cron a cada 1 min.${counts.soon > 0 ? `\n\n${counts.soon} pendente(s) ainda no cooldown.` : ''}`;
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={handleRetry}
-      disabled={retrying}
-      className="h-7 border-yellow-500/40 text-yellow-600 hover:bg-yellow-500/10"
-    >
-      {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-      Retentar ({count})
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRetry}
+            disabled={retrying || counts.now === 0}
+            className="h-7 border-yellow-500/40 text-yellow-600 hover:bg-yellow-500/10"
+          >
+            {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Retentar agora ({counts.now})
+            {counts.soon > 0 && (
+              <span className="ml-1 text-[10px] text-muted-foreground">+{counts.soon} aguard.</span>
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-xs">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
 function BatchDetail({ batchId }: { batchId: string }) {
-  const { simulations } = useV8BatchSimulations(batchId);
+  const { simulations, lastUpdateAt } = useV8BatchSimulations(batchId);
+  const { settings } = useV8Settings();
+  const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const { toast } = useToast();
   const [retrying, setRetrying] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  const status = useV8StatusOnV8();
 
-  const failedRetriable = simulations.filter((s) => isRetriableSimulation(s));
+  const failedRetriable = simulations.filter((s) => isRetriableNow(s));
+  const autoRetryActive = simulations.filter(
+    (s) => isRetriableNow(s) || isRetriableSoon(s),
+  ).length;
+  const hasPending = simulations.some((s) => s.status === 'pending');
 
   const handleRetry = async () => {
     if (failedRetriable.length === 0) return;
@@ -114,7 +152,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
       if (error) throw error;
       toast({
         title: 'Retentativa iniciada',
-        description: `${(data as any)?.eligible ?? failedRetriable.length} simulações reenviadas. Os resultados aparecerão em alguns segundos.`,
+        description: `${(data as any)?.eligible ?? failedRetriable.length} simulações reenviadas.`,
       });
     } catch (err: any) {
       toast({ title: 'Erro ao retentar', description: err?.message || String(err), variant: 'destructive' });
@@ -123,80 +161,139 @@ function BatchDetail({ batchId }: { batchId: string }) {
     }
   };
 
+  const handleReplayPending = async () => {
+    setReplaying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-webhook', {
+        body: { action: 'replay_pending', limit: 500, batch_id: batchId },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Resultados pendentes buscados',
+        description: `${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Falha ao buscar pendentes', description: err?.message || String(err), variant: 'destructive' });
+    } finally {
+      setReplaying(false);
+    }
+  };
+
   return (
-    <div className="space-y-2 mt-2">
-      {failedRetriable.length > 0 && (
-        <div className="flex items-center justify-between rounded border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
-          <span className="text-xs">
-            <strong>{failedRetriable.length}</strong> simulação(ões) falhada(s) podem ser retentadas (instabilidade da V8 / análise pendente).
-          </span>
-          <Button size="sm" variant="outline" onClick={handleRetry} disabled={retrying} className="h-7">
-            {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-            Retentar falhados
-          </Button>
+    <TooltipProvider>
+      <div className="space-y-2 mt-2">
+        <AutoRetryIndicator retryCount={autoRetryActive} maxAttempts={maxAttempts} />
+
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <RealtimeFreshness since={lastUpdateAt} />
+          <div className="flex gap-2">
+            {failedRetriable.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" onClick={handleRetry} disabled={retrying} className="h-7">
+                    {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                    Retentar falhados ({failedRetriable.length})
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Refaz a consulta do zero na V8 para falhas temporárias (rate limit / análise pendente).
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {hasPending && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" onClick={handleReplayPending} disabled={replaying} className="h-7">
+                    {replaying ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                    Buscar resultados pendentes
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook.
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
-      )}
-      <div className="border rounded overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead className="bg-muted">
-          <tr>
-            <th className="px-2 py-1 text-left">CPF</th>
-            <th className="px-2 py-1 text-left">Nome</th>
-            <th className="px-2 py-1 text-left">Status</th>
-            <th className="px-2 py-1 text-right">Liberado</th>
-            <th className="px-2 py-1 text-right">Parcela</th>
-            <th className="px-2 py-1 text-right">Margem</th>
-            <th className="px-2 py-1 text-right">A cobrar</th>
-            <th className="px-2 py-1 text-center">Tentativas</th>
-            <th className="px-2 py-1 text-left">Motivo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {simulations.map((s) => {
-            const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
-            const meta = getV8ErrorMeta(s.raw_response);
-            const hasInfo = !!(message || s.raw_response);
-            return (
-            <tr key={s.id} className="border-t">
-              <td className="px-2 py-1 font-mono">{s.cpf}</td>
-              <td className="px-2 py-1">{s.name || '—'}</td>
-              <td className="px-2 py-1">
-                <Badge
-                  variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
-                >
-                  {translateV8Status(s.status)}
-                </Badge>
-              </td>
-              <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-              <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
-              <td className="px-2 py-1 align-top">
-                {hasInfo ? (
-                  <div className="space-y-1">
-                    <div className="whitespace-pre-line font-medium">
-                      {message || 'Sem detalhe informado'}
-                    </div>
-                    {(meta.step || meta.kind) && (
-                      <div className="text-[11px] text-muted-foreground">
-                        {meta.step ? `etapa: ${meta.step}` : null}
-                        {meta.step && meta.kind ? ' • ' : null}
-                        {meta.kind ? `tipo: ${meta.kind}` : null}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </td>
-            </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+        <div className="border rounded overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted">
+              <tr>
+                <th className="px-2 py-1 text-left">CPF</th>
+                <th className="px-2 py-1 text-left">Nome</th>
+                <th className="px-2 py-1 text-left">Status</th>
+                <th className="px-2 py-1 text-right">Liberado</th>
+                <th className="px-2 py-1 text-right">Parcela</th>
+                <th className="px-2 py-1 text-right">Margem</th>
+                <th className="px-2 py-1 text-right">A cobrar</th>
+                <th className="px-2 py-1 text-center">Tentativas</th>
+                <th className="px-2 py-1 text-left">Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {simulations.map((s) => {
+                const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                const isActiveConsult = kind === 'active_consult';
+                const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
+                const meta = getV8ErrorMeta(s.raw_response);
+                const hasInfo = !!(message || s.raw_response);
+                return (
+                  <tr key={s.id} className="border-t">
+                    <td className="px-2 py-1 font-mono">{s.cpf}</td>
+                    <td className="px-2 py-1">{s.name || '—'}</td>
+                    <td className="px-2 py-1">
+                      <Badge
+                        variant={s.status === 'success' ? 'default' : s.status === 'failed' ? 'destructive' : 'secondary'}
+                      >
+                        {translateV8Status(s.status)}
+                      </Badge>
+                    </td>
+                    <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+                    <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
+                      {s.attempt_count ?? 0}
+                      {(s.attempt_count ?? 0) >= maxAttempts && (
+                        <span className="text-[10px] block text-destructive">(máx)</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 align-top">
+                      {isActiveConsult ? (
+                        <div className="space-y-1">
+                          <div className="whitespace-pre-line font-medium text-amber-600">
+                            Já existe consulta ativa para este CPF na V8
+                          </div>
+                          <ViewV8StatusButton onClick={() => status.check(s.cpf)} />
+                        </div>
+                      ) : hasInfo ? (
+                        <div className="space-y-1">
+                          <div className="whitespace-pre-line font-medium">
+                            {message || 'Sem detalhe informado'}
+                          </div>
+                          {(meta.step || meta.kind) && (
+                            <div className="text-[11px] text-muted-foreground">
+                              {meta.step ? `etapa: ${meta.step}` : null}
+                              {meta.step && meta.kind ? ' • ' : null}
+                              {meta.kind ? `tipo: ${meta.kind}` : null}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <V8StatusOnV8Dialog open={status.open} onOpenChange={status.setOpen} data={status.data} />
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
