@@ -644,10 +644,7 @@ export default function V8NovaSimulacaoTab() {
                     <th className="px-2 py-1 text-right">Margem</th>
                     <th className="px-2 py-1 text-right">A cobrar</th>
                     <th className="px-2 py-1 text-center">Tentativas</th>
-                    <th className="px-2 py-1 text-left">Observação</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    <th className="px-2 py-1 text-left">Motivo</th>
                   {simulations.map((s) => (
                     <tr key={s.id} className="border-t">
                       <td className="px-2 py-1 font-mono">{s.cpf}</td>
