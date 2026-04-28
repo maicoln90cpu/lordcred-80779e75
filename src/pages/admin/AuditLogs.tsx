@@ -620,7 +620,32 @@ export default function AuditLogs() {
                       {filteredLogs.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            Nenhum log encontrado
+                            {loadError ? (
+                              <div className="space-y-2 max-w-lg mx-auto">
+                                <p className="font-medium text-destructive">⚠️ Falha ao carregar logs</p>
+                                <p className="text-xs">{loadError}</p>
+                                <p className="text-[11px] opacity-70">
+                                  Dica: filtre por <strong>Categoria</strong> (ex: WhatsApp ou Comissões) para reduzir o volume — os payloads de auditoria são grandes e podem estourar o limite quando carregamos tudo de uma vez.
+                                </p>
+                                <Button size="sm" variant="outline" onClick={() => loadLogs(true)}>
+                                  Tentar novamente
+                                </Button>
+                              </div>
+                            ) : logs.length === 0 ? (
+                              <div className="space-y-1">
+                                <p>Nenhum log de auditoria registrado ainda.</p>
+                                <p className="text-[11px] opacity-70">
+                                  Os logs são gerados automaticamente conforme você usa o sistema (ex: criar chip, alterar config, enviar broadcast).
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <p>Nenhum log corresponde aos filtros aplicados.</p>
+                                <p className="text-[11px] opacity-70">
+                                  {logs.length} registro(s) carregado(s) — ajuste os filtros para ver outros.
+                                </p>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
