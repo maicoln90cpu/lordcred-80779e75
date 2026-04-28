@@ -248,6 +248,9 @@ export default function V8ConsultasTab() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs leading-relaxed">
+        <strong>O que é uma consulta?</strong> É a verificação de <em>margem disponível</em> do CPF na V8/Dataprev — a "olhada" antes de fechar negócio. Não compromete o cliente nem gera contrato. Para efetivar o empréstimo, use a aba <strong>Propostas</strong>.
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
