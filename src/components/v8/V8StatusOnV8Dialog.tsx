@@ -108,6 +108,34 @@ function extractSimulationData(latest: any) {
   return hasAny ? out : null;
 }
 
+/**
+ * Extrai os "Limites V8" oficiais (`simulationLimit` + `admissionDateMonthsDifference`)
+ * do payload de consulta SUCCESS. Vem direto da doc oficial V8.
+ */
+function extractV8Limits(result: any) {
+  if (!result || typeof result !== 'object') return null;
+  const candidates = [result, result.latest, result.data, result.result].filter(Boolean);
+  const num = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  let admission: number | null = null;
+  let monthMin: number | null = null, monthMax: number | null = null;
+  let instMin: number | null = null, instMax: number | null = null;
+  let valueMin: number | null = null, valueMax: number | null = null;
+  for (const c of candidates) {
+    admission ??= num(c?.admissionDateMonthsDifference);
+    monthMin ??= num(c?.simulationLimit?.monthMin);
+    monthMax ??= num(c?.simulationLimit?.monthMax);
+    instMin ??= num(c?.simulationLimit?.installmentsMin);
+    instMax ??= num(c?.simulationLimit?.installmentsMax);
+    valueMin ??= num(c?.simulationLimit?.valueMin);
+    valueMax ??= num(c?.simulationLimit?.valueMax);
+  }
+  const hasAny = [admission, monthMin, monthMax, instMin, instMax, valueMin, valueMax].some((v) => v != null);
+  return hasAny ? { admission, monthMin, monthMax, instMin, instMax, valueMin, valueMax } : null;
+}
+
 export function V8StatusOnV8Dialog({
   open,
   onOpenChange,
