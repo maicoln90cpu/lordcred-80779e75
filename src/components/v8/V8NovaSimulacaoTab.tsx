@@ -25,6 +25,7 @@ import { analyzeV8Paste } from '@/lib/v8Parser';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  getV8StatusSnapshot,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
