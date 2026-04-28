@@ -156,12 +156,44 @@ serve(async (req) => {
           ...(json.data as object),
           probed_at: probedAtIso,
         };
+
+        // Tenta extrair availableMarginValue do snapshot — V8 às vezes coloca em
+        // data.availableMarginValue, data.latest.availableMarginValue ou nos itens de data.all.
+        // Manter sincronizado com src/lib/v8MarginExtractor.ts (helper TS).
+        function extractMarginFromSnapshot(s: any): number | null {
+          if (!s || typeof s !== 'object') return null;
+          const candidates: any[] = [
+            s.availableMarginValue, s.available_margin_value,
+            s.availableMargin, s.marginValue,
+            s.latest?.availableMarginValue,
+            s.result?.availableMarginValue,
+            s.data?.availableMarginValue,
+          ];
+          if (Array.isArray(s.all)) {
+            for (const c of s.all) {
+              candidates.push(c?.availableMarginValue, c?.available_margin_value);
+            }
+          }
+          for (const c of candidates) {
+            if (c == null) continue;
+            const n = Number(c);
+            if (Number.isFinite(n) && n > 0) return n;
+          }
+          return null;
+        }
+        const margemFromSnapshot = extractMarginFromSnapshot(json.data);
+
+        const updatePayload: Record<string, unknown> = {
+          raw_response: { ...baseRaw, v8_status_snapshot: snapshot },
+          v8_status_snapshot_at: probedAtIso,
+        };
+        if (margemFromSnapshot != null) {
+          updatePayload.margem_valor = margemFromSnapshot;
+        }
+
         const { error: updErr } = await supabase
           .from("v8_simulations")
-          .update({
-            raw_response: { ...baseRaw, v8_status_snapshot: snapshot },
-            v8_status_snapshot_at: probedAtIso,
-          })
+          .update(updatePayload)
           .eq("id", row.id);
 
         if (updErr) {
