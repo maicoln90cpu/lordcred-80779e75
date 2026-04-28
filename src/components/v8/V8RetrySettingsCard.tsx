@@ -124,6 +124,17 @@ export default function V8RetrySettingsCard() {
           </div>
         </div>
 
+        <div className="flex items-center gap-3 rounded border border-border/60 bg-muted/30 p-3">
+          <Volume2 className="w-4 h-4 text-muted-foreground" />
+          <div className="flex-1">
+            <Label className="cursor-pointer">Tocar som ao concluir lote</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Quando ativo, um beep curto é tocado no navegador ao final de cada lote (sucesso ou falha). Útil para acompanhar lotes em segundo plano.
+            </p>
+          </div>
+          <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
+        </div>
+
         <Button onClick={handleSave} disabled={saving || loading}>
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Salvar configurações
