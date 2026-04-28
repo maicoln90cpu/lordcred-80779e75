@@ -300,10 +300,28 @@ async function actionListOperations(params: V8OperationListParams = {}) {
     ? operations.filter((item: any) => String(item?.documentNumber ?? item?.document_number ?? "").replace(/\D/g, "") === cpfFilter)
     : operations;
 
+  // Normaliza: garante que valores de parcela/nº de parcelas/bruto/líquido apareçam
+  // tanto no topo (consumido pela tabela) quanto vindos do operation_data (que a V8
+  // às vezes aninha). Mantemos TODOS os campos originais para não quebrar consumidores
+  // antigos — só preenchemos os que estão faltando.
+  const normalized = filteredOperations.map((op: any) => {
+    const od = op?.operation_data || op?.operationData || {};
+    return {
+      ...op,
+      issueAmount: op?.issueAmount ?? op?.issue_amount ?? od?.issue_amount ?? od?.issueAmount ?? null,
+      disbursedIssueAmount:
+        op?.disbursedIssueAmount ?? op?.disbursed_issue_amount ?? od?.disbursed_issue_amount ?? od?.disbursedIssueAmount ?? null,
+      installmentFaceValue:
+        op?.installmentFaceValue ?? op?.installment_face_value ?? od?.installment_face_value ?? od?.installmentFaceValue ?? null,
+      numberOfInstallments:
+        op?.numberOfInstallments ?? op?.number_of_installments ?? od?.number_of_installments ?? od?.numberOfInstallments ?? null,
+    };
+  });
+
   return {
     success: true,
-    data: filteredOperations,
-    total: filteredOperations.length,
+    data: normalized,
+    total: normalized.length,
   };
 }
 

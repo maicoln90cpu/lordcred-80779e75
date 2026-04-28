@@ -11,6 +11,8 @@ export interface V8OperationSummary {
   partnerId: string | null;
   partnerInternalId: string | null;
   status: string | null;
+  installmentFaceValue?: string | null;
+  numberOfInstallments?: number | null;
   history: Array<{
     id: string;
     action: string;
