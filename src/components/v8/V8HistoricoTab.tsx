@@ -134,11 +134,15 @@ function BatchDetail({ batchId }: { batchId: string }) {
             <th className="px-2 py-1 text-right">Margem</th>
             <th className="px-2 py-1 text-right">A cobrar</th>
             <th className="px-2 py-1 text-center">Tentativas</th>
-            <th className="px-2 py-1 text-left">Motivo / payload</th>
+            <th className="px-2 py-1 text-left">Motivo</th>
           </tr>
         </thead>
         <tbody>
-          {simulations.map((s) => (
+          {simulations.map((s) => {
+            const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
+            const meta = getV8ErrorMeta(s.raw_response);
+            const hasInfo = !!(message || s.raw_response);
+            return (
             <tr key={s.id} className="border-t">
               <td className="px-2 py-1 font-mono">{s.cpf}</td>
               <td className="px-2 py-1">{s.name || '—'}</td>
@@ -155,37 +159,17 @@ function BatchDetail({ batchId }: { batchId: string }) {
               <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
               <td className="px-2 py-1 text-center">{s.attempt_count ?? 0}</td>
               <td className="px-2 py-1 align-top">
-                {s.error_message || s.raw_response ? (
+                {hasInfo ? (
                   <div className="space-y-1">
                     <div className="whitespace-pre-line font-medium">
-                      {getV8ErrorHeadline(s.raw_response, s.error_message) || 'Sem detalhe informado'}
+                      {message || 'Sem detalhe informado'}
                     </div>
-                    {getV8ErrorSecondary(s.raw_response) && (
-                      <div className="whitespace-pre-line text-muted-foreground">
-                        {getV8ErrorSecondary(s.raw_response)}
-                      </div>
-                    )}
-                    {(getV8ErrorMeta(s.raw_response).step || getV8ErrorMeta(s.raw_response).kind) && (
+                    {(meta.step || meta.kind) && (
                       <div className="text-[11px] text-muted-foreground">
-                        {getV8ErrorMeta(s.raw_response).step ? `etapa: ${getV8ErrorMeta(s.raw_response).step}` : null}
-                        {getV8ErrorMeta(s.raw_response).step && getV8ErrorMeta(s.raw_response).kind ? ' • ' : null}
-                        {getV8ErrorMeta(s.raw_response).kind ? `tipo: ${getV8ErrorMeta(s.raw_response).kind}` : null}
+                        {meta.step ? `etapa: ${meta.step}` : null}
+                        {meta.step && meta.kind ? ' • ' : null}
+                        {meta.kind ? `tipo: ${meta.kind}` : null}
                       </div>
-                    )}
-                    {getV8ErrorMeta(s.raw_response).guidance && (
-                      <div className="whitespace-pre-line text-[11px] text-muted-foreground">
-                        {getV8ErrorMeta(s.raw_response).guidance}
-                      </div>
-                    )}
-                    {stringifyV8Payload(s.raw_response) && (
-                      <details className="rounded border border-border bg-muted/30 p-2">
-                        <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
-                          Ver payload bruto
-                        </summary>
-                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
-                          {stringifyV8Payload(s.raw_response)}
-                        </pre>
-                      </details>
                     )}
                   </div>
                 ) : (
@@ -193,7 +177,8 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>
