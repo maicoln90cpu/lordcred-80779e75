@@ -19,27 +19,22 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { writeAuditLog } from "../_shared/auditLog.ts";
 import { packPayloadForAudit, safeHeaders } from "../_shared/v8AuditPayload.ts";
+import {
+  mapV8ConsultStatus,
+  extractConsultExtras,
+  applyConsultExtras,
+  isKnownConsultStatus,
+  isKnownOperationStatus,
+} from "../_shared/v8Status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * Mapeia o status bruto da V8 para o status interno em v8_simulations.
- * Mantemos o original em raw_response para auditoria completa.
- */
+/** Wrapper para preservar nome legado nas chamadas internas. */
 function mapV8StatusToInternal(v8Status?: string): string | null {
-  if (!v8Status) return null;
-  const s = v8Status.toUpperCase();
-  if (s === "SUCCESS" || s === "CONSENT_APPROVED") return "success";
-  if (s === "FAILED" || s === "REJECTED" || s === "ERROR") return "failed";
-  if (
-    s === "WAITING_CONSENT" ||
-    s === "WAITING_CONSULT" ||
-    s === "WAITING_CREDIT_ANALYSIS"
-  ) return "pending";
-  return null;
+  return mapV8ConsultStatus(v8Status);
 }
 
 /**
