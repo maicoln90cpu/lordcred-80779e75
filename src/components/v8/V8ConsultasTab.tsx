@@ -345,7 +345,15 @@ export default function V8ConsultasTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Consultas ativas / já existentes fora das operações</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Consultas ativas / já existentes fora das operações</span>
+            {hasSearched && (
+              <span className="text-[11px] font-normal inline-flex items-center gap-1 text-muted-foreground">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${rtPulse ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500/60'}`} />
+                tempo real ativo
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
