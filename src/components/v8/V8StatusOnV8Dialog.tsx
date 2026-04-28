@@ -30,7 +30,12 @@ export function useV8StatusOnV8() {
     error: string | null;
   }>({ cpf: '', loading: false, result: null, error: null });
 
-  const check = useCallback(async (cpf: string) => {
+  /**
+   * Busca o status na V8 e, se um `simulationId` for fornecido, também grava o
+   * snapshot na própria linha (raw_response.v8_status_snapshot). Assim a tabela
+   * passa a mostrar o resultado inline mesmo sem esperar o poller automático.
+   */
+  const check = useCallback(async (cpf: string, simulationId?: string) => {
     setOpen(true);
     setData({ cpf, loading: true, result: null, error: null });
     try {
@@ -43,6 +48,29 @@ export function useV8StatusOnV8() {
         return;
       }
       setData({ cpf, loading: false, result: resp.data, error: null });
+
+      // Persiste snapshot na linha — best-effort, não bloqueia o usuário se falhar.
+      if (simulationId && resp?.data) {
+        try {
+          const probedAtIso = new Date().toISOString();
+          const { data: current } = await supabase
+            .from('v8_simulations')
+            .select('raw_response')
+            .eq('id', simulationId)
+            .maybeSingle();
+          const baseRaw = (current?.raw_response as any) ?? {};
+          await supabase
+            .from('v8_simulations')
+            .update({
+              raw_response: {
+                ...baseRaw,
+                v8_status_snapshot: { ...(resp.data as object), probed_at: probedAtIso },
+              },
+              v8_status_snapshot_at: probedAtIso,
+            })
+            .eq('id', simulationId);
+        } catch (_) { /* ignore — UI já mostrou resultado */ }
+      }
     } catch (err: any) {
       setData({ cpf, loading: false, result: null, error: err?.message || String(err) });
     }
