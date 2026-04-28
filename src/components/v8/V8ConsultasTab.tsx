@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, FileSearch, Loader2, RefreshCw } from 'lucide-react';
@@ -94,6 +94,8 @@ export default function V8ConsultasTab() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [replaying, setReplaying] = useState(false);
+  const [rtPulse, setRtPulse] = useState(false);
+  const lastSearchRef = useRef<{ start: Date; end: Date; term: string } | null>(null);
 
   const {
     operations,
