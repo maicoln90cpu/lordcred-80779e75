@@ -88,11 +88,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
   const { toast } = useToast();
   const [retrying, setRetrying] = useState(false);
 
-  const failedRetriable = simulations.filter((s) => {
-    if (s.status !== 'failed') return false;
-    const kind = (s as any).raw_response?.kind || (s as any).raw_response?.error_kind || null;
-    return isRetriableErrorKind(kind);
-  });
+  const failedRetriable = simulations.filter((s) => isRetriableSimulation(s));
 
   const handleRetry = async () => {
     if (failedRetriable.length === 0) return;
