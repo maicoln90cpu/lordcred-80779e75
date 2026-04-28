@@ -12,6 +12,7 @@ import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClas
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
+  getV8StatusSnapshot,
   translateV8Status,
 } from '@/lib/v8ErrorPresentation';
 import { useV8StatusOnV8, V8StatusOnV8Dialog, ViewV8StatusButton } from './V8StatusOnV8Dialog';
