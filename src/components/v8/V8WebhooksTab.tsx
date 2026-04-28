@@ -116,21 +116,33 @@ export default function V8WebhooksTab() {
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   /**
-   * Busca contadores reais (head:true não traz linhas, só count) por tipo.
-   * Roda sempre junto do load() para a UI mostrar os totais verdadeiros,
-   * mesmo que a listagem esteja limitada a 200 linhas.
+   * Busca contadores reais por tipo em UMA única consulta agregada.
+   *
+   * Antes: 4 SELECT count(*) ... WHERE event_type=X em paralelo. Sem índice
+   * em event_type a tabela (252 MB / 110k linhas) fazia 4 seq-scans e
+   * o PostgREST estourava timeout — contadores apareciam zerados.
+   *
+   * Depois (Frente A): RPC v8_webhook_type_counts() com GROUP BY +
+   * idx_v8_webhook_logs_event_type. Resposta em milissegundos.
    */
   async function loadTypeCounts() {
-    const entries = await Promise.all(
-      ALL_TYPES.map(async (t) => {
-        const { count } = await supabase
-          .from('v8_webhook_logs')
-          .select('id', { count: 'exact', head: true })
-          .eq('event_type', t);
-        return [t, count ?? 0] as const;
-      }),
-    );
-    setTypeCounts(Object.fromEntries(entries));
+    try {
+      const { data, error } = await supabase.rpc('v8_webhook_type_counts');
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      for (const t of ALL_TYPES) map[t] = 0; // garante chaves mesmo sem dados
+      (data ?? []).forEach((row: any) => {
+        const key = String(row?.event_type ?? '').toLowerCase();
+        if (ALL_TYPES.includes(key as any)) {
+          map[key] = Number(row?.total ?? 0);
+        }
+      });
+      setTypeCounts(map);
+    } catch (err) {
+      // Fallback resiliente: se a RPC falhar, evita travar a tela.
+      console.error('[V8 webhooks] loadTypeCounts falhou:', err);
+      setTypeCounts({ consult: 0, operation: 0, registration: 0, invalid: 0 });
+    }
   }
 
   /**
