@@ -739,6 +739,21 @@ export default function V8NovaSimulacaoTab() {
                   <TooltipTrigger asChild>
                     <Button
                       size="sm"
+                      variant="default"
+                      disabled={running}
+                      onClick={handleSimulateSelected}
+                    >
+                      <Play className="w-3 h-3 mr-1" /> Simular selecionados
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Roda /simulation nos CPFs com consulta SUCCESS — substitui as estimativas (faixa máxima do webhook) pelos valores REAIS calculados pela V8. Throttled (1 CPF a cada ~1.2s).
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
                       variant="secondary"
                       disabled={running}
                       onClick={handleRetryFailed}
