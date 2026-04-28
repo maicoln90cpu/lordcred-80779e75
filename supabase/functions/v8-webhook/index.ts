@@ -96,7 +96,7 @@ async function processV8Payload(
       // (failed → pending) nem promover (any → success) sem valores monetários reais.
       const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .select("id, status, released_value, installment_value")
+        .select("id, status, released_value, installment_value, simulation_strategy, installments")
         .eq("consult_id", consultId)
         .maybeSingle();
 
@@ -113,19 +113,35 @@ async function processV8Payload(
         const wantsPending = internalStatus === "pending";
         const hasRealValues = currentRow.released_value != null && currentRow.installment_value != null;
 
-        if (wantsSuccess && hasRealValues) {
+        // ESTRATÉGIA webhook_only: o webhook V8 já traz simulationLimit (faixa).
+        // Promovemos sim_value_max → released_value e sim_installments_max → installments
+        // para que a tabela mostre o MÁXIMO da faixa (igual sistema antigo do print).
+        // Isso é uma ESTIMATIVA — quando o operador rodar /simulate via "Simular selecionados",
+        // os valores reais sobrescrevem.
+        const isWebhookOnly = currentRow.simulation_strategy === "webhook_only";
+        const valueMax = extras.simValueMax;
+        const instMax = extras.simInstallmentsMax;
+
+        if (wantsSuccess && isWebhookOnly && valueMax != null && instMax != null) {
+          // Estima parcela: valueMax distribuído em instMax meses (sem juros — apenas referência visual).
+          // O valor REAL vem do /simulate sob demanda.
+          safeUpdates.released_value = valueMax;
+          safeUpdates.installments = instMax;
+          safeUpdates.installment_value = Number((valueMax / instMax).toFixed(2));
+          safeUpdates.total_value = valueMax;
+          safeUpdates.status = "success";
+          safeUpdates.processed_at = new Date().toISOString();
+          safeUpdates.simulate_status = "not_started"; // operador ainda pode "Simular" para ter valor real
+        } else if (wantsSuccess && hasRealValues) {
+          // legacy_sync — valores já vieram do /simulate síncrono
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
           safeUpdates.status = "failed";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (wantsPending && currentRow.status === "pending") {
-          // mantém pending — sem mudança de status
+          // mantém pending
         }
-        // Casos bloqueados (apenas auditoria, status não muda):
-        //  - wantsSuccess sem valores → consulta autorizada mas simulação financeira não rodou
-        //  - wantsPending com status failed → não rebaixar
-        //  - wantsPending com status success → não rebaixar
 
         const { error: updErr } = await supabase
           .from("v8_simulations")
@@ -133,7 +149,7 @@ async function processV8Payload(
           .eq("id", currentRow.id);
 
         if (updErr) processError = updErr.message;
-        else { processed = true; action = "consult_upsert"; }
+        else { processed = true; action = isWebhookOnly && wantsSuccess && valueMax != null ? "consult_promoted_webhook_only" : "consult_upsert"; }
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
         const insertRow: Record<string, unknown> = {

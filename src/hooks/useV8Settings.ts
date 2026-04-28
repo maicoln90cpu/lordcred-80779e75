@@ -9,6 +9,12 @@ export interface V8Settings {
   background_retry_enabled: boolean;
   retry_batch_size: number;
   sound_on_complete: boolean;
+  // Nova estratégia (etapa 2 — webhook_only)
+  simulation_strategy: 'webhook_only' | 'legacy_sync';
+  auto_simulate_after_consult: boolean;
+  consult_throttle_ms: number;
+  simulate_throttle_ms: number;
+  webhook_wait_timeout_min: number;
   updated_at: string;
 }
 
@@ -19,6 +25,11 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   background_retry_enabled: true,
   retry_batch_size: 25,
   sound_on_complete: false,
+  simulation_strategy: 'webhook_only',
+  auto_simulate_after_consult: false,
+  consult_throttle_ms: 1200,
+  simulate_throttle_ms: 1200,
+  webhook_wait_timeout_min: 5,
 };
 
 export function useV8Settings() {

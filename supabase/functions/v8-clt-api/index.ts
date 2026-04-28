@@ -325,8 +325,8 @@ async function actionListOperations(params: V8OperationListParams = {}) {
   const needsEnrichment = preNormalized.filter(
     (op) => op?.id && (op.issueAmount == null || op.installmentFaceValue == null || op.numberOfInstallments == null)
   );
-  const ENRICH_CAP = 60;
-  const CONCURRENCY = 6;
+  const ENRICH_CAP = 200;
+  const CONCURRENCY = 8;
   const toEnrich = needsEnrichment.slice(0, ENRICH_CAP);
   const enrichedById = new Map<string, any>();
 
@@ -927,6 +927,174 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
         consult: consultJson,
         authorize: authJson,
         consult_status: consultStatusData,
+        simulate: simJson,
+      },
+    },
+  };
+}
+
+/**
+ * NOVA ESTRATÉGIA `webhook_only`: dispara apenas /consult + /authorize na V8,
+ * sem polling síncrono e sem chamar /simulation. O sistema fica "aguardando webhook"
+ * (evento `private.consignment.consult.updated` com status SUCCESS chega em 10–20s
+ * trazendo `availableMarginValue` + `simulationLimit`).
+ *
+ * Vantagens:
+ *  - 1 lote de 200 CPFs = ~400 requests V8 (vs 800–3000 do fluxo síncrono antigo)
+ *  - Sem rate-limit em massa, sem "consulta ativa duplicada" induzida
+ *  - Webhook traz dados mais ricos (faixa de parcelas/valor) do que /simulation rápido
+ */
+async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
+  const cpf = (input.cpf || "").replace(/\D/g, "");
+  if (cpf.length !== 11) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "CPF inválido" };
+  }
+  const birthDate = normalizeBirthDate(input.data_nascimento);
+  if (!birthDate) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "Data de nascimento inválida (use dd/mm/aaaa)" };
+  }
+  if (!input.nome || input.nome.trim().length < 3) {
+    return { success: false, kind: "invalid_data", step: "consult", error: "Nome é obrigatório (mínimo 3 caracteres)" };
+  }
+
+  const consultBody = buildConsultBody(input);
+  const consultResp = await v8FetchWithRetry(V8_PATHS.consult, {
+    method: "POST",
+    body: JSON.stringify(consultBody),
+  }, MAX_RETRIES_CONSULT, "consult");
+  const consultJson = await consultResp.json().catch(() => ({}));
+
+  if (!consultResp.ok) {
+    return buildV8ErrorResult('consult', {
+      title: consultJson?.title ?? null,
+      detail: consultJson?.detail ?? null,
+      message: consultJson?.message ?? null,
+      error: consultJson?.error ?? null,
+      status: consultResp.status,
+      raw: consultJson,
+    });
+  }
+
+  const consultData = consultJson?.data ?? consultJson;
+  const consultId = String(
+    consultData?.id ?? consultData?.consult_id ?? consultData?.consultId ?? ""
+  );
+  if (!consultId) {
+    return { success: false, step: "consult", error: "consult_id não retornado pela V8", raw: consultJson };
+  }
+
+  // Authorize — opcional, mas a V8 só dispara webhook após termo aceito.
+  const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
+    method: "POST",
+  }, MAX_RETRIES_AUTHORIZE, "authorize");
+  const authJson = await authResp.json().catch(() => ({}));
+  if (!authResp.ok) {
+    return buildV8ErrorResult('authorize', {
+      title: authJson?.title ?? null,
+      detail: authJson?.detail ?? null,
+      message: authJson?.message ?? null,
+      error: authJson?.error ?? null,
+      status: authResp.status,
+      raw: { consult: consultJson, authorize: authJson },
+    });
+  }
+
+  // Sucesso parcial — agora a linha fica `pending` aguardando webhook V8.
+  return {
+    success: true,
+    data: {
+      consult_id: consultId,
+      strategy: 'webhook_only',
+      raw_response: {
+        upstream_request: { consult: consultBody },
+        consult: consultJson,
+        authorize: authJson,
+        awaiting_webhook: true,
+      },
+    },
+  };
+}
+
+/**
+ * Roda apenas POST /simulation usando um consult_id existente (já SUCCESS).
+ * Usado pelo botão "Simular selecionados" (ou auto-simulate após webhook).
+ */
+async function actionSimulateOnlyForConsult(supabase: any, params: {
+  simulation_id: string;
+  consult_id: string;
+  config_id: string;
+  parcelas: number;
+  simulation_mode?: "disbursed_amount" | "installment_face_value";
+  simulation_value?: number;
+}) {
+  if (!params?.consult_id) return { success: false, error: "consult_id é obrigatório" };
+  if (!params?.config_id) return { success: false, error: "config_id é obrigatório" };
+  if (!Number.isInteger(params?.parcelas) || params.parcelas <= 0) {
+    return { success: false, error: "parcelas inválido" };
+  }
+
+  const simulationBody = buildSimulationBodyWithValue(params, params.consult_id);
+  const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
+    method: "POST",
+    body: JSON.stringify(simulationBody),
+  }, MAX_RETRIES_SIMULATE, "simulate");
+
+  if (!simResp.ok) {
+    const simError = await readUpstreamErrorBody(simResp);
+    return buildV8ErrorResult('simulate', {
+      ...simError,
+      raw: {
+        upstream_request: { simulation: simulationBody },
+        simulate: simError.parsed,
+        simulate_text: simError.rawText || null,
+        simulate_status: simResp.status,
+      },
+    });
+  }
+
+  const simJson = await simResp.json().catch(() => ({}));
+  const result = simJson?.data ?? simJson;
+  const dispOpt =
+    result?.disbursement_option ??
+    (Array.isArray(result?.disbursement_options) ? result.disbursement_options[0] : null) ??
+    result?.disbursementOption ??
+    null;
+
+  const released_value = Number(
+    dispOpt?.final_disbursement_amount ?? dispOpt?.finalDisbursementAmount ??
+    result?.disbursement_amount ?? dispOpt?.net_amount ?? result?.netAmount ?? 0
+  );
+  const installment_value = Number(
+    result?.installment_value ?? dispOpt?.installment_amount ?? dispOpt?.installmentAmount ?? 0
+  );
+  const interest_rate = Number(
+    result?.monthly_interest_rate ?? dispOpt?.monthly_interest_rate ?? dispOpt?.interest_rate ?? 0
+  );
+  const total_value = Number(
+    result?.operation_amount ?? dispOpt?.total_amount ?? dispOpt?.totalAmount ??
+    installment_value * params.parcelas
+  );
+
+  const { data: marginRow } = await supabase
+    .from("v8_margin_config").select("margin_percent").limit(1).maybeSingle();
+  const marginPct = Number(marginRow?.margin_percent ?? 5);
+  const company_margin = Number(((released_value * marginPct) / 100).toFixed(2));
+  const amount_to_charge = Number((released_value - company_margin).toFixed(2));
+
+  return {
+    success: true,
+    data: {
+      simulation_id: String(result?.id_simulation ?? result?.simulation_id ?? ""),
+      consult_id: params.consult_id,
+      released_value,
+      installment_value,
+      interest_rate,
+      total_value,
+      company_margin,
+      margem_valor: company_margin,
+      amount_to_charge,
+      raw_response: {
+        upstream_request: { simulation: simulationBody },
         simulate: simJson,
       },
     },
@@ -1698,6 +1866,96 @@ const handler = async (req: Request) => {
           },
         });
         break;
+      case "simulate_consult_only": {
+        // ESTRATÉGIA WEBHOOK_ONLY — só consulta de margem, sem /simulation.
+        result = await actionSimulateConsultOnly(supabase, params);
+        if (params?.simulation_id) {
+          const _success = !!(result as any)?.success;
+          if (_success) {
+            await supabase.from("v8_simulations").update({
+              status: "pending",
+              simulation_strategy: "webhook_only",
+              consult_id: (result as any).data.consult_id,
+              raw_response: (result as any).data.raw_response,
+              last_step: "consult_only",
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              error_kind: null,
+              error_message: null,
+            }).eq("id", params.simulation_id);
+          } else {
+            await supabase.from("v8_simulations").update({
+              status: "failed",
+              simulation_strategy: "webhook_only",
+              error_kind: (result as any).kind ?? null,
+              error_message: String((result as any).user_message || (result as any).error || "Erro"),
+              raw_response: { kind: (result as any).kind, step: (result as any).step, payload: (result as any).raw },
+              last_step: (result as any).step ?? "consult_only",
+              attempt_count: Math.max(Number(params?.attempt_count ?? 0), 1),
+              last_attempt_at: new Date().toISOString(),
+              processed_at: new Date().toISOString(),
+            }).eq("id", params.simulation_id);
+            if (params.batch_id) {
+              await supabase.rpc("v8_increment_batch_failure", { _batch_id: params.batch_id });
+            }
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_simulate_consult_only",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_simulations",
+          targetId: params?.simulation_id ?? null,
+          details: {
+            cpf_masked: params?.cpf ? String(params.cpf).replace(/\d(?=\d{4})/g, "*") : null,
+            kind: (result as any)?.kind ?? null,
+            step: (result as any)?.step ?? null,
+            consult_id: (result as any)?.data?.consult_id ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "simulate_only_for_consult": {
+        // Roda /simulation usando consult_id já validado (botão "Simular selecionados").
+        result = await actionSimulateOnlyForConsult(supabase, params);
+        if (params?.simulation_id) {
+          await supabase.from("v8_simulations").update({
+            simulate_attempted_at: new Date().toISOString(),
+            simulate_status: (result as any)?.success ? "done" : "failed",
+          }).eq("id", params.simulation_id);
+          if ((result as any)?.success) {
+            await supabase.from("v8_simulations").update({
+              released_value: (result as any).data.released_value,
+              installment_value: (result as any).data.installment_value,
+              interest_rate: (result as any).data.interest_rate,
+              total_value: (result as any).data.total_value,
+              company_margin: (result as any).data.company_margin,
+              amount_to_charge: (result as any).data.amount_to_charge,
+              v8_simulation_id: (result as any).data.simulation_id ?? null,
+              config_id: params.config_id,
+              installments: params.parcelas,
+              last_step: "simulate_only",
+            }).eq("id", params.simulation_id);
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_simulate_only_for_consult",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_simulations",
+          targetId: params?.simulation_id ?? null,
+          details: {
+            consult_id: params?.consult_id ?? null,
+            config_id: params?.config_id ?? null,
+            parcelas: params?.parcelas ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
       default:
         result = { success: false, error: `Ação desconhecida: ${action}` };
     }
