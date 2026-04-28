@@ -136,6 +136,7 @@ serve(async (req) => {
         if (!json?.success || !json?.data) {
           // V8 respondeu mas não temos dados — anota cooldown para não repolling agressivo.
           notFound += 1;
+          perSimResults.push({ simulation_id: row.id, cpf_masked: maskCpf(row.cpf), outcome: "not_found", message: json?.user_message ?? json?.error ?? null });
           await supabase
             .from("v8_simulations")
             .update({
