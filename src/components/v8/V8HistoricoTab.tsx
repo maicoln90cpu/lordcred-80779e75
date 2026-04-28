@@ -398,7 +398,7 @@ export default function V8HistoricoTab() {
                     {b.failure_count} falha
                   </AnimatedCountBadge>
                   <Badge variant="outline">{successRate}%</Badge>
-                  <BatchRetryHeaderButton batchId={b.id} />
+                  <BatchRetryHeaderBadge batchId={b.id} />
                 </div>
                 {isOpen && <div className="px-3 pb-3"><BatchDetail batchId={b.id} /></div>}
               </div>
