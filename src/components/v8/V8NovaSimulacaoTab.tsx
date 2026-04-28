@@ -647,7 +647,7 @@ export default function V8NovaSimulacaoTab() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    Busca na V8 respostas de consultas já enviadas que não chegaram pelo webhook. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
+                    Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
