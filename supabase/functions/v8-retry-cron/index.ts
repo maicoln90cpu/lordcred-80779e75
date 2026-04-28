@@ -166,11 +166,26 @@ serve(async (req) => {
       }
     }
 
+    // Dispara o poller de active_consult em background — atualiza o snapshot
+    // de status (REJECTED, CONSENT_APPROVED, etc.) das linhas que ficaram
+    // com kind='active_consult' para a UI mostrar inline.
+    fetch(`${supabaseUrl}/functions/v1/v8-active-consult-poller`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify(manualBatchId ? { batch_id: manualBatchId } : {}),
+    }).catch((e) => console.error("[v8-retry-cron] poller dispatch err", e));
+
+    console.log(`[v8-retry-cron] sub_pass=${subPass} scanned=${candidates?.length ?? 0} eligible=${eligible.length} ok=${okCount} fail=${failCount}`);
+
     return ok({
       scanned: candidates?.length ?? 0,
       eligible: eligible.length,
       retried_ok: okCount,
       retried_fail: failCount,
+      sub_pass: subPass,
       duration_ms: Date.now() - startedAt,
     });
   } catch (err: any) {
