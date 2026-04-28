@@ -30,6 +30,7 @@ import {
 } from '@/lib/v8ErrorPresentation';
 import { isRetriableErrorKind, shouldAutoRetry, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { useV8Settings } from '@/hooks/useV8Settings';
+import { V8StatusGlossary } from './V8StatusGlossary';
 
 function getSimulationStatusLabel(simulation: { status: string; error_message: string | null; raw_response: any; last_attempt_at?: string | null; webhook_status?: string | null }) {
   const errorKind = simulation.raw_response?.kind || simulation.raw_response?.error_kind || null;
@@ -485,10 +486,13 @@ export default function V8NovaSimulacaoTab() {
       <Card>
         <CardHeader className="flex-row justify-between items-center">
           <CardTitle>Configurar Simulação</CardTitle>
-          <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar tabelas V8
-          </Button>
+          <div className="flex items-center gap-2">
+            <V8StatusGlossary />
+            <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Atualizar tabelas V8
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
