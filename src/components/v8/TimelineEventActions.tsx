@@ -152,6 +152,22 @@ export default function TimelineEventActions({
             <TooltipContent>POST /operation/{'{id}'}/cancel — apenas admin/manager</TooltipContent>
           </Tooltip>
         )}
+        {canResolvePix && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                onClick={() => setShowPixDialog(true)}
+              >
+                <KeyRound className="w-3 h-3" />
+                <span className="ml-1 text-xs">Resolver PIX</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>PATCH /operation/{'{id}'}/pendency/payment-data — admin/manager</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setShowJson(true)}>
@@ -202,6 +218,14 @@ export default function TimelineEventActions({
           kind={kind}
           rowId={rowId}
           title={title}
+        />
+      )}
+      {showPixDialog && operationId && (
+        <ResolvePixPendencyDialog
+          open={showPixDialog}
+          onOpenChange={setShowPixDialog}
+          operationId={operationId}
+          borrowerCpf={borrowerCpf}
         />
       )}
     </>
