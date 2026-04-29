@@ -829,7 +829,7 @@ export default function V8OperacoesTab() {
                                       <CreateOperationButton
                                         consultId={ev.consultId}
                                         simulationId={ev.v8SimulationId}
-                                        origin="v8_simulation"
+                                        origin="simulation"
                                         originId={ev.rowId}
                                         prefill={{ cpf: r.cpf, name: r.name ?? undefined }}
                                         onCreated={() => loadTimeline(r.cpf)}
