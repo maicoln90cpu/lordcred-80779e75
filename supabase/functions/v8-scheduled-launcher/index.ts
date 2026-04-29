@@ -37,6 +37,45 @@ Deno.serve(async (req) => {
   const MAX_BATCHES_PER_RUN = 5;
 
   try {
+    // 0) Etapa 4 (item 10): promove lotes da fila (queued) quando o operador
+    //    não tem nenhum lote ativo (processing ou scheduled prestes a rodar).
+    //    Só promove o de menor queue_position por dono.
+    const { data: queuedHeads } = await supabase
+      .from("v8_batches")
+      .select("id, queue_owner, queue_position, name")
+      .eq("status", "queued")
+      .order("queue_position", { ascending: true });
+
+    const ownersSeen = new Set<string>();
+    for (const q of (queuedHeads ?? []) as any[]) {
+      const owner = q.queue_owner as string;
+      if (!owner || ownersSeen.has(owner)) continue;
+      ownersSeen.add(owner);
+
+      // Verifica se o dono já tem outro lote em andamento.
+      const { count: activeCount } = await supabase
+        .from("v8_batches")
+        .select("id", { count: "exact", head: true })
+        .eq("created_by", owner)
+        .in("status", ["processing", "scheduled"]);
+
+      if ((activeCount ?? 0) > 0) continue;
+
+      // Promove para 'scheduled' com scheduled_for=now() — vai cair no select abaixo.
+      const promoteIso = new Date().toISOString();
+      const { error: promErr } = await supabase
+        .from("v8_batches")
+        .update({
+          status: "scheduled",
+          scheduled_for: promoteIso,
+          queue_position: null,
+          updated_at: promoteIso,
+        })
+        .eq("id", q.id)
+        .eq("status", "queued"); // lock otimista
+      if (promErr) console.warn("[v8-scheduled-launcher] promote fail", q.id, promErr.message);
+    }
+
     // 1) Encontra lotes prontos para começar.
     const nowIso = new Date().toISOString();
     const { data: ready, error: selErr } = await supabase
