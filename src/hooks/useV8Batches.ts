@@ -112,6 +112,9 @@ export function useV8BatchSimulations(batchId: string | null) {
       .from('v8_simulations')
       .select('*')
       .eq('batch_id', batchId)
+      // Etapa 1 (item 8): ordem original do colado. Lotes antigos (sem paste_order)
+      // caem no fallback created_at — Postgres trata NULLS por último automaticamente.
+      .order('paste_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true });
     if (!error && data) {
       setSimulations(data as unknown as V8Simulation[]);
