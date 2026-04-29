@@ -545,8 +545,10 @@ export default function V8OperacoesTab() {
                                     <span className="font-medium text-sm">{ev.title}</span>
                                     <span className="text-xs text-muted-foreground ml-auto">{fmtDate(ev.at)}</span>
                                   </div>
-                                  {ev.subtitle && (
-                                    <div className="text-xs text-muted-foreground mt-1">{ev.subtitle}</div>
+                                  {ev.status && (
+                                    <div className="mt-1">
+                                      <V8StatusBadgePair status={ev.status} compact />
+                                    </div>
                                   )}
                                   {ev.approved && (
                                     <div className="mt-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs space-y-0.5">
