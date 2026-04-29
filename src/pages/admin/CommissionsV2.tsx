@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { DollarSign, Lightbulb, ClipboardList, Target, FlaskConical } from 'lucide-react';
+import { DollarSign, Lightbulb, ClipboardList, Target } from 'lucide-react';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 import CommMetas from '@/components/commission-reports/CommMetas';
 import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
@@ -40,20 +40,9 @@ export default function CommissionsV2() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <Alert className="border-warning/50 bg-warning/10">
-          <FlaskConical className="h-4 w-4 text-warning" />
-          <AlertDescription className="text-warning-foreground">
-            <strong>🧪 Ambiente de Teste (V2)</strong> — alterações aqui não afetam o módulo "Comissões Parceiros" oficial.
-            Dados, taxas e configurações são totalmente isolados.
-          </AlertDescription>
-        </Alert>
-
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Comissões Parceiros V2</h1>
-          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-warning/20 text-warning border border-warning/40">
-            SANDBOX
-          </span>
+          <h1 className="text-2xl font-bold">Comissões Parceiros</h1>
           <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
         </div>
 
