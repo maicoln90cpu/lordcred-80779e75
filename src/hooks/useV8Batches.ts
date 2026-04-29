@@ -79,6 +79,9 @@ export interface V8Simulation {
   processed_at: string | null;
   created_at: string;
   webhook_status?: string | null;
+  consult_id?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 /**
