@@ -221,16 +221,18 @@ export default function V8OperacoesTab() {
   }, []);
 
   useEffect(() => {
-    void loadAggregates();
-  }, [loadAggregates]);
+    const map = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+    void loadAggregates(map[filter] as any);
+  }, [loadAggregates, filter]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(search);
     return rows.filter((r) => {
-      if (filter === 'sucesso' && r.lastStatus !== 'success') return false;
-      if (filter === 'falha' && r.lastStatus !== 'failed') return false;
-      if (filter === 'pendente' && r.lastStatus !== 'pending') return false;
+      // Mudança semântica: "tem alguma sim com este status" em vez de "último = X"
+      if (filter === 'sucesso' && r.successCount === 0) return false;
+      if (filter === 'falha' && r.failedCount === 0) return false;
+      if (filter === 'pendente' && r.pendingCount === 0) return false;
       if (!q) return true;
       if (qDigits.length > 0 && r.cpf.includes(qDigits)) return true;
       if (r.name?.toLowerCase().includes(q)) return true;
