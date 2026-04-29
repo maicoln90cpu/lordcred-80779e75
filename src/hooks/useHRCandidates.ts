@@ -231,19 +231,58 @@ export function useHRCandidates() {
   const moveToPartner = useCallback(async (candidate: HRCandidate) => {
     // 1) flag the candidate
     await updateCandidate(candidate.id, { kanban_status: 'became_partner' });
-    // 2) create partner lead
-    const { error } = await (supabase as any).from('hr_partner_leads').insert({
+
+    // 2) Mantém compat: continua criando o registro em hr_partner_leads
+    const { error: leadErr } = await (supabase as any).from('hr_partner_leads').insert({
       full_name: candidate.full_name,
       phone: candidate.phone,
       age: candidate.age,
       cpf: candidate.cpf,
       acquisition_source: 'interview',
     });
-    if (error) {
-      toast({ title: 'Erro ao criar lead parceiro', description: error.message, variant: 'destructive' });
-      throw error;
+    if (leadErr) {
+      toast({ title: 'Erro ao criar lead parceiro', description: leadErr.message, variant: 'destructive' });
+      throw leadErr;
     }
-    toast({ title: 'Movido para Parceiros' });
+
+    // 3) Etapa 4B (abr/2026): cria automaticamente em `partners` na coluna "Migrados RH".
+    //    Evita duplicar se já existe partner com mesmo CPF ou mesmo telefone+nome.
+    let partnerExists = false;
+    if (candidate.cpf) {
+      const { data: dupCpf } = await (supabase as any)
+        .from('partners')
+        .select('id')
+        .eq('cpf', candidate.cpf)
+        .maybeSingle();
+      if (dupCpf) partnerExists = true;
+    }
+    if (!partnerExists) {
+      const { error: partnerErr } = await (supabase as any).from('partners').insert({
+        nome: candidate.full_name,
+        telefone: candidate.phone,
+        cpf: candidate.cpf,
+        idade: candidate.age,
+        captacao_tipo: 'RH',
+        indicado_por: 'Migrado do RH',
+        pipeline_status: 'migrado_rh',
+        obs: `Candidato migrado do RH em ${new Date().toLocaleDateString('pt-BR')}.`,
+      });
+      if (partnerErr) {
+        toast({
+          title: 'Aviso ao criar parceiro',
+          description: 'Candidato movido, mas houve falha ao criar partner: ' + partnerErr.message,
+          variant: 'destructive',
+        });
+        // Não joga — RH já foi atualizado
+      }
+    }
+
+    toast({
+      title: 'Movido para Parceiros',
+      description: partnerExists
+        ? 'Candidato marcado. Parceiro com mesmo CPF já existia (não duplicado).'
+        : 'Candidato adicionado à coluna "Migrados RH" no Kanban de Parceiros.',
+    });
   }, [updateCandidate, toast]);
 
   return {
