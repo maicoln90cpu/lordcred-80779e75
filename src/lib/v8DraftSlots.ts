@@ -1,0 +1,65 @@
+/**
+ * Etapa 4 (Item 10): gerenciador de múltiplos rascunhos da Nova Simulação.
+ * Migra automaticamente o rascunho legado (chave única `v8:nova-simulacao:draft`)
+ * para o slot "Rascunho 1" do novo array.
+ */
+
+const LEGACY_KEY = 'v8:nova-simulacao:draft';
+const STORAGE_KEY = 'v8:nova-simulacao:drafts:v2';
+const ACTIVE_KEY = 'v8:nova-simulacao:active-slot';
+
+export type SimulationMode = 'none' | 'disbursed_amount' | 'installment_face_value';
+export interface V8DraftSlot {
+  id: string;
+  label: string;
+  batchName: string;
+  configId: string;
+  parcelas: number;
+  simulationMode: SimulationMode;
+  simulationValue: string;
+  pasteText: string;
+  activeBatchId: string | null;
+}
+
+export function emptyDraft(label = 'Rascunho 1'): V8DraftSlot {
+  return {
+    id: crypto.randomUUID(),
+    label,
+    batchName: '',
+    configId: '',
+    parcelas: 24,
+    simulationMode: 'none',
+    simulationValue: '',
+    pasteText: '',
+    activeBatchId: null,
+  };
+}
+
+export function loadDrafts(): { drafts: V8DraftSlot[]; activeId: string } {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw) as V8DraftSlot[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const activeId = window.localStorage.getItem(ACTIVE_KEY) ?? parsed[0].id;
+        return { drafts: parsed, activeId: parsed.find((d) => d.id === activeId) ? activeId : parsed[0].id };
+      }
+    }
+    // Migração do formato legado.
+    const legacy = typeof window !== 'undefined' ? window.localStorage.getItem(LEGACY_KEY) : null;
+    if (legacy) {
+      const lp = JSON.parse(legacy);
+      const slot: V8DraftSlot = { ...emptyDraft('Rascunho 1'), ...lp };
+      return { drafts: [slot], activeId: slot.id };
+    }
+  } catch { /* ignore */ }
+  const fresh = emptyDraft('Rascunho 1');
+  return { drafts: [fresh], activeId: fresh.id };
+}
+
+export function saveDrafts(drafts: V8DraftSlot[], activeId: string) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+    window.localStorage.setItem(ACTIVE_KEY, activeId);
+  } catch { /* ignore */ }
+}
