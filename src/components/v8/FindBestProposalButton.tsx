@@ -136,8 +136,7 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         },
       });
 
-      // Sessão expirada → backend devolve 401 Unauthorized.
-      // Detecta tanto pelo erro do invoke quanto pelo body retornado.
+      // Sessão expirada → detecta tanto pelo erro do invoke quanto pelo body retornado.
       const errMsg = String(invokeErr?.message || result?.error || '');
       if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
         // Tenta refresh uma vez e re-tentar silenciosamente
