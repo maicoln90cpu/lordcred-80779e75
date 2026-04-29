@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -169,7 +170,15 @@ function KindBadge({ kind }: { kind: TimelineEvent['kind'] }) {
 }
 
 export default function V8OperacoesTab() {
-  const [search, setSearch] = useState('');
+  // Busca global persistida na URL (?q=...) — copiar/compartilhar link mantém o filtro.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearchInput] = useState(searchParams.get('q') ?? '');
+  const setSearch = (v: string) => {
+    setSearchInput(v);
+    const next = new URLSearchParams(searchParams);
+    if (v) next.set('q', v); else next.delete('q');
+    setSearchParams(next, { replace: true });
+  };
   const [filter, setFilter] = useState<'todos' | 'sucesso' | 'falha' | 'pendente'>('todos');
   const [rows, setRows] = useState<CpfRow[]>([]);
   const [loading, setLoading] = useState(false);

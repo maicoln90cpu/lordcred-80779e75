@@ -10,6 +10,7 @@ import V8PropostasTab from '@/components/v8/V8PropostasTab';
 import V8WebhooksTab from '@/components/v8/V8WebhooksTab';
 import V8OperacoesTab from '@/components/v8/V8OperacoesTab';
 import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
+import V8KpisBar from '@/components/v8/V8KpisBar';
 import { Badge } from '@/components/ui/badge';
 
 export default function V8Simulador() {
@@ -37,6 +38,8 @@ export default function V8Simulador() {
         </div>
 
         <V8RealtimeStatusBar />
+
+        <V8KpisBar />
 
         <Tabs defaultValue="operacoes">
           <TabsList className="flex-wrap h-auto">

@@ -146,11 +146,60 @@ export default function CreateOperationDialog({
     }
   };
 
-  const canSubmit = !!consultId && !submitting;
+  // Etapa 5 — PEP exige ocupação. Bloqueia submit se PEP marcado e sem ocupação preenchida.
+  const isPep = !!fd.borrower?.pep;
+  const occupationMissing = isPep && !(fd.borrower?.occupation || '').trim();
+  const canSubmit = !!consultId && !submitting && !occupationMissing;
+
+  // Etapa 4 — para origin='lead' sem consultId, oferecer atalho "Consultar V8 agora".
+  const [consultingForLead, setConsultingForLead] = useState(false);
+  async function handleConsultForLead() {
+    const cpf = (fd.borrower?.cpf || '').replace(/\D/g, '');
+    const birth = fd.borrower?.birth_date || '';
+    if (cpf.length !== 11) {
+      toast({ title: 'CPF inválido', description: 'Preencha o CPF (11 dígitos) antes de consultar.', variant: 'destructive' });
+      return;
+    }
+    if (!birth) {
+      toast({ title: 'Data de nascimento ausente', description: 'A V8 exige data de nascimento para consultar.', variant: 'destructive' });
+      return;
+    }
+    setConsultingForLead(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: {
+          action: 'simulate_consult_only',
+          params: {
+            cpf, nome: fd.borrower?.name, data_nascimento: birth,
+            telefone: fd.borrower?.phone, triggered_by: 'lead_consult_for_proposal',
+          },
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || data?.user_message || 'Falha ao consultar');
+      toast({
+        title: 'Consulta enviada à V8',
+        description: 'Aguarde o webhook (~10–30s). Quando voltar, este lead aparecerá com simulação SUCCESS — então o botão "Enviar proposta" libera.',
+      });
+    } catch (e: any) {
+      toast({ title: 'Falha ao consultar V8', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setConsultingForLead(false);
+    }
+  }
+
+  /** Atualiza um item de documento individualmente (usado pelo checklist visual). */
+  function patchDoc(id: string, patch: Partial<PendingDoc>) {
+    setPendingDocs((cur) => cur.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
 
   const handleSubmit = async () => {
     if (!consultId) {
       toast({ title: "Sem consulta autorizada", description: "Faça a consulta de margem antes de criar a proposta.", variant: "destructive" });
+      return;
+    }
+    if (occupationMissing) {
+      toast({ title: 'Ocupação obrigatória', description: 'PEP marcado: preencha o campo "Ocupação" em Dados avançados.', variant: 'destructive' });
       return;
     }
     setSubmitting(true);
@@ -183,15 +232,15 @@ export default function CreateOperationDialog({
         description: opId ? `Operação ${opId} criada na V8.` : "Proposta enviada com sucesso.",
       });
 
-      // Upload de documentos pendentes (opcional, pós-criação)
+      // Upload de documentos pendentes (opcional, pós-criação) — agora com checklist visual
       if (opId && pendingDocs.length > 0) {
         const ready = pendingDocs.filter((d) => d.documentType);
         const skipped = pendingDocs.length - ready.length;
         if (ready.length > 0) {
           setUploadingDocs(true);
-          const { ok, fail } = await uploadPendingDocs(opId, ready, supabase.functions.invoke.bind(supabase.functions));
+          const { ok, fail } = await uploadPendingDocs(opId, ready, supabase.functions.invoke.bind(supabase.functions), patchDoc);
           setUploadingDocs(false);
-          if (fail > 0) toast({ title: "Documentos", description: `${ok} enviados, ${fail} falha(s).`, variant: "destructive" });
+          if (fail > 0) toast({ title: "Documentos", description: `${ok} enviados, ${fail} falha(s) — veja o checklist.`, variant: "destructive" });
           else toast({ title: "Documentos", description: `${ok} enviado(s) à V8.` });
         }
         if (skipped > 0) {
@@ -248,6 +297,24 @@ export default function CreateOperationDialog({
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Etapa 4 — bloco "Consultar V8 primeiro" para leads sem consulta autorizada */}
+        {origin === 'lead' && !consultId && (
+          <div className="rounded-md border border-sky-500/40 bg-sky-500/5 p-3 text-xs space-y-2">
+            <div className="font-medium text-sky-700 dark:text-sky-300 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Este lead ainda não tem consulta de margem.
+            </div>
+            <p className="text-muted-foreground">
+              A V8 só aceita propostas com margem autorizada. Preencha CPF + data de nascimento abaixo
+              e clique em <strong>Consultar V8 agora</strong>. Em ~10–30s o webhook chega; depois disso
+              o lead aparece na aba "Operações" como SUCCESS e o botão de envio libera.
+            </p>
+            <Button size="sm" variant="outline" onClick={handleConsultForLead} disabled={consultingForLead}>
+              {consultingForLead ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}
+              Consultar V8 agora
+            </Button>
+          </div>
+        )}
 
         {/* Identificação */}
         <section className="space-y-3">
@@ -375,8 +442,20 @@ export default function CreateOperationDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label>Ocupação</Label>
-                  <Input value={fd.borrower?.occupation || ""} onChange={(e) => setField(["borrower","occupation"], e.target.value)} />
+                  <Label>
+                    Ocupação{isPep && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  <Input
+                    value={fd.borrower?.occupation || ""}
+                    onChange={(e) => setField(["borrower","occupation"], e.target.value)}
+                    aria-invalid={occupationMissing}
+                    className={occupationMissing ? 'border-destructive' : undefined}
+                  />
+                  {occupationMissing && (
+                    <p className="text-[11px] text-destructive mt-1">
+                      Obrigatório quando PEP marcado.
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 pt-6">
                   <input
