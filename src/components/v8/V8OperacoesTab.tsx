@@ -333,10 +333,52 @@ export default function V8OperacoesTab() {
     void loadAggregates(map[filter] as any);
   }, [loadAggregates, filter]);
 
+  // Etapa 2: busca remota por CPF de 11 dígitos quando o agregado local
+  // não bate (CPF caiu fora dos 500 últimos por updated_at). Resolve o caso
+  // do CPF 80073704989 que existe no banco mas sumia da busca.
+  useEffect(() => {
+    const qDigits = onlyDigits(search);
+    if (qDigits.length !== 11) { setRemoteRows([]); return; }
+    if (rows.some((r) => r.cpf === qDigits)) { setRemoteRows([]); return; }
+    let cancelled = false;
+    setRemoteLoading(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('v8_simulations')
+          .select('cpf, name, status, updated_at, created_at')
+          .eq('cpf', qDigits)
+          .order('updated_at', { ascending: false })
+          .limit(50);
+        if (cancelled) return;
+        if (!data || data.length === 0) { setRemoteRows([]); return; }
+        const row: CpfRow = {
+          cpf: qDigits,
+          name: (data.find((r: any) => r.name)?.name as string) ?? null,
+          lastActivity: (data[0] as any).updated_at || (data[0] as any).created_at,
+          simCount: data.length,
+          opCount: 0,
+          whCount: 0,
+          lastStatus: (data[0] as any).status,
+          successCount: data.filter((r: any) => r.status === 'success').length,
+          failedCount: data.filter((r: any) => r.status === 'failed').length,
+          pendingCount: data.filter((r: any) => r.status === 'pending').length,
+        };
+        setRemoteRows([row]);
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [search, rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(search);
-    return rows.filter((r) => {
+    // Mescla: rows locais + remotos (sem duplicar CPF).
+    const localCpfs = new Set(rows.map((r) => r.cpf));
+    const merged = [...rows, ...remoteRows.filter((r) => !localCpfs.has(r.cpf))];
+    return merged.filter((r) => {
       // Mudança semântica: "tem alguma sim com este status" em vez de "último = X"
       if (filter === 'sucesso' && r.successCount === 0) return false;
       if (filter === 'falha' && r.failedCount === 0) return false;
@@ -346,7 +388,7 @@ export default function V8OperacoesTab() {
       if (r.name?.toLowerCase().includes(q)) return true;
       return false;
     });
-  }, [rows, search, filter]);
+  }, [rows, remoteRows, search, filter]);
 
   const loadTimeline = useCallback(async (cpf: string) => {
     setTimelineLoading(true);
