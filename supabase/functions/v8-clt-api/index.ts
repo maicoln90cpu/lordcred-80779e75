@@ -2679,11 +2679,25 @@ const handler = async (req: Request) => {
         // Roda /simulation usando consult_id já validado (botão "Simular selecionados").
         result = await actionSimulateOnlyForConsult(supabase, params);
         if (params?.simulation_id) {
+          // FIX 4: grava motivo do erro em coluna dedicada (simulate_error_message)
+          // — antes ficava null, deixando UI mostrando "Falha sem detalhe".
+          const simErrorMsg = !(result as any)?.success
+            ? String(
+                (result as any)?.user_message
+                  ?? (result as any)?.detail
+                  ?? (result as any)?.title
+                  ?? (result as any)?.error
+                  ?? "Erro desconhecido na simulação V8",
+              )
+            : null;
           await supabase.from("v8_simulations").update({
             simulate_attempted_at: new Date().toISOString(),
             simulate_status: (result as any)?.success ? "done" : "failed",
+            simulate_error_message: simErrorMsg,
           }).eq("id", params.simulation_id);
           if ((result as any)?.success) {
+            // Usa parcelas efetivas (após clamp), não o que veio do request.
+            const effectiveParcelas = (result as any)?.data?.installments ?? params.parcelas;
             await supabase.from("v8_simulations").update({
               released_value: (result as any).data.released_value,
               installment_value: (result as any).data.installment_value,
@@ -2693,7 +2707,7 @@ const handler = async (req: Request) => {
               amount_to_charge: (result as any).data.amount_to_charge,
               v8_simulation_id: (result as any).data.simulation_id ?? null,
               config_id: params.config_id,
-              installments: params.parcelas,
+              installments: effectiveParcelas,
               last_step: "simulate_only",
             }).eq("id", params.simulation_id);
           }
