@@ -96,7 +96,23 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 4) Dispara simulação real
+      // 4) Garante sessão válida antes de chamar a edge function.
+      // Se o access_token expirou, tenta refresh; se falhar, instrui o usuário.
+      let { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr || !refreshed?.session?.access_token) {
+          toast.error('Sua sessão expirou. Faça login novamente.', {
+            id: toastId,
+            duration: 8000,
+            action: { label: 'Recarregar', onClick: () => window.location.reload() },
+          });
+          return;
+        }
+        sessionData = { session: refreshed.session } as any;
+      }
+
+      // 5) Dispara simulação real
       toast.loading(
         `Simulando V8: ${best.installments}x · valor ~R$ ${best.estimatedDisbursedValue.toLocaleString('pt-BR')}...`,
         { id: toastId },
@@ -119,10 +135,20 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
       // Detecta tanto pelo erro do invoke quanto pelo body retornado.
       const errMsg = String(invokeErr?.message || result?.error || '');
       if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
-        toast.error('Sua sessão expirou. Recarregue a página (F5) e faça login de novo.', {
-          id: toastId,
-          duration: 8000,
-        });
+        // Tenta refresh uma vez e re-tentar silenciosamente
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed?.session?.access_token) {
+          toast.error('Sessão renovada. Clique novamente em "Encontrar proposta viável".', {
+            id: toastId,
+            duration: 6000,
+          });
+        } else {
+          toast.error('Sua sessão expirou. Faça login novamente.', {
+            id: toastId,
+            duration: 8000,
+            action: { label: 'Recarregar', onClick: () => window.location.reload() },
+          });
+        }
         return;
       }
 
