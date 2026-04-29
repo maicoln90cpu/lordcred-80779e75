@@ -130,11 +130,18 @@ async function processV8Payload(
           && valueMax != null && instMax != null;
 
         if (wantsSuccess && canPromoteFromLimit) {
-          // Estima parcela: valueMax distribuído em instMax meses (sem juros — apenas referência visual).
-          // O valor REAL vem do /simulate sob demanda.
+          // Estima parcela usando o PRAZO ESCOLHIDO no lote (currentRow.installments)
+          // quando ele couber na faixa min..max da V8. Se não couber (ou estiver
+          // ausente), cai para o instMax — comportamento antigo. Isso evita o bug
+          // do operador escolher 24x e o webhook sobrescrever para 36x.
+          const instMin = (extras as any).simInstallmentsMin ?? 1;
+          const lotePref = Number(currentRow.installments ?? 0);
+          const useInst = (Number.isInteger(lotePref) && lotePref >= instMin && lotePref <= instMax)
+            ? lotePref
+            : instMax;
           safeUpdates.released_value = valueMax;
-          safeUpdates.installments = instMax;
-          safeUpdates.installment_value = Number((valueMax / instMax).toFixed(2));
+          safeUpdates.installments = useInst;
+          safeUpdates.installment_value = Number((valueMax / useInst).toFixed(2));
           safeUpdates.total_value = valueMax;
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
