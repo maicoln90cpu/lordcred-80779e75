@@ -4,45 +4,60 @@
  * Aparece nos cards de CPF da aba Operações quando o CPF tem `status=success`
  * (margem confirmada) mas `simulate_status=failed` (proposta não fechou).
  *
- * Fluxo (revisado abr/2026):
- *  1. Lê última simulação do CPF (margem, limites oficiais V8, config).
- *  2. Lê opções de parcela aceitas pela tabela (`v8_configs_cache`) com
- *     fallback para o conjunto padrão CLT.
- *  3. Filtra por `sim_installments_min/max` (limites do CPF) e gera candidatos
- *     ordenados (`buildProposalCandidates`).
- *  4. Tenta cada candidato sequencialmente em `simulate_only_for_consult`
- *     usando modo `installment_face_value` (parcela segura). Para no primeiro
- *     que a V8 aceitar — máximo de 6 tentativas.
- *  5. Toast informativo a cada tentativa. Atualização do card via realtime.
+ * Etapa 2 (abr/2026): Em vez de tentar automaticamente o "melhor candidato"
+ * e cair sempre no maior prazo, agora abre um DropdownMenu com TODOS os
+ * candidatos viáveis (24x, 36x, 46x...) e o operador escolhe. Mantém também
+ * a opção "Tentar a melhor automática" como atalho.
  */
-import { useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Loader2, ChevronDown, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { buildProposalCandidates } from '@/lib/v8FindBestProposal';
+import { buildProposalCandidates, type ProposalCandidate } from '@/lib/v8FindBestProposal';
 
 interface Props {
   cpf: string;
   onComplete?: () => void;
 }
 
-const MAX_ATTEMPTS = 6;
+const MAX_AUTO_ATTEMPTS = 6;
 const DEFAULT_CLT_INSTALLMENTS = [6, 8, 10, 12, 18, 24, 36, 46];
 
 function formatBRL(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+interface SimContext {
+  sim: any;
+  candidates: ProposalCandidate[];
+}
+
 export function FindBestProposalButton({ cpf, onComplete }: Props) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [ctx, setCtx] = useState<SimContext | null>(null);
+  const [loadingCtx, setLoadingCtx] = useState(false);
 
-  async function handleClick() {
-    setBusy(true);
-    const toastId = toast.loading('Calculando combinações viáveis...');
+  // Carrega candidatos quando o popover abre (lazy).
+  useEffect(() => {
+    if (!open || ctx || loadingCtx) return;
+    void loadContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function loadContext(): Promise<SimContext | null> {
+    setLoadingCtx(true);
     try {
-      // 1) Última simulação SUCCESS deste CPF
-      const { data: sim, error } = await supabase
+      const { data: sim } = await supabase
         .from('v8_simulations')
         .select(
           'id, consult_id, config_id, margem_valor, sim_value_min, sim_value_max, sim_month_min, sim_month_max, sim_installments_min, sim_installments_max, status',
@@ -52,22 +67,15 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-
-      if (error || !sim) {
-        toast.error('Nenhuma consulta com sucesso encontrada para este CPF.', { id: toastId });
-        return;
+      if (!sim) {
+        toast.error('Nenhuma consulta com sucesso encontrada para este CPF.');
+        return null;
       }
       const margin = Number(sim.margem_valor);
       if (!margin || margin <= 0) {
-        toast.error('Margem disponível não detectada — não é possível calcular.', { id: toastId });
-        return;
+        toast.error('Margem disponível não detectada.');
+        return null;
       }
-      if (!sim.config_id) {
-        toast.error('Tabela (config) não definida nesta simulação.', { id: toastId });
-        return;
-      }
-
-      // 2) Parcelas da tabela (fallback se cache vazio)
       const { data: cfg } = await supabase
         .from('v8_configs_cache' as any)
         .select('raw_data')
@@ -76,8 +84,6 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
       const rawOptions: number[] = Array.isArray((cfg as any)?.raw_data?.number_of_installments)
         ? (cfg as any).raw_data.number_of_installments
         : DEFAULT_CLT_INSTALLMENTS;
-
-      // 3) Gera candidatos respeitando limites oficiais da V8 (do CPF).
       const candidates = buildProposalCandidates({
         marginValue: margin,
         installmentOptions: rawOptions,
@@ -85,44 +91,105 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         valueMax: sim.sim_value_max as number | null,
         installmentsMin: (sim as any).sim_installments_min as number | null,
         installmentsMax: (sim as any).sim_installments_max as number | null,
-      }).slice(0, MAX_ATTEMPTS);
+      });
+      const next = { sim, candidates };
+      setCtx(next);
+      return next;
+    } finally {
+      setLoadingCtx(false);
+    }
+  }
 
-      if (candidates.length === 0) {
-        toast.error(
-          'Nenhuma combinação cabe nos limites da V8 (parcelas/valor/margem).',
-          { id: toastId },
-        );
+  async function ensureSession(toastId: string | number) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    let accessToken = sessionData?.session?.access_token ?? null;
+    if (accessToken) {
+      const { error: userErr } = await supabase.auth.getUser(accessToken);
+      if (userErr) {
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+        accessToken = refreshErr ? null : refreshed?.session?.access_token ?? null;
+      }
+    }
+    if (!accessToken) {
+      toast.error('Sua sessão expirou. Faça login novamente.', {
+        id: toastId,
+        duration: 8000,
+        action: { label: 'Recarregar', onClick: () => window.location.reload() },
+      });
+      return false;
+    }
+    return true;
+  }
+
+  async function trySingle(c: ProposalCandidate) {
+    setBusy(true);
+    setOpen(false);
+    const toastId = toast.loading(
+      `Simulando ${c.installments}x · parcela ${formatBRL(c.simulationValue)}...`,
+    );
+    try {
+      const ok = await ensureSession(toastId);
+      if (!ok) return;
+      const context = ctx ?? (await loadContext());
+      if (!context) {
+        toast.error('Não foi possível carregar dados da simulação.', { id: toastId });
         return;
       }
-
-      // 4) Garante sessão válida (refresh se necessário)
-      const { data: sessionData } = await supabase.auth.getSession();
-      let accessToken = sessionData?.session?.access_token ?? null;
-      if (accessToken) {
-        const { error: userErr } = await supabase.auth.getUser(accessToken);
-        if (userErr) {
-          const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-          accessToken = refreshErr ? null : refreshed?.session?.access_token ?? null;
-        }
-      }
-      if (!accessToken) {
-        toast.error('Sua sessão expirou. Faça login novamente.', {
-          id: toastId,
-          duration: 8000,
-          action: { label: 'Recarregar', onClick: () => window.location.reload() },
-        });
+      const { sim } = context;
+      const { data: result, error: invokeErr } = await supabase.functions.invoke('v8-clt-api', {
+        body: {
+          action: 'simulate_only_for_consult',
+          params: {
+            simulation_id: sim.id,
+            consult_id: sim.consult_id,
+            config_id: sim.config_id,
+            parcelas: c.installments,
+            simulation_mode: c.simulationMode,
+            simulation_value: c.simulationValue,
+          },
+        },
+      });
+      if (result?.success) {
+        toast.success(`✅ Proposta encontrada em ${c.installments}x — verifique o card.`, { id: toastId });
+        onComplete?.();
         return;
       }
+      const msg = String(
+        result?.title || result?.detail || result?.user_message || result?.error || invokeErr?.message || 'erro desconhecido',
+      );
+      toast.error(`V8 recusou: ${msg}`, { id: toastId, duration: 8000 });
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || String(err)}`, { id: toastId });
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      // 5) Tenta candidatos em sequência. Para no primeiro que a V8 aceitar.
+  async function tryBestAuto() {
+    setBusy(true);
+    setOpen(false);
+    const toastId = toast.loading('Buscando melhor combinação automaticamente...');
+    try {
+      const ok = await ensureSession(toastId);
+      if (!ok) return;
+      const context = ctx ?? (await loadContext());
+      if (!context) {
+        toast.error('Sem dados de simulação.', { id: toastId });
+        return;
+      }
+      const { sim, candidates } = context;
+      const list = candidates.slice(0, MAX_AUTO_ATTEMPTS);
+      if (list.length === 0) {
+        toast.error('Nenhuma combinação cabe nos limites da V8.', { id: toastId });
+        return;
+      }
       let lastError = '';
-      for (let i = 0; i < candidates.length; i++) {
-        const c = candidates[i];
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
         toast.loading(
-          `Tentativa ${i + 1}/${candidates.length}: ${c.installments}x · parcela ${formatBRL(c.simulationValue)}`,
+          `Tentativa ${i + 1}/${list.length}: ${c.installments}x · parcela ${formatBRL(c.simulationValue)}`,
           { id: toastId },
         );
-
         const { data: result, error: invokeErr } = await supabase.functions.invoke('v8-clt-api', {
           body: {
             action: 'simulate_only_for_consult',
@@ -136,43 +203,20 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
             },
           },
         });
-
-        const errMsg = String(invokeErr?.message || result?.error || '');
-        if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
-          await supabase.auth.refreshSession();
-          toast.error('Sessão renovada. Clique novamente em "Encontrar proposta viável".', {
-            id: toastId,
-            duration: 6000,
-          });
-          return;
-        }
-
         if (result?.success) {
-          toast.success(
-            `✅ Proposta encontrada em ${c.installments}x — verifique o card.`,
-            { id: toastId },
-          );
+          toast.success(`✅ Proposta encontrada em ${c.installments}x — verifique o card.`, { id: toastId });
           onComplete?.();
           return;
         }
-
-        // Erro retornado pela V8 — guarda e tenta próximo candidato
         lastError = String(
-          result?.title ||
-            result?.detail ||
-            result?.user_message ||
-            result?.error ||
-            invokeErr?.message ||
-            'erro desconhecido',
+          result?.title || result?.detail || result?.user_message || result?.error || invokeErr?.message || 'erro desconhecido',
         );
-        // Pequena pausa entre tentativas para evitar rate limit
         await new Promise((r) => setTimeout(r, 600));
       }
-
-      toast.error(
-        `Não foi possível encontrar proposta automática. Último motivo da V8: ${lastError}. Tente manualmente com parcela menor.`,
-        { id: toastId, duration: 9000 },
-      );
+      toast.error(`Nenhuma combinação aceita pela V8. Último motivo: ${lastError}`, {
+        id: toastId,
+        duration: 9000,
+      });
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || String(err)}`, { id: toastId });
     } finally {
@@ -180,16 +224,70 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
     }
   }
 
+  // Lista única de prazos (mostra apenas o melhor candidato por nº de parcelas).
+  const uniqueByInstallments: ProposalCandidate[] = (() => {
+    if (!ctx?.candidates?.length) return [];
+    const seen = new Set<number>();
+    const out: ProposalCandidate[] = [];
+    // candidatos já vêm ordenados (maior prazo + parcela mais agressiva primeiro)
+    for (const c of ctx.candidates) {
+      if (seen.has(c.installments)) continue;
+      seen.add(c.installments);
+      out.push(c);
+    }
+    return out.sort((a, b) => a.installments - b.installments);
+  })();
+
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={(e) => { e.stopPropagation(); handleClick(); }}
-      disabled={busy}
-      className="h-7 text-xs gap-1"
-    >
-      {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-      Encontrar proposta viável
-    </Button>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={(e) => e.stopPropagation()}
+          className="h-7 text-xs gap-1"
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+          Encontrar proposta viável
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuLabel className="text-xs">
+          Escolha um prazo para simular
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={tryBestAuto} className="gap-2">
+          <Sparkles className="w-3 h-3 text-amber-500" />
+          <span className="text-xs font-medium">Tentar a melhor automática</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {loadingCtx && (
+          <div className="px-2 py-2 text-[11px] text-muted-foreground flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" /> Calculando candidatos...
+          </div>
+        )}
+        {!loadingCtx && uniqueByInstallments.length === 0 && ctx && (
+          <div className="px-2 py-2 text-[11px] text-muted-foreground">
+            Nenhuma combinação cabe nos limites da V8.
+          </div>
+        )}
+        {uniqueByInstallments.map((c) => (
+          <DropdownMenuItem
+            key={`${c.installments}-${c.safetyFactor}`}
+            onClick={() => trySingle(c)}
+            className="flex flex-col items-start gap-0.5 py-1.5"
+          >
+            <div className="text-xs font-medium">
+              {c.installments}x · parcela {formatBRL(c.simulationValue)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              libera ~{formatBRL(c.estimatedDisbursedValue)} (estimativa)
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
