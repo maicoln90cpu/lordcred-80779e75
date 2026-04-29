@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, AlertTriangle } from 'lucide-react';
+import { Loader2, Search, AlertTriangle, Eye } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RealtimeFreshness, AutoRetryIndicator } from './BatchAnimations';
+import PayloadInspectorDialog from './PayloadInspectorDialog';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
@@ -62,6 +64,7 @@ export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus,
 }: Props) {
+  const [payloadSim, setPayloadSim] = useState<any | null>(null);
   const total = simulations.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
   const success = simulations.filter((s) => s.status === 'success').length;
@@ -116,6 +119,7 @@ export default function BatchProgressTable({
                 <th className="px-2 py-1 text-left">Status</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
                 <th className="px-2 py-1 text-left">Motivo</th>
+                <th className="px-2 py-1 text-center w-10" title="Ver payload completo (JSON cru recebido da V8 e tentativas registradas)">Payload</th>
               </tr>
             </thead>
             <tbody>
@@ -190,6 +194,17 @@ export default function BatchProgressTable({
                     <td className="px-2 py-1 align-top">
                       <ReasonCell s={s} onCheckStatus={onCheckStatus} />
                     </td>
+                    <td className="px-2 py-1 text-center align-top">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Ver payload completo"
+                        onClick={() => setPayloadSim(s)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
                   </tr>
                 );
               })}
@@ -197,6 +212,11 @@ export default function BatchProgressTable({
           </table>
         </div>
       </CardContent>
+      <PayloadInspectorDialog
+        open={!!payloadSim}
+        onOpenChange={(o) => !o && setPayloadSim(null)}
+        simulation={payloadSim}
+      />
     </Card>
   );
 }
