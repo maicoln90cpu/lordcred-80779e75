@@ -359,7 +359,10 @@ export default function V8OperacoesTab() {
                   Visão única por pessoa: simulações, propostas e webhooks numa só linha do tempo.
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => void loadAggregates()} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+                void loadAggregates(m[filter] as any);
+              }} disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 <span className="ml-2">Atualizar</span>
               </Button>
