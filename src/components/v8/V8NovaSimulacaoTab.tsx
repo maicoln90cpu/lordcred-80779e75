@@ -120,10 +120,12 @@ export default function V8NovaSimulacaoTab() {
     const ids = candidates.map((c) => c.id);
     setAutoSimQueue((prev) => new Set([...prev, ...ids]));
     (async () => {
+      let ok = 0;
+      let fail = 0;
       for (let i = 0; i < candidates.length; i++) {
         const sim: any = candidates[i];
         try {
-          await supabase.functions.invoke('v8-clt-api', {
+          const { data, error } = await supabase.functions.invoke('v8-clt-api', {
             body: {
               action: 'simulate_only_for_consult',
               params: {
@@ -133,8 +135,18 @@ export default function V8NovaSimulacaoTab() {
               },
             },
           });
-        } catch (err) { console.error('[auto-simulate] erro', sim.cpf, err); }
+          if (error || data?.success === false) fail += 1; else ok += 1;
+        } catch (err) {
+          fail += 1;
+          console.error('[auto-simulate] erro', sim.cpf, err);
+        }
         if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttle));
+      }
+      if (ok + fail > 0) {
+        toast.success(
+          `🤖 Auto-simulação: ${ok} disparada(s)${fail ? ` · ${fail} falha(s)` : ''}`,
+          { description: 'Aguarde os resultados aparecerem na tabela (via webhook).' },
+        );
       }
     })();
   }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas]);
