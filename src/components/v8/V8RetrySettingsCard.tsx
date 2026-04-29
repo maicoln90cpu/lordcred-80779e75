@@ -4,10 +4,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, Zap, Volume2 } from 'lucide-react';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { Loader2, Save, Zap, Volume2, RefreshCw, Timer, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useV8Settings } from '@/hooks/useV8Settings';
 
+/**
+ * Card de Auto-retry refatorado em 4 seções colapsáveis:
+ *  1. Liga/desliga + ciclo global    → o que o robô faz e quantos ciclos tenta.
+ *  2. Ritmo (backoff + lote)         → tempo entre tentativas e tamanho do lote.
+ *  3. Notificações                   → som ao terminar lote.
+ *  4. Avançado (recolhido)           → persistência interna por endpoint V8 (3/15/15).
+ *
+ * A explicação inline da diferença entre "máx. tentativas por simulação"
+ * (ciclo completo consult+authorize+simulate) e "retentativas internas
+ * por etapa" (uma única chamada HTTP) fica no topo do card e dentro do
+ * accordion Avançado, para evitar confusão.
+ */
 export default function V8RetrySettingsCard() {
   const { settings, loading, saving, save, defaults } = useV8Settings();
   const [maxAttempts, setMaxAttempts] = useState(defaults.max_auto_retry_attempts);
@@ -66,156 +79,224 @@ export default function V8RetrySettingsCard() {
           Auto-retry em background
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Quando ativado, um robô verifica a cada 1 minuto as simulações que falharam por
-          instabilidade temporária da V8 (rate limit, 5xx, "ainda em análise") e re-dispara
-          automaticamente — mesmo com o navegador fechado.
-        </p>
-
-        <div className="flex items-center gap-3">
-          <Switch checked={enabled} onCheckedChange={setEnabled} disabled={loading} />
-          <Label>Ativar auto-retry em background (cron)</Label>
+      <CardContent className="space-y-3">
+        <div className="rounded border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+          <p>
+            Existem <strong>dois níveis</strong> de tentativa no sistema — não confunda:
+          </p>
+          <ul className="mt-2 space-y-1 list-disc list-inside text-xs">
+            <li>
+              <strong>Ciclo completo</strong> (consult + authorize + simulate) — controlado abaixo
+              em "Máximo de tentativas por simulação". A cada falha, o robô espera o backoff
+              e <strong>recomeça do zero</strong>. Default: 15 ciclos.
+            </li>
+            <li>
+              <strong>Persistência interna por chamada HTTP</strong> — controlado em "Avançado"
+              no fim deste card. Quando uma única chamada (ex.: <code>/consult</code>) recebe
+              429 ou 5xx, o servidor tenta sozinho N vezes <strong>antes</strong> de marcar como falha
+              e devolver para o ciclo. Default: 3 / 15 / 15.
+            </li>
+          </ul>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Máximo de tentativas por simulação</Label>
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              value={maxAttempts}
-              onChange={(e) => setMaxAttempts(Number(e.target.value))}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Acima disso, vira responsabilidade humana (clicar em "Retentar falhados").
-            </p>
-          </div>
-
-          <div>
-            <Label>Lote por execução do cron</Label>
-            <Input
-              type="number"
-              min={1}
-              max={200}
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Quantas simulações o cron processa em cada minuto.
-            </p>
-          </div>
-
-          <div>
-            <Label>Backoff mínimo (segundos)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={minBackoff}
-              onChange={(e) => setMinBackoff(Number(e.target.value))}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Tempo mínimo entre tentativas da mesma simulação.
-            </p>
-          </div>
-
-          <div>
-            <Label>Backoff máximo (segundos)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={maxBackoff}
-              onChange={(e) => setMaxBackoff(Number(e.target.value))}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Teto do backoff exponencial (loop frontend de fallback).
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 rounded border border-border/60 bg-muted/30 p-3">
-          <Volume2 className="w-4 h-4 text-muted-foreground" />
-          <div className="flex-1">
-            <Label className="cursor-pointer">Tocar som ao concluir lote</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Quando ativo, um beep curto é tocado no navegador ao final de cada lote (sucesso ou falha). Útil para acompanhar lotes em segundo plano.
-            </p>
-          </div>
-          <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
-        </div>
-
-        <div className="rounded border border-border/60 bg-muted/20 p-3 space-y-3">
-          <div>
-            <h4 className="text-sm font-semibold">Retentativas internas por etapa V8</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cada simulação passa por 3 chamadas na V8 em sequência. Quando uma chamada
-              recebe erro temporário (429 ou 5xx), o servidor tenta sozinho algumas vezes
-              ANTES de dar como falha. Diferente do auto-retry geral acima — aqueles
-              reabrem o ciclo inteiro. Aceita 1 a 30 por campo.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Consulta de margem (/consult)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={30}
-                value={retConsult}
-                onChange={(e) => setRetConsult(Number(e.target.value))}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                <strong>Etapa 1.</strong> Pede para a V8 abrir a consulta do CPF. Se cai aqui,
-                geralmente é V8 fora do ar — vale falhar rápido (default <strong>3</strong>)
-                e deixar o auto-retry de fundo reabrir depois.
+        <Accordion type="multiple" defaultValue={['secao-1', 'secao-2']} className="w-full">
+          {/* === SEÇÃO 1: Ciclo global === */}
+          <AccordionItem value="secao-1">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                <span>1. Ciclo global do robô</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                O cron roda a cada ~1 minuto e procura simulações que falharam por instabilidade
+                temporária da V8 (rate-limit, 5xx, "ainda em análise"). Cada vez que ele acha
+                uma, conta como <strong>1 ciclo</strong>.
               </p>
-            </div>
 
-            <div>
-              <Label>Aceite do termo (/authorize)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={30}
-                value={retAuthorize}
-                onChange={(e) => setRetAuthorize(Number(e.target.value))}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                <strong>Etapa 2.</strong> Aceita o termo de consentimento. Já temos um
-                consultId aberto — perder agora desperdiça a etapa 1. Insiste mais
-                (default <strong>15</strong>).
-              </p>
-            </div>
+              <div className="flex items-center gap-3">
+                <Switch checked={enabled} onCheckedChange={setEnabled} disabled={loading} />
+                <Label>Ativar auto-retry em background (cron)</Label>
+              </div>
 
-            <div>
-              <Label>Cálculo da parcela (/simulation)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={30}
-                value={retSimulate}
-                onChange={(e) => setRetSimulate(Number(e.target.value))}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                <strong>Etapa 3.</strong> Calcula valor liberado e parcela. Mesma lógica:
-                já passamos pelas 2 anteriores, vale insistir muito (default <strong>15</strong>).
-              </p>
-            </div>
-          </div>
+              <div>
+                <Label>Máximo de tentativas por simulação (ciclos completos)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={maxAttempts}
+                  onChange={(e) => setMaxAttempts(Number(e.target.value))}
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Acima disso a simulação fica como "falha definitiva" e só volta se alguém
+                  clicar em "Retentar falhados". <strong>Cada ciclo</strong> aqui dispara as 3
+                  chamadas (consult → authorize → simulate) — completamente diferente da
+                  persistência interna em "Avançado".
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* === SEÇÃO 2: Ritmo === */}
+          <AccordionItem value="secao-2">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Timer className="w-4 h-4 text-muted-foreground" />
+                <span>2. Ritmo (backoff e lote)</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Backoff mínimo (segundos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={minBackoff}
+                    onChange={(e) => setMinBackoff(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tempo mínimo de espera entre 2 ciclos da mesma simulação.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Backoff máximo (segundos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={maxBackoff}
+                    onChange={(e) => setMaxBackoff(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Teto da espera (o tempo cresce a cada falha até atingir esse limite).
+                  </p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label>Lote por execução do cron</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={batchSize}
+                    onChange={(e) => setBatchSize(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Quantas simulações o cron processa por execução (a cada minuto).
+                    Valores altos aceleram a fila mas aumentam pressão na V8.
+                  </p>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* === SEÇÃO 3: Notificações === */}
+          <AccordionItem value="secao-3">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-muted-foreground" />
+                <span>3. Notificações sonoras</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="flex items-center gap-3">
+                <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
+                <div className="flex-1">
+                  <Label className="cursor-pointer">Tocar som ao concluir lote</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Beep curto no navegador ao final de cada lote (sucesso ou falha).
+                    Útil para acompanhar lotes em segundo plano.
+                  </p>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* === SEÇÃO 4: AVANÇADO (persistência interna) === */}
+          <AccordionItem value="secao-avancado">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-muted-foreground" />
+                <span>4. Avançado — persistência interna por etapa V8</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <div className="rounded border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+                <p className="font-medium text-foreground mb-1">⚠️ Configuração avançada</p>
+                <p className="text-muted-foreground">
+                  Estes 3 valores controlam quantas vezes o servidor tenta a <strong>mesma chamada
+                  HTTP</strong> (não o ciclo inteiro) antes de marcar como falha. Se subir muito
+                  vai segurar pedidos travados — se baixar demais vai falhar à toa em
+                  instabilidades de 1 segundo. Valores entre 1 e 30.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label>Consulta de margem (/consult)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={retConsult}
+                    onChange={(e) => setRetConsult(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <strong>Etapa 1.</strong> Falhar rápido aqui é OK (default <strong>3</strong>) — o
+                    auto-retry de fundo reabre o ciclo depois.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Aceite do termo (/authorize)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={retAuthorize}
+                    onChange={(e) => setRetAuthorize(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <strong>Etapa 2.</strong> Já temos consultId aberto — perder agora desperdiça
+                    a etapa 1. Insiste mais (default <strong>15</strong>).
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Cálculo da parcela (/simulation)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={retSimulate}
+                    onChange={(e) => setRetSimulate(Number(e.target.value))}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <strong>Etapa 3.</strong> Mesma lógica: já passamos pelas 2 anteriores,
+                    vale insistir muito (default <strong>15</strong>).
+                  </p>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        <div className="pt-2">
+          <Button onClick={handleSave} disabled={saving || loading}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar configurações
+          </Button>
         </div>
-
-        <Button onClick={handleSave} disabled={saving || loading}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar configurações
-        </Button>
       </CardContent>
     </Card>
   );

@@ -88,6 +88,9 @@ interface TimelineEvent {
     paidAt: string | null;
     firstDueDate: string | null;
   } | null;
+  /** True quando esta é uma simulação `pending` mais recente que um sucesso anterior do mesmo CPF.
+   *  Indica que a operação anterior continua válida mas o usuário disparou nova consulta. */
+  isNewOverPrevious?: boolean;
   meta?: Record<string, any>;
 }
 
@@ -355,6 +358,18 @@ export default function V8OperacoesTab() {
         .order('created_at', { ascending: false })
         .limit(50);
 
+      // Pré-cálculo: detectar simulações `pending` que vieram DEPOIS de um sucesso
+      // anterior do mesmo CPF. sims já vem ordenado desc por created_at.
+      const simsAsc = [...(sims ?? [])].sort((a: any, b: any) =>
+        (a.created_at || '').localeCompare(b.created_at || ''),
+      );
+      let hadSuccessBefore = false;
+      const newOverPreviousIds = new Set<string>();
+      for (const s of simsAsc as any[]) {
+        if (s.status === 'pending' && hadSuccessBefore) newOverPreviousIds.add(s.id);
+        if (s.status === 'success') hadSuccessBefore = true;
+      }
+
       (sims ?? []).forEach((s: any) => {
         // ⚠️ NÃO usar sim_month_max aqui — esse campo é o tempo de admissão CLT do
         // trabalhador (vem do payload V8), NÃO o nº de parcelas do empréstimo.
@@ -384,6 +399,7 @@ export default function V8OperacoesTab() {
                   configName: s.config_name ?? null,
                 }
               : null,
+          isNewOverPrevious: newOverPreviousIds.has(s.id),
           meta: { simulate_status: s.simulate_status, error: s.error_message },
         });
       });
@@ -663,8 +679,16 @@ export default function V8OperacoesTab() {
                                     <span className="text-xs text-muted-foreground ml-auto">{fmtDate(ev.at)}</span>
                                   </div>
                                   {ev.status && (
-                                    <div className="mt-1">
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                       <V8StatusBadgePair status={ev.status} compact />
+                                      {ev.isNewOverPrevious && (
+                                        <span
+                                          className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+                                          title="Esta simulação foi disparada DEPOIS de uma simulação que já tinha dado sucesso para o mesmo CPF. A operação anterior continua válida — esta é uma nova consulta aguardando análise."
+                                        >
+                                          🔄 Nova consulta — aguardando análise da anterior
+                                        </span>
+                                      )}
                                     </div>
                                   )}
                                   {ev.operation && (ev.operation.disbursedAmount != null || ev.operation.installmentValue != null || ev.operation.paidAt) && (
