@@ -14,7 +14,8 @@ export type HRKanbanStatus =
   | 'approved'
   | 'rejected'
   | 'doubt'
-  | 'became_partner';
+  | 'became_partner'
+  | 'migrated_partner';
 
 export interface HRCandidate {
   id: string;
