@@ -94,9 +94,11 @@ export default function V8NovaSimulacaoTab() {
     return DEFAULT_PARCEL_OPTIONS;
   }, [selectedConfig]);
 
+  // Etapa 2 (item 4): default = máximo de parcelas permitido pela tabela.
+  // Se o operador não abriu "Opções avançadas", sempre usamos o teto.
   useEffect(() => {
     if (parcelOptions.length > 0 && !parcelOptions.includes(parcelas)) {
-      setParcelas(parcelOptions[0]);
+      setParcelas(Math.max(...parcelOptions));
     }
   }, [parcelOptions, parcelas]);
 
