@@ -10,7 +10,8 @@ type ConnectionState = 'connecting' | 'live' | 'polling' | 'offline';
 
 interface BatchAggregate {
   active_batches: number;
-  retrying_simulations: number;
+  retrying_consults: number;     // FIX 5: separa consultas...
+  retrying_simulations: number;  // ...de simulações (baseado em last_step)
   stale_retrying_simulations: number;
   awaiting_v8: number; // active_consult / pending sem kind — V8 ainda vai responder, NÃO é retry nosso
   last_cron_at: string | null;
