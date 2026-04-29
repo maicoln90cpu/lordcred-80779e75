@@ -324,10 +324,10 @@ export default function V8OperacoesTab() {
           });
         });
 
-        // 3) Operações locais
+        // 3) Operações locais (inclui raw_payload para extrair formalization_url)
         const { data: ops } = await supabase
           .from('v8_operations_local')
-          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at')
+          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, raw_payload')
           .or(`v8_simulation_id.in.(${ids.join(',')}),consult_id.in.(${ids.join(',')})`)
           .limit(50);
 
@@ -343,6 +343,7 @@ export default function V8OperacoesTab() {
             consultId: o.consult_id,
             operationId: o.operation_id,
             v8SimulationId: o.v8_simulation_id,
+            meta: { formalizationUrl: extractFormalizationUrl(o.raw_payload) },
           });
         });
       }
