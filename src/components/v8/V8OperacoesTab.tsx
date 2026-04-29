@@ -88,6 +88,9 @@ interface TimelineEvent {
     paidAt: string | null;
     firstDueDate: string | null;
   } | null;
+  /** True quando esta é uma simulação `pending` mais recente que um sucesso anterior do mesmo CPF.
+   *  Indica que a operação anterior continua válida mas o usuário disparou nova consulta. */
+  isNewOverPrevious?: boolean;
   meta?: Record<string, any>;
 }
 
