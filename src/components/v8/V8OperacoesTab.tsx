@@ -131,26 +131,33 @@ export default function V8OperacoesTab() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
-  const loadAggregates = useCallback(async () => {
+  const loadAggregates = useCallback(async (statusFilter?: 'success' | 'failed' | 'pending') => {
     setLoading(true);
     try {
-      // Pega últimas 500 simulações para agregar por CPF
-      const { data, error } = await supabase
+      // Janela maior (2000) — `failed` domina o volume e enviesa janelas pequenas.
+      // Quando há filtro de status, aplica no SQL para garantir presença real.
+      let q = supabase
         .from('v8_simulations')
         .select('cpf, name, status, simulate_status, updated_at, created_at')
         .order('updated_at', { ascending: false })
-        .limit(500);
+        .limit(2000);
+      if (statusFilter) q = q.eq('status', statusFilter);
 
+      const { data, error } = await q;
       if (error) throw error;
 
       const map = new Map<string, CpfRow>();
       (data ?? []).forEach((s: any) => {
         const cpf = onlyDigits(s.cpf || '');
         if (!cpf) return;
-        const existing = map.get(cpf);
         const at = s.updated_at || s.created_at;
+        const st = (s.status || '').toLowerCase();
+        const existing = map.get(cpf);
         if (existing) {
           existing.simCount += 1;
+          if (st === 'success') existing.successCount += 1;
+          else if (st === 'failed') existing.failedCount += 1;
+          else if (st === 'pending') existing.pendingCount += 1;
           if (at && at > existing.lastActivity) {
             existing.lastActivity = at;
             existing.lastStatus = s.status;
@@ -165,6 +172,9 @@ export default function V8OperacoesTab() {
             opCount: 0,
             whCount: 0,
             lastStatus: s.status,
+            successCount: st === 'success' ? 1 : 0,
+            failedCount: st === 'failed' ? 1 : 0,
+            pendingCount: st === 'pending' ? 1 : 0,
           });
         }
       });
