@@ -3900,7 +3900,10 @@ export type Database = {
           failure_count: number
           id: string
           installments: number | null
+          is_paused: boolean
           name: string
+          paused_at: string | null
+          paused_by: string | null
           pending_count: number
           status: string
           success_count: number
@@ -3918,7 +3921,10 @@ export type Database = {
           failure_count?: number
           id?: string
           installments?: number | null
+          is_paused?: boolean
           name: string
+          paused_at?: string | null
+          paused_by?: string | null
           pending_count?: number
           status?: string
           success_count?: number
@@ -3936,7 +3942,10 @@ export type Database = {
           failure_count?: number
           id?: string
           installments?: number | null
+          is_paused?: boolean
           name?: string
+          paused_at?: string | null
+          paused_by?: string | null
           pending_count?: number
           status?: string
           success_count?: number
