@@ -96,8 +96,9 @@ export default function RatesFGTSTab() {
   const parseImportData = (rows: Record<string, string>[]) => {
     const today = new Date().toISOString().slice(0, 10);
     return rows.map(r => {
-      const bank = (r['Banco'] || r['banco'] || '').toString().trim();
-      const tableKey = (r['Tabela'] || r['tabela'] || '').toString().trim();
+      // UPPERCASE em bank/table_key — alinha com índice case-sensitive e função UPPER().
+      const bank = (r['Banco'] || r['banco'] || '').toString().trim().toUpperCase();
+      const tableKey = (r['Tabela'] || r['tabela'] || '').toString().trim().toUpperCase();
       const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || '0').toString()) || 0;
       const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || '999').toString()) || 999;
       const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || '0').toString().replace(',', '.')) || 0;
