@@ -72,7 +72,7 @@ export default function BatchCreatePanel(props: Props) {
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
-    running, onStart, onSchedule,
+    running, onStart, onSchedule, onQueue,
   } = props;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
