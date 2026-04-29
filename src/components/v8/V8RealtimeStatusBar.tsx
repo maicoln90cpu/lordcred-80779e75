@@ -175,12 +175,48 @@ export function V8RealtimeStatusBar() {
 
   const Icon = conn === 'live' ? Wifi : conn === 'polling' ? Activity : WifiOff;
 
+  // Estado "saudável" = WS ativo + nenhum lote ativo + nada aguardando V8 + nada em retry.
+  // Quando saudável, colapsa para um pontinho discreto que pode ser expandido com clique.
+  const isHealthy =
+    conn === 'live' &&
+    agg.active_batches === 0 &&
+    agg.awaiting_v8 === 0 &&
+    agg.retrying_simulations === 0 &&
+    agg.stale_retrying_simulations === 0;
+
+  const [forceExpanded, setForceExpanded] = useState(false);
+  const collapsed = isHealthy && !forceExpanded;
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setForceExpanded(true)}
+        className="group inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition"
+        title="Tudo certo — clique para ver detalhes da V8"
+      >
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="font-medium">V8 estável</span>
+        <span className="text-emerald-600/70 dark:text-emerald-500/70 group-hover:underline">expandir</span>
+      </button>
+    );
+  }
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-xs">
       <div className="flex items-center gap-2">
         <span className={`inline-block w-2 h-2 rounded-full ${dot} ${conn === 'live' ? 'animate-pulse' : ''}`} />
         <Icon className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="font-medium">{label}</span>
+        {isHealthy && forceExpanded && (
+          <button
+            type="button"
+            onClick={() => setForceExpanded(false)}
+            className="ml-2 text-[10px] text-muted-foreground hover:text-foreground underline"
+          >
+            recolher
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 justify-end">
