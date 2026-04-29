@@ -28,6 +28,7 @@ export default function TimelineEventActions({
   const [busy, setBusy] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [showPixDialog, setShowPixDialog] = useState(false);
+  const [showDocsDialog, setShowDocsDialog] = useState(false);
 
   function copyId(label: string, value?: string | null) {
     if (!value) return;
