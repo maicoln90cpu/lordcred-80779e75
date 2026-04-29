@@ -209,7 +209,7 @@ export default function V8NovaSimulacaoTab() {
         );
       }
     })();
-  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas]);
+  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas, activeBatchPaused]);
 
   const awaitingManualSim = simulations.filter(
     (s: any) => s.status === 'success' && (s.simulate_status ?? 'not_started') === 'not_started',
