@@ -137,7 +137,7 @@ export default function V8DatabaseHealthCard() {
             disabled={cleaning || loading}
           >
             {cleaning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-            Limpar webhooks > 3 dias agora
+            Limpar webhooks &gt; 3 dias agora
           </Button>
         </div>
       </CardContent>
