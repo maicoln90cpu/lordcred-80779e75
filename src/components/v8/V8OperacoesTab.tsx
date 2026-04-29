@@ -818,6 +818,25 @@ export default function V8OperacoesTab() {
                                       ⚠️ {ev.meta.error}
                                     </div>
                                   )}
+                                  {ev.kind === 'simulation'
+                                    && ev.status === 'success'
+                                    && ev.v8SimulationId
+                                    && !ev.operationId && (
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                                      <span className="text-xs text-muted-foreground">
+                                        ✅ Simulação válida (sim_id pronto). Você já pode criar a proposta na V8:
+                                      </span>
+                                      <CreateOperationButton
+                                        consultId={ev.consultId}
+                                        simulationId={ev.v8SimulationId}
+                                        origin="simulation"
+                                        originId={ev.rowId}
+                                        prefill={{ cpf: r.cpf, name: r.name ?? undefined }}
+                                        onCreated={() => loadTimeline(r.cpf)}
+                                        label="Criar proposta com este sim_id"
+                                      />
+                                    </div>
+                                  )}
                                   <TimelineEventActions
                                     kind={ev.kind}
                                     rowId={ev.rowId}
