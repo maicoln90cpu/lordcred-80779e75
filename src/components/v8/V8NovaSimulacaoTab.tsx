@@ -408,8 +408,10 @@ export default function V8NovaSimulacaoTab() {
         running={ops.running}
         onStart={ops.handleStart}
         onSchedule={handleSchedule}
+        onQueue={handleQueue}
       />
 
+      <QueuedBatchesPanel />
       <ScheduledBatchesPanel />
 
       {activeBatchId && activeBatchPaused && (
