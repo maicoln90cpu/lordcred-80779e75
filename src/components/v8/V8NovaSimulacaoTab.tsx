@@ -310,7 +310,7 @@ export default function V8NovaSimulacaoTab() {
                   genero: parsedRow?.genero,
                   telefone: parsedRow?.telefone,
                   config_id: sim.config_id || configId,
-                  parcelas: sim.installments || parcelas,
+                  parcelas: parcelas || sim.installments,
                   simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
                   simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
                   batch_id: activeBatchId,
