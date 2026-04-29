@@ -40,6 +40,17 @@ describe('findBestProposal', () => {
     expect(r!.estimatedDisbursedValue).toBeLessThan(5000);
   });
 
+  it('caso Paulo (margem 80,78) — ainda encontra combinação viável com fallback', () => {
+    const r = findBestProposal({
+      marginValue: 80.78,
+      installmentOptions: opts,
+      valueMin: 500,
+      valueMax: 2908.08,
+    });
+    expect(r).not.toBeNull();
+    expect(r!.estimatedDisbursedValue).toBeGreaterThanOrEqual(500);
+  });
+
   it('respeita valueMax da V8', () => {
     const r = findBestProposal({
       marginValue: 5000,
