@@ -20,10 +20,12 @@ interface Props {
   borrowerCpf?: string | null;
   /** título exibido no sheet do JSON */
   title?: string;
+  /** URL de formalização da V8 (CCB / assinatura) — exibida como botão clicável */
+  formalizationUrl?: string | null;
 }
 
 export default function TimelineEventActions({
-  kind, rowId, status, consultId, operationId, v8SimulationId, borrowerCpf, title,
+  kind, rowId, status, consultId, operationId, v8SimulationId, borrowerCpf, title, formalizationUrl,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
