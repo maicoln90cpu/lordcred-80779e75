@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import type { RateFGTS } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
+import { previewRateUpsert, upsertRates } from './rateUpsert';
 
 export default function RatesFGTSTab() {
   const { toast } = useToast();
@@ -27,6 +28,7 @@ export default function RatesFGTSTab() {
   const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importStats, setImportStats] = useState<{ newCount: number; replaceCount: number } | null>(null);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
@@ -82,10 +84,10 @@ export default function RatesFGTSTab() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
-      ['LOTUS', 'LOTUS 1+', '1', '1', '0', '999999999', 'Não', '16', 'Prazo 1 ano'],
+      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs', 'Data Vigência (AAAA-MM-DD, opcional)'],
+      ['LOTUS', 'LOTUS 1+', '1', '1', '0', '999999999', 'Não', '16', 'Prazo 1 ano', ''],
     ]);
-    ws['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 25 }];
+    ws['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 25 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo FGTS V2');
     XLSX.writeFile(wb, 'modelo_taxas_fgts_v2.xlsx');
@@ -94,19 +96,31 @@ export default function RatesFGTSTab() {
   const parseImportData = (rows: Record<string, string>[]) => {
     const today = new Date().toISOString().slice(0, 10);
     return rows.map(r => {
-      const bank = r['Banco'] || r['banco'] || '';
-      const tableKey = r['Tabela'] || r['tabela'] || '';
-      const termMin = parseInt(r['Prazo Min'] || r['prazo_min'] || '0') || 0;
-      const termMax = parseInt(r['Prazo Max'] || r['prazo_max'] || '999') || 999;
+      const bank = (r['Banco'] || r['banco'] || '').toString().trim();
+      const tableKey = (r['Tabela'] || r['tabela'] || '').toString().trim();
+      const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || '0').toString()) || 0;
+      const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || '999').toString()) || 999;
       const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || '0').toString().replace(',', '.')) || 0;
       const maxValue = parseFloat((r['Valor Max'] || r['valor_max'] || '999999999').toString().replace(',', '.')) || 999999999;
       const seguroRaw = (r['Seguro (Sim/Não)'] || r['Seguro'] || r['seguro'] || 'Não').toString().toLowerCase();
       const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
       const rate = parseFloat((r['Taxa (%)'] || r['Taxa'] || r['taxa'] || '0').toString().replace(',', '.')) || 0;
-      const obs = r['Obs'] || r['obs'] || '';
-      return { effective_date: today, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
+      const obs = (r['Obs'] || r['obs'] || '').toString();
+      const dataVigRaw = (r['Data Vigência (AAAA-MM-DD, opcional)'] || r['Data Vigência'] || r['data_vigencia'] || r['effective_date'] || '').toString().trim();
+      const effectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(dataVigRaw) ? dataVigRaw : today;
+      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
     }).filter(r => r.bank);
   };
+
+  // Calcula contadores novas/substituídas sempre que o preview mudar
+  useEffect(() => {
+    if (importPreview.length === 0) { setImportStats(null); return; }
+    let cancelled = false;
+    previewRateUpsert('commission_rates_fgts_v2', importPreview as any)
+      .then(stats => { if (!cancelled) setImportStats(stats); })
+      .catch(() => { if (!cancelled) setImportStats(null); });
+    return () => { cancelled = true; };
+  }, [importPreview]);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,17 +137,36 @@ export default function RatesFGTSTab() {
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text');
-    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs']);
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs', 'Data Vigência (AAAA-MM-DD, opcional)']);
     setImportPreview(parseImportData(parsed.rows));
   };
 
   const confirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const { error } = await supabase.from('commission_rates_fgts_v2').insert(importPreview as any);
-    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
-    setImporting(false);
+    try {
+      const res = await upsertRates('commission_rates_fgts_v2', importPreview as any);
+      if (res.errors.length > 0) {
+        toast({
+          title: 'Importação concluída com erros',
+          description: `${res.inserted} novas, ${res.updated} substituídas. ${res.errors.length} falha(s): ${res.errors[0]}`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Importação concluída',
+          description: `${res.inserted} nova(s) inserida(s) · ${res.updated} substituída(s).`,
+        });
+      }
+      setImportDialogOpen(false);
+      setImportPreview([]);
+      setImportStats(null);
+      loadRates();
+    } catch (err: any) {
+      toast({ title: 'Erro ao importar', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
   };
 
   return (
