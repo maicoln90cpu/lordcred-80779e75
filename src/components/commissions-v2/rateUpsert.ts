@@ -116,21 +116,6 @@ export async function previewRateUpsert(
  */
 export async function upsertRates(
   tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
-  rows: RateRow[],
-): Promise<RateUpsertResult> {
-  const result: RateUpsertResult = { inserted: 0, updated: 0, errors: [] };
-  if (rows.length === 0) return result;
-
-  const existing = await fetchExistingMap(tableName, rows);
-
-  const toInsert: RateRow[] = [];
-  const toUpdate: { id: string; row: RateRow }[] = [];
-  // Dedup local: se a mesma chave aparecer duas vezes no arquivo, mantém a última.
-  const localSeen = new Map<string, number>();
-  rows.forEach((r, idx) => localSeen.set(rateKey(r), idx));
-
-export async function upsertRates(
-  tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
   rowsRaw: RateRow[],
 ): Promise<RateUpsertResult> {
   const result: RateUpsertResult = { inserted: 0, updated: 0, errors: [] };
