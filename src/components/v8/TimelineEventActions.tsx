@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban } from 'lucide-react';
+import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import V8RawJsonSheet from './V8RawJsonSheet';
+import ResolvePixPendencyDialog from './ResolvePixPendencyDialog';
 
 interface Props {
   kind: 'simulation' | 'webhook' | 'operation';
@@ -14,15 +15,18 @@ interface Props {
   consultId?: string | null;
   operationId?: string | null;
   v8SimulationId?: string | null;
+  /** CPF do tomador — usado para pré-preencher dialog de PIX */
+  borrowerCpf?: string | null;
   /** título exibido no sheet do JSON */
   title?: string;
 }
 
 export default function TimelineEventActions({
-  kind, rowId, status, consultId, operationId, v8SimulationId, title,
+  kind, rowId, status, consultId, operationId, v8SimulationId, borrowerCpf, title,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
+  const [showPixDialog, setShowPixDialog] = useState(false);
 
   function copyId(label: string, value?: string | null) {
     if (!value) return;
@@ -98,8 +102,13 @@ export default function TimelineEventActions({
   const finalStatuses = new Set([
     'paid', 'canceled', 'cancelled', 'rejected', 'expired', 'finished', 'completed',
   ]);
+  const normalizedStatus = (status || '').toLowerCase();
   const canCancelOperation =
-    kind === 'operation' && !!operationId && !finalStatuses.has((status || '').toLowerCase());
+    kind === 'operation' && !!operationId && !finalStatuses.has(normalizedStatus);
+  // Pendência de PIX — V8 retorna status como pending_pix / pending_payment_data.
+  const pixPendencyStatuses = new Set(['pending_pix', 'pending_payment_data']);
+  const canResolvePix =
+    kind === 'operation' && !!operationId && pixPendencyStatuses.has(normalizedStatus);
 
   return (
     <>
@@ -141,6 +150,22 @@ export default function TimelineEventActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent>POST /operation/{'{id}'}/cancel — apenas admin/manager</TooltipContent>
+          </Tooltip>
+        )}
+        {canResolvePix && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                onClick={() => setShowPixDialog(true)}
+              >
+                <KeyRound className="w-3 h-3" />
+                <span className="ml-1 text-xs">Resolver PIX</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>PATCH /operation/{'{id}'}/pendency/payment-data — admin/manager</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
@@ -193,6 +218,14 @@ export default function TimelineEventActions({
           kind={kind}
           rowId={rowId}
           title={title}
+        />
+      )}
+      {showPixDialog && operationId && (
+        <ResolvePixPendencyDialog
+          open={showPixDialog}
+          onOpenChange={setShowPixDialog}
+          operationId={operationId}
+          borrowerCpf={borrowerCpf}
         />
       )}
     </>
