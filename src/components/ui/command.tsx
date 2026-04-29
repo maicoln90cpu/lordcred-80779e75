@@ -5,7 +5,6 @@ import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -29,12 +28,10 @@ const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0 shadow-lg">
         {/* Acessibilidade: Radix exige Title + Description em todo DialogContent.
-            Visualmente escondidos (sr-only) por meio do VisuallyHidden, mas lidos
-            por leitores de tela e zeram o warning do React no console. */}
-        <VisuallyHidden.Root>
-          <DialogTitle>Paleta de comandos</DialogTitle>
-          <DialogDescription>Caixa de busca de comandos rápidos.</DialogDescription>
-        </VisuallyHidden.Root>
+            Escondidos visualmente via sr-only mas lidos por leitores de tela.
+            Zera o warning recorrente do React no console. */}
+        <DialogTitle className="sr-only">Paleta de comandos</DialogTitle>
+        <DialogDescription className="sr-only">Caixa de busca de comandos rápidos.</DialogDescription>
         <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
           {children}
         </Command>
