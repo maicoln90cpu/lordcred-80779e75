@@ -2286,6 +2286,76 @@ const handler = async (req: Request) => {
         });
         break;
       }
+      case "upload_document": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem enviar documentos à V8" };
+        } else {
+          result = await actionUploadDocument(
+            supabase,
+            params?.operationId,
+            params?.fileBase64,
+            params?.fileName,
+            params?.mimeType,
+            params?.documentType,
+            userId,
+          );
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_upload_document",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "upload_document",
+              operationId: params?.operationId ?? null,
+              document_type: params?.documentType ?? null,
+              file_name: params?.fileName ?? null,
+              mime_type: params?.mimeType ?? null,
+              file_size_b64: params?.fileBase64 ? String(params.fileBase64).length : 0,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "resubmit_documents": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem reapresentar a operação" };
+        } else {
+          result = await actionResubmitDocuments(supabase, params?.operationId);
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_resubmit_documents",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "resubmit_documents",
+              operationId: params?.operationId ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
       case "check_consult_status":
         result = await actionCheckConsultStatus(params);
         await writeAuditLog(supabase, {
