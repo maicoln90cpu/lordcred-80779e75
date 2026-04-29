@@ -411,7 +411,7 @@ export default function V8ConsultasTab() {
                 {filteredConsults.map((consult) => (
                   <tr key={consult.consultId || `${consult.documentNumber}-${consult.createdAt}`} className="border-t align-top">
                     <td className="px-3 py-2">
-                      <Badge variant="outline">{consult.status || '—'}</Badge>
+                      <V8StatusBadgePair status={consult.status} compact />
                     </td>
                     <td className="px-3 py-2">{consult.name || '—'}</td>
                     <td className="px-3 py-2 font-mono">{formatCpf(consult.documentNumber)}</td>
