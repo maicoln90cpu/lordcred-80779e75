@@ -24,6 +24,8 @@ const V8_PATHS = {
   operations: "/private-consignment/operation",
   operationDetail: (operationId: string) => `/private-consignment/operation/${operationId}`,
   operationCancel: (operationId: string) => `/private-consignment/operation/${operationId}/cancel`,
+  operationPendencyPaymentData: (operationId: string) =>
+    `/private-consignment/operation/${operationId}/pendency/payment-data`,
 };
 
 const MAX_RETRIES_CONSULT = 3;
@@ -517,6 +519,97 @@ async function actionCancelOperation(supabase: any, operationId?: string, reason
   } catch (_e) { /* best-effort */ }
 
   return { success: true, data: json?.data ?? json ?? { canceled: true } };
+}
+
+/**
+ * Resolve pendência de PIX em uma operação CLT na V8.
+ * PATCH /private-consignment/operation/{idOperation}/pendency/payment-data
+ * Doc oficial V8: reapresenta dados bancários (chave PIX) quando a proposta
+ * está em pending_pix por inconsistência da chave inicial.
+ *
+ * Tipos de chave aceitos: cpf | email | phone | random.
+ * (Esta etapa expõe cpf, email e phone — random fica para etapa futura.)
+ */
+async function actionResolvePixPendency(
+  supabase: any,
+  operationId?: string,
+  pixKey?: string,
+  pixKeyType?: string,
+) {
+  const safeOperationId = String(operationId || "").trim();
+  if (!safeOperationId) {
+    return { success: false, error: "operationId é obrigatório" };
+  }
+
+  const allowedTypes = new Set(["cpf", "email", "phone", "random"]);
+  const safeType = String(pixKeyType || "").trim().toLowerCase();
+  if (!allowedTypes.has(safeType)) {
+    return {
+      success: false,
+      error: `pix_key_type inválido. Use: ${Array.from(allowedTypes).join(", ")}`,
+    };
+  }
+
+  let safeKey = String(pixKey || "").trim();
+  if (!safeKey) {
+    return { success: false, error: "pix_key é obrigatório" };
+  }
+
+  // Normalizações leves por tipo (V8 valida do lado deles, mas evitamos round-trip).
+  if (safeType === "cpf") {
+    safeKey = safeKey.replace(/\D/g, "");
+    if (safeKey.length !== 11) {
+      return { success: false, error: "CPF deve ter 11 dígitos" };
+    }
+  } else if (safeType === "phone") {
+    // V8 exige formato internacional. Aceita já com + ou só dígitos.
+    const digits = safeKey.replace(/\D/g, "");
+    if (digits.length < 12 || digits.length > 13) {
+      return { success: false, error: "Telefone deve incluir +55 + DDD + número (ex.: +5511999998888)" };
+    }
+    safeKey = `+${digits}`;
+  } else if (safeType === "email") {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeKey)) {
+      return { success: false, error: "E-mail inválido" };
+    }
+    safeKey = safeKey.toLowerCase();
+  }
+
+  const body = JSON.stringify({
+    bank: {
+      transfer_method: "pix",
+      pix_key: safeKey,
+      pix_key_type: safeType,
+    },
+  });
+
+  const resp = await v8Fetch(V8_PATHS.operationPendencyPaymentData(safeOperationId), {
+    method: "PATCH",
+    body,
+  });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('resolve_pix_pendency', {
+      ...err,
+      raw: err.parsed ?? err.rawText,
+    });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+
+  // Reflete localmente — best-effort. V8 normalmente reprocessa e muda status via webhook.
+  try {
+    await supabase
+      .from("v8_operations_local")
+      .update({
+        last_updated_at: new Date().toISOString(),
+        raw_response: json?.data ?? json ?? null,
+      })
+      .eq("operation_id", safeOperationId);
+  } catch (_e) { /* best-effort */ }
+
+  return { success: true, data: json?.data ?? json ?? { resolved: true } };
 }
 
 async function actionGetConfigs(supabase: any) {
@@ -1998,6 +2091,46 @@ const handler = async (req: Request) => {
           },
         });
         break;
+      case "resolve_pix_pendency": {
+        // Apenas privilegiados podem reapresentar dados bancários na V8.
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem resolver pendências na V8" };
+        } else {
+          result = await actionResolvePixPendency(
+            supabase,
+            params?.operationId,
+            params?.pixKey,
+            params?.pixKeyType,
+          );
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_resolve_pix_pendency",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "resolve_pix_pendency",
+              operationId: params?.operationId ?? null,
+              pix_key_type: params?.pixKeyType ?? null,
+              // Mascarar a chave para auditoria — nunca logar PII em claro.
+              pix_key_masked: params?.pixKey
+                ? String(params.pixKey).replace(/.(?=.{4})/g, "*")
+                : null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
       case "cancel_operation": {
         // Apenas privilegiados (master/admin/manager) podem cancelar na V8.
         if (!isPriv) {
