@@ -360,26 +360,49 @@ export default function V8OperacoesTab() {
           });
         });
 
-        // 3) Operações locais (inclui raw_payload para extrair formalization_url)
+        // 3) Operações locais — Etapa 4: lê colunas dedicadas (sem precisar
+        //    parsear raw_payload no cliente). Cai no extrator antigo só como fallback.
         const { data: ops } = await supabase
           .from('v8_operations_local')
-          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, raw_payload')
+          .select(
+            'id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, ' +
+            'borrower_name, disbursed_amount, installment_value, number_of_installments, ' +
+            'contract_number, formalization_url, contract_url, paid_at, first_due_date, raw_payload'
+          )
           .or(`v8_simulation_id.in.(${ids.join(',')}),consult_id.in.(${ids.join(',')})`)
           .limit(50);
 
         (ops ?? []).forEach((o: any) => {
+          // formalization_url: prioriza coluna dedicada (Etapa 4), cai no parser antigo só se nula.
+          const formalizationUrl =
+            (typeof o.formalization_url === 'string' && o.formalization_url) ||
+            (typeof o.contract_url === 'string' && o.contract_url) ||
+            extractFormalizationUrl(o.raw_payload) ||
+            null;
+
           events.push({
             id: `op-${o.id}`,
             rowId: o.id,
             kind: 'operation',
             at: o.last_updated_at || o.first_seen_at,
-            title: `Operação ${o.operation_id?.slice(0, 12) || ''}…`,
-            subtitle: o.status,
+            title: o.borrower_name
+              ? `Operação · ${o.borrower_name}`
+              : `Operação ${o.operation_id?.slice(0, 12) || ''}…`,
+            subtitle: o.contract_number ? `Contrato ${o.contract_number}` : undefined,
             status: o.status,
             consultId: o.consult_id,
             operationId: o.operation_id,
             v8SimulationId: o.v8_simulation_id,
-            meta: { formalizationUrl: extractFormalizationUrl(o.raw_payload) },
+            operation: {
+              borrowerName: o.borrower_name ?? null,
+              disbursedAmount: o.disbursed_amount != null ? Number(o.disbursed_amount) : null,
+              installmentValue: o.installment_value != null ? Number(o.installment_value) : null,
+              numberOfInstallments: o.number_of_installments ?? null,
+              contractNumber: o.contract_number ?? null,
+              paidAt: o.paid_at ?? null,
+              firstDueDate: o.first_due_date ?? null,
+            },
+            meta: { formalizationUrl },
           });
         });
       }
