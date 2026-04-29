@@ -1856,6 +1856,178 @@ async function actionScheduleBatch(
   };
 }
 
+/**
+ * Etapa 4 (Item 10): enfileira um lote para execução sequencial.
+ * Mesma validação do schedule_batch, mas grava status='queued' + queue_position
+ * (próxima posição livre na fila do operador). O launcher promove queued→scheduled
+ * com scheduled_for=now() quando o operador não tem nenhum lote em processing/scheduled.
+ */
+async function actionQueueBatch(
+  supabase: any,
+  payload: {
+    name: string;
+    config_id: string;
+    config_label?: string;
+    parcelas: number;
+    rows: Array<{ cpf: string; nome?: string; data_nascimento?: string; genero?: string; telefone?: string }>;
+    strategy?: "webhook_only" | "simulate_now";
+    simulation_mode?: "none" | "disbursed_amount" | "installment_face_value";
+    simulation_value?: number | null;
+  },
+  userId: string,
+) {
+  const validRows = (payload.rows || []).filter(
+    (r) => (r.cpf || "").replace(/\D/g, "").length === 11,
+  );
+  if (validRows.length === 0) return { success: false, error: "Nenhum CPF válido" };
+
+  const invalidBirthRow = validRows.find(
+    (r) => r.data_nascimento && !normalizeBirthDate(r.data_nascimento),
+  );
+  if (invalidBirthRow) {
+    return {
+      success: false,
+      error: `Data de nascimento inválida para CPF ${(invalidBirthRow.cpf || "").replace(/\D/g, "")}`,
+    };
+  }
+
+  const cleanRows = validRows.map((r) => ({
+    cpf: r.cpf.replace(/\D/g, ""),
+    nome: r.nome ?? null,
+    data_nascimento: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
+    genero: r.genero ?? null,
+    telefone: r.telefone ?? null,
+  }));
+
+  // Próxima posição livre na fila do operador.
+  const { data: lastInQueue } = await supabase
+    .from("v8_batches")
+    .select("queue_position")
+    .eq("queue_owner", userId)
+    .eq("status", "queued")
+    .order("queue_position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPos = ((lastInQueue?.queue_position as number | null) ?? 0) + 1;
+  const nowIso = new Date().toISOString();
+
+  const { data: batch, error: batchErr } = await supabase
+    .from("v8_batches")
+    .insert({
+      name: payload.name,
+      created_by: userId,
+      config_id: payload.config_id,
+      config_name: payload.config_label ?? null,
+      installments: payload.parcelas,
+      total_count: validRows.length,
+      pending_count: validRows.length,
+      status: "queued",
+      queue_owner: userId,
+      queue_position: nextPos,
+      queued_at: nowIso,
+      // reusa scheduled_payload para que o launcher saiba materializar:
+      scheduled_strategy: payload.strategy ?? "webhook_only",
+      scheduled_payload: {
+        rows: cleanRows,
+        simulation_mode: payload.simulation_mode ?? "none",
+        simulation_value: payload.simulation_value ?? null,
+      },
+    })
+    .select()
+    .single();
+  if (batchErr) return { success: false, error: batchErr.message };
+
+  return {
+    success: true,
+    data: { batch_id: batch.id, queue_position: nextPos, total: validRows.length },
+  };
+}
+
+/**
+ * Etapa 4: cancela um lote ainda na fila (status='queued').
+ * Compacta as posições subsequentes (-1) para não deixar buracos.
+ */
+async function actionCancelQueue(supabase: any, batchId: string, userId: string, isPriv: boolean) {
+  const { data: batchRow } = await supabase
+    .from("v8_batches")
+    .select("id, status, created_by, queue_owner, queue_position")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batchRow) return { success: false, error: "Lote não encontrado" };
+  if (!isPriv && batchRow.created_by !== userId) return { success: false, error: "Sem permissão" };
+  if (batchRow.status !== "queued") {
+    return { success: false, error: `Lote não está na fila (status: ${batchRow.status})` };
+  }
+
+  const removedPos = batchRow.queue_position as number;
+  const owner = batchRow.queue_owner as string;
+
+  const { error: upErr } = await supabase
+    .from("v8_batches")
+    .update({
+      status: "canceled",
+      canceled_at: new Date().toISOString(),
+      canceled_by: userId,
+      queue_position: null,
+    })
+    .eq("id", batchId)
+    .eq("status", "queued");
+  if (upErr) return { success: false, error: upErr.message };
+
+  // Compacta a fila (decrementa posições maiores).
+  const { data: toShift } = await supabase
+    .from("v8_batches")
+    .select("id, queue_position")
+    .eq("queue_owner", owner)
+    .eq("status", "queued")
+    .gt("queue_position", removedPos);
+  for (const row of toShift ?? []) {
+    await supabase
+      .from("v8_batches")
+      .update({ queue_position: (row.queue_position as number) - 1 })
+      .eq("id", row.id);
+  }
+
+  return { success: true, data: { batch_id: batchId } };
+}
+
+/**
+ * Etapa 4: reordena um lote na fila (move ↑/↓).
+ * direction: 'up' troca com posição-1; 'down' troca com posição+1.
+ */
+async function actionReorderQueue(
+  supabase: any, batchId: string, direction: "up" | "down", userId: string, isPriv: boolean,
+) {
+  const { data: batchRow } = await supabase
+    .from("v8_batches")
+    .select("id, status, created_by, queue_owner, queue_position")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batchRow) return { success: false, error: "Lote não encontrado" };
+  if (!isPriv && batchRow.created_by !== userId) return { success: false, error: "Sem permissão" };
+  if (batchRow.status !== "queued") return { success: false, error: "Lote não está na fila" };
+
+  const curPos = batchRow.queue_position as number;
+  const targetPos = direction === "up" ? curPos - 1 : curPos + 1;
+  if (targetPos < 1) return { success: false, error: "Já está no topo" };
+
+  const { data: neighbor } = await supabase
+    .from("v8_batches")
+    .select("id, queue_position")
+    .eq("queue_owner", batchRow.queue_owner)
+    .eq("status", "queued")
+    .eq("queue_position", targetPos)
+    .maybeSingle();
+  if (!neighbor) return { success: false, error: "Já está no fim" };
+
+  // swap em duas etapas (posição temporária para evitar conflito de UNIQUE se existir).
+  await supabase.from("v8_batches").update({ queue_position: -1 }).eq("id", batchId);
+  await supabase.from("v8_batches").update({ queue_position: curPos }).eq("id", neighbor.id);
+  await supabase.from("v8_batches").update({ queue_position: targetPos }).eq("id", batchId);
+
+  return { success: true, data: { batch_id: batchId, new_position: targetPos } };
+}
+
 async function actionListBatches(supabase: any, userId: string, isPriv: boolean) {
   let q = supabase
     .from("v8_batches")
@@ -2503,6 +2675,46 @@ const handler = async (req: Request) => {
           userEmail,
           targetTable: "v8_batches",
           targetId: params?.batch_id ?? null,
+          details: { request_payload: params, response_payload: result },
+        });
+        break;
+      }
+      case "queue_batch": {
+        result = await actionQueueBatch(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_queue_batch",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_batches",
+          targetId: (result as any)?.data?.batch_id ?? null,
+          details: { request_payload: { name: params?.name, rows_count: Array.isArray(params?.rows) ? params.rows.length : 0 }, response_payload: result },
+        });
+        break;
+      }
+      case "cancel_queue": {
+        const batchId = String(params?.batch_id ?? "");
+        result = batchId
+          ? await actionCancelQueue(supabase, batchId, userId, isPriv)
+          : { success: false, error: "batch_id obrigatório" };
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_queue", category: "simulator",
+          success: !!(result as any)?.success, userId, userEmail,
+          targetTable: "v8_batches", targetId: batchId || null,
+          details: { request_payload: params, response_payload: result },
+        });
+        break;
+      }
+      case "reorder_queue": {
+        const batchId = String(params?.batch_id ?? "");
+        const direction = (params?.direction === "down" ? "down" : "up") as "up" | "down";
+        result = batchId
+          ? await actionReorderQueue(supabase, batchId, direction, userId, isPriv)
+          : { success: false, error: "batch_id obrigatório" };
+        await writeAuditLog(supabase, {
+          action: "v8_reorder_queue", category: "simulator",
+          success: !!(result as any)?.success, userId, userEmail,
+          targetTable: "v8_batches", targetId: batchId || null,
           details: { request_payload: params, response_payload: result },
         });
         break;

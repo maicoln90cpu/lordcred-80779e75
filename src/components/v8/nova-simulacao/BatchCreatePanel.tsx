@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight, CalendarClock } from 'lucide-react';
+import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight, CalendarClock, ListOrdered } from 'lucide-react';
 import { V8StatusGlossary } from '../V8StatusGlossary';
 import type { analyzeV8Paste } from '@/lib/v8Parser';
 
@@ -55,6 +55,8 @@ interface Props {
   onStart: () => void;
   /** Etapa 3 (item 7): agendar lote para horário futuro. Quando definido, mostra UI de agendamento. */
   onSchedule?: (scheduledForIso: string) => void;
+  /** Etapa 4 (item 10): adicionar lote à fila sequencial. */
+  onQueue?: () => void;
 }
 
 /**
@@ -70,7 +72,7 @@ export default function BatchCreatePanel(props: Props) {
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
-    running, onStart, onSchedule,
+    running, onStart, onSchedule, onQueue,
   } = props;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
@@ -315,13 +317,28 @@ export default function BatchCreatePanel(props: Props) {
             Agendar lote para {scheduledLocal.replace('T', ' às ')}
           </Button>
         ) : (
-          <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
-            {running ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
-            ) : (
-              <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="flex-1">
+              {running ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
+              ) : (
+                <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+              )}
+            </Button>
+            {onQueue && (
+              <Button
+                onClick={onQueue}
+                disabled={running || blockingIssues.length > 0}
+                size="lg"
+                variant="outline"
+                className="sm:w-64"
+                title="Cria o lote em modo fila — começa sozinho quando o lote atual terminar"
+              >
+                <ListOrdered className="w-4 h-4 mr-2" />
+                Adicionar à fila
+              </Button>
             )}
-          </Button>
+          </div>
         )}
       </CardContent>
     </Card>

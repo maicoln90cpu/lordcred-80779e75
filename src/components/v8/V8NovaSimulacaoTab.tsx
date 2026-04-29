@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Plus, X, Pencil, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
@@ -15,49 +16,71 @@ import BatchCreatePanel from './nova-simulacao/BatchCreatePanel';
 import BatchProgressTable from './nova-simulacao/BatchProgressTable';
 import BatchActionsBar from './nova-simulacao/BatchActionsBar';
 import ScheduledBatchesPanel from './nova-simulacao/ScheduledBatchesPanel';
+import QueuedBatchesPanel from './nova-simulacao/QueuedBatchesPanel';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
+import { Input } from '@/components/ui/input';
+import { loadDrafts, saveDrafts, emptyDraft, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
-const STORAGE_KEY = 'v8:nova-simulacao:draft';
-
-type SimulationMode = 'none' | 'disbursed_amount' | 'installment_face_value';
-type V8Draft = {
-  batchName: string; configId: string; parcelas: number;
-  simulationMode: SimulationMode; simulationValue: string;
-  pasteText: string; activeBatchId: string | null;
-};
-
-function loadDraft(): Partial<V8Draft> {
-  try {
-    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
 
 /**
  * Orquestrador da aba "Nova Simulação".
- * UI delegada para src/components/v8/nova-simulacao/* e lógica de lote
- * para useV8BatchOperations. Aqui ficam apenas: estado, derivados, persistência
- * de rascunho e auto-simulate (que depende de estado local).
+ * Etapa 4 (item 10): suporta múltiplos rascunhos (slots) e enfileiramento de lotes.
  */
 export default function V8NovaSimulacaoTab() {
   const { configs, refreshing, refreshFromV8 } = useV8Configs();
   const { settings: v8Settings, save: saveV8Settings } = useV8Settings();
-  const _draft = useMemo(() => loadDraft(), []);
-  const [batchName, setBatchName] = useState(_draft.batchName ?? '');
-  const [configId, setConfigId] = useState(_draft.configId ?? '');
-  const [parcelas, setParcelas] = useState<number>(_draft.parcelas ?? 24);
-  const [simulationMode, setSimulationMode] = useState<SimulationMode>(_draft.simulationMode ?? 'none');
-  const [simulationValue, setSimulationValue] = useState(_draft.simulationValue ?? '');
-  const [pasteText, setPasteText] = useState(_draft.pasteText ?? '');
-  const [activeBatchId, setActiveBatchId] = useState<string | null>(_draft.activeBatchId ?? null);
 
-  useEffect(() => {
-    try {
-      const draft: V8Draft = { batchName, configId, parcelas, simulationMode, simulationValue, pasteText, activeBatchId };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    } catch {}
-  }, [batchName, configId, parcelas, simulationMode, simulationValue, pasteText, activeBatchId]);
+  // Multi-slots de rascunho. Cada slot tem seu próprio formulário + lote ativo.
+  const _initial = useMemo(() => loadDrafts(), []);
+  const [drafts, setDrafts] = useState<V8DraftSlot[]>(_initial.drafts);
+  const [activeId, setActiveId] = useState<string>(_initial.activeId);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const active = drafts.find((d) => d.id === activeId) ?? drafts[0];
+
+  function patchActive(patch: Partial<V8DraftSlot>) {
+    setDrafts((prev) => prev.map((d) => (d.id === activeId ? { ...d, ...patch } : d)));
+  }
+  function addSlot() {
+    if (drafts.length >= 6) { toast.warning('Máximo 6 rascunhos simultâneos'); return; }
+    const next = emptyDraft(`Rascunho ${drafts.length + 1}`);
+    setDrafts((prev) => [...prev, next]);
+    setActiveId(next.id);
+  }
+  function removeSlot(id: string) {
+    if (drafts.length === 1) { toast.warning('Mantenha pelo menos 1 rascunho'); return; }
+    const slot = drafts.find((d) => d.id === id);
+    if (slot?.activeBatchId) {
+      if (!window.confirm('Este rascunho tem um lote ativo. Remover mesmo assim? (o lote continua no banco)')) return;
+    }
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(next);
+    if (activeId === id) setActiveId(next[0].id);
+  }
+  function commitRename(id: string) {
+    const v = renameValue.trim();
+    if (v) setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, label: v } : d)));
+    setRenamingId(null);
+  }
+
+  useEffect(() => { saveDrafts(drafts, activeId); }, [drafts, activeId]);
+
+  // Aliases p/ não reescrever o resto do componente.
+  const batchName = active.batchName;
+  const setBatchName = (v: string) => patchActive({ batchName: v });
+  const configId = active.configId;
+  const setConfigId = (v: string) => patchActive({ configId: v });
+  const parcelas = active.parcelas;
+  const setParcelas = (v: number) => patchActive({ parcelas: v });
+  const simulationMode = active.simulationMode;
+  const setSimulationMode = (v: SimulationMode) => patchActive({ simulationMode: v });
+  const simulationValue = active.simulationValue;
+  const setSimulationValue = (v: string) => patchActive({ simulationValue: v });
+  const pasteText = active.pasteText;
+  const setPasteText = (v: string) => patchActive({ pasteText: v });
+  const activeBatchId = active.activeBatchId;
+  const setActiveBatchId = (v: string | null) => patchActive({ activeBatchId: v });
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
@@ -262,8 +285,108 @@ export default function V8NovaSimulacaoTab() {
     setBatchName('');
   }
 
+  // Etapa 4 (item 10): handler de enfileiramento. Cria o lote em status='queued'.
+  // O launcher promove queued→scheduled quando o operador não tem nenhum lote ativo.
+  async function handleQueue() {
+    const rows = pasteAnalysis.rows;
+    if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
+    if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de enfileirar`); return; }
+    if (!configId) { toast.error('Escolha uma tabela'); return; }
+    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+
+    const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
+    const numericValue = simulationMode !== 'none' && simulationValue.trim()
+      ? Number(simulationValue.replace(',', '.'))
+      : null;
+
+    const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+      body: {
+        action: 'queue_batch',
+        params: {
+          name: batchName.trim(),
+          config_id: configId,
+          config_label: cfgLabel,
+          parcelas,
+          rows,
+          strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+          simulation_mode: simulationMode,
+          simulation_value: numericValue,
+        },
+      },
+    });
+    if (error || !data?.success) {
+      toast.error('Falha ao enfileirar: ' + (data?.error || error?.message || 'erro desconhecido'));
+      return;
+    }
+    toast.success(
+      `📋 Lote enfileirado na posição #${data?.data?.queue_position ?? '?'}`,
+      { description: 'Começa sozinho assim que o lote atual terminar (verificação a cada 1 min).' },
+    );
+    setPasteText('');
+    setBatchName('');
+  }
+
   return (
     <div className="space-y-4">
+      {/* Etapa 4 (item 10): tabs de rascunhos — cada slot mantém formulário e lote ativo independentes. */}
+      <div className="flex items-center gap-1 flex-wrap border-b border-border pb-2">
+        {drafts.map((d) => {
+          const isActive = d.id === activeId;
+          const isRenaming = renamingId === d.id;
+          return (
+            <div
+              key={d.id}
+              className={`group flex items-center gap-1 rounded-t-md px-2 py-1.5 text-xs border-t border-l border-r ${
+                isActive
+                  ? 'bg-background border-border font-medium'
+                  : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70 cursor-pointer'
+              }`}
+              onClick={() => !isRenaming && setActiveId(d.id)}
+            >
+              {isRenaming ? (
+                <>
+                  <Input
+                    autoFocus value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitRename(d.id); if (e.key === 'Escape') setRenamingId(null); }}
+                    className="h-6 w-32 text-xs"
+                  />
+                  <button onClick={(e) => { e.stopPropagation(); commitRename(d.id); }} className="text-emerald-600">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>{d.label}</span>
+                  {d.activeBatchId && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Lote ativo" />}
+                  {isActive && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(d.id); setRenameValue(d.label); }}
+                      className="opacity-50 hover:opacity-100"
+                      title="Renomear"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                  {drafts.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeSlot(d.id); }}
+                      className="opacity-50 hover:opacity-100 hover:text-destructive"
+                      title="Remover rascunho"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+        <Button variant="ghost" size="sm" onClick={addSlot} className="h-7 text-xs">
+          <Plus className="w-3.5 h-3.5 mr-1" /> Novo rascunho
+        </Button>
+      </div>
+
       <BatchCreatePanel
         batchName={batchName} setBatchName={setBatchName}
         configId={configId} setConfigId={setConfigId}
@@ -285,8 +408,10 @@ export default function V8NovaSimulacaoTab() {
         running={ops.running}
         onStart={ops.handleStart}
         onSchedule={handleSchedule}
+        onQueue={handleQueue}
       />
 
+      <QueuedBatchesPanel />
       <ScheduledBatchesPanel />
 
       {activeBatchId && activeBatchPaused && (
