@@ -129,8 +129,13 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando (estratégia: ${strategy})...`);
 
       const { data: sims } = await supabase
-        .from('v8_simulations').select('id, cpf, name, birth_date')
-        .eq('batch_id', batchId).order('created_at', { ascending: true });
+        .from('v8_simulations').select('id, cpf, name, birth_date, paste_order')
+        .eq('batch_id', batchId)
+        // Etapa 1 (correção de ordem): respeitar a ordem em que o operador colou.
+        // Antes ordenávamos por created_at — todas as linhas têm o mesmo timestamp
+        // (insert em massa), então a ordem ficava aleatória.
+        .order('paste_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
       if (!sims) throw new Error('Falha ao carregar simulações');
 
       if (strategy === 'webhook_only') {
