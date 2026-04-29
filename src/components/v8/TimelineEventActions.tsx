@@ -192,6 +192,27 @@ export default function TimelineEventActions({
             <TooltipContent>POST /operation/{'{id}'}/document + PATCH /pendency/presentation</TooltipContent>
           </Tooltip>
         )}
+        {kind === 'operation' && formalizationUrl && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+              >
+                <a href={formalizationUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="ml-1 text-xs">Abrir formalização</span>
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs break-all">
+              Link de assinatura/CCB enviado pela V8.<br />
+              <span className="font-mono text-[10px] opacity-70">{formalizationUrl}</span>
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setShowJson(true)}>
