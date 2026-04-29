@@ -196,7 +196,9 @@ export default function V8NovaSimulacaoTab() {
                 simulation_id: sim.id,
                 consult_id: sim.consult_id,
                 config_id: sim.config_id || configId,
-                parcelas: sim.installments || parcelas,
+                // Bloco A: prioriza parcela atual da tela (Select) sobre a salva no lote.
+                // Se o usuário trocou de 36 para 24, o auto-simulate respeita.
+                parcelas: parcelas || sim.installments,
               },
             },
           });
@@ -308,7 +310,7 @@ export default function V8NovaSimulacaoTab() {
                   genero: parsedRow?.genero,
                   telefone: parsedRow?.telefone,
                   config_id: sim.config_id || configId,
-                  parcelas: sim.installments || parcelas,
+                  parcelas: parcelas || sim.installments,
                   simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
                   simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
                   batch_id: activeBatchId,
@@ -531,7 +533,7 @@ export default function V8NovaSimulacaoTab() {
                 simulation_id: sim.id,
                 consult_id: sim.consult_id,
                 config_id: sim.config_id || configId,
-                parcelas: sim.installments || parcelas,
+                parcelas: parcelas || sim.installments,
                 simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
                 simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
               },
@@ -608,7 +610,7 @@ export default function V8NovaSimulacaoTab() {
                   genero: parsedRow?.genero,
                   telefone: parsedRow?.telefone,
                   config_id: sim.config_id || configId,
-                  parcelas: sim.installments || parcelas,
+                  parcelas: parcelas || sim.installments,
                   simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
                   simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
                   batch_id: batchId,
@@ -688,6 +690,9 @@ export default function V8NovaSimulacaoTab() {
                 {selectedConfig
                   ? `Parcelas disponíveis nesta tabela: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
                   : 'Selecione uma tabela para ver apenas as parcelas realmente aceitas pela V8.'}
+              </p>
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                ⓘ Em lote com auto-simulação ativa, esta parcela é usada para todos os CPFs novos do lote atual.
               </p>
             </div>
           </div>
