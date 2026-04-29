@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2 } from 'lucide-react';
+import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import V8RawJsonSheet from './V8RawJsonSheet';
 
@@ -64,8 +64,42 @@ export default function TimelineEventActions({
     }
   }
 
+  async function cancelOperation() {
+    if (!operationId) {
+      toast.error('Sem operation_id para cancelar');
+      return;
+    }
+    const reason = window.prompt(
+      `Cancelar a operação ${operationId.slice(0, 12)}… na V8?\n\nMotivo (opcional, será enviado e auditado):`,
+      '',
+    );
+    // null = usuário cancelou o prompt; string vazia = confirmou sem motivo.
+    if (reason === null) return;
+    setBusy('cancel');
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'cancel_operation', operationId, reason: reason || undefined },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || data?.title || 'Falha ao cancelar na V8');
+      }
+      toast.success('Operação cancelada na V8');
+    } catch (e: any) {
+      toast.error(`Falhou: ${e?.message ?? e}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const canReprocess = kind === 'simulation' && (status === 'failed' || status === 'pending');
   const canReplay = kind === 'webhook';
+  // Status finais — não permitem cancelamento na V8.
+  const finalStatuses = new Set([
+    'paid', 'canceled', 'cancelled', 'rejected', 'expired', 'finished', 'completed',
+  ]);
+  const canCancelOperation =
+    kind === 'operation' && !!operationId && !finalStatuses.has((status || '').toLowerCase());
 
   return (
     <>
@@ -90,6 +124,23 @@ export default function TimelineEventActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Reprocessa webhooks pendentes dos últimos 7 dias</TooltipContent>
+          </Tooltip>
+        )}
+        {canCancelOperation && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                onClick={cancelOperation}
+                disabled={busy === 'cancel'}
+              >
+                {busy === 'cancel' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ban className="w-3 h-3" />}
+                <span className="ml-1 text-xs">Cancelar na V8</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>POST /operation/{'{id}'}/cancel — apenas admin/manager</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
