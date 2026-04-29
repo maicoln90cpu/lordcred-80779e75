@@ -18,6 +18,7 @@ export type V8ErrorKind =
   | 'existing_proposal'
   | 'temporary_v8'
   | 'invalid_data'
+  | 'rejected_by_v8'
   | 'unknown';
 
 export interface V8ErrorInput {
