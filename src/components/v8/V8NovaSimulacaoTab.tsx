@@ -196,7 +196,9 @@ export default function V8NovaSimulacaoTab() {
                 simulation_id: sim.id,
                 consult_id: sim.consult_id,
                 config_id: sim.config_id || configId,
-                parcelas: sim.installments || parcelas,
+                // Bloco A: prioriza parcela atual da tela (Select) sobre a salva no lote.
+                // Se o usuário trocou de 36 para 24, o auto-simulate respeita.
+                parcelas: parcelas || sim.installments,
               },
             },
           });
