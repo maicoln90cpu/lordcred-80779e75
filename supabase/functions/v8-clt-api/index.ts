@@ -1735,7 +1735,7 @@ async function actionCreateBatch(
   // o nascimento. Assim, mesmo que a 1ª chamada simulate_one nunca rode (timeout
   // de browser, refresh de página, falha de rede), o cron `v8-retry-cron` já
   // identifica como elegível para auto-retry — não fica "órfã" no banco.
-  const sims = validRows.map((r) => ({
+  const sims = validRows.map((r, idx) => ({
     batch_id: batch.id,
     created_by: userId,
     cpf: r.cpf.replace(/\D/g, ""),
@@ -1747,6 +1747,9 @@ async function actionCreateBatch(
     config_id: payload.config_id,
     config_name: payload.config_label ?? null,
     installments: payload.parcelas,
+    // Etapa 1 (item 8): preserva ordem em que CPFs foram colados pelo operador.
+    // A tabela "Progresso do Lote" passa a ordenar por paste_order ASC.
+    paste_order: idx,
   }));
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
