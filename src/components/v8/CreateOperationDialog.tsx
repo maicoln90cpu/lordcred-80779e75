@@ -177,13 +177,29 @@ export default function CreateOperationDialog({
         });
         return;
       }
+      const opId = data?.data?.operation_id ?? null;
       toast({
         title: "Proposta criada",
-        description: data?.data?.operation_id
-          ? `Operação ${data.data.operation_id} criada na V8.`
-          : "Proposta enviada com sucesso.",
+        description: opId ? `Operação ${opId} criada na V8.` : "Proposta enviada com sucesso.",
       });
-      onCreated?.(data?.data?.operation_id ?? null);
+
+      // Upload de documentos pendentes (opcional, pós-criação)
+      if (opId && pendingDocs.length > 0) {
+        const ready = pendingDocs.filter((d) => d.documentType);
+        const skipped = pendingDocs.length - ready.length;
+        if (ready.length > 0) {
+          setUploadingDocs(true);
+          const { ok, fail } = await uploadPendingDocs(opId, ready, supabase.functions.invoke.bind(supabase.functions));
+          setUploadingDocs(false);
+          if (fail > 0) toast({ title: "Documentos", description: `${ok} enviados, ${fail} falha(s).`, variant: "destructive" });
+          else toast({ title: "Documentos", description: `${ok} enviado(s) à V8.` });
+        }
+        if (skipped > 0) {
+          toast({ title: "Documentos pulados", description: `${skipped} sem tipo selecionado — anexe depois pela tela de pendência.`, variant: "destructive" });
+        }
+      }
+
+      onCreated?.(opId);
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Erro inesperado", description: err?.message || String(err), variant: "destructive" });
