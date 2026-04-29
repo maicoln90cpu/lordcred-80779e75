@@ -416,8 +416,38 @@ export default function V8OperacoesTab() {
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Calculator className="w-3 h-3" />{r.simCount}</Badge>
                             </TooltipTrigger>
-                            <TooltipContent>{r.simCount} simulação(ões)</TooltipContent>
+                            <TooltipContent>{r.simCount} simulação(ões) na janela</TooltipContent>
                           </Tooltip>
+                          {r.successCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                                  <CheckCircle2 className="w-3 h-3" />{r.successCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.successCount} sucesso(s)</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {r.failedCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-red-500/40 text-red-600 dark:text-red-400">
+                                  <XCircle className="w-3 h-3" />{r.failedCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.failedCount} falha(s)</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {r.pendingCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                                  <Clock className="w-3 h-3" />{r.pendingCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.pendingCount} pendente(s)</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Webhook className="w-3 h-3" />{r.whCount}</Badge>
