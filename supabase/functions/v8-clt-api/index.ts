@@ -2641,6 +2641,38 @@ const handler = async (req: Request) => {
         });
         break;
       }
+      case "create_operation": {
+        result = await actionCreateOperation(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_create_operation",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: (result as any)?.data?.operation_id ?? null,
+          details: {
+            request_payload: {
+              action: "create_operation",
+              consult_id: params?.consult_id ?? null,
+              simulation_id: params?.simulation_id ?? null,
+              draft_id: params?.draft_id ?? null,
+              cpf_masked: params?.payload?.borrower?.cpf
+                ? String(params.payload.borrower.cpf).replace(/\d(?=\d{4})/g, "*")
+                : null,
+              has_documents: Array.isArray(params?.documents) ? params.documents.length : 0,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              operation_id: (result as any)?.data?.operation_id ?? null,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
       default:
         result = { success: false, error: `Ação desconhecida: ${action}` };
     }
