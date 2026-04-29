@@ -358,6 +358,18 @@ export default function V8OperacoesTab() {
         .order('created_at', { ascending: false })
         .limit(50);
 
+      // Pré-cálculo: detectar simulações `pending` que vieram DEPOIS de um sucesso
+      // anterior do mesmo CPF. sims já vem ordenado desc por created_at.
+      const simsAsc = [...(sims ?? [])].sort((a: any, b: any) =>
+        (a.created_at || '').localeCompare(b.created_at || ''),
+      );
+      let hadSuccessBefore = false;
+      const newOverPreviousIds = new Set<string>();
+      for (const s of simsAsc as any[]) {
+        if (s.status === 'pending' && hadSuccessBefore) newOverPreviousIds.add(s.id);
+        if (s.status === 'success') hadSuccessBefore = true;
+      }
+
       (sims ?? []).forEach((s: any) => {
         // ⚠️ NÃO usar sim_month_max aqui — esse campo é o tempo de admissão CLT do
         // trabalhador (vem do payload V8), NÃO o nº de parcelas do empréstimo.
@@ -387,6 +399,7 @@ export default function V8OperacoesTab() {
                   configName: s.config_name ?? null,
                 }
               : null,
+          isNewOverPrevious: newOverPreviousIds.has(s.id),
           meta: { simulate_status: s.simulate_status, error: s.error_message },
         });
       });
