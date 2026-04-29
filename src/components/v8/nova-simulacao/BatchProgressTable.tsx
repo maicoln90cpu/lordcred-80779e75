@@ -212,6 +212,11 @@ export default function BatchProgressTable({
           </table>
         </div>
       </CardContent>
+      <PayloadInspectorDialog
+        open={!!payloadSim}
+        onOpenChange={(o) => !o && setPayloadSim(null)}
+        simulation={payloadSim}
+      />
     </Card>
   );
 }
