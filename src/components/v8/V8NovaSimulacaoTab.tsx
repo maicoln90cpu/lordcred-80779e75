@@ -3,10 +3,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, X, Pencil, Check } from 'lucide-react';
+import { Loader2, Plus, X, Pencil, Check, PlayCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
+import { queueAllDrafts, summarizeRunAll } from '@/lib/v8RunAllDrafts';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 import { MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
@@ -326,6 +327,46 @@ export default function V8NovaSimulacaoTab() {
     setBatchName('');
   }
 
+  // Etapa 1 (item 1, abr/2026): "Executar todos em sequência".
+  // Enfileira cada rascunho válido. O primeiro vira 'scheduled' (roda já),
+  // os demais ficam em 'queued' e o launcher promove um por vez.
+  const [runAllBusy, setRunAllBusy] = useState(false);
+  async function handleRunAllDrafts() {
+    if (runAllBusy) return;
+    const eligible = drafts.filter((d) => d.pasteText.trim() && d.batchName.trim() && d.configId);
+    if (eligible.length === 0) {
+      toast.error('Nenhum rascunho preenchido (precisa de nome, tabela e CPFs).');
+      return;
+    }
+    if (!window.confirm(
+      `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
+      `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar (verificação a cada 1 min).\n\nConfirmar?`,
+    )) return;
+    setRunAllBusy(true);
+    try {
+      const results = await queueAllDrafts({
+        drafts,
+        configs,
+        strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+      });
+      const summary = summarizeRunAll(results);
+      const skippedDetail = results
+        .filter((r) => r.status !== 'queued')
+        .map((r) => `• ${r.label}: ${r.reason}`)
+        .join('\n');
+      if (summary.queued > 0) {
+        toast.success(`▶ Sequência iniciada: ${summary.text}`, {
+          description: skippedDetail || 'Acompanhe abaixo na "Fila de execução".',
+          duration: 8000,
+        });
+      } else {
+        toast.error(`Nada enfileirado: ${summary.text}`, { description: skippedDetail });
+      }
+    } finally {
+      setRunAllBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
@@ -388,6 +429,21 @@ export default function V8NovaSimulacaoTab() {
         <Button variant="ghost" size="sm" onClick={addSlot} className="h-7 text-xs">
           <Plus className="w-3.5 h-3.5 mr-1" /> Novo rascunho
         </Button>
+        {drafts.length > 1 && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleRunAllDrafts}
+            disabled={runAllBusy}
+            className="h-7 text-xs ml-auto gap-1.5"
+            title="Enfileira cada rascunho. O 1º começa já; os demais começam sozinhos quando o anterior terminar."
+          >
+            {runAllBusy
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <PlayCircle className="w-3.5 h-3.5" />}
+            ▶ Executar todos em sequência ({drafts.length})
+          </Button>
+        )}
       </div>
 
       <BatchCreatePanel
