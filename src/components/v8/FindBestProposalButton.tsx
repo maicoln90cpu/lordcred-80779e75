@@ -101,7 +101,7 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         `Simulando V8: ${best.installments}x · valor ~R$ ${best.estimatedDisbursedValue.toLocaleString('pt-BR')}...`,
         { id: toastId },
       );
-      const { data: result } = await supabase.functions.invoke('v8-clt-api', {
+      const { data: result, error: invokeErr } = await supabase.functions.invoke('v8-clt-api', {
         body: {
           action: 'simulate_only_for_consult',
           params: {
@@ -115,6 +115,17 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         },
       });
 
+      // Sessão expirada → backend devolve 401 Unauthorized.
+      // Detecta tanto pelo erro do invoke quanto pelo body retornado.
+      const errMsg = String(invokeErr?.message || result?.error || '');
+      if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
+        toast.error('Sua sessão expirou. Recarregue a página (F5) e faça login de novo.', {
+          id: toastId,
+          duration: 8000,
+        });
+        return;
+      }
+
       if (result?.success) {
         toast.success(
           `✅ Proposta encontrada em ${best.installments}x — verifique o card.`,
@@ -123,7 +134,7 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         onComplete?.();
       } else {
         toast.error(
-          `V8 recusou: ${result?.error || 'erro desconhecido'}. Tente valor menor manualmente.`,
+          `V8 recusou: ${result?.error || invokeErr?.message || 'erro desconhecido'}. Tente valor menor manualmente.`,
           { id: toastId, duration: 6000 },
         );
       }
