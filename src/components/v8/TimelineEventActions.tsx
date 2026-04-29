@@ -64,8 +64,42 @@ export default function TimelineEventActions({
     }
   }
 
+  async function cancelOperation() {
+    if (!operationId) {
+      toast.error('Sem operation_id para cancelar');
+      return;
+    }
+    const reason = window.prompt(
+      `Cancelar a operação ${operationId.slice(0, 12)}… na V8?\n\nMotivo (opcional, será enviado e auditado):`,
+      '',
+    );
+    // null = usuário cancelou o prompt; string vazia = confirmou sem motivo.
+    if (reason === null) return;
+    setBusy('cancel');
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'cancel_operation', operationId, reason: reason || undefined },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || data?.title || 'Falha ao cancelar na V8');
+      }
+      toast.success('Operação cancelada na V8');
+    } catch (e: any) {
+      toast.error(`Falhou: ${e?.message ?? e}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const canReprocess = kind === 'simulation' && (status === 'failed' || status === 'pending');
   const canReplay = kind === 'webhook';
+  // Status finais — não permitem cancelamento na V8.
+  const finalStatuses = new Set([
+    'paid', 'canceled', 'cancelled', 'rejected', 'expired', 'finished', 'completed',
+  ]);
+  const canCancelOperation =
+    kind === 'operation' && !!operationId && !finalStatuses.has((status || '').toLowerCase());
 
   return (
     <>
