@@ -94,4 +94,15 @@ describe('RatesCLTTab.parseImportData', () => {
     expect(parseImportData([{ 'Banco': 'X', 'Seguro': 'true', 'Taxa (%)': '1' }])[0].has_insurance).toBe(true);
     expect(parseImportData([{ 'Banco': 'X', 'Seguro': 'Não', 'Taxa (%)': '1' }])[0].has_insurance).toBe(false);
   });
+
+  it('normaliza bank e table_key para UPPERCASE (alinha com índice case-sensitive)', () => {
+    const out = parseImportData([
+      { 'Banco': 'Facta', 'Tabela': 'Gold', 'Taxa (%)': '1' },
+      { 'Banco': '  facta  ', 'Tabela': '  gold  ', 'Taxa (%)': '1' },
+    ]);
+    expect(out[0].bank).toBe('FACTA');
+    expect(out[0].table_key).toBe('GOLD');
+    expect(out[1].bank).toBe('FACTA');
+    expect(out[1].table_key).toBe('GOLD');
+  });
 });
