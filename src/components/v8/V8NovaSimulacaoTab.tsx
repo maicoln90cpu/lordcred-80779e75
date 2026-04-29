@@ -175,6 +175,17 @@ export default function V8NovaSimulacaoTab() {
     maxAutoRetry, minBackoffMs, maxBackoffMs, backgroundRetryEnabled,
   });
 
+  // FIX abr/2026: isola o "Processando..." por rascunho.
+  // Antes: ops.running era global, então iniciar o Rascunho 1 travava o botão do Rascunho 2.
+  // Agora: guardamos qual draft disparou; só esse vê running=true.
+  const [runningDraftId, setRunningDraftId] = useState<string | null>(null);
+  const isThisDraftRunning = ops.running && runningDraftId === activeId;
+  const wrappedStart = async () => {
+    setRunningDraftId(activeId);
+    try { await ops.handleStart(); }
+    finally { setRunningDraftId(null); }
+  };
+
   // Auto-simulação após consulta (depende de estado local + ops)
   const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
   useEffect(() => {
