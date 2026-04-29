@@ -7,6 +7,7 @@ import { Loader2, Search, AlertTriangle, Eye } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RealtimeFreshness, AutoRetryIndicator } from './BatchAnimations';
 import PayloadInspectorDialog from './PayloadInspectorDialog';
+import BatchStatusLegend from './BatchStatusLegend';
 import {
   getV8ErrorMessageDeduped,
   getV8ErrorMeta,
