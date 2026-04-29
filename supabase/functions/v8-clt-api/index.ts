@@ -2718,6 +2718,8 @@ const handler = async (req: Request) => {
           details: { request_payload: params, response_payload: result },
         });
         break;
+      }
+      case "register_webhooks": {
         if (!isPriv) {
           result = { success: false, error: "Apenas administradores podem registrar webhooks" };
           break;
