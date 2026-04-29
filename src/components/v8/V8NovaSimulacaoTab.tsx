@@ -285,8 +285,108 @@ export default function V8NovaSimulacaoTab() {
     setBatchName('');
   }
 
+  // Etapa 4 (item 10): handler de enfileiramento. Cria o lote em status='queued'.
+  // O launcher promove queued→scheduled quando o operador não tem nenhum lote ativo.
+  async function handleQueue() {
+    const rows = pasteAnalysis.rows;
+    if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
+    if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de enfileirar`); return; }
+    if (!configId) { toast.error('Escolha uma tabela'); return; }
+    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+
+    const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
+    const numericValue = simulationMode !== 'none' && simulationValue.trim()
+      ? Number(simulationValue.replace(',', '.'))
+      : null;
+
+    const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+      body: {
+        action: 'queue_batch',
+        params: {
+          name: batchName.trim(),
+          config_id: configId,
+          config_label: cfgLabel,
+          parcelas,
+          rows,
+          strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+          simulation_mode: simulationMode,
+          simulation_value: numericValue,
+        },
+      },
+    });
+    if (error || !data?.success) {
+      toast.error('Falha ao enfileirar: ' + (data?.error || error?.message || 'erro desconhecido'));
+      return;
+    }
+    toast.success(
+      `📋 Lote enfileirado na posição #${data?.data?.queue_position ?? '?'}`,
+      { description: 'Começa sozinho assim que o lote atual terminar (verificação a cada 1 min).' },
+    );
+    setPasteText('');
+    setBatchName('');
+  }
+
   return (
     <div className="space-y-4">
+      {/* Etapa 4 (item 10): tabs de rascunhos — cada slot mantém formulário e lote ativo independentes. */}
+      <div className="flex items-center gap-1 flex-wrap border-b border-border pb-2">
+        {drafts.map((d) => {
+          const isActive = d.id === activeId;
+          const isRenaming = renamingId === d.id;
+          return (
+            <div
+              key={d.id}
+              className={`group flex items-center gap-1 rounded-t-md px-2 py-1.5 text-xs border-t border-l border-r ${
+                isActive
+                  ? 'bg-background border-border font-medium'
+                  : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70 cursor-pointer'
+              }`}
+              onClick={() => !isRenaming && setActiveId(d.id)}
+            >
+              {isRenaming ? (
+                <>
+                  <Input
+                    autoFocus value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitRename(d.id); if (e.key === 'Escape') setRenamingId(null); }}
+                    className="h-6 w-32 text-xs"
+                  />
+                  <button onClick={(e) => { e.stopPropagation(); commitRename(d.id); }} className="text-emerald-600">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>{d.label}</span>
+                  {d.activeBatchId && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Lote ativo" />}
+                  {isActive && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(d.id); setRenameValue(d.label); }}
+                      className="opacity-50 hover:opacity-100"
+                      title="Renomear"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                  {drafts.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeSlot(d.id); }}
+                      className="opacity-50 hover:opacity-100 hover:text-destructive"
+                      title="Remover rascunho"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+        <Button variant="ghost" size="sm" onClick={addSlot} className="h-7 text-xs">
+          <Plus className="w-3.5 h-3.5 mr-1" /> Novo rascunho
+        </Button>
+      </div>
+
       <BatchCreatePanel
         batchName={batchName} setBatchName={setBatchName}
         configId={configId} setConfigId={setConfigId}
