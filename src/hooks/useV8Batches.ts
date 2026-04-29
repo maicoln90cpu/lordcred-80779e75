@@ -16,6 +16,10 @@ export interface V8Batch {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Etapa 2 (item 6): pausa lógica do lote — cron e poller pulam quando true. */
+  is_paused?: boolean;
+  paused_at?: string | null;
+  paused_by?: string | null;
 }
 
 export function useV8Batches() {
