@@ -64,6 +64,7 @@ export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus,
 }: Props) {
+  const [payloadSim, setPayloadSim] = useState<any | null>(null);
   const total = simulations.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
   const success = simulations.filter((s) => s.status === 'success').length;
