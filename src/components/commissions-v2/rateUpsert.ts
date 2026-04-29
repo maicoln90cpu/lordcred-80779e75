@@ -33,6 +33,20 @@ export type RateUpsertResult = {
   errors: string[];
 };
 
+/**
+ * Normaliza bank/table_key para UPPERCASE antes de qualquer comparação ou gravação.
+ * Crítico porque o índice único do Postgres é case-sensitive — se o banco já tem
+ * 'FACTA' e a planilha trouxer 'Facta', um INSERT puro estouraria duplicate key.
+ * Também alinha com `calculate_commission_v2()` que faz UPPER(NEW.bank) na leitura.
+ */
+function normalizeRow(r: RateRow): RateRow {
+  return {
+    ...r,
+    bank: (r.bank || '').trim().toUpperCase(),
+    table_key: r.table_key ? r.table_key.trim().toUpperCase() : null,
+  };
+}
+
 /** Chave de negócio que define duplicidade. Mesma em CLT e FGTS V2. */
 function rateKey(r: Pick<RateRow, 'bank' | 'table_key' | 'term_min' | 'term_max' | 'has_insurance' | 'effective_date'>) {
   return [
