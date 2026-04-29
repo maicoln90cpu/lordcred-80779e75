@@ -93,10 +93,11 @@ describe('isRetriableErrorKind / RETRIABLE_ERROR_KINDS', () => {
     expect(isRetriableErrorKind('analysis_pending')).toBe(true);
   });
 
-  it('NÃO inclui active_consult, existing_proposal, invalid_data', () => {
+  it('NÃO inclui active_consult, existing_proposal, invalid_data, rejected_by_v8', () => {
     expect(isRetriableErrorKind('active_consult')).toBe(false);
     expect(isRetriableErrorKind('existing_proposal')).toBe(false);
     expect(isRetriableErrorKind('invalid_data')).toBe(false);
+    expect(isRetriableErrorKind('rejected_by_v8')).toBe(false);
     expect(isRetriableErrorKind('unknown')).toBe(false);
   });
 
