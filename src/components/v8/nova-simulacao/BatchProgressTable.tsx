@@ -184,12 +184,38 @@ export default function BatchProgressTable({
                       title={(() => {
                         const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                         const n = s.attempt_count ?? 0;
-                        if (k && !isRetriableErrorKind(k)) return `Linha NÃO-retentável automaticamente — tentativas pararam em ${n}. Motivo: ${k}. Auto-retry só vale para temporary_v8 e analysis_pending; outros casos exigem ação humana (ex: cancelar consulta antiga, corrigir cadastro).`;
-                        return `Tentativas usadas (${n}) / teto configurado (${maxAutoRetry}).`;
+                        const linhas = [
+                          'Existem DOIS contadores diferentes:',
+                          '1) Chamadas completas (esta coluna): cada vez que o sistema reabre o ciclo /consult → /authorize → /simulation contra a V8 para este CPF. Sobe de 1 em 1 a cada nova tentativa do auto-retry.',
+                          `2) Retentativas internas (invisíveis): dentro de UMA chamada completa, o servidor já tenta sozinho cada endpoint múltiplas vezes em caso de 5xx/429. Limites configurados em Configurações: /consult até ${'<configurado>'}x, /authorize até ${'<configurado>'}x, /simulation até ${'<configurado>'}x.`,
+                          '',
+                          `Estado atual: ${n} chamada(s) completa(s) usada(s) de até ${maxAutoRetry}.`,
+                        ];
+                        if (k && !isRetriableErrorKind(k)) {
+                          linhas.push(`Motivo "${k}" é FINAL — não vai subir mais. Casos como rejected_by_v8, invalid_data e existing_proposal exigem ação humana (cancelar consulta antiga, corrigir cadastro).`);
+                        } else if (k === 'temporary_v8' || k === 'analysis_pending') {
+                          linhas.push(`Motivo "${k}" é instabilidade temporária — auto-retry continua até ${maxAutoRetry}.`);
+                        }
+                        return linhas.join('\n');
                       })()}
                     >
                       {s.attempt_count ?? 0}
-                      {(s.attempt_count ?? 0) >= MAX_AUTO_RETRY_ATTEMPTS && <span className="text-[10px] block text-destructive">(máx)</span>}
+                      {(() => {
+                        const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                        const n = s.attempt_count ?? 0;
+                        const isFinal = k && !isRetriableErrorKind(k);
+                        const isRetriable = k === 'temporary_v8' || k === 'analysis_pending';
+                        if (isFinal && n > 0) {
+                          return <span className="text-[10px] block text-muted-foreground">(final)</span>;
+                        }
+                        if (isRetriable) {
+                          return <span className="text-[10px] block text-muted-foreground">(de até {maxAutoRetry})</span>;
+                        }
+                        if (n >= MAX_AUTO_RETRY_ATTEMPTS) {
+                          return <span className="text-[10px] block text-destructive">(máx)</span>;
+                        }
+                        return null;
+                      })()}
                     </td>
                     <td className="px-2 py-1 align-top">
                       <ReasonCell s={s} onCheckStatus={onCheckStatus} />
