@@ -189,6 +189,10 @@ export default function V8OperacoesTab() {
   const [loading, setLoading] = useState(false);
   const [expandedCpf, setExpandedCpf] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  // Etapa 2: linhas que vieram de busca direta por CPF (fora da janela dos 500).
+  // Mescladas no `filtered` para o usuário ver mesmo CPFs antigos.
+  const [remoteRows, setRemoteRows] = useState<CpfRow[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
   // Etapa 3 (item 6) — debounce de 3s + toggle de pausa para a tela parar de
