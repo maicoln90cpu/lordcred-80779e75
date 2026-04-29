@@ -649,7 +649,11 @@ export default function V8OperacoesTab() {
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Calculator className="w-3 h-3" />{r.simCount}</Badge>
                             </TooltipTrigger>
-                            <TooltipContent>{r.simCount} simulação(ões) na janela</TooltipContent>
+                            <TooltipContent className="max-w-[260px]">
+                              <strong>{r.simCount}</strong> simulações desse CPF na janela carregada.
+                              <br />
+                              O total real pode ser maior — para ver tudo, busque por este CPF (11 dígitos).
+                            </TooltipContent>
                           </Tooltip>
                           {r.successCount > 0 && (
                             <Tooltip>
