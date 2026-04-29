@@ -96,20 +96,25 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 4) Garante sessão válida antes de chamar a edge function.
-      // Se o access_token expirou, tenta refresh; se falhar, instrui o usuário.
-      let { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
-        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-        if (refreshErr || !refreshed?.session?.access_token) {
-          toast.error('Sua sessão expirou. Faça login novamente.', {
-            id: toastId,
-            duration: 8000,
-            action: { label: 'Recarregar', onClick: () => window.location.reload() },
-          });
-          return;
+      // 4) Garante sessão realmente válida antes de chamar a edge function.
+      // getSession pode devolver um token salvo localmente que já foi revogado;
+      // getUser confirma no servidor e evita disparar uma chamada que geraria 401.
+      const { data: sessionData } = await supabase.auth.getSession();
+      let accessToken = sessionData?.session?.access_token ?? null;
+      if (accessToken) {
+        const { error: userErr } = await supabase.auth.getUser(accessToken);
+        if (userErr) {
+          const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+          accessToken = refreshErr ? null : refreshed?.session?.access_token ?? null;
         }
-        sessionData = { session: refreshed.session } as any;
+      }
+      if (!accessToken) {
+        toast.error('Sua sessão expirou. Faça login novamente.', {
+          id: toastId,
+          duration: 8000,
+          action: { label: 'Recarregar', onClick: () => window.location.reload() },
+        });
+        return;
       }
 
       // 5) Dispara simulação real
@@ -131,8 +136,7 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         },
       });
 
-      // Sessão expirada → backend devolve 401 Unauthorized.
-      // Detecta tanto pelo erro do invoke quanto pelo body retornado.
+      // Sessão expirada → detecta tanto pelo erro do invoke quanto pelo body retornado.
       const errMsg = String(invokeErr?.message || result?.error || '');
       if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
         // Tenta refresh uma vez e re-tentar silenciosamente
