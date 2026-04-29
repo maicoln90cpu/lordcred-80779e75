@@ -23,6 +23,7 @@ const V8_PATHS = {
   simulate: "/private-consignment/simulation",
   operations: "/private-consignment/operation",
   operationDetail: (operationId: string) => `/private-consignment/operation/${operationId}`,
+  operationCancel: (operationId: string) => `/private-consignment/operation/${operationId}/cancel`,
 };
 
 const MAX_RETRIES_CONSULT = 3;
