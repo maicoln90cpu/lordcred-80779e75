@@ -2721,6 +2721,19 @@ const handler = async (req: Request) => {
           if ((result as any)?.success) {
             // Usa parcelas efetivas (após clamp), não o que veio do request.
             const effectiveParcelas = (result as any)?.data?.installments ?? params.parcelas;
+            // Etapa 1 (item 3): preserva clamp no raw_response para a UI mostrar tooltip.
+            const { data: existing } = await supabase
+              .from("v8_simulations")
+              .select("raw_response")
+              .eq("id", params.simulation_id)
+              .maybeSingle();
+            const baseRaw = (existing?.raw_response as any) ?? {};
+            const newRaw = {
+              ...baseRaw,
+              ...(((result as any)?.data?.raw_response) ?? {}),
+              clamp_applied: !!(result as any)?.data?.clamp_applied,
+              clamp_note: (result as any)?.data?.clamp_note ?? null,
+            };
             await supabase.from("v8_simulations").update({
               released_value: (result as any).data.released_value,
               installment_value: (result as any).data.installment_value,
@@ -2732,6 +2745,7 @@ const handler = async (req: Request) => {
               config_id: params.config_id,
               installments: effectiveParcelas,
               last_step: "simulate_only",
+              raw_response: newRaw,
             }).eq("id", params.simulation_id);
           }
         }
