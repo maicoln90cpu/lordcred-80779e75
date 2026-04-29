@@ -6,11 +6,11 @@
  *  - Faixa de valor liberado oficial (sim_value_min/max)
  *  - Margem disponível (margem_valor)
  *
- * Importante: estes valores vêm da última simulação SUCCESS deste CPF.
- * Se nenhuma for encontrada, o componente não renderiza nada.
+ * Etapa 5 — usa React Query com staleTime 60s e cacheTime 5min para evitar
+ * refetch redundante quando a mesma linha de CPF aparece em várias listas/abas.
  */
-import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -31,42 +31,36 @@ function fmtBRL(n: number | null) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+async function fetchLimits(cpf: string): Promise<Limits | null> {
+  const { data } = await supabase
+    .from('v8_simulations')
+    .select('margem_valor, sim_value_min, sim_value_max, sim_installments_min, sim_installments_max')
+    .eq('cpf', cpf)
+    .eq('status', 'success')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    installmentsMin: (data as any).sim_installments_min ?? null,
+    installmentsMax: (data as any).sim_installments_max ?? null,
+    valueMin: (data as any).sim_value_min ?? null,
+    valueMax: (data as any).sim_value_max ?? null,
+    margin: data.margem_valor != null ? Number(data.margem_valor) : null,
+  };
+}
+
 export function V8LimitsBadge({ cpf }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [limits, setLimits] = useState<Limits | null>(null);
+  const { data: limits, isLoading } = useQuery({
+    queryKey: ['v8-limits', cpf],
+    queryFn: () => fetchLimits(cpf),
+    enabled: !!cpf,
+    staleTime: 60_000,         // 60s — evita refetch dentro do mesmo trabalho do operador
+    gcTime: 5 * 60_000,        // 5min em cache antes de garbage collect
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from('v8_simulations')
-        .select(
-          'margem_valor, sim_value_min, sim_value_max, sim_installments_min, sim_installments_max',
-        )
-        .eq('cpf', cpf)
-        .eq('status', 'success')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!active) return;
-      if (data) {
-        setLimits({
-          installmentsMin: (data as any).sim_installments_min ?? null,
-          installmentsMax: (data as any).sim_installments_max ?? null,
-          valueMin: (data as any).sim_value_min ?? null,
-          valueMax: (data as any).sim_value_max ?? null,
-          margin: data.margem_valor != null ? Number(data.margem_valor) : null,
-        });
-      } else {
-        setLimits(null);
-      }
-      setLoading(false);
-    })();
-    return () => { active = false; };
-  }, [cpf]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
         <Loader2 className="w-3 h-3 animate-spin" /> lendo limites V8…
