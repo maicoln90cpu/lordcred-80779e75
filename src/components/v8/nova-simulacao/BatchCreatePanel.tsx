@@ -270,13 +270,59 @@ export default function BatchCreatePanel(props: Props) {
           />
         </div>
 
-        <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
-          {running ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
-          ) : (
-            <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
-          )}
-        </Button>
+        {/* Etapa 3 (item 7): bloco de agendamento. Operador escolhe data/hora futura
+            e o lote só inicia quando o launcher (pg_cron) chegar a esse horário. */}
+        {onSchedule && (
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <CalendarClock className="w-4 h-4" /> Agendar para horário futuro
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando ligado, o lote fica em "Agendado" e só dispara as consultas no horário escolhido. Use para iniciar lotes fora do horário comercial ou em janelas controladas.
+                </p>
+              </div>
+              <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
+            </div>
+            {scheduleEnabled && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs">Data e hora (horário de Brasília)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduledLocal}
+                    onChange={(e) => setScheduledLocal(e.target.value)}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    O sistema confere a cada minuto e dispara assim que chegar o horário.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {scheduleEnabled && onSchedule ? (
+          <Button
+            onClick={handleScheduleClick}
+            disabled={running || blockingIssues.length > 0 || !scheduledLocal}
+            size="lg"
+            className="w-full"
+            variant="default"
+          >
+            <CalendarClock className="w-4 h-4 mr-2" />
+            Agendar lote para {scheduledLocal.replace('T', ' às ')}
+          </Button>
+        ) : (
+          <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
+            {running ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
+            ) : (
+              <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
