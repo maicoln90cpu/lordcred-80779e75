@@ -194,6 +194,17 @@ export default function BatchProgressTable({
                     <td className="px-2 py-1 align-top">
                       <ReasonCell s={s} onCheckStatus={onCheckStatus} />
                     </td>
+                    <td className="px-2 py-1 text-center align-top">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Ver payload completo"
+                        onClick={() => setPayloadSim(s)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
                   </tr>
                 );
               })}
