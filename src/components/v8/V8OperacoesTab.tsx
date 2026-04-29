@@ -563,6 +563,7 @@ export default function V8OperacoesTab() {
                                     consultId={ev.consultId}
                                     operationId={ev.operationId}
                                     v8SimulationId={ev.v8SimulationId}
+                                    borrowerCpf={r.cpf}
                                     title={ev.title}
                                   />
                                 </li>
