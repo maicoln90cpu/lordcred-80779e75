@@ -82,6 +82,8 @@ export default function V8NovaSimulacaoTab() {
   const setPasteText = (v: string) => patchActive({ pasteText: v });
   const activeBatchId = active.activeBatchId;
   const setActiveBatchId = (v: string | null) => patchActive({ activeBatchId: v });
+  const autoBest = !!active.autoBest;
+  const setAutoBest = (v: boolean) => patchActive({ autoBest: v });
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
