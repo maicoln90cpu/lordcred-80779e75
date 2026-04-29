@@ -4784,6 +4784,7 @@ export type Database = {
         Returns: string
       }
       cleanup_audit_logs: { Args: never; Returns: undefined }
+      cleanup_old_v8_operation_drafts: { Args: never; Returns: number }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       corban_classify_status: { Args: { _status: string }; Returns: string }
       create_direct_channel: {
