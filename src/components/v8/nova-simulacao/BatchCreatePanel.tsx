@@ -50,6 +50,10 @@ interface Props {
   onToggleAutoSimulate: (v: boolean) => void;
   v8SettingsLoaded: boolean;
 
+  // Etapa 2 (abr/2026): Auto-melhor — tenta proposta viável automaticamente em lote.
+  autoBest: boolean;
+  onToggleAutoBest: (v: boolean) => void;
+
   // ação
   running: boolean;
   onStart: () => void;
