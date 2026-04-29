@@ -466,6 +466,17 @@ export default function V8OperacoesTab() {
 
                       {expanded && (
                         <div className="px-4 pb-4 pt-1 bg-muted/20">
+                          {r.successCount > 0 && (
+                            <div className="flex items-center justify-between gap-2 py-2 px-3 mb-2 rounded-md bg-emerald-500/5 border border-emerald-500/20">
+                              <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                                💡 Margem confirmada — calcular melhor combinação valor × prazo automaticamente.
+                              </div>
+                              <FindBestProposalButton
+                                cpf={r.cpf}
+                                onComplete={() => loadTimeline(r.cpf)}
+                              />
+                            </div>
+                          )}
                           {timelineLoading ? (
                             <div className="py-6 flex justify-center">
                               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
