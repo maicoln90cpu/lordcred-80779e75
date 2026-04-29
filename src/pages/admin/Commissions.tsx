@@ -42,9 +42,6 @@ export default function Commissions() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <DollarSign className="w-6 h-6 text-primary" />
-      <div className="space-y-4">
         <Alert className="border-warning/50 bg-warning/10">
           <Archive className="h-4 w-4 text-warning" />
           <AlertDescription className="text-warning-foreground">
