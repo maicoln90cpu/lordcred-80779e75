@@ -217,6 +217,8 @@ export default function V8NovaSimulacaoTab() {
               onRetryFailed={ops.handleRetryFailed}
               onReplayPending={ops.handleReplayPending}
               onCancelBatch={ops.handleCancelBatch}
+              onExportCsv={() => downloadBatchCsv(simulations, batchName)}
+              exportDisabled={simulations.length === 0}
             />
           }
         />
