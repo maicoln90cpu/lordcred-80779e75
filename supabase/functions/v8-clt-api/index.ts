@@ -519,6 +519,7 @@ async function actionCancelOperation(supabase: any, operationId?: string, reason
   return { success: true, data: json?.data ?? json ?? { canceled: true } };
 }
 
+async function actionGetConfigs(supabase: any) {
   const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
     const err = await resp.text();
