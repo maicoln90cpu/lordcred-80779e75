@@ -146,11 +146,60 @@ export default function CreateOperationDialog({
     }
   };
 
-  const canSubmit = !!consultId && !submitting;
+  // Etapa 5 — PEP exige ocupação. Bloqueia submit se PEP marcado e sem ocupação preenchida.
+  const isPep = !!fd.borrower?.pep;
+  const occupationMissing = isPep && !(fd.borrower?.occupation || '').trim();
+  const canSubmit = !!consultId && !submitting && !occupationMissing;
+
+  // Etapa 4 — para origin='lead' sem consultId, oferecer atalho "Consultar V8 agora".
+  const [consultingForLead, setConsultingForLead] = useState(false);
+  async function handleConsultForLead() {
+    const cpf = (fd.borrower?.cpf || '').replace(/\D/g, '');
+    const birth = fd.borrower?.birth_date || '';
+    if (cpf.length !== 11) {
+      toast({ title: 'CPF inválido', description: 'Preencha o CPF (11 dígitos) antes de consultar.', variant: 'destructive' });
+      return;
+    }
+    if (!birth) {
+      toast({ title: 'Data de nascimento ausente', description: 'A V8 exige data de nascimento para consultar.', variant: 'destructive' });
+      return;
+    }
+    setConsultingForLead(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: {
+          action: 'simulate_consult_only',
+          params: {
+            cpf, nome: fd.borrower?.name, data_nascimento: birth,
+            telefone: fd.borrower?.phone, triggered_by: 'lead_consult_for_proposal',
+          },
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || data?.user_message || 'Falha ao consultar');
+      toast({
+        title: 'Consulta enviada à V8',
+        description: 'Aguarde o webhook (~10–30s). Quando voltar, este lead aparecerá com simulação SUCCESS — então o botão "Enviar proposta" libera.',
+      });
+    } catch (e: any) {
+      toast({ title: 'Falha ao consultar V8', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setConsultingForLead(false);
+    }
+  }
+
+  /** Atualiza um item de documento individualmente (usado pelo checklist visual). */
+  function patchDoc(id: string, patch: Partial<PendingDoc>) {
+    setPendingDocs((cur) => cur.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
 
   const handleSubmit = async () => {
     if (!consultId) {
       toast({ title: "Sem consulta autorizada", description: "Faça a consulta de margem antes de criar a proposta.", variant: "destructive" });
+      return;
+    }
+    if (occupationMissing) {
+      toast({ title: 'Ocupação obrigatória', description: 'PEP marcado: preencha o campo "Ocupação" em Dados avançados.', variant: 'destructive' });
       return;
     }
     setSubmitting(true);
@@ -183,15 +232,15 @@ export default function CreateOperationDialog({
         description: opId ? `Operação ${opId} criada na V8.` : "Proposta enviada com sucesso.",
       });
 
-      // Upload de documentos pendentes (opcional, pós-criação)
+      // Upload de documentos pendentes (opcional, pós-criação) — agora com checklist visual
       if (opId && pendingDocs.length > 0) {
         const ready = pendingDocs.filter((d) => d.documentType);
         const skipped = pendingDocs.length - ready.length;
         if (ready.length > 0) {
           setUploadingDocs(true);
-          const { ok, fail } = await uploadPendingDocs(opId, ready, supabase.functions.invoke.bind(supabase.functions));
+          const { ok, fail } = await uploadPendingDocs(opId, ready, supabase.functions.invoke.bind(supabase.functions), patchDoc);
           setUploadingDocs(false);
-          if (fail > 0) toast({ title: "Documentos", description: `${ok} enviados, ${fail} falha(s).`, variant: "destructive" });
+          if (fail > 0) toast({ title: "Documentos", description: `${ok} enviados, ${fail} falha(s) — veja o checklist.`, variant: "destructive" });
           else toast({ title: "Documentos", description: `${ok} enviado(s) à V8.` });
         }
         if (skipped > 0) {
