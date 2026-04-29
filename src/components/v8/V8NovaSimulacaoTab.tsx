@@ -188,11 +188,19 @@ export default function V8NovaSimulacaoTab() {
     finally { setRunningDraftId(null); }
   };
 
-  // Auto-simulação após consulta (depende de estado local + ops)
+  // Auto-simulação após consulta — agora com 2 modos:
+  //   1. Auto-melhor (autoBest=true): para cada CPF success, tenta candidatos
+  //      do maior pro menor até a V8 aceitar. Mesma lógica do botão 🔍.
+  //   2. Auto-simulação simples (auto_simulate_after_consult): dispara
+  //      simulate_only_for_consult com os parâmetros do formulário.
   const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (!v8Settings?.auto_simulate_after_consult || !activeBatchId || !configId) return;
+    if (!activeBatchId || !configId) return;
     if (activeBatchPaused) return; // Etapa 2 (item 6): respeita pausa do lote.
+    const autoBestActive = autoBest;
+    const autoSimpleActive = !!v8Settings?.auto_simulate_after_consult;
+    if (!autoBestActive && !autoSimpleActive) return;
+
     const candidates = simulations.filter((s: any) =>
       s.status === 'success' && s.consult_id
       && (s.simulate_status ?? 'not_started') === 'not_started'
@@ -202,37 +210,55 @@ export default function V8NovaSimulacaoTab() {
     const throttle = v8Settings?.simulate_throttle_ms ?? 1200;
     const ids = candidates.map((c) => c.id);
     setAutoSimQueue((prev) => new Set([...prev, ...ids]));
+
     (async () => {
       let ok = 0;
       let fail = 0;
+      let acceptedAutoBest = 0;
       for (let i = 0; i < candidates.length; i++) {
         const sim: any = candidates[i];
         try {
-          const { data, error } = await supabase.functions.invoke('v8-clt-api', {
-            body: {
-              action: 'simulate_only_for_consult',
-              params: {
-                simulation_id: sim.id, consult_id: sim.consult_id,
-                config_id: sim.config_id || configId,
-                parcelas: parcelas || sim.installments,
-              },
-            },
-          });
-          if (error || data?.success === false) {
-            fail += 1;
-            // FIX 4: garante que o motivo aparece na UI mesmo se o backend não gravou
-            // (camada extra de segurança — caso a invoke retorne erro de rede/timeout).
-            const reason = data?.user_message || data?.detail || data?.title
-              || data?.error || error?.message || 'Erro ao chamar simulação V8';
-            try {
-              await supabase.from('v8_simulations').update({
-                simulate_status: 'failed',
-                simulate_error_message: String(reason),
-                simulate_attempted_at: new Date().toISOString(),
-              }).eq('id', sim.id);
-            } catch { /* ignore */ }
+          if (autoBestActive) {
+            // Importação dinâmica para não inflar o bundle inicial da aba.
+            const { runAutoBestForSim } = await import('@/lib/v8AutoBest');
+            const r = await runAutoBestForSim({
+              id: sim.id,
+              cpf: sim.cpf,
+              consult_id: sim.consult_id,
+              config_id: sim.config_id || configId,
+              margem_valor: sim.margem_valor,
+              sim_value_min: sim.sim_value_min,
+              sim_value_max: sim.sim_value_max,
+              sim_installments_min: sim.sim_installments_min,
+              sim_installments_max: sim.sim_installments_max,
+            });
+            if (r.status === 'success') { ok += 1; acceptedAutoBest += 1; }
+            else { fail += 1; }
           } else {
-            ok += 1;
+            const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_only_for_consult',
+                params: {
+                  simulation_id: sim.id, consult_id: sim.consult_id,
+                  config_id: sim.config_id || configId,
+                  parcelas: parcelas || sim.installments,
+                },
+              },
+            });
+            if (error || data?.success === false) {
+              fail += 1;
+              const reason = data?.user_message || data?.detail || data?.title
+                || data?.error || error?.message || 'Erro ao chamar simulação V8';
+              try {
+                await supabase.from('v8_simulations').update({
+                  simulate_status: 'failed',
+                  simulate_error_message: String(reason),
+                  simulate_attempted_at: new Date().toISOString(),
+                }).eq('id', sim.id);
+              } catch { /* ignore */ }
+            } else {
+              ok += 1;
+            }
           }
         } catch (err) {
           fail += 1;
@@ -241,13 +267,18 @@ export default function V8NovaSimulacaoTab() {
         if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttle));
       }
       if (ok + fail > 0) {
-        toast.success(
-          `🤖 Auto-simulação: ${ok} disparada(s)${fail ? ` · ${fail} falha(s)` : ''}`,
-          { description: 'Aguarde os resultados aparecerem na tabela (via webhook).' },
-        );
+        const label = autoBestActive
+          ? `🤖 Auto-melhor: ${acceptedAutoBest} aceita(s) · ${candidates.length - acceptedAutoBest} sem proposta`
+          : `🤖 Auto-simulação: ${ok} disparada(s)${fail ? ` · ${fail} falha(s)` : ''}`;
+        toast.success(label, {
+          description: autoBestActive
+            ? 'Cada CPF testou até 6 combinações valor × prazo. Veja os motivos na coluna "Por que falhou".'
+            : 'Aguarde os resultados aparecerem na tabela (via webhook).',
+          duration: 7000,
+        });
       }
     })();
-  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas, activeBatchPaused]);
+  }, [simulations, v8Settings?.auto_simulate_after_consult, autoBest, activeBatchId, configId, parcelas, activeBatchPaused]);
 
   const awaitingManualSim = simulations.filter(
     (s: any) => s.status === 'success' && (s.simulate_status ?? 'not_started') === 'not_started',
