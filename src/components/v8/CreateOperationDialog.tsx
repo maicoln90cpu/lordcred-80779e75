@@ -10,6 +10,11 @@ import { Loader2, Save, Send, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useV8OperationDraft, type DraftOrigin } from "@/hooks/useV8OperationDraft";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import CreateOperationDocsSection, {
+  uploadPendingDocs,
+  UploadProgress,
+  type PendingDoc,
+} from "./CreateOperationDocsSection";
 
 /**
  * V8 — Etapa 5: Diálogo "Criar Proposta" (POST /operation).
@@ -96,6 +101,8 @@ export default function CreateOperationDialog({
   });
   const [submitting, setSubmitting] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
 
   // Resetar form quando dialog reabrir com origem nova (e nenhum draft carregado)
   useEffect(() => {
