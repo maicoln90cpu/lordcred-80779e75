@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Link } from 'react-router-dom';
+import { Archive } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { DollarSign, Lightbulb, ClipboardList, Target } from 'lucide-react';
@@ -41,7 +44,19 @@ export default function Commissions() {
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Comissões Parceiros</h1>
+      <div className="space-y-4">
+        <Alert className="border-warning/50 bg-warning/10">
+          <Archive className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-warning-foreground">
+            <strong>Módulo legado (somente leitura)</strong> — este é o histórico do antigo Comissões Parceiros V1.
+            Nenhuma nova função será adicionada aqui. Use o módulo oficial em{' '}
+            <Link to="/admin/commissions-v2" className="underline font-semibold">Comissões Parceiros</Link>.
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex items-center gap-3">
+          <DollarSign className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold">Comissões Parceiros (Legado V1)</h1>
           <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
         </div>
 
