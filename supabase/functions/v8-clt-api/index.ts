@@ -2679,7 +2679,45 @@ const handler = async (req: Request) => {
         });
         break;
       }
-      case "register_webhooks": {
+      case "queue_batch": {
+        result = await actionQueueBatch(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_queue_batch",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId, userEmail,
+          targetTable: "v8_batches",
+          targetId: (result as any)?.data?.batch_id ?? null,
+          details: { request_payload: { name: params?.name, rows_count: Array.isArray(params?.rows) ? params.rows.length : 0 }, response_payload: result },
+        });
+        break;
+      }
+      case "cancel_queue": {
+        const batchId = String(params?.batch_id ?? "");
+        result = batchId
+          ? await actionCancelQueue(supabase, batchId, userId, isPriv)
+          : { success: false, error: "batch_id obrigatório" };
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_queue", category: "simulator",
+          success: !!(result as any)?.success, userId, userEmail,
+          targetTable: "v8_batches", targetId: batchId || null,
+          details: { request_payload: params, response_payload: result },
+        });
+        break;
+      }
+      case "reorder_queue": {
+        const batchId = String(params?.batch_id ?? "");
+        const direction = (params?.direction === "down" ? "down" : "up") as "up" | "down";
+        result = batchId
+          ? await actionReorderQueue(supabase, batchId, direction, userId, isPriv)
+          : { success: false, error: "batch_id obrigatório" };
+        await writeAuditLog(supabase, {
+          action: "v8_reorder_queue", category: "simulator",
+          success: !!(result as any)?.success, userId, userEmail,
+          targetTable: "v8_batches", targetId: batchId || null,
+          details: { request_payload: params, response_payload: result },
+        });
+        break;
         if (!isPriv) {
           result = { success: false, error: "Apenas administradores podem registrar webhooks" };
           break;
