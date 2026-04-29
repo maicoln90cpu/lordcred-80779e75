@@ -292,7 +292,16 @@ export default function RatesCLTTab() {
               </div>
               {importPreview.length > 0 && (
                 <div className="border rounded-md p-3 bg-muted/30">
-                  <p className="text-sm font-medium mb-2">Preview: {importPreview.length} taxas (vigência: hoje)</p>
+                  <p className="text-sm font-medium mb-2">
+                    Preview: {importPreview.length} taxa(s)
+                    {importStats && (
+                      <span className="ml-2 text-xs font-normal">
+                        — <span className="text-emerald-500">{importStats.newCount} nova(s)</span>
+                        {' · '}
+                        <span className="text-amber-500">{importStats.replaceCount} substituída(s)</span>
+                      </span>
+                    )}
+                  </p>
                   <div className="max-h-40 overflow-auto text-xs">
                     <Table>
                       <TableHeader><TableRow>
