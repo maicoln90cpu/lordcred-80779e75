@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useV8Operations, type V8OperationSummary } from '@/hooks/useV8Operations';
 import { getV8OperationTone, getV8ToneClass, OPERATION_ROWS, V8StatusGlossary } from './V8StatusGlossary';
+import { V8StatusBadgePair } from './V8StatusBadgePair';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
@@ -71,9 +72,7 @@ function DateField({ label, value, onChange }: { label: string; value: Date; onC
 // impressão de que ele estava sendo clicado sozinho.
 const StatusBadge = forwardRef<HTMLSpanElement, { status?: string | null }>(({ status }, ref) => (
   <span ref={ref} className="inline-flex">
-    <Badge variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
-      {status || '—'}
-    </Badge>
+    <V8StatusBadgePair status={status} compact />
   </span>
 ));
 StatusBadge.displayName = 'StatusBadge';

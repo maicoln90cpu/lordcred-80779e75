@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useV8Operations } from '@/hooks/useV8Operations';
 import { supabase } from '@/integrations/supabase/client';
 import { V8StatusGlossary } from './V8StatusGlossary';
+import { V8StatusBadgePair } from './V8StatusBadgePair';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
@@ -343,7 +344,7 @@ export default function V8ConsultasTab() {
                 {filteredOperations.map((operation) => (
                   <tr key={operation.operationId} className="border-t">
                     <td className="px-3 py-2">
-                      <Badge variant="outline">{operation.status || '—'}</Badge>
+                      <V8StatusBadgePair status={operation.status} compact />
                     </td>
                     <td className="px-3 py-2">{operation.name || '—'}</td>
                     <td className="px-3 py-2 font-mono">{formatCpf(operation.documentNumber)}</td>
@@ -410,7 +411,7 @@ export default function V8ConsultasTab() {
                 {filteredConsults.map((consult) => (
                   <tr key={consult.consultId || `${consult.documentNumber}-${consult.createdAt}`} className="border-t align-top">
                     <td className="px-3 py-2">
-                      <Badge variant="outline">{consult.status || '—'}</Badge>
+                      <V8StatusBadgePair status={consult.status} compact />
                     </td>
                     <td className="px-3 py-2">{consult.name || '—'}</td>
                     <td className="px-3 py-2 font-mono">{formatCpf(consult.documentNumber)}</td>
