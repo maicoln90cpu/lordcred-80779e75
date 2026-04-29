@@ -477,7 +477,48 @@ async function actionGetOperation(operationId?: string) {
   return { success: true, data: json?.data ?? json };
 }
 
-async function actionGetConfigs(supabase: any) {
+/**
+ * Cancela uma operação na V8 (POST /private-consignment/operation/{id}/cancel).
+ * Doc oficial V8: cancela proposta enquanto ainda elegível para cancelamento.
+ * Após sucesso, atualiza v8_operations_local.status='canceled' para refletir na UI.
+ */
+async function actionCancelOperation(supabase: any, operationId?: string, reason?: string) {
+  const safeOperationId = String(operationId || "").trim();
+  if (!safeOperationId) {
+    return { success: false, error: "operationId é obrigatório" };
+  }
+
+  const body = reason ? JSON.stringify({ reason: String(reason).slice(0, 500) }) : undefined;
+  const resp = await v8Fetch(V8_PATHS.operationCancel(safeOperationId), {
+    method: "POST",
+    body,
+  });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('cancel_operation', {
+      ...err,
+      raw: err.parsed ?? err.rawText,
+    });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+
+  // Reflete localmente — não bloqueia em caso de falha de update.
+  try {
+    await supabase
+      .from("v8_operations_local")
+      .update({
+        status: "canceled",
+        last_updated_at: new Date().toISOString(),
+        raw_response: json?.data ?? json ?? null,
+      })
+      .eq("operation_id", safeOperationId);
+  } catch (_e) { /* best-effort */ }
+
+  return { success: true, data: json?.data ?? json ?? { canceled: true } };
+}
+
   const resp = await v8Fetch(V8_PATHS.configs, { method: "GET" });
   if (!resp.ok) {
     const err = await resp.text();
