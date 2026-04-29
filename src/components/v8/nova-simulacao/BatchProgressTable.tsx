@@ -147,11 +147,27 @@ export default function BatchProgressTable({
                       )}
                     </td>
                     <td className="px-2 py-1 text-right"><MargemDispCell simulation={s as any} /></td>
-                    <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1 text-right">
+                      {s.released_value != null ? (
+                        <span title={(s.simulate_status ?? 'not_started') !== 'success' ? 'Estimativa (máximo da faixa V8). Clique em "Simular selecionados" para o valor real.' : 'Valor real calculado pela V8 via /simulation.'}>
+                          R$ {Number(s.released_value).toFixed(2)}
+                          {(s.simulate_status ?? 'not_started') !== 'success' && (
+                            <span className="ml-1 text-[9px] text-amber-600 align-top">~est</span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                    <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
+                    <td
+                      className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}
+                      title={(() => {
+                        const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                        if (k && !isRetriableErrorKind(k)) return `Esta linha não é retentável automaticamente (motivo: ${k}). Auto-retry só vale para temporary_v8 e analysis_pending.`;
+                        return `Tentativas usadas / teto configurado (${maxAutoRetry}).`;
+                      })()}
+                    >
                       {s.attempt_count ?? 0}
                       {(s.attempt_count ?? 0) >= MAX_AUTO_RETRY_ATTEMPTS && <span className="text-[10px] block text-destructive">(máx)</span>}
                     </td>
