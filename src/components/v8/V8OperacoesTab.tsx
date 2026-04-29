@@ -26,6 +26,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TimelineEventActions from './TimelineEventActions';
 import { FindBestProposalButton } from './FindBestProposalButton';
 import { V8LimitsBadge } from './V8LimitsBadge';
+import { V8StatusBadgePair } from './V8StatusBadgePair';
 
 /**
  * V8 — Aba "Operações" (timeline por CPF)
