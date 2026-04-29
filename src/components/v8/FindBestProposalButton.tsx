@@ -4,25 +4,34 @@
  * Aparece nos cards de CPF da aba Operações quando o CPF tem `status=success`
  * (margem confirmada) mas `simulate_status=failed` (proposta não fechou).
  *
- * Fluxo:
- *  1. Lê última simulação do CPF (margem, valueMin/Max, monthMin, config).
- *  2. Lê opções de parcela aceitas pela tabela (`v8_configs_cache`).
- *  3. Calcula melhor combinação valor × prazo (`findBestProposal`).
- *  4. Dispara UMA simulação real V8 (`simulate_only_for_consult`) com a combinação.
- *  5. Toast com resultado. UI atualiza via realtime.
- *
- * Não chama V8 mais de uma vez — toda a busca é local.
+ * Fluxo (revisado abr/2026):
+ *  1. Lê última simulação do CPF (margem, limites oficiais V8, config).
+ *  2. Lê opções de parcela aceitas pela tabela (`v8_configs_cache`) com
+ *     fallback para o conjunto padrão CLT.
+ *  3. Filtra por `sim_installments_min/max` (limites do CPF) e gera candidatos
+ *     ordenados (`buildProposalCandidates`).
+ *  4. Tenta cada candidato sequencialmente em `simulate_only_for_consult`
+ *     usando modo `installment_face_value` (parcela segura). Para no primeiro
+ *     que a V8 aceitar — máximo de 6 tentativas.
+ *  5. Toast informativo a cada tentativa. Atualização do card via realtime.
  */
 import { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { findBestProposal } from '@/lib/v8FindBestProposal';
+import { buildProposalCandidates } from '@/lib/v8FindBestProposal';
 
 interface Props {
   cpf: string;
   onComplete?: () => void;
+}
+
+const MAX_ATTEMPTS = 6;
+const DEFAULT_CLT_INSTALLMENTS = [6, 8, 10, 12, 18, 24, 36, 46];
+
+function formatBRL(n: number) {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export function FindBestProposalButton({ cpf, onComplete }: Props) {
@@ -30,12 +39,14 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
 
   async function handleClick() {
     setBusy(true);
-    const toastId = toast.loading('Calculando melhor combinação valor × prazo...');
+    const toastId = toast.loading('Calculando combinações viáveis...');
     try {
-      // 1) Última simulação SUCCESS deste CPF (mesmo se simulate falhou)
+      // 1) Última simulação SUCCESS deste CPF
       const { data: sim, error } = await supabase
         .from('v8_simulations')
-        .select('id, consult_id, config_id, margem_valor, sim_value_min, sim_value_max, sim_month_min, status')
+        .select(
+          'id, consult_id, config_id, margem_valor, sim_value_min, sim_value_max, sim_month_min, sim_month_max, sim_installments_min, sim_installments_max, status',
+        )
         .eq('cpf', cpf)
         .eq('status', 'success')
         .order('updated_at', { ascending: false })
@@ -46,7 +57,8 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         toast.error('Nenhuma consulta com sucesso encontrada para este CPF.', { id: toastId });
         return;
       }
-      if (!sim.margem_valor || Number(sim.margem_valor) <= 0) {
+      const margin = Number(sim.margem_valor);
+      if (!margin || margin <= 0) {
         toast.error('Margem disponível não detectada — não é possível calcular.', { id: toastId });
         return;
       }
@@ -55,50 +67,35 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 2) Parcelas aceitas pela tabela.
-      // Fallback: se a config não está no cache local (caso comum quando o
-      // cache ainda não foi sincronizado ou a tabela é antiga), usa o conjunto
-      // padrão CLT V8 [6, 8, 10, 12, 18, 24, 36, 46]. A V8 valida na chamada
-      // real de qualquer jeito — se algum prazo não servir, ela recusa e o
-      // toast informa o motivo verdadeiro.
-      const DEFAULT_CLT_INSTALLMENTS = [6, 8, 10, 12, 18, 24, 36, 46];
+      // 2) Parcelas da tabela (fallback se cache vazio)
       const { data: cfg } = await supabase
         .from('v8_configs_cache' as any)
         .select('raw_data')
         .eq('id', sim.config_id)
         .maybeSingle();
-
       const rawOptions: number[] = Array.isArray((cfg as any)?.raw_data?.number_of_installments)
         ? (cfg as any).raw_data.number_of_installments
         : DEFAULT_CLT_INSTALLMENTS;
-      const minMonth = Number(sim.sim_month_min ?? 0);
-      const installmentOptions = rawOptions
-        .filter((n) => Number.isInteger(n) && n > 0 && (minMonth ? n >= minMonth : true));
 
-      if (installmentOptions.length === 0) {
+      // 3) Gera candidatos respeitando limites oficiais da V8 (do CPF).
+      const candidates = buildProposalCandidates({
+        marginValue: margin,
+        installmentOptions: rawOptions,
+        valueMin: sim.sim_value_min as number | null,
+        valueMax: sim.sim_value_max as number | null,
+        installmentsMin: (sim as any).sim_installments_min as number | null,
+        installmentsMax: (sim as any).sim_installments_max as number | null,
+      }).slice(0, MAX_ATTEMPTS);
+
+      if (candidates.length === 0) {
         toast.error(
-          `Nenhum prazo da tabela atende ao mínimo da V8 (${minMonth}x). Margem muito baixa.`,
+          'Nenhuma combinação cabe nos limites da V8 (parcelas/valor/margem).',
           { id: toastId },
         );
         return;
       }
 
-      // 3) Calcula melhor combinação
-      const best = findBestProposal({
-        marginValue: Number(sim.margem_valor),
-        installmentOptions,
-        valueMin: sim.sim_value_min as number | null,
-        valueMax: sim.sim_value_max as number | null,
-      });
-
-      if (!best) {
-        toast.error('Margem insuficiente até para o menor valor da tabela.', { id: toastId });
-        return;
-      }
-
-      // 4) Garante sessão realmente válida antes de chamar a edge function.
-      // getSession pode devolver um token salvo localmente que já foi revogado;
-      // getUser confirma no servidor e evita disparar uma chamada que geraria 401.
+      // 4) Garante sessão válida (refresh se necessário)
       const { data: sessionData } = await supabase.auth.getSession();
       let accessToken = sessionData?.session?.access_token ?? null;
       if (accessToken) {
@@ -117,57 +114,65 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 5) Dispara simulação real
-      toast.loading(
-        `Simulando V8: ${best.installments}x · valor ~R$ ${best.estimatedDisbursedValue.toLocaleString('pt-BR')}...`,
-        { id: toastId },
-      );
-      const { data: result, error: invokeErr } = await supabase.functions.invoke('v8-clt-api', {
-        body: {
-          action: 'simulate_only_for_consult',
-          params: {
-            simulation_id: sim.id,
-            consult_id: sim.consult_id,
-            config_id: sim.config_id,
-            parcelas: best.installments,
-            simulation_mode: 'disbursed_amount',
-            simulation_value: best.estimatedDisbursedValue,
-          },
-        },
-      });
+      // 5) Tenta candidatos em sequência. Para no primeiro que a V8 aceitar.
+      let lastError = '';
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        toast.loading(
+          `Tentativa ${i + 1}/${candidates.length}: ${c.installments}x · parcela ${formatBRL(c.simulationValue)}`,
+          { id: toastId },
+        );
 
-      // Sessão expirada → detecta tanto pelo erro do invoke quanto pelo body retornado.
-      const errMsg = String(invokeErr?.message || result?.error || '');
-      if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
-        // Tenta refresh uma vez e re-tentar silenciosamente
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (refreshed?.session?.access_token) {
+        const { data: result, error: invokeErr } = await supabase.functions.invoke('v8-clt-api', {
+          body: {
+            action: 'simulate_only_for_consult',
+            params: {
+              simulation_id: sim.id,
+              consult_id: sim.consult_id,
+              config_id: sim.config_id,
+              parcelas: c.installments,
+              simulation_mode: c.simulationMode,
+              simulation_value: c.simulationValue,
+            },
+          },
+        });
+
+        const errMsg = String(invokeErr?.message || result?.error || '');
+        if (errMsg.includes('401') || /unauthorized/i.test(errMsg)) {
+          await supabase.auth.refreshSession();
           toast.error('Sessão renovada. Clique novamente em "Encontrar proposta viável".', {
             id: toastId,
             duration: 6000,
           });
-        } else {
-          toast.error('Sua sessão expirou. Faça login novamente.', {
-            id: toastId,
-            duration: 8000,
-            action: { label: 'Recarregar', onClick: () => window.location.reload() },
-          });
+          return;
         }
-        return;
+
+        if (result?.success) {
+          toast.success(
+            `✅ Proposta encontrada em ${c.installments}x — verifique o card.`,
+            { id: toastId },
+          );
+          onComplete?.();
+          return;
+        }
+
+        // Erro retornado pela V8 — guarda e tenta próximo candidato
+        lastError = String(
+          result?.title ||
+            result?.detail ||
+            result?.user_message ||
+            result?.error ||
+            invokeErr?.message ||
+            'erro desconhecido',
+        );
+        // Pequena pausa entre tentativas para evitar rate limit
+        await new Promise((r) => setTimeout(r, 600));
       }
 
-      if (result?.success) {
-        toast.success(
-          `✅ Proposta encontrada em ${best.installments}x — verifique o card.`,
-          { id: toastId },
-        );
-        onComplete?.();
-      } else {
-        toast.error(
-          `V8 recusou: ${result?.error || invokeErr?.message || 'erro desconhecido'}. Tente valor menor manualmente.`,
-          { id: toastId, duration: 6000 },
-        );
-      }
+      toast.error(
+        `Não foi possível encontrar proposta automática. Último motivo da V8: ${lastError}. Tente manualmente com parcela menor.`,
+        { id: toastId, duration: 9000 },
+      );
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || String(err)}`, { id: toastId });
     } finally {

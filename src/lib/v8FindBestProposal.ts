@@ -1,32 +1,31 @@
 /**
- * v8FindBestProposal — encontra a melhor combinação `valor × prazo` que cabe
- * dentro da margem disponível do trabalhador, sem precisar bater na V8 várias
- * vezes.
+ * v8FindBestProposal — gera candidatos de proposta `valor × prazo` que respeitam
+ * os limites OFICIAIS retornados pela V8 no webhook de consulta:
+ *   - simulationLimit.installmentsMin / installmentsMax
+ *   - simulationLimit.valueMin / valueMax
+ *   - availableMarginValue (margem disponível do trabalhador)
  *
- * Estratégia (paridade com sistemas concorrentes que devolvem proposta pronta):
- *  1. Para cada prazo aceito pela tabela (`number_of_installments`), estima a
- *     parcela usando uma TAXA MÉDIA conhecida (juros consignado CLT V8).
- *  2. A partir dessa parcela, calcula o valor liberado máximo cuja parcela
- *     mensal seja ≤ margem disponível.
- *  3. Retorna a combinação com MAIOR valor liberado (geralmente o prazo mais
- *     longo) — é o que devolve a melhor proposta para o cliente.
+ * Estratégia (revisada após erros reais de produção):
+ *  - Em vez de adivinhar valor liberado via taxa estimada (que difere da real
+ *    da tabela e estoura a margem), usamos preferencialmente o modo
+ *    `installment_face_value`: enviamos a parcela desejada (margem disponível
+ *    com fator de segurança) e a V8 calcula o valor liberado real.
+ *  - Geramos uma lista de candidatos ordenados (maior prazo + parcela mais
+ *    agressiva primeiro). Se a V8 recusar o melhor, o componente tenta o
+ *    próximo automaticamente até esgotar.
  *
- * IMPORTANTE: a taxa usada aqui é estimada (DEFAULT_MONTHLY_RATE). A V8 vai
- * recalcular com a taxa real da tabela ao receber `simulate`. Por isso aplicamos
- * uma margem de segurança (SAFETY_FACTOR) de 5% para evitar ultrapassar margem
- * por diferenças de coeficiente.
- *
- * Quando a V8 expor coeficientes por tabela, esta lib pode ler direto deles.
+ * `findBestProposal` (legacy) é mantido para compatibilidade do teste antigo.
  */
 
 /** Taxa mensal padrão consignado CLT V8 (estimativa conservadora). */
 export const DEFAULT_MONTHLY_RATE = 0.0299; // 2,99% a.m.
 
-/** Margem de segurança aplicada ao valor calculado para evitar estouro. */
-export const SAFETY_FACTOR = 0.95;
+/** Margem de segurança aplicada à parcela enviada para evitar estouro. */
+export const SAFETY_FACTORS = [0.95, 0.85, 0.75, 0.65] as const;
 
 /** Limites práticos. */
 const MIN_DISBURSED = 300;
+const MIN_INSTALLMENT = 25; // V8 raramente aceita parcela abaixo disso
 
 export interface FindBestProposalInput {
   marginValue: number;          // R$ disponíveis por mês
@@ -34,12 +33,28 @@ export interface FindBestProposalInput {
   monthlyRate?: number;         // override de taxa
   valueMin?: number | null;     // sim_value_min da V8
   valueMax?: number | null;     // sim_value_max da V8
+  /** Limites oficiais V8: nº de parcelas min/max permitidos para este CPF. */
+  installmentsMin?: number | null;
+  installmentsMax?: number | null;
 }
 
 export interface BestProposal {
   installments: number;
   estimatedInstallmentValue: number; // parcela mensal estimada
   estimatedDisbursedValue: number;   // valor liberado estimado
+}
+
+/** Candidato de tentativa para enviar à V8. */
+export interface ProposalCandidate {
+  installments: number;
+  /** Modo recomendado para a V8. */
+  simulationMode: 'installment_face_value' | 'disbursed_amount';
+  /** Valor a enviar (parcela ou valor liberado, conforme `simulationMode`). */
+  simulationValue: number;
+  /** Para feedback ao operador. */
+  estimatedDisbursedValue: number;
+  estimatedInstallmentValue: number;
+  safetyFactor: number;
 }
 
 /**
@@ -52,31 +67,77 @@ export function presentValueFromInstallment(pmt: number, rate: number, n: number
   return pmt * (1 - Math.pow(1 + rate, -n)) / rate;
 }
 
-export function findBestProposal(input: FindBestProposalInput): BestProposal | null {
-  const { marginValue, installmentOptions } = input;
-  if (!Number.isFinite(marginValue) || marginValue <= 0) return null;
-  if (!installmentOptions || installmentOptions.length === 0) return null;
+/**
+ * Aplica os limites oficiais da V8 sobre a lista de prazos da tabela.
+ * Os limites de installments podem vir tanto da configuração da tabela
+ * (`installmentOptions`) quanto do CPF (`installmentsMin/Max`). A interseção
+ * é o que a V8 vai aceitar de fato.
+ */
+export function filterInstallments(
+  installmentOptions: number[],
+  installmentsMin?: number | null,
+  installmentsMax?: number | null,
+): number[] {
+  const min = Number.isFinite(Number(installmentsMin)) ? Number(installmentsMin) : 1;
+  const max = Number.isFinite(Number(installmentsMax)) ? Number(installmentsMax) : Infinity;
+  return (installmentOptions || [])
+    .filter((n) => Number.isInteger(n) && n > 0 && n >= min && n <= max)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Gera candidatos ordenados (melhor primeiro). O componente tenta um por um
+ * até a V8 aceitar.
+ */
+export function buildProposalCandidates(input: FindBestProposalInput): ProposalCandidate[] {
+  const { marginValue } = input;
+  if (!Number.isFinite(marginValue) || marginValue <= 0) return [];
+  const allowed = filterInstallments(
+    input.installmentOptions,
+    input.installmentsMin,
+    input.installmentsMax,
+  );
+  if (allowed.length === 0) return [];
 
   const rate = input.monthlyRate ?? DEFAULT_MONTHLY_RATE;
   const valueMin = Math.max(MIN_DISBURSED, Number(input.valueMin ?? MIN_DISBURSED));
   const valueMax = Number(input.valueMax ?? Infinity);
 
-  let best: BestProposal | null = null;
+  // Maior prazo primeiro (mais valor liberado).
+  const installmentsDesc = [...allowed].sort((a, b) => b - a);
 
-  for (const n of installmentOptions) {
-    if (!Number.isInteger(n) || n <= 0) continue;
-    const pmt = marginValue * SAFETY_FACTOR;
-    let pv = presentValueFromInstallment(pmt, rate, n);
-    // Trava no teto da V8 e arredonda pra baixo (R$ 1).
-    pv = Math.floor(Math.min(pv, valueMax));
-    if (pv < valueMin) continue;
-    if (!best || pv > best.estimatedDisbursedValue) {
-      best = {
+  const candidates: ProposalCandidate[] = [];
+  for (const n of installmentsDesc) {
+    for (const factor of SAFETY_FACTORS) {
+      const pmt = Math.max(MIN_INSTALLMENT, Number((marginValue * factor).toFixed(2)));
+      if (pmt > marginValue) continue;
+      const pv = presentValueFromInstallment(pmt, rate, n);
+      const cappedPv = Math.floor(Math.min(pv, valueMax));
+      if (cappedPv < valueMin) continue;
+      candidates.push({
         installments: n,
-        estimatedInstallmentValue: Number(pmt.toFixed(2)),
-        estimatedDisbursedValue: pv,
-      };
+        // Modo seguro: parcela desejada — V8 calcula o valor liberado real.
+        simulationMode: 'installment_face_value',
+        simulationValue: pmt,
+        estimatedInstallmentValue: pmt,
+        estimatedDisbursedValue: cappedPv,
+        safetyFactor: factor,
+      });
     }
   }
-  return best;
+  return candidates;
+}
+
+/**
+ * Mantido para compatibilidade. Devolve o primeiro candidato (melhor estimativa).
+ */
+export function findBestProposal(input: FindBestProposalInput): BestProposal | null {
+  const candidates = buildProposalCandidates(input);
+  if (candidates.length === 0) return null;
+  const best = candidates[0];
+  return {
+    installments: best.installments,
+    estimatedInstallmentValue: best.estimatedInstallmentValue,
+    estimatedDisbursedValue: best.estimatedDisbursedValue,
+  };
 }
