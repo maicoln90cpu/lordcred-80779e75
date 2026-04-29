@@ -344,7 +344,7 @@ export default function V8ConsultasTab() {
                 {filteredOperations.map((operation) => (
                   <tr key={operation.operationId} className="border-t">
                     <td className="px-3 py-2">
-                      <Badge variant="outline">{operation.status || '—'}</Badge>
+                      <V8StatusBadgePair status={operation.status} compact />
                     </td>
                     <td className="px-3 py-2">{operation.name || '—'}</td>
                     <td className="px-3 py-2 font-mono">{formatCpf(operation.documentNumber)}</td>
