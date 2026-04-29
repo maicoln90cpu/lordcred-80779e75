@@ -327,6 +327,46 @@ export default function V8NovaSimulacaoTab() {
     setBatchName('');
   }
 
+  // Etapa 1 (item 1, abr/2026): "Executar todos em sequência".
+  // Enfileira cada rascunho válido. O primeiro vira 'scheduled' (roda já),
+  // os demais ficam em 'queued' e o launcher promove um por vez.
+  const [runAllBusy, setRunAllBusy] = useState(false);
+  async function handleRunAllDrafts() {
+    if (runAllBusy) return;
+    const eligible = drafts.filter((d) => d.pasteText.trim() && d.batchName.trim() && d.configId);
+    if (eligible.length === 0) {
+      toast.error('Nenhum rascunho preenchido (precisa de nome, tabela e CPFs).');
+      return;
+    }
+    if (!window.confirm(
+      `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
+      `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar (verificação a cada 1 min).\n\nConfirmar?`,
+    )) return;
+    setRunAllBusy(true);
+    try {
+      const results = await queueAllDrafts({
+        drafts,
+        configs,
+        strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+      });
+      const summary = summarizeRunAll(results);
+      const skippedDetail = results
+        .filter((r) => r.status !== 'queued')
+        .map((r) => `• ${r.label}: ${r.reason}`)
+        .join('\n');
+      if (summary.queued > 0) {
+        toast.success(`▶ Sequência iniciada: ${summary.text}`, {
+          description: skippedDetail || 'Acompanhe abaixo na "Fila de execução".',
+          duration: 8000,
+        });
+      } else {
+        toast.error(`Nada enfileirado: ${summary.text}`, { description: skippedDetail });
+      }
+    } finally {
+      setRunAllBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
