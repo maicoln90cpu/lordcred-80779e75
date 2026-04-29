@@ -939,6 +939,7 @@ export default function V8NovaSimulacaoTab() {
                   <tr>
                     <th className="px-2 py-1 text-left">CPF</th>
                     <th className="px-2 py-1 text-left">Status</th>
+                    <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote.">Parcelas</th>
                     <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                       💰 Margem Disp.
                     </th>
@@ -967,6 +968,23 @@ export default function V8NovaSimulacaoTab() {
                               {getSimulationStatusLabel(s)}
                             </Badge>
                           );
+                        })()}
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        {(() => {
+                          const inst = (s as any).installments;
+                          if (inst != null) {
+                            return <span className="font-medium">{inst}x</span>;
+                          }
+                          // Ainda não simulado — mostra a parcela configurada (cinza)
+                          if (parcelas) {
+                            return (
+                              <span className="text-muted-foreground" title="Parcela configurada no lote — ainda não confirmada pela V8">
+                                ({parcelas}x)
+                              </span>
+                            );
+                          }
+                          return <span className="text-muted-foreground">—</span>;
                         })()}
                       </td>
                       <td className="px-2 py-1 text-right">
