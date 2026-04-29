@@ -442,8 +442,20 @@ export default function CreateOperationDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label>Ocupação</Label>
-                  <Input value={fd.borrower?.occupation || ""} onChange={(e) => setField(["borrower","occupation"], e.target.value)} />
+                  <Label>
+                    Ocupação{isPep && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  <Input
+                    value={fd.borrower?.occupation || ""}
+                    onChange={(e) => setField(["borrower","occupation"], e.target.value)}
+                    aria-invalid={occupationMissing}
+                    className={occupationMissing ? 'border-destructive' : undefined}
+                  />
+                  {occupationMissing && (
+                    <p className="text-[11px] text-destructive mt-1">
+                      Obrigatório quando PEP marcado.
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 pt-6">
                   <input
