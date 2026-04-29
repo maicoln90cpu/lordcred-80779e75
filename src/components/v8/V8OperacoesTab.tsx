@@ -48,6 +48,9 @@ interface CpfRow {
   opCount: number;
   whCount: number;
   lastStatus: string | null;
+  successCount: number;
+  failedCount: number;
+  pendingCount: number;
 }
 
 interface TimelineEvent {
