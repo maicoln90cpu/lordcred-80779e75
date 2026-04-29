@@ -110,8 +110,8 @@ export default function BatchProgressTable({
                 <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                   💰 Margem Disp.
                 </th>
-                <th className="px-2 py-1 text-right">Liberado</th>
-                <th className="px-2 py-1 text-right">Parcela</th>
+                <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Liberado</th>
+                <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Parcela</th>
                 <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
                 <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
@@ -147,11 +147,27 @@ export default function BatchProgressTable({
                       )}
                     </td>
                     <td className="px-2 py-1 text-right"><MargemDispCell simulation={s as any} /></td>
-                    <td className="px-2 py-1 text-right">{s.released_value != null ? `R$ ${Number(s.released_value).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1 text-right">
+                      {s.released_value != null ? (
+                        <span title={(s.simulate_status ?? 'not_started') !== 'success' ? 'Estimativa (máximo da faixa V8). Clique em "Simular selecionados" para o valor real.' : 'Valor real calculado pela V8 via /simulation.'}>
+                          R$ {Number(s.released_value).toFixed(2)}
+                          {(s.simulate_status ?? 'not_started') !== 'success' && (
+                            <span className="ml-1 text-[9px] text-amber-600 align-top">~est</span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
                     <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
-                    <td className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}>
+                    <td
+                      className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}
+                      title={(() => {
+                        const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+                        if (k && !isRetriableErrorKind(k)) return `Esta linha não é retentável automaticamente (motivo: ${k}). Auto-retry só vale para temporary_v8 e analysis_pending.`;
+                        return `Tentativas usadas / teto configurado (${maxAutoRetry}).`;
+                      })()}
+                    >
                       {s.attempt_count ?? 0}
                       {(s.attempt_count ?? 0) >= MAX_AUTO_RETRY_ATTEMPTS && <span className="text-[10px] block text-destructive">(máx)</span>}
                     </td>
@@ -175,6 +191,18 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
   const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
+
+  // Sucesso — não é falha, então mostra o estado da etapa de simulação.
+  if (s.status === 'success') {
+    const simStatus = s.simulate_status ?? 'not_started';
+    if (simStatus === 'success') {
+      return <span className="text-emerald-600">Proposta calculada</span>;
+    }
+    if (simStatus === 'failed') {
+      return <span className="text-amber-600">Margem aprovada · simulação falhou — tente "Encontrar proposta viável"</span>;
+    }
+    return <span className="text-muted-foreground">Margem aprovada — clique em "Simular selecionados" para calcular a proposta</span>;
+  }
 
   if (isActiveConsult) {
     const snapshot = getV8StatusSnapshot(s.raw_response);
