@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { findBestProposal, presentValueFromInstallment, DEFAULT_MONTHLY_RATE } from '../v8FindBestProposal';
+import {
+  findBestProposal,
+  buildProposalCandidates,
+  filterInstallments,
+  presentValueFromInstallment,
+} from '../v8FindBestProposal';
 
 describe('presentValueFromInstallment', () => {
   it('calcula PV padrão Price', () => {
@@ -12,67 +17,110 @@ describe('presentValueFromInstallment', () => {
   });
 });
 
-describe('findBestProposal', () => {
+describe('filterInstallments', () => {
+  it('respeita installmentsMax do CPF — não retorna 46x quando max=36', () => {
+    const out = filterInstallments([6, 12, 24, 36, 46], 6, 36);
+    expect(out).toEqual([6, 12, 24, 36]);
+    expect(out).not.toContain(46);
+  });
+  it('respeita installmentsMin', () => {
+    const out = filterInstallments([6, 12, 24, 36], 12, 36);
+    expect(out).toEqual([12, 24, 36]);
+  });
+  it('sem limites retorna tudo válido', () => {
+    expect(filterInstallments([6, 12, 24], null, null)).toEqual([6, 12, 24]);
+  });
+});
+
+describe('buildProposalCandidates', () => {
   const opts = [6, 8, 10, 12, 18, 24, 36, 46];
 
-  it('retorna null para margem inválida', () => {
-    expect(findBestProposal({ marginValue: 0, installmentOptions: opts })).toBeNull();
-    expect(findBestProposal({ marginValue: NaN, installmentOptions: opts })).toBeNull();
+  it('retorna lista vazia para margem inválida', () => {
+    expect(buildProposalCandidates({ marginValue: 0, installmentOptions: opts })).toEqual([]);
   });
 
-  it('retorna null sem opções de parcela', () => {
-    expect(findBestProposal({ marginValue: 100, installmentOptions: [] })).toBeNull();
-  });
-
-  it('caso Gabriele (margem 148,93) — escolhe maior prazo viável', () => {
-    const r = findBestProposal({
-      marginValue: 148.93,
-      installmentOptions: opts,
-      valueMin: 500,
-      valueMax: 5361.48,
-    });
-    expect(r).not.toBeNull();
-    expect(r!.installments).toBeGreaterThanOrEqual(24);
-    // Em 46x a 2,99% a.m. com parcela ~141 cabe ~R$ 3.500 (matematicamente).
-    // O outro sistema escolheu 24x/R$1.791 (provável taxa real mais alta).
-    // Faixa larga porque a taxa real V8 varia por tabela.
-    expect(r!.estimatedDisbursedValue).toBeGreaterThan(1200);
-    expect(r!.estimatedDisbursedValue).toBeLessThan(5000);
-  });
-
-  it('caso Paulo (margem 80,78) — ainda encontra combinação viável com fallback', () => {
-    const r = findBestProposal({
+  it('NUNCA escolhe 46x quando installmentsMax=36 (caso real Danila/Gabriele/Paulo)', () => {
+    const cands = buildProposalCandidates({
       marginValue: 80.78,
       installmentOptions: opts,
+      installmentsMin: 6,
+      installmentsMax: 36,
       valueMin: 500,
       valueMax: 2908.08,
     });
-    expect(r).not.toBeNull();
-    expect(r!.estimatedDisbursedValue).toBeGreaterThanOrEqual(500);
+    expect(cands.length).toBeGreaterThan(0);
+    expect(cands.every((c) => c.installments <= 36)).toBe(true);
+    expect(cands.every((c) => c.installments >= 6)).toBe(true);
   });
 
-  it('respeita valueMax da V8', () => {
-    const r = findBestProposal({
-      marginValue: 5000,
+  it('caso Paulo (margem 80,78) — gera candidato com parcela ≤ margem', () => {
+    const cands = buildProposalCandidates({
+      marginValue: 80.78,
       installmentOptions: opts,
-      valueMax: 1000,
+      installmentsMin: 6,
+      installmentsMax: 36,
+      valueMin: 500,
+      valueMax: 2908.08,
     });
-    expect(r!.estimatedDisbursedValue).toBeLessThanOrEqual(1000);
+    expect(cands[0]).toBeDefined();
+    expect(cands[0].simulationValue).toBeLessThanOrEqual(80.78);
+    expect(cands[0].simulationMode).toBe('installment_face_value');
+    expect(cands[0].installments).toBe(36); // melhor = maior prazo
   });
 
-  it('prazo único disponível não quebra', () => {
-    const r = findBestProposal({ marginValue: 200, installmentOptions: [24] });
-    expect(r!.installments).toBe(24);
+  it('caso Gabriele (margem 148,93) — usa installment_face_value e prazo máximo', () => {
+    const cands = buildProposalCandidates({
+      marginValue: 148.93,
+      installmentOptions: opts,
+      installmentsMin: 6,
+      installmentsMax: 36,
+      valueMin: 500,
+      valueMax: 5361.48,
+    });
+    expect(cands[0].installments).toBe(36);
+    expect(cands[0].simulationValue).toBeLessThanOrEqual(148.93);
   });
 
-  it('prefere maior valor liberado (geralmente maior prazo)', () => {
-    const r = findBestProposal({ marginValue: 300, installmentOptions: [12, 24, 46] });
-    expect(r!.installments).toBe(46);
+  it('gera múltiplos candidatos com fatores de segurança decrescentes', () => {
+    const cands = buildProposalCandidates({
+      marginValue: 200,
+      installmentOptions: [24, 36],
+      installmentsMin: 6,
+      installmentsMax: 36,
+    });
+    // 2 prazos × 4 fatores = até 8 candidatos
+    expect(cands.length).toBeGreaterThan(2);
+    // Maior prazo (36) vem primeiro
+    expect(cands[0].installments).toBe(36);
+    // Fator de segurança vai diminuindo dentro do mesmo prazo
+    const factors36 = cands.filter((c) => c.installments === 36).map((c) => c.safetyFactor);
+    expect(factors36).toEqual([...factors36].sort((a, b) => b - a));
   });
 
-  it('usa taxa custom quando fornecida', () => {
-    const a = findBestProposal({ marginValue: 200, installmentOptions: [24], monthlyRate: 0.01 });
-    const b = findBestProposal({ marginValue: 200, installmentOptions: [24], monthlyRate: 0.05 });
-    expect(a!.estimatedDisbursedValue).toBeGreaterThan(b!.estimatedDisbursedValue);
+  it('respeita valueMin — descarta combinações abaixo do mínimo da V8', () => {
+    const cands = buildProposalCandidates({
+      marginValue: 30,
+      installmentOptions: [6],
+      installmentsMin: 6,
+      installmentsMax: 36,
+      valueMin: 5000, // impossível com margem 30
+    });
+    expect(cands).toEqual([]);
+  });
+});
+
+describe('findBestProposal (legacy)', () => {
+  it('retorna primeiro candidato', () => {
+    const r = findBestProposal({
+      marginValue: 148.93,
+      installmentOptions: [6, 12, 24, 36, 46],
+      installmentsMin: 6,
+      installmentsMax: 36,
+    });
+    expect(r).not.toBeNull();
+    expect(r!.installments).toBe(36);
+  });
+  it('retorna null quando nada cabe', () => {
+    expect(findBestProposal({ marginValue: 0, installmentOptions: [24] })).toBeNull();
   });
 });
