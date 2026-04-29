@@ -1600,9 +1600,18 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
       company_margin,
       margem_valor: company_margin,
       amount_to_charge,
+      installments: parcelasFinal,
+      // Etapa 1 (item 3): expõe se o sistema precisou ajustar parcelas/valor para caber
+      // nos limites da V8. Frontend mostra ⚠️ na coluna Parcelas com tooltip explicativo.
+      clamp_applied: clampNote != null,
+      clamp_note: clampNote,
       raw_response: {
         upstream_request: { simulation: simulationBody },
         simulate: simJson,
+        clamp_applied: clampNote != null,
+        clamp_note: clampNote,
+        effective_parcelas: parcelasFinal,
+        effective_value: simulationValueFinal,
       },
     },
   };
