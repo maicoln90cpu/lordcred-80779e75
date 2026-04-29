@@ -149,6 +149,69 @@ export default function V8RetrySettingsCard() {
           <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
         </div>
 
+        <div className="rounded border border-border/60 bg-muted/20 p-3 space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold">Retentativas internas por etapa V8</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Cada simulação passa por 3 chamadas na V8 em sequência. Quando uma chamada
+              recebe erro temporário (429 ou 5xx), o servidor tenta sozinho algumas vezes
+              ANTES de dar como falha. Diferente do auto-retry geral acima — aqueles
+              reabrem o ciclo inteiro. Aceita 1 a 30 por campo.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label>Consulta de margem (/consult)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retConsult}
+                onChange={(e) => setRetConsult(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 1.</strong> Pede para a V8 abrir a consulta do CPF. Se cai aqui,
+                geralmente é V8 fora do ar — vale falhar rápido (default <strong>3</strong>)
+                e deixar o auto-retry de fundo reabrir depois.
+              </p>
+            </div>
+
+            <div>
+              <Label>Aceite do termo (/authorize)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retAuthorize}
+                onChange={(e) => setRetAuthorize(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 2.</strong> Aceita o termo de consentimento. Já temos um
+                consultId aberto — perder agora desperdiça a etapa 1. Insiste mais
+                (default <strong>15</strong>).
+              </p>
+            </div>
+
+            <div>
+              <Label>Cálculo da parcela (/simulation)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retSimulate}
+                onChange={(e) => setRetSimulate(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 3.</strong> Calcula valor liberado e parcela. Mesma lógica:
+                já passamos pelas 2 anteriores, vale insistir muito (default <strong>15</strong>).
+              </p>
+            </div>
+          </div>
+        </div>
+
         <Button onClick={handleSave} disabled={saving || loading}>
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Salvar configurações
