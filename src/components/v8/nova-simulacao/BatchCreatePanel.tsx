@@ -55,6 +55,8 @@ interface Props {
   onStart: () => void;
   /** Etapa 3 (item 7): agendar lote para horário futuro. Quando definido, mostra UI de agendamento. */
   onSchedule?: (scheduledForIso: string) => void;
+  /** Etapa 4 (item 10): adicionar lote à fila sequencial. */
+  onQueue?: () => void;
 }
 
 /**
