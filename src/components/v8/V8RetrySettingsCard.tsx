@@ -16,6 +16,9 @@ export default function V8RetrySettingsCard() {
   const [batchSize, setBatchSize] = useState(defaults.retry_batch_size);
   const [enabled, setEnabled] = useState(defaults.background_retry_enabled);
   const [soundOn, setSoundOn] = useState(defaults.sound_on_complete);
+  const [retConsult, setRetConsult] = useState(defaults.max_retries_consult);
+  const [retAuthorize, setRetAuthorize] = useState(defaults.max_retries_authorize);
+  const [retSimulate, setRetSimulate] = useState(defaults.max_retries_simulate);
 
   useEffect(() => {
     if (!settings) return;
@@ -25,11 +28,19 @@ export default function V8RetrySettingsCard() {
     setBatchSize(settings.retry_batch_size);
     setEnabled(settings.background_retry_enabled);
     setSoundOn(settings.sound_on_complete ?? false);
+    setRetConsult(settings.max_retries_consult ?? 3);
+    setRetAuthorize(settings.max_retries_authorize ?? 15);
+    setRetSimulate(settings.max_retries_simulate ?? 15);
   }, [settings]);
 
   async function handleSave() {
     if (maxBackoff < minBackoff) {
       toast.error('Backoff máximo deve ser maior ou igual ao mínimo');
+      return;
+    }
+    const inRange = (n: number) => Number.isFinite(n) && n >= 1 && n <= 30;
+    if (!inRange(retConsult) || !inRange(retAuthorize) || !inRange(retSimulate)) {
+      toast.error('Retentativas internas devem estar entre 1 e 30');
       return;
     }
     const ok = await save({
@@ -39,6 +50,9 @@ export default function V8RetrySettingsCard() {
       retry_batch_size: batchSize,
       background_retry_enabled: enabled,
       sound_on_complete: soundOn,
+      max_retries_consult: retConsult,
+      max_retries_authorize: retAuthorize,
+      max_retries_simulate: retSimulate,
     });
     if (ok) toast.success('Configurações salvas');
     else toast.error('Falha ao salvar (verifique permissões)');
@@ -133,6 +147,69 @@ export default function V8RetrySettingsCard() {
             </p>
           </div>
           <Switch checked={soundOn} onCheckedChange={setSoundOn} disabled={loading} />
+        </div>
+
+        <div className="rounded border border-border/60 bg-muted/20 p-3 space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold">Retentativas internas por etapa V8</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Cada simulação passa por 3 chamadas na V8 em sequência. Quando uma chamada
+              recebe erro temporário (429 ou 5xx), o servidor tenta sozinho algumas vezes
+              ANTES de dar como falha. Diferente do auto-retry geral acima — aqueles
+              reabrem o ciclo inteiro. Aceita 1 a 30 por campo.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label>Consulta de margem (/consult)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retConsult}
+                onChange={(e) => setRetConsult(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 1.</strong> Pede para a V8 abrir a consulta do CPF. Se cai aqui,
+                geralmente é V8 fora do ar — vale falhar rápido (default <strong>3</strong>)
+                e deixar o auto-retry de fundo reabrir depois.
+              </p>
+            </div>
+
+            <div>
+              <Label>Aceite do termo (/authorize)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retAuthorize}
+                onChange={(e) => setRetAuthorize(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 2.</strong> Aceita o termo de consentimento. Já temos um
+                consultId aberto — perder agora desperdiça a etapa 1. Insiste mais
+                (default <strong>15</strong>).
+              </p>
+            </div>
+
+            <div>
+              <Label>Cálculo da parcela (/simulation)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={retSimulate}
+                onChange={(e) => setRetSimulate(Number(e.target.value))}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Etapa 3.</strong> Calcula valor liberado e parcela. Mesma lógica:
+                já passamos pelas 2 anteriores, vale insistir muito (default <strong>15</strong>).
+              </p>
+            </div>
+          </div>
         </div>
 
         <Button onClick={handleSave} disabled={saving || loading}>

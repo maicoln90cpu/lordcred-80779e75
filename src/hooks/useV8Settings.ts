@@ -17,6 +17,10 @@ export interface V8Settings {
   webhook_wait_timeout_min: number;
   /** Etapa 5 — quando true, exige documentos no envio do POST /operation */
   require_documents_on_create: boolean;
+  /** Etapa 2A — retentativas internas por endpoint V8 (1-30) */
+  max_retries_consult: number;
+  max_retries_authorize: number;
+  max_retries_simulate: number;
   updated_at: string;
 }
 
@@ -33,6 +37,9 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   simulate_throttle_ms: 1200,
   webhook_wait_timeout_min: 5,
   require_documents_on_create: false,
+  max_retries_consult: 3,
+  max_retries_authorize: 15,
+  max_retries_simulate: 15,
 };
 
 export function useV8Settings() {

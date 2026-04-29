@@ -42,11 +42,70 @@ const V8_DOC_TYPES = new Set([
   'other',
 ]);
 
-const MAX_RETRIES_CONSULT = 3;
-const MAX_RETRIES_AUTHORIZE = 15;
-const MAX_RETRIES_SIMULATE = 15;
+// Defaults — usados quando v8_settings ainda não foi carregado ou falhar a leitura.
+// Editáveis via UI em Configurações → "Retentativas internas por etapa V8" (1-30).
+const DEFAULT_MAX_RETRIES_CONSULT = 3;
+const DEFAULT_MAX_RETRIES_AUTHORIZE = 15;
+const DEFAULT_MAX_RETRIES_SIMULATE = 15;
+
+// Cache em memória dos limites lidos do banco — recarrega a cada 60s para
+// não martelar o DB em lotes pesados, mas refletir mudanças da UI rapidamente.
+let retryLimitsCache: {
+  consult: number;
+  authorize: number;
+  simulate: number;
+  expiresAt: number;
+} | null = null;
+
+async function getRetryLimits(supabaseAdmin: any): Promise<{
+  consult: number;
+  authorize: number;
+  simulate: number;
+}> {
+  const now = Date.now();
+  if (retryLimitsCache && retryLimitsCache.expiresAt > now) {
+    return {
+      consult: retryLimitsCache.consult,
+      authorize: retryLimitsCache.authorize,
+      simulate: retryLimitsCache.simulate,
+    };
+  }
+  try {
+    const { data } = await supabaseAdmin
+      .from("v8_settings")
+      .select("max_retries_consult, max_retries_authorize, max_retries_simulate")
+      .eq("singleton", true)
+      .maybeSingle();
+    const consult = Number(data?.max_retries_consult) || DEFAULT_MAX_RETRIES_CONSULT;
+    const authorize = Number(data?.max_retries_authorize) || DEFAULT_MAX_RETRIES_AUTHORIZE;
+    const simulate = Number(data?.max_retries_simulate) || DEFAULT_MAX_RETRIES_SIMULATE;
+    retryLimitsCache = { consult, authorize, simulate, expiresAt: now + 60_000 };
+    return { consult, authorize, simulate };
+  } catch (err) {
+    console.error("[getRetryLimits] fallback to defaults:", err);
+    return {
+      consult: DEFAULT_MAX_RETRIES_CONSULT,
+      authorize: DEFAULT_MAX_RETRIES_AUTHORIZE,
+      simulate: DEFAULT_MAX_RETRIES_SIMULATE,
+    };
+  }
+}
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+
+// Limites runtime — preenchidos por refreshRetryLimits() no início de cada
+// request relevante. Valores aqui são apenas seed; o cache+banco mandam.
+let MAX_RETRIES_CONSULT = DEFAULT_MAX_RETRIES_CONSULT;
+let MAX_RETRIES_AUTHORIZE = DEFAULT_MAX_RETRIES_AUTHORIZE;
+let MAX_RETRIES_SIMULATE = DEFAULT_MAX_RETRIES_SIMULATE;
+
+async function refreshRetryLimits(supabaseAdmin: any) {
+  const limits = await getRetryLimits(supabaseAdmin);
+  MAX_RETRIES_CONSULT = limits.consult;
+  MAX_RETRIES_AUTHORIZE = limits.authorize;
+  MAX_RETRIES_SIMULATE = limits.simulate;
+}
+
 
 async function getV8Token(): Promise<string> {
   const now = Date.now();
@@ -2135,6 +2194,10 @@ const handler = async (req: Request) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
+
+    // Etapa 2A — Atualiza limites de retentativa internos (cache 60s).
+    // Não bloqueia se falhar (cai nos defaults). Roda apenas 1x por request.
+    await refreshRetryLimits(supabase);
 
     const token = authHeader.replace("Bearer ", "");
     // Aceita chamadas internas tanto do v8-retry-cron quanto do v8-active-consult-poller
