@@ -70,11 +70,30 @@ export default function BatchCreatePanel(props: Props) {
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
-    running, onStart,
+    running, onStart, onSchedule,
   } = props;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
   const usingMaxDefault = !advancedOpen && maxParcelas != null && parcelas === maxParcelas;
+
+  // Etapa 3 (item 7): agendamento. Default = +30 min.
+  const defaultScheduleStr = (() => {
+    const d = new Date(Date.now() + 30 * 60 * 1000);
+    // datetime-local no fuso local do browser. Convertemos com -03:00 no submit.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduledLocal, setScheduledLocal] = useState<string>(defaultScheduleStr);
+
+  function handleScheduleClick() {
+    if (!onSchedule) return;
+    if (!scheduledLocal) return;
+    // Interpreta o input como horário em America/Sao_Paulo (sufixo -03:00).
+    // Usuário digitou "18:00" → enviamos "...T18:00:00-03:00".
+    const iso = `${scheduledLocal}:00-03:00`;
+    onSchedule(iso);
+  }
 
   return (
     <Card>
