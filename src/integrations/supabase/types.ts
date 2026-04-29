@@ -4314,6 +4314,7 @@ export type Database = {
           sim_value_max: number | null
           sim_value_min: number | null
           simulate_attempted_at: string | null
+          simulate_error_message: string | null
           simulate_status: string | null
           simulation_strategy: string | null
           status: string
@@ -4358,6 +4359,7 @@ export type Database = {
           sim_value_max?: number | null
           sim_value_min?: number | null
           simulate_attempted_at?: string | null
+          simulate_error_message?: string | null
           simulate_status?: string | null
           simulation_strategy?: string | null
           status?: string
@@ -4402,6 +4404,7 @@ export type Database = {
           sim_value_max?: number | null
           sim_value_min?: number | null
           simulate_attempted_at?: string | null
+          simulate_error_message?: string | null
           simulate_status?: string | null
           simulation_strategy?: string | null
           status?: string
