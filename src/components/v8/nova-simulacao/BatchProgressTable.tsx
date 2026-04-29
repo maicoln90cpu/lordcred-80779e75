@@ -206,7 +206,22 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
       return <span className="text-emerald-600">Proposta calculada</span>;
     }
     if (simStatus === 'failed') {
-      return <span className="text-amber-600">Margem aprovada · simulação falhou — tente "Encontrar proposta viável"</span>;
+      // FIX 4: prioriza simulate_error_message (coluna dedicada). Se não houver,
+      // tenta extrair do error_message como fallback. Mostra motivo real da V8.
+      const simReason = (typeof s.simulate_error_message === 'string' && s.simulate_error_message.trim())
+        ? s.simulate_error_message.trim()
+        : null;
+      return (
+        <div className="space-y-0.5">
+          <div className="text-amber-600">
+            Margem aprovada · simulação falhou
+            {simReason ? <>: <span className="font-medium">{simReason}</span></> : ''}
+          </div>
+          <div className="text-[11px] text-muted-foreground italic">
+            Tente "Encontrar proposta viável" para escolher outro prazo/valor.
+          </div>
+        </div>
+      );
     }
     return <span className="text-muted-foreground">Margem aprovada — clique em "Simular selecionados" para calcular a proposta</span>;
   }
