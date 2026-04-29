@@ -19,6 +19,8 @@ export interface V8DraftSlot {
   simulationValue: string;
   pasteText: string;
   activeBatchId: string | null;
+  /** Etapa 2 (abr/2026): modo "Auto-melhor" — tenta candidatos automaticamente. */
+  autoBest?: boolean;
 }
 
 export function emptyDraft(label = 'Rascunho 1'): V8DraftSlot {
@@ -32,6 +34,7 @@ export function emptyDraft(label = 'Rascunho 1'): V8DraftSlot {
     simulationValue: '',
     pasteText: '',
     activeBatchId: null,
+    autoBest: false,
   };
 }
 
