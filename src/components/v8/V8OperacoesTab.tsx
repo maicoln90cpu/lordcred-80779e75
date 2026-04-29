@@ -66,6 +66,13 @@ interface TimelineEvent {
   consultId?: string | null;
   operationId?: string | null;
   v8SimulationId?: string | null;
+  /** Resumo financeiro (apenas simulações com sucesso). */
+  approved?: {
+    releasedValue: number | null;
+    installmentValue: number | null;
+    installments: number | null;
+    configName: string | null;
+  } | null;
   meta?: Record<string, any>;
 }
 
