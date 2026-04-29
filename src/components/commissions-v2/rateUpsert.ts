@@ -102,8 +102,9 @@ async function fetchExistingMap(
  */
 export async function previewRateUpsert(
   tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
-  rows: RateRow[],
+  rowsRaw: RateRow[],
 ): Promise<{ newCount: number; replaceCount: number }> {
+  const rows = rowsRaw.map(normalizeRow);
   const existing = await fetchExistingMap(tableName, rows);
   let replaceCount = 0;
   for (const r of rows) if (existing.has(rateKey(r))) replaceCount += 1;
