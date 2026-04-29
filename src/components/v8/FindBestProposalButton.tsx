@@ -55,7 +55,13 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 2) Parcelas aceitas pela tabela
+      // 2) Parcelas aceitas pela tabela.
+      // Fallback: se a config não está no cache local (caso comum quando o
+      // cache ainda não foi sincronizado ou a tabela é antiga), usa o conjunto
+      // padrão CLT V8 [6, 8, 10, 12, 18, 24, 36, 46]. A V8 valida na chamada
+      // real de qualquer jeito — se algum prazo não servir, ela recusa e o
+      // toast informa o motivo verdadeiro.
+      const DEFAULT_CLT_INSTALLMENTS = [6, 8, 10, 12, 18, 24, 36, 46];
       const { data: cfg } = await supabase
         .from('v8_configs_cache' as any)
         .select('raw_data')
@@ -64,14 +70,16 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
 
       const rawOptions: number[] = Array.isArray((cfg as any)?.raw_data?.number_of_installments)
         ? (cfg as any).raw_data.number_of_installments
-        : [];
-      // Aplica monthMin da V8 como piso
+        : DEFAULT_CLT_INSTALLMENTS;
       const minMonth = Number(sim.sim_month_min ?? 0);
       const installmentOptions = rawOptions
         .filter((n) => Number.isInteger(n) && n > 0 && (minMonth ? n >= minMonth : true));
 
       if (installmentOptions.length === 0) {
-        toast.error('Tabela não tem prazos compatíveis com a margem mínima da V8.', { id: toastId });
+        toast.error(
+          `Nenhum prazo da tabela atende ao mínimo da V8 (${minMonth}x). Margem muito baixa.`,
+          { id: toastId },
+        );
         return;
       }
 

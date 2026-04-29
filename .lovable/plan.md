@@ -1,69 +1,59 @@
-## Contexto
-O caso Gabriele (CPF 02676066056) revelou 2 problemas reais e 1 melhoria estratégica:
+## Diagnóstico do erro
 
-1. **Bug**: o Select "Parcelas" da Nova Simulação **NÃO é respeitado** no auto-simulate em lote — usa o `installments` salvo no momento da criação do lote, não o valor atual da tela. Por isso a Gabriele rodou em 36x mesmo com 24x selecionado.
-2. **UX confusa**: o campo "Parcelas" parece decorativo porque sua influência só aparece em simulação manual.
-3. **Gap competitivo**: o outro sistema do usuário **descobre automaticamente** uma combinação `valor + prazo` que caiba na margem disponível e devolve uma proposta pronta. Hoje o LordCred exige que o operador adivinhe valores até bater.
+Investiguei no banco a Gabriele e o Paulo:
 
----
+| CPF | Margem | sim_month_min | config_id |
+|---|---|---|---|
+| Gabriele | R$ 148,93 | 24 | `ea0642f0...` |
+| Paulo | R$ 80,78 | 24 | `ea0642f0...` |
 
-## Bloco A — Corrigir uso da parcela escolhida (bug fix)
+E no `v8_configs_cache` essa config_id **NÃO EXISTE** (cache só tem 6 entries de outras tabelas).
 
-**Antes**: `auto_simulate_after_consult` usa `sim.installments` (do lote) e ignora o `parcelas` atual da tela.
+**Causa raiz**: o botão tenta carregar `number_of_installments` da tabela no cache local. Como a tabela não está cacheada, retorna array vazio → cai no toast "Tabela não tem prazos compatíveis com a margem mínima da V8".
 
-**Depois**: priorizar `parcelas` da tela para o lote ativo. Se o usuário trocou de 36 para 24, o auto-simulate respeita.
-
-**Arquivos**: `src/components/v8/V8NovaSimulacaoTab.tsx` (linhas 199, 311, 534, 611 — substituir `sim.installments || parcelas` por `parcelas || sim.installments` quando o lote ativo é o atual).
-
-**Risco**: baixo. Lotes antigos sem parcelas continuam usando default.
+A mensagem de erro é enganosa — o problema não é prazo incompatível, é **cache incompleto**.
 
 ---
 
-## Bloco B — Botão "Buscar melhor combinação" (paridade com concorrente)
+## Correção (Bloco D — fallback de tabela)
 
-Após uma consulta SUCCESS com `simulate_status=failed`, exibir botão **"🔍 Encontrar proposta viável"** no card do CPF.
+**Arquivo**: `src/components/v8/FindBestProposalButton.tsx`
 
-**Comportamento**:
-1. Lê `margem_valor`, `sim_value_min`, `sim_value_max`, `sim_month_min` do registro.
-2. Roda binary search local (sem chamar V8 ainda): para cada prazo aceito pela tabela (`number_of_installments`), calcula valor máximo cuja parcela ≤ margem usando taxa estimada da config.
-3. Pega a melhor combinação (maior valor liberado) e dispara **uma única simulação real V8** com esses parâmetros.
-4. Se V8 confirmar SUCCESS, atualiza o card.
+### Mudança 1 — fallback de parcelas
+Quando a config_id não está no cache, usar conjunto padrão CLT V8:
+```ts
+const DEFAULT_CLT_INSTALLMENTS = [6, 8, 10, 12, 18, 24, 36, 46];
+```
+A V8 valida na chamada real de qualquer jeito — se o prazo for inválido para a tabela específica, a V8 recusa e o toast informa com a mensagem real.
 
-**Vantagem**: 1 chamada V8 em vez de tentativa-e-erro manual. Resolve casos como Gabriele em 1 clique.
+### Mudança 2 — mensagem de erro mais precisa
+Trocar "Tabela não tem prazos compatíveis com a margem mínima da V8" por algo que reflita a realidade:
+- Se o filtro `n >= minMonth` zerar tudo → "Nenhum prazo da tabela atende ao mínimo da V8 (24x). Margem muito baixa."
 
-**Arquivos novos**: `src/lib/v8FindBestProposal.ts` (cálculo local) + `src/components/v8/FindBestProposalButton.tsx`.
-
-**Arquivos editados**: `src/components/v8/V8OperacoesTab.tsx` (adicionar botão na linha CPF quando aplicável).
-
----
-
-## Bloco C — UX do campo Parcelas
-
-Adicionar abaixo do Select "Parcelas":
-- **Badge dinâmico**: "Margem detectada: R$ 148,93 — em 24x cabe até R$ X,XX"
-- Tooltip explicando: "Em lote com auto-simulação ativa, este valor é usado para todos os CPFs do lote".
-
-**Arquivo**: `src/components/v8/V8NovaSimulacaoTab.tsx` (próximo da linha 675).
+### Comportamento esperado após fix
+- **Gabriele** (margem 148,93, min 24): vai testar [24, 36, 46], escolher 46x com valor ~R$ 3.500. V8 deve aceitar.
+- **Paulo** (margem 80,78, min 24): vai testar [24, 36, 46], escolher 46x com valor ~R$ 1.900. V8 deve aceitar (no outro sistema deu R$ 971 em 24x — bem dentro do que conseguimos).
 
 ---
 
-## Pendências fora do escopo
+## Pendência paralela (não bloqueia esse fix)
 
-- Cálculo de juros real por tabela (hoje seria estimado). Para precisão total, dependeria da V8 expor coeficientes — por enquanto usar tabela média conhecida.
-- Aplicar Bloco B em massa (lote inteiro) — fica para próxima iteração após validação manual.
+A `v8_configs_cache` está desatualizada — config `ea0642f0...` é usada em produção mas não está cacheada. Precisamos:
+1. Verificar onde o cache é populado.
+2. Forçar refresh (pode ser uma função separada futura).
+
+Por enquanto, o fallback resolve o problema imediato.
 
 ---
 
-## Checklist de validação manual (após implementar)
+## Checklist manual após fix
 
-1. Abrir Nova Simulação, criar lote com Gabriele em 24x → conferir que registro grava `installments=24`.
-2. Rodar auto-simulate → conferir que body V8 contém `number_of_installments: 24`.
-3. Em Operações → Falhas, abrir card Gabriele → clicar "Encontrar proposta viável" → conferir resultado SUCCESS com valor ≤ R$ 1.791,08.
-4. Comparar com outro sistema: deve dar valor próximo (variação ≤ 5% por diferença de tabela).
+1. Abrir card da **Gabriele** → clicar "🔍 Encontrar proposta viável" → toast deve mostrar "Simulando V8: 46x · valor ~R$ 3.5xx..." → resultado.
+2. Repetir com **Paulo** → toast com 46x · ~R$ 1.9xx.
+3. Se a V8 recusar (taxa real maior que estimada), toast vai dizer o motivo da V8 — não falha silenciosamente.
+4. Conferir no banco que `simulate_status` mudou para `success`.
 
 ## Prevenção de regressão
 
-- Teste Vitest em `src/lib/__tests__/v8FindBestProposal.test.ts` cobrindo:
-  - margem R$ 148,93 + tabela CLT Acelera + prazo 24 → retorna valor compatível
-  - margem R$ 0 → retorna null (não chama V8)
-  - prazo único disponível → não quebra binary search
+- Adicionar teste no `v8FindBestProposal.test.ts`: quando `installmentOptions = DEFAULT_CLT_INSTALLMENTS` e margem 80,78, retorna combinação válida ≥ R$ 500.
+- Comentário no código explicando por que existe o fallback (caso config não exista no cache).
