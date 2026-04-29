@@ -8,8 +8,8 @@ import { describe, it, expect } from 'vitest';
 function parseImportData(rows: Record<string, string>[]) {
   const today = new Date().toISOString().slice(0, 10);
   return rows.map(r => {
-    const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim();
-    const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim();
+    const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim().toUpperCase();
+    const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim().toUpperCase();
     const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0').toString()) || 0;
     const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999').toString()) || 999;
     const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || r['min_value'] || '0').toString().replace(',', '.')) || 0;
@@ -93,5 +93,16 @@ describe('RatesCLTTab.parseImportData', () => {
     expect(parseImportData([{ 'Banco': 'X', 'Seguro (Sim/Não)': 'SIM', 'Taxa (%)': '1' }])[0].has_insurance).toBe(true);
     expect(parseImportData([{ 'Banco': 'X', 'Seguro': 'true', 'Taxa (%)': '1' }])[0].has_insurance).toBe(true);
     expect(parseImportData([{ 'Banco': 'X', 'Seguro': 'Não', 'Taxa (%)': '1' }])[0].has_insurance).toBe(false);
+  });
+
+  it('normaliza bank e table_key para UPPERCASE (alinha com índice case-sensitive)', () => {
+    const out = parseImportData([
+      { 'Banco': 'Facta', 'Tabela': 'Gold', 'Taxa (%)': '1' },
+      { 'Banco': '  facta  ', 'Tabela': '  gold  ', 'Taxa (%)': '1' },
+    ]);
+    expect(out[0].bank).toBe('FACTA');
+    expect(out[0].table_key).toBe('GOLD');
+    expect(out[1].bank).toBe('FACTA');
+    expect(out[1].table_key).toBe('GOLD');
   });
 });

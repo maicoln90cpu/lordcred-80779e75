@@ -1,120 +1,85 @@
-## Objetivo
-Resolver 4 confusões reportadas na tela `/admin/v8-simulador`: limites V8 invisíveis, "23 meses" enganoso, valor aprovado escondido após a simulação, e parcelas ausentes na tabela "Progresso do Lote".
+## Diagnóstico do erro persistente na importação
+
+### O que confirmei investigando o código e o banco
+
+1. **Não existe mais nenhum `.upsert()` com `onConflict` apontando para `commission_rates_clt_v2` ou `commission_rates_fgts_v2`** em todo o projeto (verificado com `rg`). O `rateUpsert.ts` faz pre-fetch + INSERT/UPDATE manual.
+2. **O índice único do banco é case-sensitive** em `bank` e `table_key` — confirmado:
+   `CREATE UNIQUE INDEX commission_rates_clt_v2_uniq ON (bank, COALESCE(table_key,''), term_min, term_max, has_insurance, effective_date)`
+3. **O screenshot mostra a mensagem "there is no unique or exclusion constraint matching the ON CONFLICT specification"** — essa mensagem **só aparece quando o cliente envia `ON CONFLICT`**. Como o código atual não faz isso, **o erro veio de bundle antigo carregado no navegador** (cache, antes do último deploy entrar).
+
+### Por que ainda assim o upsert manual pode falhar em casos extremos
+
+Existem 2 cenários remanescentes que NÃO geram a mensagem do screenshot, mas geram `duplicate key value violates unique constraint`:
+
+- **Caixa diferente entre planilha e banco**: planilha traz `Facta / Gold`, banco tem `FACTA / GOLD`. Meu `rateKey()` normaliza para uppercase e acha match → UPDATE ok. **Mas o INSERT de uma linha realmente nova com `bank='Facta'` cria duplicata para o índice case-sensitive** se já existir `FACTA` no banco.
+- **Planilha com duplicatas internas exatas pelo índice**: hoje meu dedup local resolve.
+
+A solução robusta é **normalizar bank e table_key para UPPERCASE no payload** antes do INSERT/UPDATE, garantindo que tudo grava em maiúsculas no banco — o que também alinha com a função `calculate_commission_v2` que usa `UPPER(NEW.bank)`.
 
 ---
 
-## 1) Mini-painel "Limites V8" ao lado do botão Encontrar proposta viável
+## Plano de implementação
 
-**Onde**: `src/components/v8/V8OperacoesTab.tsx` (banner verde quando `successCount > 0`, linhas 469–479) e `src/components/v8/FindBestProposalButton.tsx` (passar dados via prop OU buscar no próprio botão).
+### 1. Normalizar bank/table_key no upsert (corrige a causa real do erro)
+- Em `src/components/commissions-v2/rateUpsert.ts`: aplicar `.trim().toUpperCase()` em `bank` e `table_key` no payload de INSERT.
+- Em `RatesCLTTab.parseImportData` e `RatesFGTSTab.parseImportData`: idem no parser.
+- Resultado: índice único e leitura da função de cálculo passam a usar a mesma representação canônica.
 
-**O que fazer**:
-- Carregar a última simulação SUCCESS do CPF (já é feita dentro do botão) e expor um pequeno bloco informativo logo ao lado:
-  - `Parcelas: 6–36x` (de `sim_installments_min/max`, fallback para `parcelOptions` da config)
-  - `Valor: R$ 500–2.908` (de `sim_value_min/max`)
-  - `Margem: R$ 80,78` (de `margem_valor`)
-- Implementação: criar `V8LimitsBadge` (componente novo, ~40 linhas) que recebe `cpf` e busca uma vez. Aparece à esquerda do botão dentro do mesmo banner verde.
-- Tooltip em cada chip explicando a origem ("limite oficial retornado pela V8 nesta consulta").
+### 2. Mover botão "Limpar todas as vendas" para Zona de Perigo
+- Em `src/components/commissions-v2/BaseTab.tsx`: remover o botão do header.
+- Em `src/components/commissions-v2/ConfigTab.tsx`: já tem a Zona de Perigo (criado no turno anterior). Confirmar que o botão está lá com confirmação por "CONFIRMAR" e remover qualquer duplicata.
+
+### 3. Aplicar contador "X novas / Y substituídas" no preview do FGTS V2
+- Em `RatesFGTSTab.tsx` (linha 281): exibir o `importStats` (já calculado via `useEffect`) no preview, igual ao CLT.
+
+### 4. Garantir que o botão "Importar" abre a planilha correta
+- Verificar que o input file dispara abertura nativa (já está implementado, mas o screenshot mostra "Nenhum arquivo selecionado" — provavelmente o usuário ainda não clicou em "Procurar"). Sem mudança de código.
 
 ---
 
-## 2) Por que DANILA mostra "23 meses" se as parcelas padrão são 36/24/12
-
-**Causa raiz**: o subtitle do evento "Simulação" na timeline (`V8OperacoesTab.tsx` linha 267) usa `s.sim_month_max` — esse campo vem do payload V8 e representa o **tempo de admissão/contrato CLT do trabalhador** (em meses), não o número de parcelas. Danila tem 23 meses de empresa.
-
-**Correção**:
-- Trocar a fonte do subtitle de `sim_month_max` para `s.installments` (coluna real do nº de parcelas usadas na simulação).
-- Renomear o sufixo de "meses" para "x" quando vier de `installments`.
-- Adicionar SELECT do campo `installments` no query de timeline (linha 253).
-- Quando ainda não há simulação executada (apenas consulta), esconder o sufixo em vez de mostrar lixo.
+## Detalhes técnicos
 
 ```ts
-// antes
-s.sim_month_max === 999 ? '24+ meses' : s.sim_month_max ? `${s.sim_month_max} meses` : null
-// depois
-s.installments ? `${s.installments}x` : null
+// rateUpsert.ts — antes do INSERT/UPDATE
+const norm = (r: RateRow): RateRow => ({
+  ...r,
+  bank: (r.bank || '').trim().toUpperCase(),
+  table_key: r.table_key ? r.table_key.trim().toUpperCase() : null,
+});
+// aplicar em toInsert e em rows do UPDATE payload
 ```
 
----
+Esse mesmo `norm()` deve ser aplicado nos dois tabs no `parseImportData` para que o preview já mostre o que será gravado.
 
-## 3) Renderizar valor aprovado no card após sucesso da simulação
+### Arquivos editados
+- `src/components/commissions-v2/rateUpsert.ts` (normalização)
+- `src/components/commissions-v2/RatesCLTTab.tsx` (parser + remover SmartPaste se quiser; mantenho)
+- `src/components/commissions-v2/RatesFGTSTab.tsx` (parser + contador no preview)
+- `src/components/commissions-v2/BaseTab.tsx` (remover botão duplicado se existir)
 
-**Hoje**: o card timeline mostra apenas `subtitle` (texto solto) + os botões `JSON · consult · sim_id` do `TimelineEventActions`. O `released_value` está no subtitle mas se perde no meio da string.
-
-**Correção em `V8OperacoesTab.tsx`**:
-- Após a linha do `subtitle`, quando o evento é `kind='simulation' && status='success'`, renderizar um bloco destacado verde:
-
-```
-┌─────────────────────────────────────────┐
-│ ✅ Liberado: R$ 9.029,88                │
-│    Parcela:  R$ 250,83 · 24x            │
-│    Tabela:   CLT Acelera - Seguro       │
-└─────────────────────────────────────────┘
-```
-
-- Campos a buscar (acrescentar ao SELECT da linha 253): `released_value, installment_value, installments, company_margin, amount_to_charge`.
-- Componente `V8ApprovedSummary` inline (~25 linhas), com tipografia maior (`text-sm font-semibold`) e ícone `CheckCircle2` em verde.
+### Não vou fazer (escopo enxuto)
+- Mexer no `SmartPasteRatesButton` (ele faz `.insert()` simples; se der duplicata, reporta erro normal — pode ser próximo passo).
+- Criar migração para tornar o índice `LOWER(bank), LOWER(table_key)` (alternativa mais invasiva — só se a normalização no client não bastar em algum caso futuro).
 
 ---
 
-## 4) Mostrar parcelas na tabela "Progresso do Lote"
+## Validação manual após implementação
 
-**Onde**: `src/components/v8/V8NovaSimulacaoTab.tsx` linhas 936–1086.
-
-**Correção**:
-- Adicionar nova coluna `Parcelas` entre "Status" e "Margem Disp." (ou entre "Liberado" e "Parcela", à escolha).
-- Conteúdo: `s.installments ? \`${s.installments}x\` : '—'`
-- Header: `<th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação">Parcelas</th>`
-- Quando `s.installments` for null mas o lote tem `parcelas` configurado (state local), mostrar esse valor em cinza com tooltip "configurado, ainda não simulado".
-
-**Confirmação semântica**: já existe `installments` em `v8_simulations` (preenchido por `simulate_one` linha 1572 e `simulate_only_for_consult` linha 2052 do `v8-clt-api/index.ts`). O hook `useV8BatchSimulations` provavelmente já traz tudo (`select *`); apenas confirmar e usar.
-
----
-
-## Arquivos a alterar
-
-| Arquivo | Mudança |
-|---|---|
-| `src/components/v8/V8OperacoesTab.tsx` | Itens 1, 2, 3: SELECT, subtitle, V8ApprovedSummary, slot do banner |
-| `src/components/v8/V8LimitsBadge.tsx` (novo) | Item 1: mini-painel de limites |
-| `src/components/v8/V8NovaSimulacaoTab.tsx` | Item 4: nova coluna `Parcelas` na tabela |
-| `src/hooks/useV8Batches.ts` | (verificação) garantir que `installments` está no SELECT |
-
----
-
-## Antes vs Depois
-
-| Item | Antes | Depois |
-|---|---|---|
-| 1 | Operador clica no botão sem saber se a margem cabe | Vê limites V8 oficiais ao lado |
-| 2 | "23 meses" confunde (parece prazo do empréstimo) | "24x" fica claro = parcelas |
-| 3 | Valor liberado some entre botões `JSON/consult/sim_id` | Card verde destacado com Liberado · Parcela · Nx |
-| 4 | Tabela mostra Liberado e Parcela mas não diz em quantas vezes | Coluna "Parcelas" com `24x`, `36x`… |
-
-## Vantagens
-- Operador não precisa abrir JSON nem o modal V8 para entender o cenário.
-- Reduz erro de "encontrar proposta viável" tentando combinações fora do limite (operador vê antes).
-- Paridade visual entre Operações e Nova Simulação.
-
-## Desvantagens / trade-offs
-- Mini-painel faz uma query extra por CPF expandido (mitigado: só roda quando a linha é expandida; pode usar o mesmo dado já carregado pelo botão se refatorarmos).
-- Card verde aumenta a altura do evento de simulação (aceitável — destaca o que importa).
-
-## Checklist manual de validação
-1. Abrir `/admin/v8-simulador → Operações`.
-2. Buscar "DANILA" e expandir o card.
-3. Verificar mini-painel mostrando: `Parcelas: 6–46x · Valor: R$ X–Y · Margem: R$ 250,83`.
-4. Confirmar que o subtitle do evento "Simulação" diz `R$ 3.136,96 • 24x • simulate_only` (não mais "23 meses").
-5. Verificar bloco verde "Liberado / Parcela / Tabela" abaixo do título.
-6. Ir para "Nova Simulação", abrir um lote existente; conferir nova coluna "Parcelas" mostrando `24x`.
-
-## Pendências
-- (futuro, se aprovado) Reutilizar o resultado do `V8LimitsBadge` no `FindBestProposalButton` para evitar dupla query.
-- (futuro) Persistir `parcelas` desejadas na criação do lote como default visual quando `installments` ainda é null.
+1. Ir em `/admin/commissions-v2` → aba "Taxas CLT".
+2. Clicar em "Importar" → escolher a planilha que falhou hoje.
+3. Conferir no preview os contadores "X novas / Y substituídas".
+4. Clicar em "Importar N taxas". Toast deve mostrar "X nova(s) inserida(s) · Y substituída(s)" sem erro.
+5. Repetir o mesmo teste em "Taxas FGTS V2".
+6. Em "Configurações" → "Zona de Perigo": confirmar que o botão "Limpar todas as vendas" está lá e exige digitar `CONFIRMAR`.
 
 ## Prevenção de regressão
-- Adicionar comentário explícito acima de `sim_month_max` em `V8OperacoesTab` avisando que NÃO é prazo do empréstimo (evita repetir o bug).
-- Estender `src/lib/__tests__/v8FindBestProposal.test.ts` com um teste garantindo que `installments` é a fonte de verdade do prazo (não `sim_month_max`).
+- Adicionar caso de teste em `RatesCLTTab.parseImport.test.ts`: garantir que `bank` e `table_key` saem em UPPERCASE.
+- Adicionar caso: planilha com `Facta`/`facta` deve produzir mesma chave canônica.
 
----
+## Antes vs depois
+- Antes: importação podia falhar por divergência de caixa entre planilha e banco; FGTS V2 sem contadores no preview; botão de limpeza duplicado.
+- Depois: importação determinística (tudo em UPPERCASE); preview de FGTS V2 igual ao CLT; botão de limpeza só na Zona de Perigo.
 
-**Posso seguir com a implementação?**
+## Pendências
+- Migração opcional para case-insensitive no índice se aparecerem mais cenários no futuro.
+- SmartPasteRatesButton ainda usa `.insert()` puro — se o usuário começar a colar texto livre, vale aplicar mesmo `upsertRates` lá.

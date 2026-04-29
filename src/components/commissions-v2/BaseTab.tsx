@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns, Eraser } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
@@ -283,33 +283,8 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   // Função handleCopyFromV1 removida ao promover V2 a módulo oficial.
   // Histórico V1 (legado) continua acessível em /admin/commissions, mas sem cópia automática.
 
-  const handleClearV2 = async () => {
-    const { count } = await supabase
-      .from('commission_sales_v2')
-      .select('*', { count: 'exact', head: true });
-    if (!count || count === 0) {
-      toast({ title: 'Nenhuma venda para apagar' });
-      return;
-    }
-    // Confirmação dupla: agora é módulo de produção, exigir digitar a palavra CONFIRMAR
-    const typed = window.prompt(
-      `ATENÇÃO: você está prestes a APAGAR todas as ${count} venda(s) do módulo Comissões Parceiros.\n\nEsta ação NÃO pode ser desfeita.\n\nPara prosseguir, digite a palavra CONFIRMAR (em maiúsculas):`
-    );
-    if (typed !== 'CONFIRMAR') {
-      toast({ title: 'Cancelado', description: 'Texto não confere — nada foi apagado.' });
-      return;
-    }
-    const { error } = await supabase
-      .from('commission_sales_v2')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-    if (error) {
-      toast({ title: 'Erro ao limpar', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: '🗑️ Vendas removidas', description: `${count} venda(s) apagada(s) do módulo de comissões parceiros.` });
-      loadSales();
-    }
-  };
+  // handleClearV2 movido para ConfigTab > "Zona de Perigo".
+
 
 
   return (
@@ -320,9 +295,6 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
               <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
-              <Button variant="outline" size="sm" onClick={handleClearV2} disabled={importing} className="border-destructive/40 hover:bg-destructive/10 text-destructive">
-                <Eraser className="w-4 h-4 mr-1" /> Limpar todas as vendas
-              </Button>
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
               </Button>

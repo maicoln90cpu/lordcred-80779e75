@@ -100,8 +100,10 @@ export default function RatesCLTTab() {
   const parseImportData = (rows: Record<string, string>[]) => {
     const today = new Date().toISOString().slice(0, 10);
     return rows.map(r => {
-      const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim();
-      const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim();
+      // Normaliza bank/table_key para UPPERCASE imediatamente — alinha com o índice
+      // único case-sensitive do Postgres e com a leitura UPPER() na função de cálculo.
+      const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim().toUpperCase();
+      const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim().toUpperCase();
       const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0').toString()) || 0;
       const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999').toString()) || 999;
       const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || r['min_value'] || '0').toString().replace(',', '.')) || 0;
@@ -112,7 +114,6 @@ export default function RatesCLTTab() {
       const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').toString().replace(',', '.')) || 0;
       const obs = (r['Obs'] || r['obs'] || '').toString();
       const dataVigRaw = (r['Data Vigência (AAAA-MM-DD, opcional)'] || r['Data Vigência'] || r['data_vigencia'] || r['effective_date'] || '').toString().trim();
-      // Aceita YYYY-MM-DD; se vier vazio ou inválido, usa hoje
       const effectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(dataVigRaw) ? dataVigRaw : today;
       return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
     }).filter(r => r.bank);

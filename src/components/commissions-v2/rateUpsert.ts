@@ -33,6 +33,20 @@ export type RateUpsertResult = {
   errors: string[];
 };
 
+/**
+ * Normaliza bank/table_key para UPPERCASE antes de qualquer comparação ou gravação.
+ * Crítico porque o índice único do Postgres é case-sensitive — se o banco já tem
+ * 'FACTA' e a planilha trouxer 'Facta', um INSERT puro estouraria duplicate key.
+ * Também alinha com `calculate_commission_v2()` que faz UPPER(NEW.bank) na leitura.
+ */
+function normalizeRow(r: RateRow): RateRow {
+  return {
+    ...r,
+    bank: (r.bank || '').trim().toUpperCase(),
+    table_key: r.table_key ? r.table_key.trim().toUpperCase() : null,
+  };
+}
+
 /** Chave de negócio que define duplicidade. Mesma em CLT e FGTS V2. */
 function rateKey(r: Pick<RateRow, 'bank' | 'table_key' | 'term_min' | 'term_max' | 'has_insurance' | 'effective_date'>) {
   return [
@@ -88,8 +102,9 @@ async function fetchExistingMap(
  */
 export async function previewRateUpsert(
   tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
-  rows: RateRow[],
+  rowsRaw: RateRow[],
 ): Promise<{ newCount: number; replaceCount: number }> {
+  const rows = rowsRaw.map(normalizeRow);
   const existing = await fetchExistingMap(tableName, rows);
   let replaceCount = 0;
   for (const r of rows) if (existing.has(rateKey(r))) replaceCount += 1;
@@ -102,10 +117,13 @@ export async function previewRateUpsert(
  */
 export async function upsertRates(
   tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
-  rows: RateRow[],
+  rowsRaw: RateRow[],
 ): Promise<RateUpsertResult> {
   const result: RateUpsertResult = { inserted: 0, updated: 0, errors: [] };
-  if (rows.length === 0) return result;
+  if (rowsRaw.length === 0) return result;
+
+  // 1) Normaliza tudo (UPPERCASE em bank/table_key) ANTES de qualquer comparação ou gravação.
+  const rows = rowsRaw.map(normalizeRow);
 
   const existing = await fetchExistingMap(tableName, rows);
 
@@ -117,7 +135,7 @@ export async function upsertRates(
 
   rows.forEach((r, idx) => {
     const key = rateKey(r);
-    if (localSeen.get(key) !== idx) return; // versão antiga da mesma chave dentro do mesmo arquivo
+    if (localSeen.get(key) !== idx) return;
     const id = existing.get(key);
     if (id) toUpdate.push({ id, row: r });
     else toInsert.push(r);
