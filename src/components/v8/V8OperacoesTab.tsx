@@ -591,6 +591,7 @@ export default function V8OperacoesTab() {
                                     v8SimulationId={ev.v8SimulationId}
                                     borrowerCpf={r.cpf}
                                     title={ev.title}
+                                    formalizationUrl={ev.meta?.formalizationUrl ?? null}
                                   />
                                 </li>
                               ))}
