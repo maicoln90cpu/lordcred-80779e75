@@ -522,6 +522,35 @@ export default function V8OperacoesTab() {
                                   {ev.subtitle && (
                                     <div className="text-xs text-muted-foreground mt-1">{ev.subtitle}</div>
                                   )}
+                                  {ev.approved && (
+                                    <div className="mt-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs space-y-0.5">
+                                      <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        Liberado:
+                                        <span>
+                                          {ev.approved.releasedValue != null
+                                            ? `R$ ${ev.approved.releasedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                                            : '—'}
+                                        </span>
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        Parcela:{' '}
+                                        <span className="font-medium text-foreground">
+                                          {ev.approved.installmentValue != null
+                                            ? `R$ ${ev.approved.installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                                            : '—'}
+                                        </span>
+                                        {ev.approved.installments ? (
+                                          <span className="ml-1 font-medium text-foreground">· {ev.approved.installments}x</span>
+                                        ) : null}
+                                      </div>
+                                      {ev.approved.configName && (
+                                        <div className="text-muted-foreground">
+                                          Tabela: <span className="text-foreground">{ev.approved.configName}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {ev.meta?.error && (
                                     <div className="text-xs text-red-500 mt-1 truncate" title={ev.meta.error}>
                                       ⚠️ {ev.meta.error}
