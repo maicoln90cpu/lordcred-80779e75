@@ -80,6 +80,31 @@ function onlyDigits(s: string) {
   return (s || '').replace(/\D/g, '');
 }
 
+/**
+ * Extrai a URL de formalização do raw_payload da V8.
+ * V8 pode retornar a URL em diferentes chaves dependendo do estágio:
+ *  - formalizationUrl / formalization_url (usuais)
+ *  - contractUrl / contract_url (após CCB pronta)
+ *  - signatureUrl (assinatura)
+ * Procura na raiz e em sub-objetos comuns (data, operation, formalization).
+ */
+function extractFormalizationUrl(raw: any): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidates = [raw, raw.data, raw.operation, raw.formalization, raw.contract].filter(Boolean);
+  const keys = [
+    'formalizationUrl', 'formalization_url',
+    'contractUrl', 'contract_url',
+    'signatureUrl', 'signature_url',
+  ];
+  for (const c of candidates) {
+    for (const k of keys) {
+      const v = c?.[k];
+      if (typeof v === 'string' && /^https?:\/\//i.test(v)) return v;
+    }
+  }
+  return null;
+}
+
 function formatCpf(cpf: string) {
   const d = onlyDigits(cpf);
   if (d.length !== 11) return cpf;
@@ -324,10 +349,10 @@ export default function V8OperacoesTab() {
           });
         });
 
-        // 3) Operações locais
+        // 3) Operações locais (inclui raw_payload para extrair formalization_url)
         const { data: ops } = await supabase
           .from('v8_operations_local')
-          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at')
+          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, raw_payload')
           .or(`v8_simulation_id.in.(${ids.join(',')}),consult_id.in.(${ids.join(',')})`)
           .limit(50);
 
@@ -343,6 +368,7 @@ export default function V8OperacoesTab() {
             consultId: o.consult_id,
             operationId: o.operation_id,
             v8SimulationId: o.v8_simulation_id,
+            meta: { formalizationUrl: extractFormalizationUrl(o.raw_payload) },
           });
         });
       }
@@ -565,6 +591,7 @@ export default function V8OperacoesTab() {
                                     v8SimulationId={ev.v8SimulationId}
                                     borrowerCpf={r.cpf}
                                     title={ev.title}
+                                    formalizationUrl={ev.meta?.formalizationUrl ?? null}
                                   />
                                 </li>
                               ))}

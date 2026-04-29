@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound, FileUp } from 'lucide-react';
+import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound, FileUp, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import V8RawJsonSheet from './V8RawJsonSheet';
 import ResolvePixPendencyDialog from './ResolvePixPendencyDialog';
@@ -20,10 +20,12 @@ interface Props {
   borrowerCpf?: string | null;
   /** título exibido no sheet do JSON */
   title?: string;
+  /** URL de formalização da V8 (CCB / assinatura) — exibida como botão clicável */
+  formalizationUrl?: string | null;
 }
 
 export default function TimelineEventActions({
-  kind, rowId, status, consultId, operationId, v8SimulationId, borrowerCpf, title,
+  kind, rowId, status, consultId, operationId, v8SimulationId, borrowerCpf, title, formalizationUrl,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
@@ -188,6 +190,27 @@ export default function TimelineEventActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent>POST /operation/{'{id}'}/document + PATCH /pendency/presentation</TooltipContent>
+          </Tooltip>
+        )}
+        {kind === 'operation' && formalizationUrl && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+              >
+                <a href={formalizationUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="ml-1 text-xs">Abrir formalização</span>
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs break-all">
+              Link de assinatura/CCB enviado pela V8.<br />
+              <span className="font-mono text-[10px] opacity-70">{formalizationUrl}</span>
+            </TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
