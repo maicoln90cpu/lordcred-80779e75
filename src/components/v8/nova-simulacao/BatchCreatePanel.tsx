@@ -53,6 +53,8 @@ interface Props {
   // ação
   running: boolean;
   onStart: () => void;
+  /** Etapa 3 (item 7): agendar lote para horário futuro. Quando definido, mostra UI de agendamento. */
+  onSchedule?: (scheduledForIso: string) => void;
 }
 
 /**
