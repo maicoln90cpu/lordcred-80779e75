@@ -126,6 +126,23 @@ export default function TimelineEventActions({
             <TooltipContent>Reprocessa webhooks pendentes dos últimos 7 dias</TooltipContent>
           </Tooltip>
         )}
+        {canCancelOperation && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                onClick={cancelOperation}
+                disabled={busy === 'cancel'}
+              >
+                {busy === 'cancel' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ban className="w-3 h-3" />}
+                <span className="ml-1 text-xs">Cancelar na V8</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>POST /operation/{'{id}'}/cancel — apenas admin/manager</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setShowJson(true)}>
