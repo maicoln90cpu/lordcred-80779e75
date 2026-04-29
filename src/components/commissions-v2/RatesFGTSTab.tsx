@@ -278,8 +278,17 @@ export default function RatesFGTSTab() {
                 <textarea onPaste={handlePaste} placeholder="Cole aqui os dados copiados da planilha..." className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] mt-1 placeholder:text-muted-foreground" />
               </div>
               {importPreview.length > 0 && (
-                <div className="border rounded-md p-3 bg-muted/30">
-                  <p className="text-sm font-medium mb-2">Preview: {importPreview.length} taxas (vigência: hoje)</p>
+                <div className="border rounded-md p-3 bg-muted/30 space-y-1">
+                  <p className="text-sm font-medium">Preview: {importPreview.length} taxa(s)</p>
+                  {importStats ? (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{importStats.newCount} nova(s)</span>
+                      {' · '}
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">{importStats.replaceCount} substituída(s)</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Calculando novas vs substituídas…</p>
+                  )}
                 </div>
               )}
             </div>
