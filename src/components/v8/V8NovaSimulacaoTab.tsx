@@ -61,6 +61,47 @@ export default function V8NovaSimulacaoTab() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
 
+  // Etapa 2 (item 6): estado de pausa do lote ativo (lido com realtime).
+  const [activeBatchPaused, setActiveBatchPaused] = useState(false);
+  useEffect(() => {
+    if (!activeBatchId) { setActiveBatchPaused(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('v8_batches')
+        .select('is_paused')
+        .eq('id', activeBatchId)
+        .maybeSingle();
+      if (!cancelled) setActiveBatchPaused(!!(data as any)?.is_paused);
+    };
+    load();
+    const ch = supabase
+      .channel(`v8-batch-paused-${activeBatchId}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'v8_batches', filter: `id=eq.${activeBatchId}` },
+        (payload: any) => setActiveBatchPaused(!!payload.new?.is_paused),
+      )
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [activeBatchId]);
+
+  const togglePause = async () => {
+    if (!activeBatchId) return;
+    const next = !activeBatchPaused;
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from('v8_batches')
+      .update({
+        is_paused: next,
+        paused_at: next ? new Date().toISOString() : null,
+        paused_by: next ? user?.id ?? null : null,
+      })
+      .eq('id', activeBatchId);
+    if (error) { toast.error('Não foi possível alterar a pausa: ' + error.message); return; }
+    setActiveBatchPaused(next);
+    toast.success(next ? '⏸ Lote pausado — cron e auto-retry vão pular este lote' : '▶ Lote retomado');
+  };
+
   const maxAutoRetry = v8Settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const minBackoffMs = (v8Settings?.retry_min_backoff_seconds ?? 10) * 1000;
   const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
