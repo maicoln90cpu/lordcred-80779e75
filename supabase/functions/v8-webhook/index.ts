@@ -96,7 +96,7 @@ async function processV8Payload(
       // (failed → pending) nem promover (any → success) sem valores monetários reais.
       const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .select("id, status, released_value, installment_value, simulation_strategy, installments, error_kind")
+        .select("id, status, released_value, installment_value, simulation_strategy, installments, error_kind, batch_id")
         .eq("consult_id", consultId)
         .maybeSingle();
 
