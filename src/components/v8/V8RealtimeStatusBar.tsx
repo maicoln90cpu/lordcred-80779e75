@@ -250,7 +250,10 @@ export function V8RealtimeStatusBar() {
           </span>
         )}
         {(agg.retrying_consults > 0 || agg.retrying_simulations > 0) && (
-          <span className="text-muted-foreground">· teto {maxAttempts} tent.</span>
+          <span
+            className="text-muted-foreground underline decoration-dotted cursor-help"
+            title={`Cada simulação tenta no máximo ${maxAttempts} ciclos internos automáticos (consulta + aceite + cálculo). Após esgotar, fica como falha definitiva. Esse limite NÃO conta novas simulações manuais — cada novo disparo do mesmo CPF gera um novo registro com seu próprio contador de ciclos.`}
+          >· teto {maxAttempts} ciclos por simulação ⓘ</span>
         )}
         {agg.awaiting_v8 > 0 && (
           <span className="inline-flex items-center gap-1 text-sky-600" title="Aguardando a V8: 'consulta ativa' bloqueada ou pending sem resposta. NÃO é nosso retry — é a V8 quem precisa responder/liberar.">
