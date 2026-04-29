@@ -679,8 +679,16 @@ export default function V8OperacoesTab() {
                                     <span className="text-xs text-muted-foreground ml-auto">{fmtDate(ev.at)}</span>
                                   </div>
                                   {ev.status && (
-                                    <div className="mt-1">
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                       <V8StatusBadgePair status={ev.status} compact />
+                                      {ev.isNewOverPrevious && (
+                                        <span
+                                          className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+                                          title="Esta simulação foi disparada DEPOIS de uma simulação que já tinha dado sucesso para o mesmo CPF. A operação anterior continua válida — esta é uma nova consulta aguardando análise."
+                                        >
+                                          🔄 Nova consulta — aguardando análise da anterior
+                                        </span>
+                                      )}
                                     </div>
                                   )}
                                   {ev.operation && (ev.operation.disbursedAmount != null || ev.operation.installmentValue != null || ev.operation.paidAt) && (
