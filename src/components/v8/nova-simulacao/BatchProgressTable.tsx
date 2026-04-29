@@ -192,6 +192,18 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 
+  // Sucesso — não é falha, então mostra o estado da etapa de simulação.
+  if (s.status === 'success') {
+    const simStatus = s.simulate_status ?? 'not_started';
+    if (simStatus === 'success') {
+      return <span className="text-emerald-600">Proposta calculada</span>;
+    }
+    if (simStatus === 'failed') {
+      return <span className="text-amber-600">Margem aprovada · simulação falhou — tente "Encontrar proposta viável"</span>;
+    }
+    return <span className="text-muted-foreground">Margem aprovada — clique em "Simular selecionados" para calcular a proposta</span>;
+  }
+
   if (isActiveConsult) {
     const snapshot = getV8StatusSnapshot(s.raw_response);
     if (snapshot?.hasData) {
