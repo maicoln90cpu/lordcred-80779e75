@@ -2155,24 +2155,35 @@ const handler = async (req: Request) => {
             // Mesma proteção de active_consult — pode chegar aqui se a classificação
             // vier do step `consult` (não `consult_status`). Nunca virar failed.
             const isActiveConsult = (result as any).kind === "active_consult";
+            // FIX 4: quando o erro vem do step `simulate`, grava também em
+            // simulate_error_message (coluna dedicada). error_message continua
+            // recebendo para retrocompat, mas a UI dá preferência à coluna nova.
+            const isSimulateStep = (result as any)?.step === "simulate";
+            const errorMsg = String((result as any).user_message || (result as any).error || "Erro desconhecido");
+            const updates: Record<string, unknown> = {
+              status: isActiveConsult ? "pending" : "failed",
+              error_kind: (result as any).kind ?? null,
+              error_message: errorMsg,
+              webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
+              raw_response: {
+                kind: (result as any).kind ?? null,
+                step: (result as any).step ?? null,
+                title: (result as any).title ?? null,
+                detail: (result as any).detail ?? null,
+                guidance: (result as any).guidance ?? null,
+                payload: (result as any).raw ?? null,
+              },
+              last_step: (result as any).step ?? 'simulate_one',
+              processed_at: new Date().toISOString(),
+            };
+            if (isSimulateStep) {
+              updates.simulate_error_message = errorMsg;
+              updates.simulate_status = "failed";
+              updates.simulate_attempted_at = new Date().toISOString();
+            }
             await supabase
               .from("v8_simulations")
-              .update({
-                status: isActiveConsult ? "pending" : "failed",
-                error_kind: (result as any).kind ?? null,
-                error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
-                webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
-                raw_response: {
-                  kind: (result as any).kind ?? null,
-                  step: (result as any).step ?? null,
-                  title: (result as any).title ?? null,
-                  detail: (result as any).detail ?? null,
-                  guidance: (result as any).guidance ?? null,
-                  payload: (result as any).raw ?? null,
-                },
-                last_step: (result as any).step ?? 'simulate_one',
-                processed_at: new Date().toISOString(),
-              })
+              .update(updates)
               .eq("id", params.simulation_id);
             if (params.batch_id && !isActiveConsult) {
               await supabase.rpc("v8_increment_batch_failure", {
