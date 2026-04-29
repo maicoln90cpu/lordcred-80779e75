@@ -2439,6 +2439,74 @@ const handler = async (req: Request) => {
         });
         break;
       }
+      case "schedule_batch": {
+        result = await actionScheduleBatch(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_schedule_batch",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: (result as any)?.data?.batch_id ?? null,
+          details: {
+            request_payload: {
+              action: "schedule_batch",
+              name: params?.name ?? null,
+              config_id: params?.config_id ?? null,
+              parcelas: params?.parcelas ?? null,
+              scheduled_for: params?.scheduled_for ?? null,
+              strategy: params?.strategy ?? null,
+              rows_count: Array.isArray(params?.rows) ? params.rows.length : 0,
+            },
+            response_payload: result,
+          },
+        });
+        break;
+      }
+      case "cancel_schedule": {
+        const batchId = String(params?.batch_id ?? "");
+        if (!batchId) {
+          result = { success: false, error: "batch_id obrigatório" };
+        } else {
+          const { data: batchRow } = await supabase
+            .from("v8_batches")
+            .select("id, status, created_by, name")
+            .eq("id", batchId)
+            .maybeSingle();
+          if (!batchRow) {
+            result = { success: false, error: "Lote não encontrado" };
+          } else if (!isPriv && batchRow.created_by !== userId) {
+            result = { success: false, error: "Sem permissão" };
+          } else if (batchRow.status !== "scheduled") {
+            result = { success: false, error: `Lote não está mais agendado (status: ${batchRow.status})` };
+          } else {
+            const { error: upErr } = await supabase
+              .from("v8_batches")
+              .update({
+                status: "canceled",
+                canceled_at: new Date().toISOString(),
+                canceled_by: userId,
+              })
+              .eq("id", batchId)
+              .eq("status", "scheduled"); // proteção: só cancela se ainda está agendado
+            result = upErr
+              ? { success: false, error: upErr.message }
+              : { success: true, data: { batch_id: batchId } };
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_schedule",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: params?.batch_id ?? null,
+          details: { request_payload: params, response_payload: result },
+        });
+        break;
+      }
       case "register_webhooks": {
         if (!isPriv) {
           result = { success: false, error: "Apenas administradores podem registrar webhooks" };
