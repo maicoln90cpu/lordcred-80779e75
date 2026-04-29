@@ -533,7 +533,7 @@ export default function V8NovaSimulacaoTab() {
                 simulation_id: sim.id,
                 consult_id: sim.consult_id,
                 config_id: sim.config_id || configId,
-                parcelas: sim.installments || parcelas,
+                parcelas: parcelas || sim.installments,
                 simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
                 simulation_value: simulationMode === 'none' ? undefined : normalizedSimulationValue,
               },
