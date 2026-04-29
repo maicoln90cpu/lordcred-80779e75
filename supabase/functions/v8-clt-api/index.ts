@@ -26,7 +26,21 @@ const V8_PATHS = {
   operationCancel: (operationId: string) => `/private-consignment/operation/${operationId}/cancel`,
   operationPendencyPaymentData: (operationId: string) =>
     `/private-consignment/operation/${operationId}/pendency/payment-data`,
+  operationDocument: (operationId: string) =>
+    `/private-consignment/operation/${operationId}/document`,
+  operationPendencyPresentation: (operationId: string) =>
+    `/private-consignment/operation/${operationId}/pendency/presentation`,
 };
+
+// Tipos oficiais V8 de documento aceitos no upload
+const V8_DOC_TYPES = new Set([
+  'identification_front',
+  'identification_back',
+  'address_proof',
+  'paycheck',
+  'selfie',
+  'other',
+]);
 
 const MAX_RETRIES_CONSULT = 3;
 const MAX_RETRIES_AUTHORIZE = 15;
