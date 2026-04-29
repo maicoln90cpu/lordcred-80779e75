@@ -2,8 +2,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search } from 'lucide-react';
-import { MargemDispCell } from '../MargemDispCell';
+import { Loader2, Search, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RealtimeFreshness, AutoRetryIndicator } from './BatchAnimations';
 import {
   getV8ErrorMessageDeduped,
