@@ -258,12 +258,17 @@ export default function V8OperacoesTab() {
       // 1) Simulações
       const { data: sims } = await supabase
         .from('v8_simulations')
-        .select('id, status, simulate_status, error_message, released_value, installment_value, sim_month_max, config_name, v8_simulation_id, consult_id, created_at, updated_at, last_step')
+        .select('id, status, simulate_status, error_message, released_value, installment_value, installments, sim_month_max, config_name, v8_simulation_id, consult_id, created_at, updated_at, last_step')
         .eq('cpf', cpf)
         .order('created_at', { ascending: false })
         .limit(50);
 
       (sims ?? []).forEach((s: any) => {
+        // ⚠️ NÃO usar sim_month_max aqui — esse campo é o tempo de admissão CLT do
+        // trabalhador (vem do payload V8), NÃO o nº de parcelas do empréstimo.
+        // O nº de parcelas correto é a coluna `installments` (gravada por simulate_one
+        // / simulate_only_for_consult). Já tivemos regressão por confundir esses dois.
+        const installmentsLabel = s.installments ? `${s.installments}x` : null;
         events.push({
           id: `sim-${s.id}`,
           rowId: s.id,
@@ -272,12 +277,21 @@ export default function V8OperacoesTab() {
           title: s.config_name ? `Simulação — ${s.config_name}` : 'Simulação',
           subtitle: [
             s.released_value ? `R$ ${Number(s.released_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null,
-            s.sim_month_max === 999 ? '24+ meses' : s.sim_month_max ? `${s.sim_month_max} meses` : null,
+            installmentsLabel,
             s.last_step,
           ].filter(Boolean).join(' • '),
           status: s.status,
           consultId: s.consult_id,
           v8SimulationId: s.v8_simulation_id,
+          approved:
+            s.status === 'success' && (s.released_value != null || s.installment_value != null)
+              ? {
+                  releasedValue: s.released_value != null ? Number(s.released_value) : null,
+                  installmentValue: s.installment_value != null ? Number(s.installment_value) : null,
+                  installments: s.installments != null ? Number(s.installments) : null,
+                  configName: s.config_name ?? null,
+                }
+              : null,
           meta: { simulate_status: s.simulate_status, error: s.error_message },
         });
       });
