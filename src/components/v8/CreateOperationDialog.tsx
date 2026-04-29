@@ -298,6 +298,24 @@ export default function CreateOperationDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Etapa 4 — bloco "Consultar V8 primeiro" para leads sem consulta autorizada */}
+        {origin === 'lead' && !consultId && (
+          <div className="rounded-md border border-sky-500/40 bg-sky-500/5 p-3 text-xs space-y-2">
+            <div className="font-medium text-sky-700 dark:text-sky-300 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Este lead ainda não tem consulta de margem.
+            </div>
+            <p className="text-muted-foreground">
+              A V8 só aceita propostas com margem autorizada. Preencha CPF + data de nascimento abaixo
+              e clique em <strong>Consultar V8 agora</strong>. Em ~10–30s o webhook chega; depois disso
+              o lead aparece na aba "Operações" como SUCCESS e o botão de envio libera.
+            </p>
+            <Button size="sm" variant="outline" onClick={handleConsultForLead} disabled={consultingForLead}>
+              {consultingForLead ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}
+              Consultar V8 agora
+            </Button>
+          </div>
+        )}
+
         {/* Identificação */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Identificação</h3>
