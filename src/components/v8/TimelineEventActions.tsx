@@ -111,6 +111,10 @@ export default function TimelineEventActions({
   const pixPendencyStatuses = new Set(['pending_pix', 'pending_payment_data']);
   const canResolvePix =
     kind === 'operation' && !!operationId && pixPendencyStatuses.has(normalizedStatus);
+  // Pendência de documentos — V8 retorna pending_documents / pending_signature_documents.
+  const docsPendencyStatuses = new Set(['pending_documents', 'pending_signature_documents', 'pending_documentation']);
+  const canResolveDocs =
+    kind === 'operation' && !!operationId && docsPendencyStatuses.has(normalizedStatus);
 
   return (
     <>
