@@ -1,37 +1,56 @@
 /**
- * V8DatabaseHealthCard — "Saúde do banco" (Etapa 2).
+ * V8DatabaseHealthCard — "Saúde do banco" (Etapa 3 abr/2026).
  *
- * Mostra ao operador o quanto a integração V8 está consumindo do banco
- * Supabase: linhas em v8_simulations, v8_webhook_logs, antigos pendentes
- * de limpeza, e botão para forçar a rotina de limpeza manualmente.
+ * Monitora 5 tabelas técnicas do sistema. As 3 PRIMEIRAS têm limpeza
+ * automática diária (retenção 1 dia); as 2 ÚLTIMAS são apenas observadas
+ * (mantemos histórico).
  *
- * Lê via RPC `get_v8_database_health` (criada na Etapa 1) e dispara
- * `cleanup_webhook_logs` quando o operador clica em "Limpar agora".
+ *   1. audit_logs           — limpeza automática 1d
+ *   2. v8_webhook_logs      — limpeza automática 1d
+ *   3. webhook_logs (UazAPI)— limpeza automática 1d
+ *   4. chip_lifecycle_logs  — só monitora (histórico do chip)
+ *   5. v8_simulations       — só monitora (histórico de consultas)
  *
- * IMPORTANTE: o tamanho físico da tabela só cai depois de VACUUM FULL,
- * que precisa ser rodado fora da app (SQL Editor). Mostramos um aviso.
+ * Lê via RPC `get_v8_database_health` e dispara `cleanup_webhook_logs` /
+ * `cleanup_audit_logs` quando o operador clica em "Limpar agora".
+ *
+ * IMPORTANTE: o tamanho físico da tabela só cai depois de VACUUM FULL
+ * (rodado fora da app, no SQL Editor). O Postgres reaproveita o espaço
+ * internamente nas próximas inserções.
  */
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Database, RefreshCw, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { Database, RefreshCw, Trash2, Loader2, AlertTriangle, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface HealthRow {
+  // V8
   total_simulations: number;
   total_webhooks_v8: number;
-  webhooks_v8_older_than_3d: number;
+  webhooks_v8_older_than_1d: number;
   v8_webhook_table_size: string;
   v8_simulations_table_size: string;
   database_total_size: string;
+  // audit_logs
+  total_audit_logs: number;
+  audit_logs_older_than_1d: number;
+  audit_logs_table_size: string;
+  // webhook_logs (UazAPI)
+  total_webhook_logs: number;
+  webhook_logs_older_than_1d: number;
+  webhook_logs_table_size: string;
+  // chip_lifecycle_logs
+  total_chip_lifecycle_logs: number;
+  chip_lifecycle_logs_table_size: string;
 }
 
 export default function V8DatabaseHealthCard() {
   const [data, setData] = useState<HealthRow | null>(null);
   const [loading, setLoading] = useState(false);
-  const [cleaning, setCleaning] = useState(false);
+  const [cleaningWebhooks, setCleaningWebhooks] = useState(false);
+  const [cleaningAudit, setCleaningAudit] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -49,18 +68,33 @@ export default function V8DatabaseHealthCard() {
 
   useEffect(() => { void load(); }, []);
 
-  async function handleCleanNow() {
-    if (!confirm('Apagar agora todos os webhooks V8 com mais de 3 dias?\n\nEssa rotina já roda automaticamente todo dia às 04h UTC. Use só se precisar liberar espaço imediatamente.')) return;
-    setCleaning(true);
+  async function handleCleanWebhooks() {
+    if (!confirm('Apagar agora todos os webhooks (UazAPI + V8) com mais de 1 dia?\n\nEssa rotina já roda automaticamente todo dia às 04h UTC. Use só se precisar liberar espaço imediatamente.')) return;
+    setCleaningWebhooks(true);
     try {
       const { error } = await supabase.rpc('cleanup_webhook_logs' as any);
       if (error) throw error;
-      toast.success('Limpeza executada. Recarregando dados…');
+      toast.success('Webhooks antigos limpos. Recarregando…');
       await load();
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`);
     } finally {
-      setCleaning(false);
+      setCleaningWebhooks(false);
+    }
+  }
+
+  async function handleCleanAudit() {
+    if (!confirm('Apagar agora todos os audit_logs com mais de 1 dia?\n\nEssa rotina já roda automaticamente todo dia às 03h15 UTC.')) return;
+    setCleaningAudit(true);
+    try {
+      const { error } = await supabase.rpc('cleanup_audit_logs' as any);
+      if (error) throw error;
+      toast.success('Audit logs antigos limpos. Recarregando…');
+      await load();
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || err}`);
+    } finally {
+      setCleaningAudit(false);
     }
   }
 
@@ -69,14 +103,14 @@ export default function V8DatabaseHealthCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Database className="w-5 h-5" />
-          Saúde do banco (V8)
+          Saúde do banco — 5 tabelas técnicas
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Quanto a integração V8 ocupa do banco Supabase. A rotina de limpeza
-          roda automaticamente todo dia às <strong>04h UTC (01h Brasília)</strong> e
-          apaga webhooks com mais de 3 dias.
+          Monitora as 5 tabelas técnicas do sistema. <strong>3 são limpas automaticamente</strong> todo dia
+          (retenção <strong>1 dia</strong>): audit_logs (03h15 UTC), webhook_logs UazAPI (04h UTC) e v8_webhook_logs (04h UTC).
+          <br />As outras 2 (<em>chip_lifecycle_logs</em> e <em>v8_simulations</em>) ficam só monitoradas — têm valor de histórico.
         </p>
 
         {loading && !data ? (
@@ -85,26 +119,72 @@ export default function V8DatabaseHealthCard() {
           </div>
         ) : data ? (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <Stat label="Banco total" value={data.database_total_size} />
-              <Stat label="Tabela webhooks V8" value={data.v8_webhook_table_size} />
-              <Stat label="Tabela simulações V8" value={data.v8_simulations_table_size} />
-              <Stat label="Simulações" value={Number(data.total_simulations).toLocaleString('pt-BR')} />
-              <Stat label="Webhooks V8" value={Number(data.total_webhooks_v8).toLocaleString('pt-BR')} />
-              <Stat
-                label="Pendentes de limpeza (>3 dias)"
-                value={Number(data.webhooks_v8_older_than_3d).toLocaleString('pt-BR')}
-                warn={data.webhooks_v8_older_than_3d > 1000}
-              />
+            <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+              <strong>Banco total:</strong> {data.database_total_size}
             </div>
 
-            {data.webhooks_v8_older_than_3d > 1000 && (
+            {/* GRUPO 1: limpeza automática */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Trash2 className="w-3.5 h-3.5 text-amber-600" />
+                <h4 className="text-sm font-medium">Limpeza automática (1 dia)</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <TableStat
+                  name="audit_logs"
+                  totalRows={data.total_audit_logs}
+                  oldRows={data.audit_logs_older_than_1d}
+                  size={data.audit_logs_table_size}
+                  retentionLabel="1 dia"
+                />
+                <TableStat
+                  name="webhook_logs (UazAPI)"
+                  totalRows={data.total_webhook_logs}
+                  oldRows={data.webhook_logs_older_than_1d}
+                  size={data.webhook_logs_table_size}
+                  retentionLabel="1 dia"
+                />
+                <TableStat
+                  name="v8_webhook_logs"
+                  totalRows={data.total_webhooks_v8}
+                  oldRows={data.webhooks_v8_older_than_1d}
+                  size={data.v8_webhook_table_size}
+                  retentionLabel="1 dia"
+                />
+              </div>
+            </div>
+
+            {/* GRUPO 2: só monitora */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Eye className="w-3.5 h-3.5 text-blue-600" />
+                <h4 className="text-sm font-medium">Só monitorado (sem limpeza automática)</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <TableStat
+                  name="chip_lifecycle_logs"
+                  totalRows={data.total_chip_lifecycle_logs}
+                  size={data.chip_lifecycle_logs_table_size}
+                  retentionLabel="histórico"
+                />
+                <TableStat
+                  name="v8_simulations"
+                  totalRows={data.total_simulations}
+                  size={data.v8_simulations_table_size}
+                  retentionLabel="histórico"
+                />
+              </div>
+            </div>
+
+            {(data.webhooks_v8_older_than_1d > 1000
+              || data.audit_logs_older_than_1d > 5000
+              || data.webhook_logs_older_than_1d > 1000) && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                 <div>
-                  Há <strong>{data.webhooks_v8_older_than_3d.toLocaleString('pt-BR')}</strong> webhooks
-                  antigos que deveriam ter sido apagados. Verifique se o cron <code>cleanup-webhook-logs</code> está
-                  ativo, ou clique em "Limpar agora".
+                  Há linhas pendentes de limpeza acima do esperado. Verifique se os crons{' '}
+                  <code>cleanup-audit-logs-daily</code> e <code>cleanup-webhook-logs</code> estão ativos,
+                  ou clique nos botões "Limpar agora" abaixo.
                 </div>
               </div>
             )}
@@ -112,12 +192,9 @@ export default function V8DatabaseHealthCard() {
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
               <div>
                 💡 <strong>Importante</strong>: a limpeza apaga linhas, mas o tamanho
-                físico do arquivo (<em>{data.v8_webhook_table_size}</em>) só cai
-                depois de rodar <code className="font-mono">VACUUM FULL public.v8_webhook_logs;</code> no SQL Editor.
-              </div>
-              <div>
-                O Postgres reaproveita o espaço internamente nas próximas inserções,
-                então a tabela não cresce sem limite — só não devolve o espaço ao SO sem o VACUUM.
+                físico do arquivo só cai depois de rodar{' '}
+                <code className="font-mono">VACUUM FULL nome_tabela;</code> no SQL Editor.
+                O Postgres reaproveita o espaço internamente nas próximas inserções.
               </div>
             </div>
           </>
@@ -133,11 +210,20 @@ export default function V8DatabaseHealthCard() {
           <Button
             variant="destructive"
             size="sm"
-            onClick={handleCleanNow}
-            disabled={cleaning || loading}
+            onClick={handleCleanWebhooks}
+            disabled={cleaningWebhooks || loading}
           >
-            {cleaning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-            Limpar webhooks &gt; 3 dias agora
+            {cleaningWebhooks ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+            Limpar webhooks &gt; 1 dia
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleCleanAudit}
+            disabled={cleaningAudit || loading}
+          >
+            {cleaningAudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+            Limpar audit_logs &gt; 1 dia
           </Button>
         </div>
       </CardContent>
@@ -145,13 +231,39 @@ export default function V8DatabaseHealthCard() {
   );
 }
 
-function Stat({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
+function TableStat({
+  name, totalRows, oldRows, size, retentionLabel,
+}: {
+  name: string;
+  totalRows: number;
+  oldRows?: number;
+  size: string;
+  retentionLabel: string;
+}) {
+  const warn = oldRows != null && oldRows > 1000;
   return (
-    <div className={`rounded-md border p-3 ${warn ? 'border-amber-500/40 bg-amber-500/5' : ''}`}>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-lg font-semibold mt-0.5 ${warn ? 'text-amber-700 dark:text-amber-400' : ''}`}>
-        {value}
+    <div className={`rounded-md border p-3 ${warn ? 'border-amber-500/40 bg-amber-500/5' : 'bg-card'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-mono font-medium truncate" title={name}>{name}</div>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">{retentionLabel}</span>
       </div>
+      <div className="mt-1.5 grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <div className="text-[10px] uppercase text-muted-foreground">Linhas</div>
+          <div className="font-semibold">{Number(totalRows).toLocaleString('pt-BR')}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase text-muted-foreground">Tamanho</div>
+          <div className="font-semibold">{size}</div>
+        </div>
+      </div>
+      {oldRows != null && (
+        <div className={`mt-1.5 text-[11px] ${warn ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>
+          {oldRows > 0
+            ? <>Pendentes de limpeza: <strong>{Number(oldRows).toLocaleString('pt-BR')}</strong></>
+            : <>✓ Sem pendências</>}
+        </div>
+      )}
     </div>
   );
 }

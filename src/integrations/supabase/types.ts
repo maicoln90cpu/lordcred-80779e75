@@ -4892,12 +4892,20 @@ export type Database = {
       get_v8_database_health: {
         Args: never
         Returns: {
+          audit_logs_older_than_1d: number
+          audit_logs_table_size: string
+          chip_lifecycle_logs_table_size: string
           database_total_size: string
+          total_audit_logs: number
+          total_chip_lifecycle_logs: number
           total_simulations: number
+          total_webhook_logs: number
           total_webhooks_v8: number
           v8_simulations_table_size: string
           v8_webhook_table_size: string
-          webhooks_v8_older_than_3d: number
+          webhook_logs_older_than_1d: number
+          webhook_logs_table_size: string
+          webhooks_v8_older_than_1d: number
         }[]
       }
       get_visible_profiles: {
