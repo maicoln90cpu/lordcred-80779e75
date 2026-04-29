@@ -320,9 +320,6 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
               <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
-              <Button variant="outline" size="sm" onClick={handleClearV2} disabled={importing} className="border-destructive/40 hover:bg-destructive/10 text-destructive">
-                <Eraser className="w-4 h-4 mr-1" /> Limpar todas as vendas
-              </Button>
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
               </Button>
