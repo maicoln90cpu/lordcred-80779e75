@@ -14,6 +14,7 @@ import { useV8BatchOperations } from '@/hooks/useV8BatchOperations';
 import BatchCreatePanel from './nova-simulacao/BatchCreatePanel';
 import BatchProgressTable from './nova-simulacao/BatchProgressTable';
 import BatchActionsBar from './nova-simulacao/BatchActionsBar';
+import { downloadBatchCsv } from '@/lib/v8BatchExport';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 const STORAGE_KEY = 'v8:nova-simulacao:draft';
@@ -216,6 +217,8 @@ export default function V8NovaSimulacaoTab() {
               onRetryFailed={ops.handleRetryFailed}
               onReplayPending={ops.handleReplayPending}
               onCancelBatch={ops.handleCancelBatch}
+              onExportCsv={() => downloadBatchCsv(simulations, batchName)}
+              exportDisabled={simulations.length === 0}
             />
           }
         />

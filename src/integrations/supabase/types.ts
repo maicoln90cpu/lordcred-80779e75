@@ -4304,6 +4304,7 @@ export type Database = {
           last_webhook_at: string | null
           margem_valor: number | null
           name: string | null
+          paste_order: number | null
           processed_at: string | null
           raw_response: Json | null
           released_value: number | null
@@ -4349,6 +4350,7 @@ export type Database = {
           last_webhook_at?: string | null
           margem_valor?: number | null
           name?: string | null
+          paste_order?: number | null
           processed_at?: string | null
           raw_response?: Json | null
           released_value?: number | null
@@ -4394,6 +4396,7 @@ export type Database = {
           last_webhook_at?: string | null
           margem_valor?: number | null
           name?: string | null
+          paste_order?: number | null
           processed_at?: string | null
           raw_response?: Json | null
           released_value?: number | null

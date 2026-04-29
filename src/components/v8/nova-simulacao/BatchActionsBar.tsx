@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X } from 'lucide-react';
+import { Play, RefreshCw, X, Download } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -10,19 +10,23 @@ interface Props {
   onRetryFailed: () => void;
   onReplayPending: () => void;
   onCancelBatch: () => void;
+  /** Etapa 1 (item 9): exportar simulações do lote ativo em CSV. */
+  onExportCsv?: () => void;
+  exportDisabled?: boolean;
 }
 
 /**
  * Barra de ações do lote ativo: Simular selecionados / Retentar falhados /
- * Buscar resultados pendentes / Cancelar lote.
+ * Buscar resultados pendentes / Exportar CSV / Cancelar lote.
  * Apenas UI — toda a lógica fica no orquestrador.
  */
 export default function BatchActionsBar({
   running, showManualWarning, awaitingManualSim,
   onSimulateSelected, onRetryFailed, onReplayPending, onCancelBatch,
+  onExportCsv, exportDisabled,
 }: Props) {
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -60,6 +64,18 @@ export default function BatchActionsBar({
             Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
           </TooltipContent>
         </Tooltip>
+        {onExportCsv && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={onExportCsv} disabled={exportDisabled}>
+                <Download className="w-3 h-3 mr-1" /> Exportar CSV
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Baixa um arquivo CSV (abre no Excel) com nome, CPF, status, parcelas, valores e motivo de cada CPF do lote — na mesma ordem em que foram colados.
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="destructive" onClick={onCancelBatch}>

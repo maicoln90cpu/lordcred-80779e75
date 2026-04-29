@@ -2,8 +2,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search } from 'lucide-react';
-import { MargemDispCell } from '../MargemDispCell';
+import { Loader2, Search, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RealtimeFreshness, AutoRetryIndicator } from './BatchAnimations';
 import {
   getV8ErrorMessageDeduped,
@@ -105,16 +105,15 @@ export default function BatchProgressTable({
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
               <tr>
+                {/* Etapa 1 (item 5): nova ordem — Nome, CPF, Valor liberado, Parcelas,
+                    Valor parcela, Status, Tentativas, Motivo. Removidas:
+                    Margem Disp., Margem LordCred, A cobrar (visíveis em Operações). */}
+                <th className="px-2 py-1 text-left">Nome</th>
                 <th className="px-2 py-1 text-left">CPF</th>
+                <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Valor liberado</th>
+                <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote. ⚠️ = V8 ajustou para caber nos limites do CPF.">Parcelas</th>
+                <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Valor parcela</th>
                 <th className="px-2 py-1 text-left">Status</th>
-                <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote.">Parcelas</th>
-                <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
-                  💰 Margem Disp.
-                </th>
-                <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Liberado</th>
-                <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Parcela</th>
-                <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
-                <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
                 <th className="px-2 py-1 text-left">Motivo</th>
               </tr>
@@ -125,29 +124,12 @@ export default function BatchProgressTable({
                 const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                 const isWaitingExternal = s.status === 'pending' && (k === 'active_consult' || ws === 'WAITING_EXTERNAL');
                 const inst = (s as any).installments;
+                const clampApplied = !!(s as any).raw_response?.clamp_applied;
+                const clampNote = (s as any).raw_response?.clamp_note as string | null | undefined;
                 return (
                   <tr key={s.id} className="border-t">
+                    <td className="px-2 py-1">{(s as any).name || <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-2 py-1 font-mono">{s.cpf}</td>
-                    <td className="px-2 py-1">
-                      <Badge
-                        variant={getSimulationStatusVariant(s)}
-                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
-                      >
-                        {getSimulationStatusLabel(s)}
-                      </Badge>
-                    </td>
-                    <td className="px-2 py-1 text-center">
-                      {inst != null ? (
-                        <span className="font-medium">{inst}x</span>
-                      ) : parcelas ? (
-                        <span className="text-muted-foreground" title="Parcela configurada no lote — ainda não confirmada pela V8">
-                          ({parcelas}x)
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1 text-right"><MargemDispCell simulation={s as any} /></td>
                     <td className="px-2 py-1 text-right">
                       {s.released_value != null ? (
                         <span title={(s.simulate_status ?? 'not_started') !== 'success' ? 'Estimativa (máximo da faixa V8). Clique em "Simular selecionados" para o valor real.' : 'Valor real calculado pela V8 via /simulation.'}>
@@ -158,9 +140,41 @@ export default function BatchProgressTable({
                         </span>
                       ) : '—'}
                     </td>
+                    <td className="px-2 py-1 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        {inst != null ? (
+                          <span className="font-medium">{inst}x</span>
+                        ) : parcelas ? (
+                          <span className="text-muted-foreground" title="Parcela configurada no lote — ainda não confirmada pela V8">
+                            ({parcelas}x)
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        {clampApplied && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertTriangle className="w-3 h-3 text-amber-500 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                A V8 não aceitou a parcela escolhida no lote para este CPF. O sistema ajustou automaticamente para o valor permitido.
+                                {clampNote ? <div className="mt-1 italic text-muted-foreground">{clampNote}</div> : null}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
-                    <td className="px-2 py-1 text-right">{s.company_margin != null ? `R$ ${Number(s.company_margin).toFixed(2)}` : '—'}</td>
-                    <td className="px-2 py-1 text-right">{s.amount_to_charge != null ? `R$ ${Number(s.amount_to_charge).toFixed(2)}` : '—'}</td>
+                    <td className="px-2 py-1">
+                      <Badge
+                        variant={getSimulationStatusVariant(s)}
+                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
+                      >
+                        {getSimulationStatusLabel(s)}
+                      </Badge>
+                    </td>
                     <td
                       className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}
                       title={(() => {
@@ -190,12 +204,9 @@ export default function BatchProgressTable({
 function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string, id?: string) => void }) {
   const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
   const isActiveConsult = kind === 'active_consult';
-  // Strip defensivo: linhas antigas (pré-Etapa 1) podem ter prefixo "Rejeitada pela V8: " gravado.
-  // O badge de status já indica "rejeitado pela V8" — mostrar de novo no motivo é redundante.
-  const cleanedErrorMessage = typeof s.error_message === 'string'
-    ? s.error_message.replace(/^Rejeitada pela V8:\s*/i, '').trim()
-    : s.error_message;
-  const message = getV8ErrorMessageDeduped(s.raw_response, cleanedErrorMessage);
+  // Etapa 1 (item 2): strip defensivo removido. Backfill já limpou linhas antigas
+  // com prefixo "Rejeitada pela V8: " e o webhook/poller não regrava mais esse texto.
+  const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 

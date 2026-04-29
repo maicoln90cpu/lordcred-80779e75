@@ -1600,9 +1600,18 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
       company_margin,
       margem_valor: company_margin,
       amount_to_charge,
+      installments: parcelasFinal,
+      // Etapa 1 (item 3): expõe se o sistema precisou ajustar parcelas/valor para caber
+      // nos limites da V8. Frontend mostra ⚠️ na coluna Parcelas com tooltip explicativo.
+      clamp_applied: clampNote != null,
+      clamp_note: clampNote,
       raw_response: {
         upstream_request: { simulation: simulationBody },
         simulate: simJson,
+        clamp_applied: clampNote != null,
+        clamp_note: clampNote,
+        effective_parcelas: parcelasFinal,
+        effective_value: simulationValueFinal,
       },
     },
   };
@@ -1735,7 +1744,7 @@ async function actionCreateBatch(
   // o nascimento. Assim, mesmo que a 1ª chamada simulate_one nunca rode (timeout
   // de browser, refresh de página, falha de rede), o cron `v8-retry-cron` já
   // identifica como elegível para auto-retry — não fica "órfã" no banco.
-  const sims = validRows.map((r) => ({
+  const sims = validRows.map((r, idx) => ({
     batch_id: batch.id,
     created_by: userId,
     cpf: r.cpf.replace(/\D/g, ""),
@@ -1747,6 +1756,9 @@ async function actionCreateBatch(
     config_id: payload.config_id,
     config_name: payload.config_label ?? null,
     installments: payload.parcelas,
+    // Etapa 1 (item 8): preserva ordem em que CPFs foram colados pelo operador.
+    // A tabela "Progresso do Lote" passa a ordenar por paste_order ASC.
+    paste_order: idx,
   }));
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
@@ -2709,6 +2721,19 @@ const handler = async (req: Request) => {
           if ((result as any)?.success) {
             // Usa parcelas efetivas (após clamp), não o que veio do request.
             const effectiveParcelas = (result as any)?.data?.installments ?? params.parcelas;
+            // Etapa 1 (item 3): preserva clamp no raw_response para a UI mostrar tooltip.
+            const { data: existing } = await supabase
+              .from("v8_simulations")
+              .select("raw_response")
+              .eq("id", params.simulation_id)
+              .maybeSingle();
+            const baseRaw = (existing?.raw_response as any) ?? {};
+            const newRaw = {
+              ...baseRaw,
+              ...(((result as any)?.data?.raw_response) ?? {}),
+              clamp_applied: !!(result as any)?.data?.clamp_applied,
+              clamp_note: (result as any)?.data?.clamp_note ?? null,
+            };
             await supabase.from("v8_simulations").update({
               released_value: (result as any).data.released_value,
               installment_value: (result as any).data.installment_value,
@@ -2720,6 +2745,7 @@ const handler = async (req: Request) => {
               config_id: params.config_id,
               installments: effectiveParcelas,
               last_step: "simulate_only",
+              raw_response: newRaw,
             }).eq("id", params.simulation_id);
           }
         }
