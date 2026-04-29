@@ -74,6 +74,16 @@ interface TimelineEvent {
     installments: number | null;
     configName: string | null;
   } | null;
+  /** Resumo persistido da operação (vem de v8_operations_local — Etapa 4). */
+  operation?: {
+    borrowerName: string | null;
+    disbursedAmount: number | null;
+    installmentValue: number | null;
+    numberOfInstallments: number | null;
+    contractNumber: string | null;
+    paidAt: string | null;
+    firstDueDate: string | null;
+  } | null;
   meta?: Record<string, any>;
 }
 
