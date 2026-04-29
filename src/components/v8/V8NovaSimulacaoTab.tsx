@@ -217,6 +217,50 @@ export default function V8NovaSimulacaoTab() {
   const autoOn = !!v8Settings?.auto_simulate_after_consult;
   const showManualWarning = !autoOn && awaitingManualSim > 0;
 
+  // Etapa 3 (item 7): handler de agendamento. Cria o lote em status='scheduled'.
+  // O launcher (pg_cron) materializa as simulações e dispara as consultas no horário.
+  async function handleSchedule(scheduledForIso: string) {
+    const rows = pasteAnalysis.rows;
+    if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
+    if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de agendar`); return; }
+    if (!configId) { toast.error('Escolha uma tabela'); return; }
+    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+
+    const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
+    const numericValue = simulationMode !== 'none' && simulationValue.trim()
+      ? Number(simulationValue.replace(',', '.'))
+      : null;
+
+    const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+      body: {
+        action: 'schedule_batch',
+        params: {
+          name: batchName.trim(),
+          config_id: configId,
+          config_label: cfgLabel,
+          parcelas,
+          rows,
+          scheduled_for: scheduledForIso,
+          strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+          simulation_mode: simulationMode,
+          simulation_value: numericValue,
+        },
+      },
+    });
+    if (error || !data?.success) {
+      toast.error('Falha ao agendar: ' + (data?.error || error?.message || 'erro desconhecido'));
+      return;
+    }
+    const when = new Date(scheduledForIso);
+    toast.success(
+      `📅 Lote agendado para ${when.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      { description: 'O lote começa sozinho na hora marcada (verificação a cada 1 min).' },
+    );
+    // Limpa o rascunho local — lote agendado já está persistido no banco.
+    setPasteText('');
+    setBatchName('');
+  }
+
   return (
     <div className="space-y-4">
       <BatchCreatePanel
