@@ -283,7 +283,10 @@ export default function V8NovaSimulacaoTab() {
         v8SettingsLoaded={!!v8Settings}
         running={ops.running}
         onStart={ops.handleStart}
+        onSchedule={handleSchedule}
       />
+
+      <ScheduledBatchesPanel />
 
       {activeBatchId && activeBatchPaused && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-center justify-between">
