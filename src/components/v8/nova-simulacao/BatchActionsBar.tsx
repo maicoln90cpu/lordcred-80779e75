@@ -80,6 +80,26 @@ export default function BatchActionsBar({
             </TooltipContent>
           </Tooltip>
         )}
+        {onTogglePause && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={isPaused ? 'default' : 'outline'}
+                onClick={onTogglePause}
+                className={isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white' : undefined}
+              >
+                {isPaused ? <Play className="w-3 h-3 mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
+                {isPaused ? 'Continuar' : 'Pausar'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              {isPaused
+                ? 'Retoma o lote: cron de retry e poller voltam a processar este lote automaticamente.'
+                : 'Pausa o lote: cron de retry e poller automático param de tocar nele. Ações manuais (Simular/Retentar/Buscar) continuam funcionando. Use para evitar gastar tentativas enquanto investiga.'}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="destructive" onClick={onCancelBatch}>
