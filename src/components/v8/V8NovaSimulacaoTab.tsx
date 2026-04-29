@@ -154,6 +154,7 @@ export default function V8NovaSimulacaoTab() {
   const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!v8Settings?.auto_simulate_after_consult || !activeBatchId || !configId) return;
+    if (activeBatchPaused) return; // Etapa 2 (item 6): respeita pausa do lote.
     const candidates = simulations.filter((s: any) =>
       s.status === 'success' && s.consult_id
       && (s.simulate_status ?? 'not_started') === 'not_started'
