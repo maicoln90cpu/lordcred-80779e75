@@ -80,6 +80,31 @@ function onlyDigits(s: string) {
   return (s || '').replace(/\D/g, '');
 }
 
+/**
+ * Extrai a URL de formalização do raw_payload da V8.
+ * V8 pode retornar a URL em diferentes chaves dependendo do estágio:
+ *  - formalizationUrl / formalization_url (usuais)
+ *  - contractUrl / contract_url (após CCB pronta)
+ *  - signatureUrl (assinatura)
+ * Procura na raiz e em sub-objetos comuns (data, operation, formalization).
+ */
+function extractFormalizationUrl(raw: any): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidates = [raw, raw.data, raw.operation, raw.formalization, raw.contract].filter(Boolean);
+  const keys = [
+    'formalizationUrl', 'formalization_url',
+    'contractUrl', 'contract_url',
+    'signatureUrl', 'signature_url',
+  ];
+  for (const c of candidates) {
+    for (const k of keys) {
+      const v = c?.[k];
+      if (typeof v === 'string' && /^https?:\/\//i.test(v)) return v;
+    }
+  }
+  return null;
+}
+
 function formatCpf(cpf: string) {
   const d = onlyDigits(cpf);
   if (d.length !== 11) return cpf;
