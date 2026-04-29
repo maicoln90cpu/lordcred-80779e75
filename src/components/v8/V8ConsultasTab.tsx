@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useV8Operations } from '@/hooks/useV8Operations';
 import { supabase } from '@/integrations/supabase/client';
 import { V8StatusGlossary } from './V8StatusGlossary';
+import { V8StatusBadgePair } from './V8StatusBadgePair';
 
 function formatCpf(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '');
