@@ -93,6 +93,20 @@ async function getRetryLimits(supabaseAdmin: any): Promise<{
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+// Limites runtime — preenchidos por refreshRetryLimits() no início de cada
+// request relevante. Valores aqui são apenas seed; o cache+banco mandam.
+let MAX_RETRIES_CONSULT = DEFAULT_MAX_RETRIES_CONSULT;
+let MAX_RETRIES_AUTHORIZE = DEFAULT_MAX_RETRIES_AUTHORIZE;
+let MAX_RETRIES_SIMULATE = DEFAULT_MAX_RETRIES_SIMULATE;
+
+async function refreshRetryLimits(supabaseAdmin: any) {
+  const limits = await getRetryLimits(supabaseAdmin);
+  MAX_RETRIES_CONSULT = limits.consult;
+  MAX_RETRIES_AUTHORIZE = limits.authorize;
+  MAX_RETRIES_SIMULATE = limits.simulate;
+}
+
+
 async function getV8Token(): Promise<string> {
   const now = Date.now();
   if (cachedToken && cachedToken.expiresAt > now + 5 * 60 * 1000) return cachedToken.token;
