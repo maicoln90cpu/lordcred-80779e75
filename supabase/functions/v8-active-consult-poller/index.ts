@@ -222,6 +222,7 @@ serve(async (req) => {
         } else if (latestStatus === 'REJECTED' || latestStatus === 'FAILED' || latestStatus === 'CANCELED') {
           // Promove para terminal local — não-retentável.
           // Mensagem prioriza o motivo retornado pela V8 (description/detail/title).
+          // SEM prefixo "Rejeitada pela V8:" — o badge de status já indica isso.
           const reason = (json.data as any)?.latest?.detail
             ?? (json.data as any)?.latest?.title
             ?? (json.data as any)?.detail
@@ -229,9 +230,7 @@ serve(async (req) => {
             ?? null;
           updatePayload.status = 'failed';
           updatePayload.error_kind = 'rejected_by_v8';
-          updatePayload.error_message = reason
-            ? `Rejeitada pela V8: ${reason}`
-            : `Consulta ${latestStatus.toLowerCase()} pela V8`;
+          updatePayload.error_message = reason ?? `Consulta ${latestStatus.toLowerCase()} pela V8`;
           updatePayload.processed_at = probedAtIso;
         }
 
