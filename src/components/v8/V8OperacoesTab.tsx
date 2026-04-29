@@ -48,6 +48,9 @@ interface CpfRow {
   opCount: number;
   whCount: number;
   lastStatus: string | null;
+  successCount: number;
+  failedCount: number;
+  pendingCount: number;
 }
 
 interface TimelineEvent {
@@ -128,26 +131,33 @@ export default function V8OperacoesTab() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
-  const loadAggregates = useCallback(async () => {
+  const loadAggregates = useCallback(async (statusFilter?: 'success' | 'failed' | 'pending') => {
     setLoading(true);
     try {
-      // Pega últimas 500 simulações para agregar por CPF
-      const { data, error } = await supabase
+      // Janela maior (2000) — `failed` domina o volume e enviesa janelas pequenas.
+      // Quando há filtro de status, aplica no SQL para garantir presença real.
+      let q = supabase
         .from('v8_simulations')
         .select('cpf, name, status, simulate_status, updated_at, created_at')
         .order('updated_at', { ascending: false })
-        .limit(500);
+        .limit(2000);
+      if (statusFilter) q = q.eq('status', statusFilter);
 
+      const { data, error } = await q;
       if (error) throw error;
 
       const map = new Map<string, CpfRow>();
       (data ?? []).forEach((s: any) => {
         const cpf = onlyDigits(s.cpf || '');
         if (!cpf) return;
-        const existing = map.get(cpf);
         const at = s.updated_at || s.created_at;
+        const st = (s.status || '').toLowerCase();
+        const existing = map.get(cpf);
         if (existing) {
           existing.simCount += 1;
+          if (st === 'success') existing.successCount += 1;
+          else if (st === 'failed') existing.failedCount += 1;
+          else if (st === 'pending') existing.pendingCount += 1;
           if (at && at > existing.lastActivity) {
             existing.lastActivity = at;
             existing.lastStatus = s.status;
@@ -162,6 +172,9 @@ export default function V8OperacoesTab() {
             opCount: 0,
             whCount: 0,
             lastStatus: s.status,
+            successCount: st === 'success' ? 1 : 0,
+            failedCount: st === 'failed' ? 1 : 0,
+            pendingCount: st === 'pending' ? 1 : 0,
           });
         }
       });
@@ -208,16 +221,18 @@ export default function V8OperacoesTab() {
   }, []);
 
   useEffect(() => {
-    void loadAggregates();
-  }, [loadAggregates]);
+    const map = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+    void loadAggregates(map[filter] as any);
+  }, [loadAggregates, filter]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(search);
     return rows.filter((r) => {
-      if (filter === 'sucesso' && r.lastStatus !== 'success') return false;
-      if (filter === 'falha' && r.lastStatus !== 'failed') return false;
-      if (filter === 'pendente' && r.lastStatus !== 'pending') return false;
+      // Mudança semântica: "tem alguma sim com este status" em vez de "último = X"
+      if (filter === 'sucesso' && r.successCount === 0) return false;
+      if (filter === 'falha' && r.failedCount === 0) return false;
+      if (filter === 'pendente' && r.pendingCount === 0) return false;
       if (!q) return true;
       if (qDigits.length > 0 && r.cpf.includes(qDigits)) return true;
       if (r.name?.toLowerCase().includes(q)) return true;
@@ -344,7 +359,10 @@ export default function V8OperacoesTab() {
                   Visão única por pessoa: simulações, propostas e webhooks numa só linha do tempo.
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => void loadAggregates()} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+                void loadAggregates(m[filter] as any);
+              }} disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 <span className="ml-2">Atualizar</span>
               </Button>
@@ -401,8 +419,38 @@ export default function V8OperacoesTab() {
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Calculator className="w-3 h-3" />{r.simCount}</Badge>
                             </TooltipTrigger>
-                            <TooltipContent>{r.simCount} simulação(ões)</TooltipContent>
+                            <TooltipContent>{r.simCount} simulação(ões) na janela</TooltipContent>
                           </Tooltip>
+                          {r.successCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                                  <CheckCircle2 className="w-3 h-3" />{r.successCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.successCount} sucesso(s)</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {r.failedCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-red-500/40 text-red-600 dark:text-red-400">
+                                  <XCircle className="w-3 h-3" />{r.failedCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.failedCount} falha(s)</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {r.pendingCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                                  <Clock className="w-3 h-3" />{r.pendingCount}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{r.pendingCount} pendente(s)</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Webhook className="w-3 h-3" />{r.whCount}</Badge>
