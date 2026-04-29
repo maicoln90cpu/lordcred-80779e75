@@ -8,6 +8,7 @@ import { Save, Loader2, Webhook, RefreshCw, CheckCircle2, AlertCircle } from 'lu
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import V8RetrySettingsCard from './V8RetrySettingsCard';
+import { useV8Settings } from '@/hooks/useV8Settings';
 
 interface WebhookRegistration {
   webhook_type: string;
@@ -217,6 +218,40 @@ export default function V8ConfigTab() {
       </Card>
 
       <V8RetrySettingsCard />
+
+      <CreateOperationSettingsCard />
     </div>
+  );
+}
+
+/** Etapa 5 — toggle "exigir documentos no envio do POST /operation". */
+function CreateOperationSettingsCard() {
+  const { settings, saving, save } = useV8Settings();
+  if (!settings) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Criação de Propostas</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!settings.require_documents_on_create}
+            disabled={saving}
+            onChange={(e) => void save({ require_documents_on_create: e.target.checked })}
+            className="mt-1 h-4 w-4"
+          />
+          <div>
+            <div className="text-sm font-medium">Exigir documentos no envio</div>
+            <p className="text-xs text-muted-foreground">
+              Quando ativo, o envio do formulário "Criar Proposta" só é aceito com pelo menos
+              1 documento anexado. Quando desativo, os documentos podem ser enviados depois pela aba
+              de pendências.
+            </p>
+          </div>
+        </label>
+      </CardContent>
+    </Card>
   );
 }
