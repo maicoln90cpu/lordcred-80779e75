@@ -1497,7 +1497,47 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
     return { success: false, error: "parcelas inválido" };
   }
 
-  const simulationBody = buildSimulationBodyWithValue(params, params.consult_id);
+  // FIX 4: Clamp de parcelas e valor padrão usando os limites retornados pela /consult
+  // (sim_installments_min/max, sim_value_min/max). Antes, o handler enviava parcelas fixas
+  // do operador — quando 24x não cabia em monthMax=23 (ex: CPF 04706020158), V8 rejeitava.
+  let parcelasFinal = params.parcelas;
+  let simulationValueFinal = params.simulation_value;
+  let clampNote: string | null = null;
+
+  if (params.simulation_id) {
+    const { data: simRow } = await supabase
+      .from("v8_simulations")
+      .select("sim_installments_min, sim_installments_max, sim_value_min, sim_value_max")
+      .eq("id", params.simulation_id)
+      .maybeSingle();
+    if (simRow) {
+      const instMin = Number(simRow.sim_installments_min ?? 0);
+      const instMax = Number(simRow.sim_installments_max ?? 0);
+      const valMin = Number(simRow.sim_value_min ?? 0);
+      const valMax = Number(simRow.sim_value_max ?? 0);
+
+      if (instMin > 0 && instMax > 0) {
+        const clamped = Math.min(Math.max(parcelasFinal, instMin), instMax);
+        if (clamped !== parcelasFinal) {
+          clampNote = `parcelas ajustadas de ${parcelasFinal} para ${clamped} (limite V8: ${instMin}-${instMax})`;
+          parcelasFinal = clamped;
+        }
+      }
+      // Se operador não informou valor de simulação, usa o meio da faixa permitida.
+      if ((simulationValueFinal == null || simulationValueFinal <= 0) && valMin > 0 && valMax > 0) {
+        simulationValueFinal = Number(((valMin + valMax) / 2).toFixed(2));
+      }
+    }
+  }
+
+  const effectiveParams = {
+    ...params,
+    parcelas: parcelasFinal,
+    simulation_value: simulationValueFinal,
+    simulation_mode: params.simulation_mode ?? (simulationValueFinal != null ? "disbursed_amount" : undefined),
+  };
+
+  const simulationBody = buildSimulationBodyWithValue(effectiveParams, params.consult_id);
   const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
@@ -1512,6 +1552,9 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
+        clamp_note: clampNote,
+        effective_parcelas: parcelasFinal,
+        effective_value: simulationValueFinal,
       },
     });
   }
