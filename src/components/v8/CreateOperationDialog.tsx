@@ -212,8 +212,24 @@ export default function CreateOperationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             Criar Proposta V8
+            {/* Tag de origem — deixa claro de onde o operador veio (simulação V8, lead ou em branco) */}
+            {origin === 'simulation' && (
+              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px]">
+                Origem: Simulação V8
+              </Badge>
+            )}
+            {origin === 'lead' && (
+              <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30 text-[10px]">
+                Origem: Lead
+              </Badge>
+            )}
+            {origin === 'blank' && (
+              <Badge variant="outline" className="text-[10px]">
+                Em branco
+              </Badge>
+            )}
             {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
             {!isSaving && lastSavedAt && (
               <Badge variant="outline" className="text-[10px]">
