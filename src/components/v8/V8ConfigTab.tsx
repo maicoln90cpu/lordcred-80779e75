@@ -221,6 +221,8 @@ export default function V8ConfigTab() {
       <V8RetrySettingsCard />
 
       <CreateOperationSettingsCard />
+
+      <V8DatabaseHealthCard />
     </div>
   );
 }
