@@ -119,6 +119,7 @@ export default function BatchProgressTable({
                 <th className="px-2 py-1 text-left">Status</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
                 <th className="px-2 py-1 text-left">Motivo</th>
+                <th className="px-2 py-1 text-center w-10" title="Ver payload completo (JSON cru recebido da V8 e tentativas registradas)">Payload</th>
               </tr>
             </thead>
             <tbody>
