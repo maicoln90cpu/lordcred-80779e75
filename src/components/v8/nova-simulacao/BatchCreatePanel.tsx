@@ -317,13 +317,28 @@ export default function BatchCreatePanel(props: Props) {
             Agendar lote para {scheduledLocal.replace('T', ' às ')}
           </Button>
         ) : (
-          <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
-            {running ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
-            ) : (
-              <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="flex-1">
+              {running ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
+              ) : (
+                <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+              )}
+            </Button>
+            {onQueue && (
+              <Button
+                onClick={onQueue}
+                disabled={running || blockingIssues.length > 0}
+                size="lg"
+                variant="outline"
+                className="sm:w-64"
+                title="Cria o lote em modo fila — começa sozinho quando o lote atual terminar"
+              >
+                <ListOrdered className="w-4 h-4 mr-2" />
+                Adicionar à fila
+              </Button>
             )}
-          </Button>
+          </div>
         )}
       </CardContent>
     </Card>
