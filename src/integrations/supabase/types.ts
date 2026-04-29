@@ -4025,33 +4025,78 @@ export type Database = {
       }
       v8_operations_local: {
         Row: {
+          borrower_cpf: string | null
+          borrower_email: string | null
+          borrower_name: string | null
+          borrower_phone: string | null
           consult_id: string | null
+          contract_number: string | null
+          contract_url: string | null
+          disbursed_amount: number | null
+          first_due_date: string | null
           first_seen_at: string
+          formalization_url: string | null
           id: string
+          installment_value: number | null
+          last_status_change_at: string | null
           last_updated_at: string
+          monthly_interest_rate: number | null
+          number_of_installments: number | null
           operation_id: string
+          paid_at: string | null
           raw_payload: Json | null
           status: string | null
+          v8_created_at: string | null
           v8_simulation_id: string | null
         }
         Insert: {
+          borrower_cpf?: string | null
+          borrower_email?: string | null
+          borrower_name?: string | null
+          borrower_phone?: string | null
           consult_id?: string | null
+          contract_number?: string | null
+          contract_url?: string | null
+          disbursed_amount?: number | null
+          first_due_date?: string | null
           first_seen_at?: string
+          formalization_url?: string | null
           id?: string
+          installment_value?: number | null
+          last_status_change_at?: string | null
           last_updated_at?: string
+          monthly_interest_rate?: number | null
+          number_of_installments?: number | null
           operation_id: string
+          paid_at?: string | null
           raw_payload?: Json | null
           status?: string | null
+          v8_created_at?: string | null
           v8_simulation_id?: string | null
         }
         Update: {
+          borrower_cpf?: string | null
+          borrower_email?: string | null
+          borrower_name?: string | null
+          borrower_phone?: string | null
           consult_id?: string | null
+          contract_number?: string | null
+          contract_url?: string | null
+          disbursed_amount?: number | null
+          first_due_date?: string | null
           first_seen_at?: string
+          formalization_url?: string | null
           id?: string
+          installment_value?: number | null
+          last_status_change_at?: string | null
           last_updated_at?: string
+          monthly_interest_rate?: number | null
+          number_of_installments?: number | null
           operation_id?: string
+          paid_at?: string | null
           raw_payload?: Json | null
           status?: string | null
+          v8_created_at?: string | null
           v8_simulation_id?: string | null
         }
         Relationships: []
@@ -4773,6 +4818,10 @@ export type Database = {
         Returns: boolean
       }
       is_privileged: { Args: { _user_id?: string }; Returns: boolean }
+      jsonb_pick_text: {
+        Args: { _keys: string[]; _obj: Json }
+        Returns: string
+      }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       match_seller_by_name: {
         Args: { _name: string; _threshold?: number }
@@ -4807,10 +4856,15 @@ export type Database = {
         Args: { _avatar_url?: string; _name?: string }
         Returns: undefined
       }
+      v8_backfill_operation_fields: {
+        Args: { _limit?: number }
+        Returns: number
+      }
       v8_backfill_simulation_config: {
         Args: { _batch_id?: string }
         Returns: number
       }
+      v8_extract_operation_fields: { Args: { _payload: Json }; Returns: Json }
       v8_increment_batch_failure: {
         Args: { _batch_id: string }
         Returns: undefined

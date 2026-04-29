@@ -74,6 +74,16 @@ interface TimelineEvent {
     installments: number | null;
     configName: string | null;
   } | null;
+  /** Resumo persistido da operação (vem de v8_operations_local — Etapa 4). */
+  operation?: {
+    borrowerName: string | null;
+    disbursedAmount: number | null;
+    installmentValue: number | null;
+    numberOfInstallments: number | null;
+    contractNumber: string | null;
+    paidAt: string | null;
+    firstDueDate: string | null;
+  } | null;
   meta?: Record<string, any>;
 }
 
@@ -350,26 +360,49 @@ export default function V8OperacoesTab() {
           });
         });
 
-        // 3) Operações locais (inclui raw_payload para extrair formalization_url)
+        // 3) Operações locais — Etapa 4: lê colunas dedicadas (sem precisar
+        //    parsear raw_payload no cliente). Cai no extrator antigo só como fallback.
         const { data: ops } = await supabase
           .from('v8_operations_local')
-          .select('id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, raw_payload')
+          .select(
+            'id, operation_id, consult_id, v8_simulation_id, status, first_seen_at, last_updated_at, ' +
+            'borrower_name, disbursed_amount, installment_value, number_of_installments, ' +
+            'contract_number, formalization_url, contract_url, paid_at, first_due_date, raw_payload'
+          )
           .or(`v8_simulation_id.in.(${ids.join(',')}),consult_id.in.(${ids.join(',')})`)
           .limit(50);
 
         (ops ?? []).forEach((o: any) => {
+          // formalization_url: prioriza coluna dedicada (Etapa 4), cai no parser antigo só se nula.
+          const formalizationUrl =
+            (typeof o.formalization_url === 'string' && o.formalization_url) ||
+            (typeof o.contract_url === 'string' && o.contract_url) ||
+            extractFormalizationUrl(o.raw_payload) ||
+            null;
+
           events.push({
             id: `op-${o.id}`,
             rowId: o.id,
             kind: 'operation',
             at: o.last_updated_at || o.first_seen_at,
-            title: `Operação ${o.operation_id?.slice(0, 12) || ''}…`,
-            subtitle: o.status,
+            title: o.borrower_name
+              ? `Operação · ${o.borrower_name}`
+              : `Operação ${o.operation_id?.slice(0, 12) || ''}…`,
+            subtitle: o.contract_number ? `Contrato ${o.contract_number}` : undefined,
             status: o.status,
             consultId: o.consult_id,
             operationId: o.operation_id,
             v8SimulationId: o.v8_simulation_id,
-            meta: { formalizationUrl: extractFormalizationUrl(o.raw_payload) },
+            operation: {
+              borrowerName: o.borrower_name ?? null,
+              disbursedAmount: o.disbursed_amount != null ? Number(o.disbursed_amount) : null,
+              installmentValue: o.installment_value != null ? Number(o.installment_value) : null,
+              numberOfInstallments: o.number_of_installments ?? null,
+              contractNumber: o.contract_number ?? null,
+              paidAt: o.paid_at ?? null,
+              firstDueDate: o.first_due_date ?? null,
+            },
+            meta: { formalizationUrl },
           });
         });
       }
@@ -549,6 +582,41 @@ export default function V8OperacoesTab() {
                                   {ev.status && (
                                     <div className="mt-1">
                                       <V8StatusBadgePair status={ev.status} compact />
+                                    </div>
+                                  )}
+                                  {ev.operation && (ev.operation.disbursedAmount != null || ev.operation.installmentValue != null || ev.operation.paidAt) && (
+                                    <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-0.5">
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                        {ev.operation.disbursedAmount != null && (
+                                          <div>
+                                            <span className="text-muted-foreground">Liberado: </span>
+                                            <span className="font-semibold text-foreground">
+                                              R$ {ev.operation.disbursedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {ev.operation.installmentValue != null && (
+                                          <div>
+                                            <span className="text-muted-foreground">Parcela: </span>
+                                            <span className="font-semibold text-foreground">
+                                              R$ {ev.operation.installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            {ev.operation.numberOfInstallments ? (
+                                              <span className="text-foreground"> · {ev.operation.numberOfInstallments}x</span>
+                                            ) : null}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {ev.operation.paidAt && (
+                                        <div className="text-emerald-700 dark:text-emerald-400">
+                                          💰 Pago em {new Date(ev.operation.paidAt).toLocaleString('pt-BR')}
+                                        </div>
+                                      )}
+                                      {!ev.operation.paidAt && ev.operation.firstDueDate && (
+                                        <div className="text-muted-foreground">
+                                          1ª parcela: {new Date(ev.operation.firstDueDate).toLocaleDateString('pt-BR')}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   {ev.approved && (
