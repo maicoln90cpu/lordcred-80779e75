@@ -84,12 +84,12 @@ export default function RatesCLTTab() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
-      ['BANCO C6', 'SONHO', '0', '999', '0', '999999999', 'Não', '5.5', 'CLT padrão'],
-      ['REP CLT', '', '6', '36', '1000', '5000', 'Não', '3.0', 'REP faixa 1k-5k'],
-      ['REP CLT', '', '6', '36', '5000', '10000', 'Não', '5.0', 'REP faixa 5k-10k'],
+      ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs', 'Data Vigência (AAAA-MM-DD, opcional)'],
+      ['BANCO C6', 'SONHO', '0', '999', '0', '999999999', 'Não', '5.5', 'CLT padrão', ''],
+      ['REP CLT', '', '6', '36', '1000', '5000', 'Não', '3.0', 'REP faixa 1k-5k', ''],
+      ['REP CLT', '', '6', '36', '5000', '10000', 'Não', '5.0', 'REP faixa 5k-10k', ''],
     ]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 10 }, { wch: 25 }];
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo CLT');
     XLSX.writeFile(wb, 'modelo_taxas_clt.xlsx');
@@ -98,18 +98,21 @@ export default function RatesCLTTab() {
   const parseImportData = (rows: Record<string, string>[]) => {
     const today = new Date().toISOString().slice(0, 10);
     return rows.map(r => {
-      const bank = r['Banco'] || r['banco'] || r['bank'] || '';
-      const tableKey = r['Tabela'] || r['tabela'] || r['table_key'] || '';
-      const termMin = parseInt(r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0') || 0;
-      const termMax = parseInt(r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999') || 999;
+      const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim();
+      const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim();
+      const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0').toString()) || 0;
+      const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999').toString()) || 999;
       const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || r['min_value'] || '0').toString().replace(',', '.')) || 0;
       const maxValueRaw = (r['Valor Max'] || r['valor_max'] || r['max_value'] || '999999999').toString().replace(',', '.');
       const maxValue = parseFloat(maxValueRaw) || 999999999;
-      const seguroRaw = (r['Seguro (Sim/Não)'] || r['seguro'] || r['has_insurance'] || 'Não').toLowerCase();
+      const seguroRaw = (r['Seguro (Sim/Não)'] || r['Seguro'] || r['seguro'] || r['has_insurance'] || 'Não').toString().toLowerCase();
       const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
-      const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').replace(',', '.')) || 0;
-      const obs = r['Obs'] || r['obs'] || '';
-      return { effective_date: today, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
+      const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').toString().replace(',', '.')) || 0;
+      const obs = (r['Obs'] || r['obs'] || '').toString();
+      const dataVigRaw = (r['Data Vigência (AAAA-MM-DD, opcional)'] || r['Data Vigência'] || r['data_vigencia'] || r['effective_date'] || '').toString().trim();
+      // Aceita YYYY-MM-DD; se vier vazio ou inválido, usa hoje
+      const effectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(dataVigRaw) ? dataVigRaw : today;
+      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
     }).filter(r => r.bank);
   };
 
@@ -128,16 +131,36 @@ export default function RatesCLTTab() {
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text');
-    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs']);
+    const parsed = parseClipboardText(text, ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs', 'Data Vigência (AAAA-MM-DD, opcional)']);
     setImportPreview(parseImportData(parsed.rows));
   };
 
+  /**
+   * IMPORTANTE: o upsert depende do índice único `commission_rates_clt_v2_uniq`
+   * sobre (bank, COALESCE(table_key,''), term_min, term_max, has_insurance, effective_date).
+   * Se alguém renomear esse índice no banco, o upsert volta a quebrar.
+   */
   const confirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const { error } = await supabase.from('commission_rates_clt_v2').insert(importPreview as any);
-    if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    else { toast({ title: `${importPreview.length} taxas importadas` }); setImportDialogOpen(false); setImportPreview([]); loadRates(); }
+    const { error } = await supabase
+      .from('commission_rates_clt_v2')
+      .upsert(importPreview as any, {
+        onConflict: 'bank,table_key,term_min,term_max,has_insurance,effective_date',
+        ignoreDuplicates: false,
+      });
+    if (error) {
+      toast({
+        title: 'Erro ao importar',
+        description: `${error.message}${error.details ? ' — ' + error.details : ''}`,
+        variant: 'destructive',
+      });
+    } else {
+      toast({ title: `${importPreview.length} taxa(s) importada(s)`, description: 'Linhas existentes na mesma data foram atualizadas; novas foram inseridas.' });
+      setImportDialogOpen(false);
+      setImportPreview([]);
+      loadRates();
+    }
     setImporting(false);
   };
 
