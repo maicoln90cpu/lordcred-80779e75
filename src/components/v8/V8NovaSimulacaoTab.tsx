@@ -429,6 +429,21 @@ export default function V8NovaSimulacaoTab() {
         <Button variant="ghost" size="sm" onClick={addSlot} className="h-7 text-xs">
           <Plus className="w-3.5 h-3.5 mr-1" /> Novo rascunho
         </Button>
+        {drafts.length > 1 && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleRunAllDrafts}
+            disabled={runAllBusy}
+            className="h-7 text-xs ml-auto gap-1.5"
+            title="Enfileira cada rascunho. O 1º começa já; os demais começam sozinhos quando o anterior terminar."
+          >
+            {runAllBusy
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <PlayCircle className="w-3.5 h-3.5" />}
+            ▶ Executar todos em sequência ({drafts.length})
+          </Button>
+        )}
       </div>
 
       <BatchCreatePanel
