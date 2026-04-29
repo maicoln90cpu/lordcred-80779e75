@@ -218,13 +218,14 @@ export default function V8OperacoesTab() {
   const loadAggregates = useCallback(async (statusFilter?: 'success' | 'failed' | 'pending') => {
     setLoading(true);
     try {
-      // Janela maior (2000) — `failed` domina o volume e enviesa janelas pequenas.
-      // Quando há filtro de status, aplica no SQL para garantir presença real.
+      // Etapa 2 (item D) — sem filtro: 500 (carga inicial leve).
+      // Com filtro de status: mantém 2000 para `failed`/`pending` que dominam volume.
+      const limitRows = statusFilter ? 2000 : 500;
       let q = supabase
         .from('v8_simulations')
         .select('cpf, name, status, simulate_status, updated_at, created_at')
         .order('updated_at', { ascending: false })
-        .limit(2000);
+        .limit(limitRows);
       if (statusFilter) q = q.eq('status', statusFilter);
 
       const { data, error } = await q;
