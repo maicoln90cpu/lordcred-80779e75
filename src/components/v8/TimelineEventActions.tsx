@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound } from 'lucide-react';
+import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound, FileUp } from 'lucide-react';
 import { toast } from 'sonner';
 import V8RawJsonSheet from './V8RawJsonSheet';
 import ResolvePixPendencyDialog from './ResolvePixPendencyDialog';
+import UploadDocumentsDialog from './UploadDocumentsDialog';
 
 interface Props {
   kind: 'simulation' | 'webhook' | 'operation';
@@ -27,6 +28,7 @@ export default function TimelineEventActions({
   const [busy, setBusy] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [showPixDialog, setShowPixDialog] = useState(false);
+  const [showDocsDialog, setShowDocsDialog] = useState(false);
 
   function copyId(label: string, value?: string | null) {
     if (!value) return;
@@ -109,6 +111,10 @@ export default function TimelineEventActions({
   const pixPendencyStatuses = new Set(['pending_pix', 'pending_payment_data']);
   const canResolvePix =
     kind === 'operation' && !!operationId && pixPendencyStatuses.has(normalizedStatus);
+  // Pendência de documentos — V8 retorna pending_documents / pending_signature_documents.
+  const docsPendencyStatuses = new Set(['pending_documents', 'pending_signature_documents', 'pending_documentation']);
+  const canResolveDocs =
+    kind === 'operation' && !!operationId && docsPendencyStatuses.has(normalizedStatus);
 
   return (
     <>
@@ -166,6 +172,22 @@ export default function TimelineEventActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent>PATCH /operation/{'{id}'}/pendency/payment-data — admin/manager</TooltipContent>
+          </Tooltip>
+        )}
+        {canResolveDocs && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                onClick={() => setShowDocsDialog(true)}
+              >
+                <FileUp className="w-3 h-3" />
+                <span className="ml-1 text-xs">Resolver Documentos</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>POST /operation/{'{id}'}/document + PATCH /pendency/presentation</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
@@ -226,6 +248,13 @@ export default function TimelineEventActions({
           onOpenChange={setShowPixDialog}
           operationId={operationId}
           borrowerCpf={borrowerCpf}
+        />
+      )}
+      {showDocsDialog && operationId && (
+        <UploadDocumentsDialog
+          open={showDocsDialog}
+          onOpenChange={setShowDocsDialog}
+          operationId={operationId}
         />
       )}
     </>

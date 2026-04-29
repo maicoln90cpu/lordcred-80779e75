@@ -26,7 +26,21 @@ const V8_PATHS = {
   operationCancel: (operationId: string) => `/private-consignment/operation/${operationId}/cancel`,
   operationPendencyPaymentData: (operationId: string) =>
     `/private-consignment/operation/${operationId}/pendency/payment-data`,
+  operationDocument: (operationId: string) =>
+    `/private-consignment/operation/${operationId}/document`,
+  operationPendencyPresentation: (operationId: string) =>
+    `/private-consignment/operation/${operationId}/pendency/presentation`,
 };
+
+// Tipos oficiais V8 de documento aceitos no upload
+const V8_DOC_TYPES = new Set([
+  'identification_front',
+  'identification_back',
+  'address_proof',
+  'paycheck',
+  'selfie',
+  'other',
+]);
 
 const MAX_RETRIES_CONSULT = 3;
 const MAX_RETRIES_AUTHORIZE = 15;
@@ -610,6 +624,116 @@ async function actionResolvePixPendency(
   } catch (_e) { /* best-effort */ }
 
   return { success: true, data: json?.data ?? json ?? { resolved: true } };
+}
+
+/**
+ * Faz upload de UM documento da operação na V8.
+ * POST /private-consignment/operation/{idOperation}/document  (multipart/form-data)
+ *
+ * Recebe o arquivo em base64 (vindo do front) e reenvia para a V8 como multipart.
+ * Também arquiva uma cópia no bucket privado `v8-operation-documents` para auditoria.
+ */
+async function actionUploadDocument(
+  supabase: any,
+  operationId?: string,
+  fileBase64?: string,
+  fileName?: string,
+  mimeType?: string,
+  documentType?: string,
+  userId?: string | null,
+) {
+  const safeOperationId = String(operationId || "").trim();
+  if (!safeOperationId) return { success: false, error: "operationId é obrigatório" };
+
+  const safeType = String(documentType || "").trim();
+  if (!V8_DOC_TYPES.has(safeType)) {
+    return { success: false, error: `documentType inválido. Aceitos: ${Array.from(V8_DOC_TYPES).join(", ")}` };
+  }
+
+  const safeName = String(fileName || "documento").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+  const safeMime = String(mimeType || "application/octet-stream");
+  if (!fileBase64 || typeof fileBase64 !== "string") {
+    return { success: false, error: "Arquivo (base64) é obrigatório" };
+  }
+
+  // Decodifica base64 -> bytes
+  let bytes: Uint8Array;
+  try {
+    const cleaned = fileBase64.replace(/^data:[^;]+;base64,/, "");
+    const bin = atob(cleaned);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch (_e) {
+    return { success: false, error: "Falha ao decodificar arquivo (base64 inválido)" };
+  }
+
+  // Limite de 10MB para evitar timeout/memória.
+  if (bytes.length > 10 * 1024 * 1024) {
+    return { success: false, error: "Arquivo excede 10MB" };
+  }
+
+  // 1) Envia multipart para V8
+  const form = new FormData();
+  form.append("type", safeType);
+  form.append("file", new Blob([bytes], { type: safeMime }), safeName);
+
+  const token = await getV8Token();
+  const resp = await fetch(`${V8_BASE}${V8_PATHS.operationDocument(safeOperationId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('upload_document', { ...err, raw: err.parsed ?? err.rawText });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+
+  // 2) Arquiva cópia no bucket privado (best-effort, não bloqueia)
+  try {
+    const ts = Date.now();
+    const ownerFolder = userId || "system";
+    const path = `${safeOperationId}/${ownerFolder}/${ts}_${safeType}_${safeName}`;
+    await supabase.storage
+      .from("v8-operation-documents")
+      .upload(path, bytes, { contentType: safeMime, upsert: false });
+  } catch (_e) { /* best-effort */ }
+
+  return { success: true, data: json?.data ?? json ?? { uploaded: true } };
+}
+
+/**
+ * Reapresenta a operação para análise após resolver pendências de documentos.
+ * PATCH /private-consignment/operation/{idOperation}/pendency/presentation
+ */
+async function actionResubmitDocuments(supabase: any, operationId?: string) {
+  const safeOperationId = String(operationId || "").trim();
+  if (!safeOperationId) return { success: false, error: "operationId é obrigatório" };
+
+  const resp = await v8Fetch(V8_PATHS.operationPendencyPresentation(safeOperationId), {
+    method: "PATCH",
+  });
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    return buildV8ErrorResult('resubmit_documents', { ...err, raw: err.parsed ?? err.rawText });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+
+  try {
+    await supabase
+      .from("v8_operations_local")
+      .update({
+        last_updated_at: new Date().toISOString(),
+        raw_response: json?.data ?? json ?? null,
+      })
+      .eq("operation_id", safeOperationId);
+  } catch (_e) { /* best-effort */ }
+
+  return { success: true, data: json?.data ?? json ?? { resubmitted: true } };
 }
 
 async function actionGetConfigs(supabase: any) {
@@ -2151,6 +2275,76 @@ const handler = async (req: Request) => {
               action: "cancel_operation",
               operationId: params?.operationId ?? null,
               reason: params?.reason ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "upload_document": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem enviar documentos à V8" };
+        } else {
+          result = await actionUploadDocument(
+            supabase,
+            params?.operationId,
+            params?.fileBase64,
+            params?.fileName,
+            params?.mimeType,
+            params?.documentType,
+            userId,
+          );
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_upload_document",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "upload_document",
+              operationId: params?.operationId ?? null,
+              document_type: params?.documentType ?? null,
+              file_name: params?.fileName ?? null,
+              mime_type: params?.mimeType ?? null,
+              file_size_b64: params?.fileBase64 ? String(params.fileBase64).length : 0,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "resubmit_documents": {
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem reapresentar a operação" };
+        } else {
+          result = await actionResubmitDocuments(supabase, params?.operationId);
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_resubmit_documents",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "resubmit_documents",
+              operationId: params?.operationId ?? null,
             },
             response_payload: {
               success: !!(result as any)?.success,
