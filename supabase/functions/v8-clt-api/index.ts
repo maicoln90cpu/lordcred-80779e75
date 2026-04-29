@@ -2195,6 +2195,10 @@ const handler = async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Etapa 2A — Atualiza limites de retentativa internos (cache 60s).
+    // Não bloqueia se falhar (cai nos defaults). Roda apenas 1x por request.
+    await refreshRetryLimits(supabase);
+
     const token = authHeader.replace("Bearer ", "");
     // Aceita chamadas internas tanto do v8-retry-cron quanto do v8-active-consult-poller
     // (ambas usam SERVICE_ROLE e não têm usuário humano associado).
