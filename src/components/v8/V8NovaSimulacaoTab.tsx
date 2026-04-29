@@ -61,6 +61,47 @@ export default function V8NovaSimulacaoTab() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
 
+  // Etapa 2 (item 6): estado de pausa do lote ativo (lido com realtime).
+  const [activeBatchPaused, setActiveBatchPaused] = useState(false);
+  useEffect(() => {
+    if (!activeBatchId) { setActiveBatchPaused(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('v8_batches')
+        .select('is_paused')
+        .eq('id', activeBatchId)
+        .maybeSingle();
+      if (!cancelled) setActiveBatchPaused(!!(data as any)?.is_paused);
+    };
+    load();
+    const ch = supabase
+      .channel(`v8-batch-paused-${activeBatchId}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'v8_batches', filter: `id=eq.${activeBatchId}` },
+        (payload: any) => setActiveBatchPaused(!!payload.new?.is_paused),
+      )
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [activeBatchId]);
+
+  const togglePause = async () => {
+    if (!activeBatchId) return;
+    const next = !activeBatchPaused;
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from('v8_batches')
+      .update({
+        is_paused: next,
+        paused_at: next ? new Date().toISOString() : null,
+        paused_by: next ? user?.id ?? null : null,
+      })
+      .eq('id', activeBatchId);
+    if (error) { toast.error('Não foi possível alterar a pausa: ' + error.message); return; }
+    setActiveBatchPaused(next);
+    toast.success(next ? '⏸ Lote pausado — cron e auto-retry vão pular este lote' : '▶ Lote retomado');
+  };
+
   const maxAutoRetry = v8Settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const minBackoffMs = (v8Settings?.retry_min_backoff_seconds ?? 10) * 1000;
   const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
@@ -94,9 +135,11 @@ export default function V8NovaSimulacaoTab() {
     return DEFAULT_PARCEL_OPTIONS;
   }, [selectedConfig]);
 
+  // Etapa 2 (item 4): default = máximo de parcelas permitido pela tabela.
+  // Se o operador não abriu "Opções avançadas", sempre usamos o teto.
   useEffect(() => {
     if (parcelOptions.length > 0 && !parcelOptions.includes(parcelas)) {
-      setParcelas(parcelOptions[0]);
+      setParcelas(Math.max(...parcelOptions));
     }
   }, [parcelOptions, parcelas]);
 
@@ -111,6 +154,7 @@ export default function V8NovaSimulacaoTab() {
   const [autoSimQueue, setAutoSimQueue] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!v8Settings?.auto_simulate_after_consult || !activeBatchId || !configId) return;
+    if (activeBatchPaused) return; // Etapa 2 (item 6): respeita pausa do lote.
     const candidates = simulations.filter((s: any) =>
       s.status === 'success' && s.consult_id
       && (s.simulate_status ?? 'not_started') === 'not_started'
@@ -165,7 +209,7 @@ export default function V8NovaSimulacaoTab() {
         );
       }
     })();
-  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas]);
+  }, [simulations, v8Settings?.auto_simulate_after_consult, activeBatchId, configId, parcelas, activeBatchPaused]);
 
   const awaitingManualSim = simulations.filter(
     (s: any) => s.status === 'success' && (s.simulate_status ?? 'not_started') === 'not_started',
@@ -197,6 +241,12 @@ export default function V8NovaSimulacaoTab() {
         onStart={ops.handleStart}
       />
 
+      {activeBatchId && activeBatchPaused && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-center justify-between">
+          <span>⏸ <strong>Lote pausado.</strong> Cron de retry e poller automático estão ignorando este lote. Ações manuais ainda funcionam.</span>
+        </div>
+      )}
+
       {activeBatchId && (
         <BatchProgressTable
           simulations={simulations}
@@ -219,6 +269,8 @@ export default function V8NovaSimulacaoTab() {
               onCancelBatch={ops.handleCancelBatch}
               onExportCsv={() => downloadBatchCsv(simulations, batchName)}
               exportDisabled={simulations.length === 0}
+              isPaused={activeBatchPaused}
+              onTogglePause={togglePause}
             />
           }
         />

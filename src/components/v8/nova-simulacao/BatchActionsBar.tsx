@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X, Download } from 'lucide-react';
+import { Play, RefreshCw, X, Download, Pause } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -13,17 +13,21 @@ interface Props {
   /** Etapa 1 (item 9): exportar simulações do lote ativo em CSV. */
   onExportCsv?: () => void;
   exportDisabled?: boolean;
+  /** Etapa 2 (item 6): pause/resume do lote — bloqueia cron e poller. */
+  isPaused?: boolean;
+  onTogglePause?: () => void;
 }
 
 /**
  * Barra de ações do lote ativo: Simular selecionados / Retentar falhados /
- * Buscar resultados pendentes / Exportar CSV / Cancelar lote.
+ * Buscar resultados pendentes / Pausar / Exportar CSV / Cancelar lote.
  * Apenas UI — toda a lógica fica no orquestrador.
  */
 export default function BatchActionsBar({
   running, showManualWarning, awaitingManualSim,
   onSimulateSelected, onRetryFailed, onReplayPending, onCancelBatch,
   onExportCsv, exportDisabled,
+  isPaused, onTogglePause,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -73,6 +77,26 @@ export default function BatchActionsBar({
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs text-xs">
               Baixa um arquivo CSV (abre no Excel) com nome, CPF, status, parcelas, valores e motivo de cada CPF do lote — na mesma ordem em que foram colados.
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {onTogglePause && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={isPaused ? 'default' : 'outline'}
+                onClick={onTogglePause}
+                className={isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white' : undefined}
+              >
+                {isPaused ? <Play className="w-3 h-3 mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
+                {isPaused ? 'Continuar' : 'Pausar'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              {isPaused
+                ? 'Retoma o lote: cron de retry e poller voltam a processar este lote automaticamente.'
+                : 'Pausa o lote: cron de retry e poller automático param de tocar nele. Ações manuais (Simular/Retentar/Buscar) continuam funcionando. Use para evitar gastar tentativas enquanto investiga.'}
             </TooltipContent>
           </Tooltip>
         )}

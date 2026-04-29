@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -5,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Play, Loader2 } from 'lucide-react';
+import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { V8StatusGlossary } from '../V8StatusGlossary';
 import type { analyzeV8Paste } from '@/lib/v8Parser';
 
@@ -69,6 +70,9 @@ export default function BatchCreatePanel(props: Props) {
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
     running, onStart,
   } = props;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
+  const usingMaxDefault = !advancedOpen && maxParcelas != null && parcelas === maxParcelas;
 
   return (
     <Card>
@@ -83,7 +87,7 @@ export default function BatchCreatePanel(props: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label>Nome do lote</Label>
             <Input
@@ -111,30 +115,57 @@ export default function BatchCreatePanel(props: Props) {
                 ))}
               </SelectContent>
             </Select>
+            {usingMaxDefault && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Parcelas: <strong>{parcelas}x</strong> (máximo da tabela — padrão).
+              </p>
+            )}
           </div>
-          <div>
-            <Label>Parcelas</Label>
-            <Select value={String(parcelas)} onValueChange={(v) => setParcelas(Number(v))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {parcelOptions.map((p) => (
-                  <SelectItem key={p} value={String(p)}>
-                    {p}x
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {selectedConfig
-                ? `Parcelas disponíveis nesta tabela: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
-                : 'Selecione uma tabela para ver apenas as parcelas realmente aceitas pela V8.'}
-            </p>
-            <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-              ⓘ Em lote com auto-simulação ativa, esta parcela é usada para todos os CPFs novos do lote atual.
-            </p>
-          </div>
+        </div>
+
+        {/* Etapa 2 (item 4): seletor de parcelas escondido por padrão.
+            Default = Math.max(parcelOptions). Operador só abre se quiser sobrescrever. */}
+        <div className="rounded-lg border border-dashed border-border">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40 rounded-lg"
+          >
+            <span className="flex items-center gap-1.5">
+              {advancedOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              Opções avançadas
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Parcelas: {parcelas}x{usingMaxDefault ? ' (máx)' : ''}
+            </span>
+          </button>
+          {advancedOpen && (
+            <div className="px-3 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Parcelas</Label>
+                <Select value={String(parcelas)} onValueChange={(v) => setParcelas(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {parcelOptions.map((p) => (
+                      <SelectItem key={p} value={String(p)}>
+                        {p}x{maxParcelas === p ? ' (máximo)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selectedConfig
+                    ? `Disponíveis: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
+                    : 'Selecione uma tabela para ver as parcelas aceitas pela V8.'}
+                </p>
+                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  ⓘ Por padrão usamos o máximo. Só altere se precisar de prazo menor para todo o lote.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
