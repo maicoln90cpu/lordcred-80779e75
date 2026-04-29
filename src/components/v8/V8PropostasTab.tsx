@@ -71,9 +71,7 @@ function DateField({ label, value, onChange }: { label: string; value: Date; onC
 // impressão de que ele estava sendo clicado sozinho.
 const StatusBadge = forwardRef<HTMLSpanElement, { status?: string | null }>(({ status }, ref) => (
   <span ref={ref} className="inline-flex">
-    <Badge variant="outline" className={getV8ToneClass(getV8OperationTone(status))}>
-      {status || '—'}
-    </Badge>
+    <V8StatusBadgePair status={status} compact />
   </span>
 ));
 StatusBadge.displayName = 'StatusBadge';
