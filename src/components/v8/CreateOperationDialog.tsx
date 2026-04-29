@@ -377,14 +377,24 @@ export default function CreateOperationDialog({
           </AccordionItem>
         </Accordion>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { void flush(); onOpenChange(false); }}>
-            <Save className="w-4 h-4 mr-1" /> Salvar e fechar
-          </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
-            Enviar proposta para V8
-          </Button>
+        {/* Documentos (drag-and-drop) */}
+        <CreateOperationDocsSection
+          items={pendingDocs}
+          onChange={setPendingDocs}
+          disabled={submitting || uploadingDocs}
+        />
+
+        <DialogFooter className="flex-col sm:flex-row sm:items-center gap-2">
+          <UploadProgress busy={uploadingDocs} />
+          <div className="flex gap-2 sm:ml-auto">
+            <Button variant="outline" onClick={() => { void flush(); onOpenChange(false); }}>
+              <Save className="w-4 h-4 mr-1" /> Salvar e fechar
+            </Button>
+            <Button onClick={handleSubmit} disabled={!canSubmit || uploadingDocs}>
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+              Enviar proposta para V8
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
