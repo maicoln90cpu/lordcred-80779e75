@@ -135,7 +135,22 @@ export default function V8NovaSimulacaoTab() {
               },
             },
           });
-          if (error || data?.success === false) fail += 1; else ok += 1;
+          if (error || data?.success === false) {
+            fail += 1;
+            // FIX 4: garante que o motivo aparece na UI mesmo se o backend não gravou
+            // (camada extra de segurança — caso a invoke retorne erro de rede/timeout).
+            const reason = data?.user_message || data?.detail || data?.title
+              || data?.error || error?.message || 'Erro ao chamar simulação V8';
+            try {
+              await supabase.from('v8_simulations').update({
+                simulate_status: 'failed',
+                simulate_error_message: String(reason),
+                simulate_attempted_at: new Date().toISOString(),
+              }).eq('id', sim.id);
+            } catch { /* ignore */ }
+          } else {
+            ok += 1;
+          }
         } catch (err) {
           fail += 1;
           console.error('[auto-simulate] erro', sim.cpf, err);
