@@ -475,8 +475,8 @@ export default function V8NovaSimulacaoTab() {
         autoSimulate={v8Settings?.auto_simulate_after_consult ?? false}
         onToggleAutoSimulate={(v) => saveV8Settings({ auto_simulate_after_consult: v })}
         v8SettingsLoaded={!!v8Settings}
-        running={ops.running}
-        onStart={ops.handleStart}
+        running={isThisDraftRunning}
+        onStart={wrappedStart}
         onSchedule={handleSchedule}
         onQueue={handleQueue}
       />
