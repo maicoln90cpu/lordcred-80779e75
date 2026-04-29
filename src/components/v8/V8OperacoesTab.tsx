@@ -186,6 +186,28 @@ export default function V8OperacoesTab() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
+  // Etapa 1 (item 1): realtime — quando uma simulação é criada/atualizada em outra
+  // aba (ex: Nova Simulação), recarrega agregados e timeline do CPF expandido.
+  useEffect(() => {
+    const channel = supabase
+      .channel('v8-operacoes-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'v8_simulations' },
+        (payload: any) => {
+          const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+          void loadAggregates(m[filter] as any);
+          const changedCpf = onlyDigits((payload?.new?.cpf || payload?.old?.cpf || '') as string);
+          if (expandedCpf && changedCpf === expandedCpf) {
+            void loadTimeline(expandedCpf);
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedCpf, filter]);
+
   const loadAggregates = useCallback(async (statusFilter?: 'success' | 'failed' | 'pending') => {
     setLoading(true);
     try {
