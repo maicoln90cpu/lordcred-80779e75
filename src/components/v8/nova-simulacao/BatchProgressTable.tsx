@@ -165,8 +165,9 @@ export default function BatchProgressTable({
                       className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}
                       title={(() => {
                         const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-                        if (k && !isRetriableErrorKind(k)) return `Esta linha não é retentável automaticamente (motivo: ${k}). Auto-retry só vale para temporary_v8 e analysis_pending.`;
-                        return `Tentativas usadas / teto configurado (${maxAutoRetry}).`;
+                        const n = s.attempt_count ?? 0;
+                        if (k && !isRetriableErrorKind(k)) return `Linha NÃO-retentável automaticamente — tentativas pararam em ${n}. Motivo: ${k}. Auto-retry só vale para temporary_v8 e analysis_pending; outros casos exigem ação humana (ex: cancelar consulta antiga, corrigir cadastro).`;
+                        return `Tentativas usadas (${n}) / teto configurado (${maxAutoRetry}).`;
                       })()}
                     >
                       {s.attempt_count ?? 0}
