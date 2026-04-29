@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight, CalendarClock } from 'lucide-react';
 import { V8StatusGlossary } from '../V8StatusGlossary';
 import type { analyzeV8Paste } from '@/lib/v8Parser';
 
@@ -53,6 +53,8 @@ interface Props {
   // ação
   running: boolean;
   onStart: () => void;
+  /** Etapa 3 (item 7): agendar lote para horário futuro. Quando definido, mostra UI de agendamento. */
+  onSchedule?: (scheduledForIso: string) => void;
 }
 
 /**
@@ -68,11 +70,30 @@ export default function BatchCreatePanel(props: Props) {
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
-    running, onStart,
+    running, onStart, onSchedule,
   } = props;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
   const usingMaxDefault = !advancedOpen && maxParcelas != null && parcelas === maxParcelas;
+
+  // Etapa 3 (item 7): agendamento. Default = +30 min.
+  const defaultScheduleStr = (() => {
+    const d = new Date(Date.now() + 30 * 60 * 1000);
+    // datetime-local no fuso local do browser. Convertemos com -03:00 no submit.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduledLocal, setScheduledLocal] = useState<string>(defaultScheduleStr);
+
+  function handleScheduleClick() {
+    if (!onSchedule) return;
+    if (!scheduledLocal) return;
+    // Interpreta o input como horário em America/Sao_Paulo (sufixo -03:00).
+    // Usuário digitou "18:00" → enviamos "...T18:00:00-03:00".
+    const iso = `${scheduledLocal}:00-03:00`;
+    onSchedule(iso);
+  }
 
   return (
     <Card>
@@ -249,13 +270,59 @@ export default function BatchCreatePanel(props: Props) {
           />
         </div>
 
-        <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
-          {running ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
-          ) : (
-            <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
-          )}
-        </Button>
+        {/* Etapa 3 (item 7): bloco de agendamento. Operador escolhe data/hora futura
+            e o lote só inicia quando o launcher (pg_cron) chegar a esse horário. */}
+        {onSchedule && (
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <CalendarClock className="w-4 h-4" /> Agendar para horário futuro
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando ligado, o lote fica em "Agendado" e só dispara as consultas no horário escolhido. Use para iniciar lotes fora do horário comercial ou em janelas controladas.
+                </p>
+              </div>
+              <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
+            </div>
+            {scheduleEnabled && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs">Data e hora (horário de Brasília)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduledLocal}
+                    onChange={(e) => setScheduledLocal(e.target.value)}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    O sistema confere a cada minuto e dispara assim que chegar o horário.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {scheduleEnabled && onSchedule ? (
+          <Button
+            onClick={handleScheduleClick}
+            disabled={running || blockingIssues.length > 0 || !scheduledLocal}
+            size="lg"
+            className="w-full"
+            variant="default"
+          >
+            <CalendarClock className="w-4 h-4 mr-2" />
+            Agendar lote para {scheduledLocal.replace('T', ' às ')}
+          </Button>
+        ) : (
+          <Button onClick={onStart} disabled={running || blockingIssues.length > 0} size="lg" className="w-full">
+            {running ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
+            ) : (
+              <><Play className="w-4 h-4 mr-2" />Iniciar Simulação</>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

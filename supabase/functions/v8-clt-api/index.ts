@@ -1767,6 +1767,95 @@ async function actionCreateBatch(
   return { success: true, data: { batch_id: batch.id, total: validRows.length } };
 }
 
+/**
+ * Etapa 3 (item 7): cria lote agendado para horário futuro.
+ * Mesma estrutura do create_batch, mas:
+ *  - status = 'scheduled'
+ *  - scheduled_for = quando o lote deve começar
+ *  - scheduled_strategy / scheduled_payload guardam o que o launcher precisa para disparar
+ *
+ * Linhas (v8_simulations) NÃO são criadas agora. O launcher cuida disso quando o
+ * horário chegar — assim, se o operador editar/cancelar antes da hora, nada vaza.
+ */
+async function actionScheduleBatch(
+  supabase: any,
+  payload: {
+    name: string;
+    config_id: string;
+    config_label?: string;
+    parcelas: number;
+    rows: Array<{ cpf: string; nome?: string; data_nascimento?: string; genero?: string; telefone?: string }>;
+    scheduled_for: string; // ISO com -03:00
+    strategy?: "webhook_only" | "simulate_now";
+    simulation_mode?: "none" | "disbursed_amount" | "installment_face_value";
+    simulation_value?: number | null;
+  },
+  userId: string,
+) {
+  const validRows = (payload.rows || []).filter(
+    (r) => (r.cpf || "").replace(/\D/g, "").length === 11,
+  );
+  if (validRows.length === 0) return { success: false, error: "Nenhum CPF válido" };
+
+  const when = payload.scheduled_for ? new Date(payload.scheduled_for) : null;
+  if (!when || Number.isNaN(when.getTime())) {
+    return { success: false, error: "Horário do agendamento inválido" };
+  }
+  if (when.getTime() < Date.now() - 60_000) {
+    return { success: false, error: "Horário do agendamento já passou" };
+  }
+
+  const invalidBirthRow = validRows.find(
+    (r) => r.data_nascimento && !normalizeBirthDate(r.data_nascimento),
+  );
+  if (invalidBirthRow) {
+    return {
+      success: false,
+      error: `Data de nascimento inválida para CPF ${(invalidBirthRow.cpf || "").replace(/\D/g, "")}`,
+    };
+  }
+
+  const cleanRows = validRows.map((r) => ({
+    cpf: r.cpf.replace(/\D/g, ""),
+    nome: r.nome ?? null,
+    data_nascimento: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
+    genero: r.genero ?? null,
+    telefone: r.telefone ?? null,
+  }));
+
+  const { data: batch, error: batchErr } = await supabase
+    .from("v8_batches")
+    .insert({
+      name: payload.name,
+      created_by: userId,
+      config_id: payload.config_id,
+      config_name: payload.config_label ?? null,
+      installments: payload.parcelas,
+      total_count: validRows.length,
+      pending_count: validRows.length,
+      status: "scheduled",
+      scheduled_for: when.toISOString(),
+      scheduled_strategy: payload.strategy ?? "webhook_only",
+      scheduled_payload: {
+        rows: cleanRows,
+        simulation_mode: payload.simulation_mode ?? "none",
+        simulation_value: payload.simulation_value ?? null,
+      },
+    })
+    .select()
+    .single();
+  if (batchErr) return { success: false, error: batchErr.message };
+
+  return {
+    success: true,
+    data: {
+      batch_id: batch.id,
+      total: validRows.length,
+      scheduled_for: when.toISOString(),
+    },
+  };
+}
+
 async function actionListBatches(supabase: any, userId: string, isPriv: boolean) {
   let q = supabase
     .from("v8_batches")
@@ -2347,6 +2436,74 @@ const handler = async (req: Request) => {
             request_payload: { action: "cancel_batch", batch_id: params?.batch_id ?? null },
             response_payload: result,
           },
+        });
+        break;
+      }
+      case "schedule_batch": {
+        result = await actionScheduleBatch(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_schedule_batch",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: (result as any)?.data?.batch_id ?? null,
+          details: {
+            request_payload: {
+              action: "schedule_batch",
+              name: params?.name ?? null,
+              config_id: params?.config_id ?? null,
+              parcelas: params?.parcelas ?? null,
+              scheduled_for: params?.scheduled_for ?? null,
+              strategy: params?.strategy ?? null,
+              rows_count: Array.isArray(params?.rows) ? params.rows.length : 0,
+            },
+            response_payload: result,
+          },
+        });
+        break;
+      }
+      case "cancel_schedule": {
+        const batchId = String(params?.batch_id ?? "");
+        if (!batchId) {
+          result = { success: false, error: "batch_id obrigatório" };
+        } else {
+          const { data: batchRow } = await supabase
+            .from("v8_batches")
+            .select("id, status, created_by, name")
+            .eq("id", batchId)
+            .maybeSingle();
+          if (!batchRow) {
+            result = { success: false, error: "Lote não encontrado" };
+          } else if (!isPriv && batchRow.created_by !== userId) {
+            result = { success: false, error: "Sem permissão" };
+          } else if (batchRow.status !== "scheduled") {
+            result = { success: false, error: `Lote não está mais agendado (status: ${batchRow.status})` };
+          } else {
+            const { error: upErr } = await supabase
+              .from("v8_batches")
+              .update({
+                status: "canceled",
+                canceled_at: new Date().toISOString(),
+                canceled_by: userId,
+              })
+              .eq("id", batchId)
+              .eq("status", "scheduled"); // proteção: só cancela se ainda está agendado
+            result = upErr
+              ? { success: false, error: upErr.message }
+              : { success: true, data: { batch_id: batchId } };
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_schedule",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: params?.batch_id ?? null,
+          details: { request_payload: params, response_payload: result },
         });
         break;
       }

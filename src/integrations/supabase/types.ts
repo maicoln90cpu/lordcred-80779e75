@@ -3905,6 +3905,9 @@ export type Database = {
           paused_at: string | null
           paused_by: string | null
           pending_count: number
+          scheduled_for: string | null
+          scheduled_payload: Json | null
+          scheduled_strategy: string | null
           status: string
           success_count: number
           total_count: number
@@ -3926,6 +3929,9 @@ export type Database = {
           paused_at?: string | null
           paused_by?: string | null
           pending_count?: number
+          scheduled_for?: string | null
+          scheduled_payload?: Json | null
+          scheduled_strategy?: string | null
           status?: string
           success_count?: number
           total_count?: number
@@ -3947,6 +3953,9 @@ export type Database = {
           paused_at?: string | null
           paused_by?: string | null
           pending_count?: number
+          scheduled_for?: string | null
+          scheduled_payload?: Json | null
+          scheduled_strategy?: string | null
           status?: string
           success_count?: number
           total_count?: number
