@@ -441,7 +441,7 @@ serve(async (req) => {
 
       const { data: currentRow } = await supabase
         .from("v8_simulations")
-        .select("id, status, released_value, installment_value, simulation_strategy, error_kind")
+        .select("id, status, released_value, installment_value, simulation_strategy, installments, error_kind")
         .eq("consult_id", consultId)
         .maybeSingle();
 
@@ -465,9 +465,14 @@ serve(async (req) => {
           && valueMax != null && instMax != null;
 
         if (wantsSuccess && canPromoteFromLimit) {
+          const instMin = (extras as any).simInstallmentsMin ?? 1;
+          const lotePref = Number((currentRow as any).installments ?? 0);
+          const useInst = (Number.isInteger(lotePref) && lotePref >= instMin && lotePref <= instMax)
+            ? lotePref
+            : instMax;
           safeUpdates.released_value = valueMax;
-          safeUpdates.installments = instMax;
-          safeUpdates.installment_value = Number((valueMax / instMax).toFixed(2));
+          safeUpdates.installments = useInst;
+          safeUpdates.installment_value = Number((valueMax / useInst).toFixed(2));
           safeUpdates.total_value = valueMax;
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
