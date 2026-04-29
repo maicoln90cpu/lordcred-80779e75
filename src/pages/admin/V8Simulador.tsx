@@ -43,10 +43,7 @@ export default function V8Simulador() {
 
         <Tabs defaultValue="operacoes">
           <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="operacoes" className="gap-1.5">
-              Operações
-              <Badge variant="secondary" className="text-[10px] h-4 px-1">novo</Badge>
-            </TabsTrigger>
+            <TabsTrigger value="operacoes">Operações</TabsTrigger>
             <TabsTrigger value="nova">Nova Simulação</TabsTrigger>
             <div className="mx-2 h-5 w-px bg-border self-center" aria-hidden />
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Avançado</span>

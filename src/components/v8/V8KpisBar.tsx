@@ -51,26 +51,33 @@ export default function V8KpisBar() {
     try {
       const since = startOfTodaySaoPauloIso();
 
-      // Simulações de hoje
-      const { data: sims } = await supabase
+      // ⚠️ BUG ANTIGO: `.select('status, released_value').gte(...)` carregava as
+      // linhas e o Supabase corta silenciosamente em 1000 → KPI ficava cravado em
+      // "Simulações hoje: 1000". Agora usamos `count: 'exact', head: true` para
+      // o total, que NÃO tem cap, e queries separadas para success/failed.
+      const [{ count: simsTotal }, { count: simsSuccess }, { count: simsFailed }] = await Promise.all([
+        supabase.from('v8_simulations').select('id', { count: 'exact', head: true }).gte('created_at', since),
+        supabase.from('v8_simulations').select('id', { count: 'exact', head: true }).gte('created_at', since).eq('status', 'success'),
+        supabase.from('v8_simulations').select('id', { count: 'exact', head: true }).gte('created_at', since).eq('status', 'failed'),
+      ]);
+
+      // Para o ticket médio precisamos dos valores. Aceitamos imprecisão acima
+      // de 2000 sucessos/dia (cenário improvável no negócio atual).
+      const { data: releasedRows } = await supabase
         .from('v8_simulations')
-        .select('status, released_value')
-        .gte('created_at', since);
+        .select('released_value')
+        .eq('status', 'success')
+        .gte('created_at', since)
+        .not('released_value', 'is', null)
+        .limit(2000);
 
-      const list = sims ?? [];
-      const simsTotal = list.length;
-      const simsSuccess = list.filter((s: any) => s.status === 'success').length;
-      const simsFailed = list.filter((s: any) => s.status === 'failed').length;
-      const finalized = simsSuccess + simsFailed;
-
-      const released = list
-        .filter((s: any) => s.status === 'success' && s.released_value != null)
-        .map((s: any) => Number(s.released_value));
+      const released = (releasedRows ?? []).map((s: any) => Number(s.released_value)).filter((n) => Number.isFinite(n));
       const avgTicket = released.length > 0
         ? released.reduce((a, b) => a + b, 0) / released.length
         : null;
 
-      const approvalRate = finalized > 0 ? Math.round((simsSuccess / finalized) * 100) : null;
+      const finalized = (simsSuccess ?? 0) + (simsFailed ?? 0);
+      const approvalRate = finalized > 0 ? Math.round(((simsSuccess ?? 0) / finalized) * 100) : null;
 
       // Operações criadas hoje
       const { count: opsCreated } = await supabase
@@ -79,9 +86,9 @@ export default function V8KpisBar() {
         .gte('first_seen_at', since);
 
       setKpis({
-        simsTotal,
-        simsSuccess,
-        simsFailed,
+        simsTotal: simsTotal ?? 0,
+        simsSuccess: simsSuccess ?? 0,
+        simsFailed: simsFailed ?? 0,
         opsCreated: opsCreated ?? 0,
         avgTicket,
         approvalRate,

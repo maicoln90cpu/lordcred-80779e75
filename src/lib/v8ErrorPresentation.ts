@@ -15,11 +15,17 @@ export function getV8RawPayload(rawResponse: V8RawResponse) {
 export function getV8ErrorHeadline(rawResponse: V8RawResponse, fallback?: string | null) {
   const payload = getV8RawPayload(rawResponse);
 
+  // ⚠️ V8 às vezes retorna o motivo APENAS em `description` (ex: política interna
+  // de CNPJ negada, integrador). Sem esse campo, a UI mostrava "Falha sem detalhe
+  // retornado" mesmo com motivo claro no payload. Mantemos title/detail/message
+  // primeiro porque são os campos canônicos da V8 quando existem.
   return firstNonEmpty(
     rawResponse?.title,
     payload?.title,
     rawResponse?.detail,
     payload?.detail,
+    rawResponse?.description,
+    payload?.description,
     rawResponse?.message,
     payload?.message,
     rawResponse?.error,
@@ -35,6 +41,8 @@ export function getV8ErrorSecondary(rawResponse: V8RawResponse) {
   const secondary = firstNonEmpty(
     rawResponse?.detail,
     payload?.detail,
+    rawResponse?.description,
+    payload?.description,
     rawResponse?.message,
     payload?.message,
     rawResponse?.guidance,

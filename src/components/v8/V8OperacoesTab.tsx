@@ -19,6 +19,8 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
@@ -186,15 +188,29 @@ export default function V8OperacoesTab() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
-  // Etapa 2 (item D) — debounce de 1s no realtime para não recarregar 3+ vezes
-  // seguidas quando várias linhas de um lote são atualizadas em rajada.
+  // Etapa 3 (item 6) — debounce de 3s + toggle de pausa para a tela parar de
+  // piscar com lotes de alto volume. O usuário pode pausar manualmente para
+  // inspecionar sem nada se mover. Preferência persistida em localStorage.
+  const [livePaused, setLivePaused] = useState<boolean>(() => {
+    try { return localStorage.getItem('v8_operacoes_live_paused') === '1'; } catch { return false; }
+  });
+  const toggleLive = () => {
+    setLivePaused((p) => {
+      const next = !p;
+      try { localStorage.setItem('v8_operacoes_live_paused', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (livePaused) return; // realtime desligado quando o operador pausa
     const channel = supabase
       .channel('v8-operacoes-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'v8_simulations' },
+        // Só UPDATE — INSERT é raro (linha já existe quando aparece) e gera ruído.
+        { event: 'UPDATE', schema: 'public', table: 'v8_simulations' },
         (payload: any) => {
           if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
           realtimeDebounceRef.current = setTimeout(() => {
@@ -204,7 +220,7 @@ export default function V8OperacoesTab() {
             if (expandedCpf && changedCpf === expandedCpf) {
               void loadTimeline(expandedCpf);
             }
-          }, 1000);
+          }, 3000); // ↑ de 1s para 3s — agrega rajadas de updates de lote
         },
       )
       .subscribe();
@@ -213,7 +229,7 @@ export default function V8OperacoesTab() {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandedCpf, filter]);
+  }, [expandedCpf, filter, livePaused]);
 
   const loadAggregates = useCallback(async (statusFilter?: 'success' | 'failed' | 'pending') => {
     setLoading(true);
@@ -476,13 +492,25 @@ export default function V8OperacoesTab() {
               <div>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <User className="w-5 h-5 text-primary" /> Operações por CPF
-                  <Badge variant="secondary" className="ml-2">novo</Badge>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
                   Visão única por pessoa: simulações, propostas e webhooks numa só linha do tempo.
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant={livePaused ? 'secondary' : 'ghost'} size="sm" onClick={toggleLive}>
+                      {livePaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                      <span className="ml-2 hidden sm:inline">{livePaused ? 'Retomar ao vivo' : 'Pausar ao vivo'}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {livePaused
+                      ? 'Atualizações em tempo real desligadas. Use "Atualizar" para recarregar manualmente.'
+                      : 'Pausa as atualizações automáticas para você inspecionar sem a tela mexer.'}
+                  </TooltipContent>
+                </Tooltip>
                 <CreateOperationButton
                   origin="blank"
                   onCreated={() => {

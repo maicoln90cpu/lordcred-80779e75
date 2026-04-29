@@ -65,4 +65,19 @@ describe('getV8ErrorMessageDeduped', () => {
   it('funciona quando raw_response está vazio', () => {
     expect(getV8ErrorMessageDeduped(null, 'Erro X\nErro X')).toBe('Erro X');
   });
+
+  // Regressão: V8 às vezes retorna o motivo APENAS em `description` (CPF rejeitado
+  // por política interna de CNPJ, integrador). Antes a UI mostrava
+  // "Falha sem detalhe retornado" porque o parser só lia title/detail/message.
+  it('lê `description` quando title/detail/message estão ausentes', () => {
+    const raw = { description: 'CNPJ não se enquadra na política interna.' };
+    expect(getV8ErrorMessageDeduped(raw, null)).toBe(
+      'CNPJ não se enquadra na política interna.',
+    );
+  });
+
+  it('lê `description` aninhado em payload', () => {
+    const raw = { payload: { description: 'Política interna negada.' } };
+    expect(getV8ErrorMessageDeduped(raw, null)).toBe('Política interna negada.');
+  });
 });
