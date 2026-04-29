@@ -8,8 +8,8 @@ import { describe, it, expect } from 'vitest';
 function parseImportData(rows: Record<string, string>[]) {
   const today = new Date().toISOString().slice(0, 10);
   return rows.map(r => {
-    const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim();
-    const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim();
+    const bank = (r['Banco'] || r['banco'] || r['bank'] || '').toString().trim().toUpperCase();
+    const tableKey = (r['Tabela'] || r['tabela'] || r['table_key'] || '').toString().trim().toUpperCase();
     const termMin = parseInt((r['Prazo Min'] || r['prazo_min'] || r['term_min'] || '0').toString()) || 0;
     const termMax = parseInt((r['Prazo Max'] || r['prazo_max'] || r['term_max'] || '999').toString()) || 999;
     const minValue = parseFloat((r['Valor Min'] || r['valor_min'] || r['min_value'] || '0').toString().replace(',', '.')) || 0;
