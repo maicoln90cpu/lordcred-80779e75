@@ -489,9 +489,10 @@ export default function V8OperacoesTab() {
                       {expanded && (
                         <div className="px-4 pb-4 pt-1 bg-muted/20">
                           {r.successCount > 0 && (
-                            <div className="flex items-center justify-between gap-2 py-2 px-3 mb-2 rounded-md bg-emerald-500/5 border border-emerald-500/20">
-                              <div className="text-xs text-emerald-700 dark:text-emerald-400">
-                                💡 Margem confirmada — calcular melhor combinação valor × prazo automaticamente.
+                            <div className="flex items-center justify-between gap-2 py-2 px-3 mb-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 flex-wrap">
+                              <div className="text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-3 flex-wrap">
+                                <span>💡 Margem confirmada — calcular melhor combinação valor × prazo automaticamente.</span>
+                                <V8LimitsBadge cpf={r.cpf} />
                               </div>
                               <FindBestProposalButton
                                 cpf={r.cpf}
