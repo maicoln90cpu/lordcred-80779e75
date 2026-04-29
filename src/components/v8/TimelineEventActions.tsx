@@ -174,6 +174,22 @@ export default function TimelineEventActions({
             <TooltipContent>PATCH /operation/{'{id}'}/pendency/payment-data — admin/manager</TooltipContent>
           </Tooltip>
         )}
+        {canResolveDocs && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                onClick={() => setShowDocsDialog(true)}
+              >
+                <FileUp className="w-3 h-3" />
+                <span className="ml-1 text-xs">Resolver Documentos</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>POST /operation/{'{id}'}/document + PATCH /pendency/presentation</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setShowJson(true)}>
