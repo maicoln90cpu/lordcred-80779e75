@@ -484,7 +484,7 @@ export default function PartnersAdmin() {
                 }} placeholder="(00) 00000-0000" />
               </div>
               <div className="grid gap-2">
-                <Label>CPF do Representante <span className="text-destructive">*</span></Label>
+                <Label>CPF do Representante</Label>
                 <Input value={form.cpf} onChange={e => {
                   const v = formatCpf(e.target.value);
                   setForm(f => ({ ...f, cpf: v }));
@@ -555,8 +555,7 @@ export default function PartnersAdmin() {
               const errors: Record<string, string> = {};
               if (!form.nome.trim()) errors.nome = 'Nome é obrigatório';
               const cpfRaw = form.cpf.replace(/\D/g, '');
-              if (!cpfRaw) errors.cpf = 'CPF do representante é obrigatório';
-              else if (!isValidCpf(cpfRaw)) errors.cpf = 'CPF inválido — verifique os dígitos';
+              if (cpfRaw && !isValidCpf(cpfRaw)) errors.cpf = 'CPF inválido — verifique os dígitos';
               const cnpjRaw = form.cnpj.replace(/\D/g, '');
               if (cnpjRaw && !isValidCnpj(cnpjRaw)) errors.cnpj = 'CNPJ inválido — verifique os dígitos';
               setFormErrors(errors);
