@@ -190,7 +190,12 @@ export default function BatchProgressTable({
 function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string, id?: string) => void }) {
   const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
   const isActiveConsult = kind === 'active_consult';
-  const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
+  // Strip defensivo: linhas antigas (pré-Etapa 1) podem ter prefixo "Rejeitada pela V8: " gravado.
+  // O badge de status já indica "rejeitado pela V8" — mostrar de novo no motivo é redundante.
+  const cleanedErrorMessage = typeof s.error_message === 'string'
+    ? s.error_message.replace(/^Rejeitada pela V8:\s*/i, '').trim()
+    : s.error_message;
+  const message = getV8ErrorMessageDeduped(s.raw_response, cleanedErrorMessage);
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 

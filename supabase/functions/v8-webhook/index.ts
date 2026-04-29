@@ -155,12 +155,29 @@ async function processV8Payload(
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && isActiveConsultRecovery) {
-          // Consulta antiga foi rejeitada na V8 — promove a linha para failed com motivo claro
+          // Consulta antiga foi rejeitada na V8 — promove a linha para failed com motivo claro.
+          // FIX: extrai a description do payload (motivo real da V8) em vez de mensagem fixa.
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
-          safeUpdates.error_message = "Consulta antiga rejeitada na V8";
+          safeUpdates.error_kind = "rejected_by_v8";
+          // Mensagem SEM prefixo "Rejeitada pela V8:" — o badge de status já indica isso.
+          safeUpdates.error_message = rejectionReason ?? "Consulta antiga rejeitada na V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
+          // FIX: capturar a description do webhook REJECTED (antes era descartada,
+          // resultando em "Falha sem detalhe retornado" na UI).
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
+          safeUpdates.error_kind = "rejected_by_v8";
+          safeUpdates.error_message = rejectionReason ?? "Consulta rejeitada pela V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (wantsPending && currentRow.status === "pending") {
           // mantém pending

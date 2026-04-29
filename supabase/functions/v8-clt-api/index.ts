@@ -2023,27 +2023,49 @@ const handler = async (req: Request) => {
             // CASO ESPECIAL active_consult: não é falha real — é a V8 dizendo que
             // outra plataforma (ou nós antes) já tem uma consulta em andamento p/ o CPF.
             // Tratamos como "aguardando consulta antiga concluir": status=pending +
-            // webhook_status=WAITING_EXTERNAL. Quando o poller/webhook trouxer SUCCESS
-            // da consulta antiga, a linha é auto-promovida (ver v8-webhook & poller).
+            // webhook_status=WAITING_EXTERNAL.
             const isActiveConsult = (result as any).kind === "active_consult";
+
+            // FIX: detectar status TERMINAL retornado pela check_consult_status
+            // (REJECTED/FAILED/CANCELED). Antes, qualquer não-active_consult virava pending,
+            // deixando a UI mostrando "em análise" mesmo após rejeição confirmada.
+            const rawConsult = (result as any)?.raw ?? {};
+            const consultStatus = String(
+              rawConsult?.status
+                ?? rawConsult?.latest?.status
+                ?? '',
+            ).toUpperCase();
+            const isTerminalReject =
+              consultStatus === "REJECTED"
+              || consultStatus === "FAILED"
+              || consultStatus === "CANCELED";
+
             const { data: existing } = await supabase
               .from("v8_simulations")
               .select("status")
               .eq("id", params.simulation_id)
               .maybeSingle();
-            // active_consult NUNCA vira failed pelo simulate_one — mesmo se já estava failed
-            // (de tentativa anterior buggada), agora reclassifica para pending.
+
+            // Lógica: active_consult → pending (aguarda). Terminal reject → failed
+            // (não-retentável). Demais casos → mantém comportamento anterior.
             const newStatus = isActiveConsult
               ? "pending"
-              : (existing?.status === "failed" ? "failed" : "pending");
+              : (isTerminalReject ? "failed" : (existing?.status === "failed" ? "failed" : "pending"));
+
+            // Mensagem SEM prefixo "Rejeitada pela V8:" — o badge já indica isso.
+            const reason = rawConsult?.description
+              ?? rawConsult?.detail
+              ?? (result as any).detail
+              ?? (result as any).user_message
+              ?? (result as any).error
+              ?? "Consulta ainda em análise";
+
             await supabase
               .from("v8_simulations")
               .update({
                 status: newStatus,
-                // Persiste error_kind em coluna dedicada para o cron de retry.
-                // Sem isso, retentativas seguintes perdem a classificação e ficam órfãs.
-                error_kind: (result as any).kind ?? null,
-                error_message: String((result as any).user_message || (result as any).error || "Consulta ainda em análise"),
+                error_kind: isTerminalReject ? "rejected_by_v8" : ((result as any).kind ?? null),
+                error_message: String(reason),
                 webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
                 raw_response: {
                   kind: (result as any).kind ?? null,
@@ -2051,6 +2073,7 @@ const handler = async (req: Request) => {
                   title: (result as any).title ?? null,
                   detail: (result as any).detail ?? null,
                   guidance: (result as any).guidance ?? null,
+                  consult_status: consultStatus || null,
                   payload: (result as any).raw ?? null,
                 },
                 consult_id: (result as any)?.raw?.consult?.data?.id ?? (result as any)?.raw?.consult?.id ?? null,
@@ -2058,6 +2081,13 @@ const handler = async (req: Request) => {
                 processed_at: new Date().toISOString(),
               })
               .eq("id", params.simulation_id);
+
+            // Incrementa failure_count do lote quando promovido para terminal failed.
+            if (isTerminalReject && params.batch_id) {
+              await supabase.rpc("v8_increment_batch_failure", {
+                _batch_id: params.batch_id,
+              });
+            }
 
             // Quando cai em "consulta ativa", dispara o poller IMEDIATAMENTE para
             // este CPF, sem esperar o tick de 1 min do cron — snapshot inline aparece em ~5-10s.
