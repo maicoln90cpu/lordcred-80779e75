@@ -238,6 +238,7 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
 
           <div className="border-t pt-6"><AnnualRewardsSection /></div>
           <div className="border-t pt-6"><AnnualProgressSection profiles={profiles} getSellerName={getSellerName} /></div>
+          <div className="border-t pt-6"><DangerZoneSection /></div>
         </CardContent>
       </Card>
     </div>
