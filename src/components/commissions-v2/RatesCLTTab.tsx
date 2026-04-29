@@ -118,6 +118,16 @@ export default function RatesCLTTab() {
     }).filter(r => r.bank);
   };
 
+  // Quando o preview muda, calcula quantas seriam novas vs substituídas (item 4 do plano)
+  useEffect(() => {
+    if (importPreview.length === 0) { setImportStats(null); return; }
+    let cancelled = false;
+    previewRateUpsert('commission_rates_clt_v2', importPreview as any)
+      .then(stats => { if (!cancelled) setImportStats(stats); })
+      .catch(() => { if (!cancelled) setImportStats(null); });
+    return () => { cancelled = true; };
+  }, [importPreview]);
+
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -138,32 +148,36 @@ export default function RatesCLTTab() {
   };
 
   /**
-   * IMPORTANTE: o upsert depende do índice único `commission_rates_clt_v2_uniq`
-   * sobre (bank, COALESCE(table_key,''), term_min, term_max, has_insurance, effective_date).
-   * Se alguém renomear esse índice no banco, o upsert volta a quebrar.
+   * Importação resiliente: usa upsert manual em duas fases (SELECT + INSERT/UPDATE),
+   * evitando dependência do `ON CONFLICT` que quebra com índices baseados em expressão (COALESCE).
+   * Veja `rateUpsert.ts` para detalhes.
    */
   const confirmImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
-    const { error } = await supabase
-      .from('commission_rates_clt_v2')
-      .upsert(importPreview as any, {
-        onConflict: 'bank,table_key,term_min,term_max,has_insurance,effective_date',
-        ignoreDuplicates: false,
-      });
-    if (error) {
-      toast({
-        title: 'Erro ao importar',
-        description: `${error.message}${error.details ? ' — ' + error.details : ''}`,
-        variant: 'destructive',
-      });
-    } else {
-      toast({ title: `${importPreview.length} taxa(s) importada(s)`, description: 'Linhas existentes na mesma data foram atualizadas; novas foram inseridas.' });
+    try {
+      const res = await upsertRates('commission_rates_clt_v2', importPreview as any);
+      if (res.errors.length > 0) {
+        toast({
+          title: 'Importação concluída com erros',
+          description: `${res.inserted} novas, ${res.updated} substituídas. ${res.errors.length} falha(s): ${res.errors[0]}`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Importação concluída',
+          description: `${res.inserted} nova(s) inserida(s) · ${res.updated} substituída(s).`,
+        });
+      }
       setImportDialogOpen(false);
       setImportPreview([]);
+      setImportStats(null);
       loadRates();
+    } catch (err: any) {
+      toast({ title: 'Erro ao importar', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
     }
-    setImporting(false);
   };
 
   return (
