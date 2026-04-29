@@ -147,7 +147,9 @@ export default function BatchCreatePanel(props: Props) {
         </div>
 
         {/* Etapa 2 (item 4): seletor de parcelas escondido por padrão.
-            Default = Math.max(parcelOptions). Operador só abre se quiser sobrescrever. */}
+            Default = Math.max(parcelOptions). Operador só abre se quiser sobrescrever.
+            Etapa 1 (novo item 4): "Tipo da simulação" também movido para cá —
+            padrão "Sem valor (V8 escolhe)". */}
         <div className="rounded-lg border border-dashed border-border">
           <button
             type="button"
@@ -160,6 +162,8 @@ export default function BatchCreatePanel(props: Props) {
             </span>
             <span className="text-xs text-muted-foreground">
               Parcelas: {parcelas}x{usingMaxDefault ? ' (máx)' : ''}
+              {' · '}
+              Tipo: {simulationMode === 'none' ? 'V8 escolhe' : simulationMode === 'disbursed_amount' ? 'valor liberado' : 'valor da parcela'}
             </span>
           </button>
           {advancedOpen && (
@@ -187,36 +191,36 @@ export default function BatchCreatePanel(props: Props) {
                   ⓘ Por padrão usamos o máximo. Só altere se precisar de prazo menor para todo o lote.
                 </p>
               </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Tipo da simulação</Label>
-            <Select value={simulationMode} onValueChange={(value: SimulationMode) => setSimulationMode(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
-                <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
-                <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {simulationMode !== 'none' && (
-            <div>
-              <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
-              <Input
-                inputMode="decimal"
-                placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
-                value={simulationValue}
-                onChange={(e) => setSimulationValue(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
-              </p>
+              <div>
+                <Label>Tipo da simulação</Label>
+                <Select value={simulationMode} onValueChange={(value: SimulationMode) => setSimulationMode(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
+                    <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
+                    <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
+                  </SelectContent>
+                </Select>
+                {simulationMode !== 'none' && (
+                  <div className="mt-2">
+                    <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
+                    <Input
+                      inputMode="decimal"
+                      placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
+                      value={simulationValue}
+                      onChange={(e) => setSimulationValue(e.target.value)}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
+                    </p>
+                  </div>
+                )}
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Padrão: <strong>Sem valor</strong> — a V8 calcula no meio da faixa permitida pelo CPF.
+                </p>
+              </div>
             </div>
           )}
         </div>
