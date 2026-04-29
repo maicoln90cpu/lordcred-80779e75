@@ -16,6 +16,9 @@ export default function V8RetrySettingsCard() {
   const [batchSize, setBatchSize] = useState(defaults.retry_batch_size);
   const [enabled, setEnabled] = useState(defaults.background_retry_enabled);
   const [soundOn, setSoundOn] = useState(defaults.sound_on_complete);
+  const [retConsult, setRetConsult] = useState(defaults.max_retries_consult);
+  const [retAuthorize, setRetAuthorize] = useState(defaults.max_retries_authorize);
+  const [retSimulate, setRetSimulate] = useState(defaults.max_retries_simulate);
 
   useEffect(() => {
     if (!settings) return;
@@ -25,11 +28,19 @@ export default function V8RetrySettingsCard() {
     setBatchSize(settings.retry_batch_size);
     setEnabled(settings.background_retry_enabled);
     setSoundOn(settings.sound_on_complete ?? false);
+    setRetConsult(settings.max_retries_consult ?? 3);
+    setRetAuthorize(settings.max_retries_authorize ?? 15);
+    setRetSimulate(settings.max_retries_simulate ?? 15);
   }, [settings]);
 
   async function handleSave() {
     if (maxBackoff < minBackoff) {
       toast.error('Backoff máximo deve ser maior ou igual ao mínimo');
+      return;
+    }
+    const inRange = (n: number) => Number.isFinite(n) && n >= 1 && n <= 30;
+    if (!inRange(retConsult) || !inRange(retAuthorize) || !inRange(retSimulate)) {
+      toast.error('Retentativas internas devem estar entre 1 e 30');
       return;
     }
     const ok = await save({
@@ -39,6 +50,9 @@ export default function V8RetrySettingsCard() {
       retry_batch_size: batchSize,
       background_retry_enabled: enabled,
       sound_on_complete: soundOn,
+      max_retries_consult: retConsult,
+      max_retries_authorize: retAuthorize,
+      max_retries_simulate: retSimulate,
     });
     if (ok) toast.success('Configurações salvas');
     else toast.error('Falha ao salvar (verifique permissões)');
