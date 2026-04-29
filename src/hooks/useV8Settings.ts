@@ -15,6 +15,8 @@ export interface V8Settings {
   consult_throttle_ms: number;
   simulate_throttle_ms: number;
   webhook_wait_timeout_min: number;
+  /** Etapa 5 — quando true, exige documentos no envio do POST /operation */
+  require_documents_on_create: boolean;
   updated_at: string;
 }
 
@@ -30,6 +32,7 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   consult_throttle_ms: 1200,
   simulate_throttle_ms: 1200,
   webhook_wait_timeout_min: 5,
+  require_documents_on_create: false,
 };
 
 export function useV8Settings() {

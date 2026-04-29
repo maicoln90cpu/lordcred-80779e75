@@ -4023,6 +4023,57 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_operation_drafts: {
+        Row: {
+          borrower_name: string | null
+          cpf: string | null
+          created_at: string
+          form_data: Json
+          id: string
+          is_submitted: boolean
+          last_error: string | null
+          last_step: string | null
+          origin_id: string | null
+          origin_type: string
+          submitted_at: string | null
+          submitted_operation_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          borrower_name?: string | null
+          cpf?: string | null
+          created_at?: string
+          form_data?: Json
+          id?: string
+          is_submitted?: boolean
+          last_error?: string | null
+          last_step?: string | null
+          origin_id?: string | null
+          origin_type: string
+          submitted_at?: string | null
+          submitted_operation_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          borrower_name?: string | null
+          cpf?: string | null
+          created_at?: string
+          form_data?: Json
+          id?: string
+          is_submitted?: boolean
+          last_error?: string | null
+          last_step?: string | null
+          origin_id?: string | null
+          origin_type?: string
+          submitted_at?: string | null
+          submitted_operation_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       v8_operations_local: {
         Row: {
           borrower_cpf: string | null
@@ -4109,6 +4160,7 @@ export type Database = {
           created_at: string
           id: string
           max_auto_retry_attempts: number
+          require_documents_on_create: boolean
           retry_batch_size: number
           retry_max_backoff_seconds: number
           retry_min_backoff_seconds: number
@@ -4127,6 +4179,7 @@ export type Database = {
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
+          require_documents_on_create?: boolean
           retry_batch_size?: number
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number
@@ -4145,6 +4198,7 @@ export type Database = {
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
+          require_documents_on_create?: boolean
           retry_batch_size?: number
           retry_max_backoff_seconds?: number
           retry_min_backoff_seconds?: number

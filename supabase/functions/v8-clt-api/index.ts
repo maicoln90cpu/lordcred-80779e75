@@ -705,6 +705,176 @@ async function actionUploadDocument(
 }
 
 /**
+ * Cria uma nova proposta (operation) na V8.
+ * POST /private-consignment/operation
+ *
+ * Recebe payload já validado pelo frontend + Zod-like server side aqui.
+ * Após sucesso, persiste em v8_operations_local com raw_payload completo
+ * para que o trigger v8_extract_operation_fields preencha as colunas dedicadas (Etapa 4).
+ *
+ * @param consultId  ID da consulta autorizada (consult_id que retornou margem positiva)
+ * @param simulationId  ID local em v8_simulations (opcional — para vincular)
+ * @param payload  Objeto completo da proposta no formato V8 (borrower, address, bank, etc.)
+ * @param requireDocs  Se true, exige documents[] com pelo menos 1 item antes de enviar
+ */
+async function actionCreateOperation(
+  supabase: any,
+  params: any,
+  userId?: string | null,
+) {
+  const consultId = String(params?.consult_id || "").trim();
+  const simulationId = params?.simulation_id ? String(params.simulation_id) : null;
+  const draftId = params?.draft_id ? String(params.draft_id) : null;
+  const payload = params?.payload;
+
+  if (!consultId) return { success: false, error: "consult_id é obrigatório" };
+  if (!payload || typeof payload !== "object") {
+    return { success: false, error: "payload da proposta é obrigatório" };
+  }
+
+  // Validações server-side mínimas (espelha schema Zod do frontend)
+  const borrower = payload?.borrower || {};
+  const address = payload?.address || {};
+  const bank = payload?.bank || {};
+  const errors: string[] = [];
+
+  const cpfDigits = String(borrower?.cpf || "").replace(/\D/g, "");
+  if (cpfDigits.length !== 11) errors.push("CPF do mutuário inválido");
+  if (!String(borrower?.name || "").trim()) errors.push("Nome do mutuário é obrigatório");
+  if (!String(borrower?.birth_date || "").trim()) errors.push("Data de nascimento é obrigatória");
+  if (!String(borrower?.mother_name || "").trim()) errors.push("Nome da mãe é obrigatório");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(borrower?.email || ""))) errors.push("E-mail inválido");
+  const phoneDigits = String(borrower?.phone || "").replace(/\D/g, "");
+  if (phoneDigits.length < 10 || phoneDigits.length > 13) errors.push("Telefone inválido");
+
+  if (!String(address?.zip_code || "").replace(/\D/g, "")) errors.push("CEP é obrigatório");
+  if (!String(address?.street || "").trim()) errors.push("Endereço (logradouro) é obrigatório");
+  if (!String(address?.number || "").trim()) errors.push("Número é obrigatório");
+  if (!String(address?.city || "").trim()) errors.push("Cidade é obrigatória");
+  if (!String(address?.state || "").trim()) errors.push("UF é obrigatório");
+
+  if (!String(bank?.transfer_method || "").trim()) errors.push("Forma de pagamento é obrigatória");
+  if (bank?.transfer_method === "pix" && !String(bank?.pix_key || "").trim()) {
+    errors.push("Chave PIX é obrigatória");
+  }
+
+  if (errors.length) {
+    return { success: false, error: errors.join(" • "), validation_errors: errors };
+  }
+
+  // Verifica toggle "exigir documentos no envio"
+  let requireDocs = false;
+  try {
+    const { data: settings } = await supabase
+      .from("v8_settings")
+      .select("require_documents_on_create")
+      .eq("singleton", true)
+      .maybeSingle();
+    requireDocs = !!settings?.require_documents_on_create;
+  } catch (_e) { /* ignore — default false */ }
+
+  const documents = Array.isArray(params?.documents) ? params.documents : [];
+  if (requireDocs && documents.length === 0) {
+    return {
+      success: false,
+      error: "Documentos obrigatórios pelas configurações. Anexe ao menos 1 documento antes de enviar.",
+    };
+  }
+
+  // Monta payload final V8 — injeta consult_id
+  const v8Body = {
+    consult_id: consultId,
+    ...payload,
+  };
+
+  // Envia POST /operation
+  const resp = await v8FetchWithRetry(
+    V8_PATHS.operations,
+    { method: "POST", body: JSON.stringify(v8Body) },
+    3,
+    "create_operation",
+  );
+
+  if (!resp.ok) {
+    const err = await readUpstreamErrorBody(resp);
+    // Marca rascunho com erro para o usuário poder reabrir
+    if (draftId) {
+      try {
+        await supabase
+          .from("v8_operation_drafts")
+          .update({ last_error: err.userMessage || err.rawText || `HTTP ${resp.status}` })
+          .eq("id", draftId);
+      } catch (_e) { /* best-effort */ }
+    }
+    return buildV8ErrorResult("create_operation", { ...err, raw: err.parsed ?? err.rawText });
+  }
+
+  const json = await resp.json().catch(() => ({}));
+  const operationData = json?.data ?? json ?? {};
+  const operationId = operationData?.id || operationData?.operation_id || operationData?.idOperation || null;
+
+  // Persiste localmente com raw_payload — o trigger v8_extract_operation_fields preenche colunas
+  if (operationId) {
+    try {
+      await supabase.from("v8_operations_local").upsert({
+        operation_id: String(operationId),
+        consult_id: consultId,
+        simulation_id: simulationId,
+        cpf: cpfDigits,
+        status: operationData?.status || "pending",
+        raw_payload: operationData,
+        raw_response: operationData,
+        last_updated_at: new Date().toISOString(),
+        created_by: userId,
+      }, { onConflict: "operation_id" });
+    } catch (e) {
+      console.error("[create_operation] failed to persist local:", (e as Error).message);
+    }
+
+    // Faz upload dos documentos sequencialmente (best-effort — não derruba o sucesso)
+    for (const doc of documents) {
+      try {
+        await actionUploadDocument(
+          supabase,
+          String(operationId),
+          doc?.file_base64,
+          doc?.file_name,
+          doc?.mime_type,
+          doc?.document_type,
+          userId,
+        );
+      } catch (e) {
+        console.error("[create_operation] doc upload failed:", (e as Error).message);
+      }
+    }
+  }
+
+  // Marca rascunho como enviado
+  if (draftId) {
+    try {
+      await supabase
+        .from("v8_operation_drafts")
+        .update({
+          is_submitted: true,
+          submitted_operation_id: operationId ? String(operationId) : null,
+          submitted_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", draftId);
+    } catch (_e) { /* best-effort */ }
+  }
+
+  return {
+    success: true,
+    data: {
+      operation_id: operationId,
+      status: operationData?.status || null,
+      raw: operationData,
+    },
+  };
+}
+
+/**
  * Reapresenta a operação para análise após resolver pendências de documentos.
  * PATCH /private-consignment/operation/{idOperation}/pendency/presentation
  */
@@ -2466,6 +2636,38 @@ const handler = async (req: Request) => {
             consult_id: params?.consult_id ?? null,
             config_id: params?.config_id ?? null,
             parcelas: params?.parcelas ?? null,
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
+      case "create_operation": {
+        result = await actionCreateOperation(supabase, params, userId);
+        await writeAuditLog(supabase, {
+          action: "v8_create_operation",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: (result as any)?.data?.operation_id ?? null,
+          details: {
+            request_payload: {
+              action: "create_operation",
+              consult_id: params?.consult_id ?? null,
+              simulation_id: params?.simulation_id ?? null,
+              draft_id: params?.draft_id ?? null,
+              cpf_masked: params?.payload?.borrower?.cpf
+                ? String(params.payload.borrower.cpf).replace(/\d(?=\d{4})/g, "*")
+                : null,
+              has_documents: Array.isArray(params?.documents) ? params.documents.length : 0,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              operation_id: (result as any)?.data?.operation_id ?? null,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
             ...packPayloadForAudit(result, "payload_full"),
           },
         });
