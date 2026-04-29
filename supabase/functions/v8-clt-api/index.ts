@@ -1997,7 +1997,37 @@ const handler = async (req: Request) => {
           },
         });
         break;
-      case "check_consult_status":
+      case "cancel_operation": {
+        // Apenas privilegiados (master/admin/manager) podem cancelar na V8.
+        if (!isPriv) {
+          result = { success: false, error: "Apenas administradores podem cancelar operação na V8" };
+        } else {
+          result = await actionCancelOperation(supabase, params?.operationId, params?.reason);
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_operation",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_operations_local",
+          targetId: params?.operationId ?? null,
+          details: {
+            request_payload: {
+              action: "cancel_operation",
+              operationId: params?.operationId ?? null,
+              reason: params?.reason ?? null,
+            },
+            response_payload: {
+              success: !!(result as any)?.success,
+              error: (result as any)?.error ?? null,
+              title: (result as any)?.title ?? null,
+            },
+            ...packPayloadForAudit(result, "payload_full"),
+          },
+        });
+        break;
+      }
         result = await actionCheckConsultStatus(params);
         await writeAuditLog(supabase, {
           action: "v8_check_consult_status",
