@@ -110,8 +110,8 @@ export default function BatchProgressTable({
                 <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                   💰 Margem Disp.
                 </th>
-                <th className="px-2 py-1 text-right">Liberado</th>
-                <th className="px-2 py-1 text-right">Parcela</th>
+                <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Liberado</th>
+                <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Parcela</th>
                 <th className="px-2 py-1 text-right" title="Cálculo interno LordCred — não é enviado à V8">Margem LordCred</th>
                 <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
