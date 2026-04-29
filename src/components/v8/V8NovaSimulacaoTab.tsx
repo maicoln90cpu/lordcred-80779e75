@@ -3,10 +3,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, X, Pencil, Check } from 'lucide-react';
+import { Loader2, Plus, X, Pencil, Check, PlayCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Configs } from '@/hooks/useV8Configs';
+import { queueAllDrafts, summarizeRunAll } from '@/lib/v8RunAllDrafts';
 import { useV8BatchSimulations } from '@/hooks/useV8Batches';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 import { MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
