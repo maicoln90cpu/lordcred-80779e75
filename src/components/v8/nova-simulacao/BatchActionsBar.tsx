@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X, Download } from 'lucide-react';
+import { Play, RefreshCw, X, Download, Pause } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -13,17 +13,21 @@ interface Props {
   /** Etapa 1 (item 9): exportar simulações do lote ativo em CSV. */
   onExportCsv?: () => void;
   exportDisabled?: boolean;
+  /** Etapa 2 (item 6): pause/resume do lote — bloqueia cron e poller. */
+  isPaused?: boolean;
+  onTogglePause?: () => void;
 }
 
 /**
  * Barra de ações do lote ativo: Simular selecionados / Retentar falhados /
- * Buscar resultados pendentes / Exportar CSV / Cancelar lote.
+ * Buscar resultados pendentes / Pausar / Exportar CSV / Cancelar lote.
  * Apenas UI — toda a lógica fica no orquestrador.
  */
 export default function BatchActionsBar({
   running, showManualWarning, awaitingManualSim,
   onSimulateSelected, onRetryFailed, onReplayPending, onCancelBatch,
   onExportCsv, exportDisabled,
+  isPaused, onTogglePause,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
