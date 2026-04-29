@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TimelineEventActions from './TimelineEventActions';
+import { FindBestProposalButton } from './FindBestProposalButton';
 
 /**
  * V8 — Aba "Operações" (timeline por CPF)
