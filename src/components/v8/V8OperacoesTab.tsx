@@ -600,6 +600,9 @@ export default function V8OperacoesTab() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
                 />
+                {remoteLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                )}
               </div>
               <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
                 <TabsList>
@@ -611,13 +614,18 @@ export default function V8OperacoesTab() {
               </Tabs>
             </div>
 
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
+              <span>📊 Mostrando últimas {filter === 'todos' ? 500 : 2000} atividades.</span>
+              <span>Para CPFs antigos, digite o CPF completo (11 dígitos) — busca direto no banco.</span>
+            </div>
+
             {loading && rows.length === 0 ? (
               <div className="py-12 flex justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                Nenhuma pessoa encontrada com esses critérios.
+                {remoteLoading ? 'Buscando no banco completo…' : 'Nenhuma pessoa encontrada com esses critérios.'}
               </div>
             ) : (
               <div className="border rounded-lg divide-y">
