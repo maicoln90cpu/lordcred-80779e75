@@ -50,6 +50,10 @@ interface Props {
   onToggleAutoSimulate: (v: boolean) => void;
   v8SettingsLoaded: boolean;
 
+  // Etapa 2 (abr/2026): Auto-melhor — tenta proposta viável automaticamente em lote.
+  autoBest: boolean;
+  onToggleAutoBest: (v: boolean) => void;
+
   // ação
   running: boolean;
   onStart: () => void;
@@ -72,6 +76,7 @@ export default function BatchCreatePanel(props: Props) {
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
+    autoBest, onToggleAutoBest,
     running, onStart, onSchedule, onQueue,
   } = props;
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -262,17 +267,33 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         </div>
 
+        {/* Etapa 2 (abr/2026): Auto-melhor — descobre a melhor proposta sozinho. */}
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-3">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              🤖 Auto-melhor (encontra a melhor proposta sozinha)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Quando ligado: para cada CPF com margem confirmada, o sistema tenta automaticamente as melhores combinações <strong>valor × prazo</strong> (do maior para o menor) até a V8 aceitar uma. Equivalente a clicar 🔍 "Encontrar proposta viável" em cada CPF — só que em lote. <strong>Ignora os campos "Modo de simulação" e "Valor"</strong> (decide tudo sozinho).
+            </p>
+          </div>
+          <Switch
+            checked={autoBest}
+            onCheckedChange={onToggleAutoBest}
+          />
+        </div>
+
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
           <div className="space-y-0.5">
             <Label className="text-sm font-medium">Simular automaticamente após consulta</Label>
             <p className="text-xs text-muted-foreground">
-              Quando ligado: assim que cada margem volta da V8, o sistema dispara <code>/simulation</code> automaticamente (throttled). Quando desligado (recomendado): você revisa as margens e clica em "Simular selecionados".
+              Quando ligado: assim que cada margem volta da V8, o sistema dispara <code>/simulation</code> automaticamente (throttled). Quando desligado (recomendado): você revisa as margens e clica em "Simular selecionados". {autoBest && <span className="text-amber-700 dark:text-amber-400 font-medium">⚠️ Ignorado — Auto-melhor está ligado e cuida da simulação.</span>}
             </p>
           </div>
           <Switch
             checked={autoSimulate}
             onCheckedChange={onToggleAutoSimulate}
-            disabled={!v8SettingsLoaded}
+            disabled={!v8SettingsLoaded || autoBest}
           />
         </div>
 
