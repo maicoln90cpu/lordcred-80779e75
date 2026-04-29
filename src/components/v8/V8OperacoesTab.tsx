@@ -27,6 +27,7 @@ import TimelineEventActions from './TimelineEventActions';
 import { FindBestProposalButton } from './FindBestProposalButton';
 import { V8LimitsBadge } from './V8LimitsBadge';
 import { V8StatusBadgePair } from './V8StatusBadgePair';
+import CreateOperationButton from './CreateOperationButton';
 
 /**
  * V8 — Aba "Operações" (timeline por CPF)
@@ -442,13 +443,22 @@ export default function V8OperacoesTab() {
                   Visão única por pessoa: simulações, propostas e webhooks numa só linha do tempo.
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => {
-                const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
-                void loadAggregates(m[filter] as any);
-              }} disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                <span className="ml-2">Atualizar</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <CreateOperationButton
+                  origin="blank"
+                  onCreated={() => {
+                    const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+                    void loadAggregates(m[filter] as any);
+                  }}
+                />
+                <Button variant="outline" size="sm" onClick={() => {
+                  const m = { todos: undefined, sucesso: 'success', falha: 'failed', pendente: 'pending' } as const;
+                  void loadAggregates(m[filter] as any);
+                }} disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  <span className="ml-2">Atualizar</span>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
