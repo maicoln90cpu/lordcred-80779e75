@@ -87,6 +87,7 @@ export default function BatchProgressTable({
         {actionsSlot}
       </CardHeader>
       <CardContent className="space-y-3">
+        <BatchStatusLegend />
         {showManualWarning && (
           <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs leading-relaxed">
             ⚠️ <strong>{awaitingManualSim} consulta(s) com margem aprovada aguardando simulação.</strong>{' '}
