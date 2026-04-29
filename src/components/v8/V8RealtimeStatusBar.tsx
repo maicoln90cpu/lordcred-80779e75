@@ -85,14 +85,14 @@ export function V8RealtimeStatusBar() {
     }
 
     if (activeBatches.length === 0) {
-      setAgg({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt });
+      setAgg({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt });
       return;
     }
 
     const ids = activeBatches.map((b: any) => b.id);
     const { data: sims } = await supabase
       .from('v8_simulations')
-      .select('status, error_kind, last_attempt_at, raw_response')
+      .select('status, error_kind, last_attempt_at, raw_response, last_step')
       .in('batch_id', ids)
       .in('status', ['failed', 'pending']);
 
@@ -109,12 +109,28 @@ export function V8RealtimeStatusBar() {
       return kind === 'active_consult' || (s.status === 'pending' && !kind);
     }).length;
 
-    const retryingCount = retriableSims.filter((s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso).length;
+    // FIX 5: separa consultas vs simulações pelo last_step (etapa onde a linha está parada).
+    // Steps `consult*` = ainda na fase de consulta. Steps `simulate*` = já consultou e está
+    // tentando simular. Diferenciar é importante para o operador entender o que a V8 está
+    // travando.
+    const recentRetriable = retriableSims.filter(
+      (s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso,
+    );
+    const retryingConsults = recentRetriable.filter((s: any) => {
+      const step = String(s.last_step ?? '');
+      return step === '' || step.startsWith('consult');
+    }).length;
+    const retryingSimulations = recentRetriable.filter((s: any) => {
+      const step = String(s.last_step ?? '');
+      return step.startsWith('simulate');
+    }).length;
+    const retryingCount = recentRetriable.length;
     const staleRetryingCount = retriableSims.length - retryingCount;
 
     setAgg({
       active_batches: activeBatches.length,
-      retrying_simulations: retryingCount,
+      retrying_consults: retryingConsults,
+      retrying_simulations: retryingSimulations,
       stale_retrying_simulations: staleRetryingCount,
       awaiting_v8: awaitingV8,
       last_cron_at: lastCronAt,
