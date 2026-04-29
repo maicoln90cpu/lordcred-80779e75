@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound, FileUp } from 'lucide-react';
+import { Copy, RefreshCw, FileJson, Webhook as WebhookIcon, Loader2, Ban, KeyRound, FileUp, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import V8RawJsonSheet from './V8RawJsonSheet';
 import ResolvePixPendencyDialog from './ResolvePixPendencyDialog';
