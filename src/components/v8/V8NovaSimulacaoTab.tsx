@@ -939,6 +939,7 @@ export default function V8NovaSimulacaoTab() {
                   <tr>
                     <th className="px-2 py-1 text-left">CPF</th>
                     <th className="px-2 py-1 text-left">Status</th>
+                    <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote.">Parcelas</th>
                     <th className="px-2 py-1 text-right" title="Margem consignável disponível do trabalhador na V8 (availableMarginValue). É o teto de parcela CLT que o cliente pode contratar.">
                       💰 Margem Disp.
                     </th>
