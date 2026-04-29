@@ -380,6 +380,15 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         )}
       </CardContent>
+
+      <V8LoadFromPoolDialog
+        open={poolDialogOpen}
+        onOpenChange={setPoolDialogOpen}
+        onLoad={(text) => {
+          // Substitui o conteúdo do textarea pelos contatos do pool.
+          setPasteText(text);
+        }}
+      />
     </Card>
   );
 }
