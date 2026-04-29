@@ -970,6 +970,23 @@ export default function V8NovaSimulacaoTab() {
                           );
                         })()}
                       </td>
+                      <td className="px-2 py-1 text-center">
+                        {(() => {
+                          const inst = (s as any).installments;
+                          if (inst != null) {
+                            return <span className="font-medium">{inst}x</span>;
+                          }
+                          // Ainda não simulado — mostra a parcela configurada (cinza)
+                          if (parcelas) {
+                            return (
+                              <span className="text-muted-foreground" title="Parcela configurada no lote — ainda não confirmada pela V8">
+                                ({parcelas}x)
+                              </span>
+                            );
+                          }
+                          return <span className="text-muted-foreground">—</span>;
+                        })()}
+                      </td>
                       <td className="px-2 py-1 text-right">
                         <MargemDispCell simulation={s as any} />
                       </td>
