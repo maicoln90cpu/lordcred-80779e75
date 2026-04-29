@@ -405,3 +405,71 @@ function AnnualProgressSection({ profiles, getSellerName }: { profiles: Profile[
     </>
   );
 }
+
+/**
+ * Zona de Perigo: ações destrutivas isoladas em uma seção visualmente alarmante,
+ * com confirmação por digitação ("CONFIRMAR"). Movido do header da BaseTab para
+ * reduzir clique acidental por privilegiados.
+ */
+function DangerZoneSection() {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const handleClearAllSales = async () => {
+    setBusy(true);
+    try {
+      const { count } = await supabase
+        .from('commission_sales_v2')
+        .select('*', { count: 'exact', head: true });
+      if (!count || count === 0) {
+        toast({ title: 'Nenhuma venda para apagar' });
+        return;
+      }
+      const typed = window.prompt(
+        `ATENÇÃO: você está prestes a APAGAR todas as ${count} venda(s) do módulo Comissões Parceiros.\n\nEsta ação NÃO pode ser desfeita.\n\nPara prosseguir, digite a palavra CONFIRMAR (em maiúsculas):`
+      );
+      if (typed !== 'CONFIRMAR') {
+        toast({ title: 'Cancelado', description: 'Texto não confere — nada foi apagado.' });
+        return;
+      }
+      const { error } = await supabase
+        .from('commission_sales_v2')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        toast({ title: 'Erro ao limpar', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: '🗑️ Vendas removidas', description: `${count} venda(s) apagada(s).` });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+      <h3 className="font-semibold text-sm text-destructive flex items-center gap-2">
+        ⚠️ Zona de Perigo
+      </h3>
+      <p className="text-xs text-muted-foreground mt-1 mb-4">
+        Ações destrutivas e irreversíveis. Use com cuidado — exigem confirmação por texto.
+      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border border-destructive/30 bg-background p-3">
+        <div className="text-sm">
+          <p className="font-medium">Limpar todas as vendas</p>
+          <p className="text-xs text-muted-foreground">Remove TODOS os registros de comissões parceiros (V2).</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleClearAllSales}
+          disabled={busy}
+          className="border-destructive/60 hover:bg-destructive/10 text-destructive"
+        >
+          {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+          Limpar todas as vendas
+        </Button>
+      </div>
+    </div>
+  );
+}
