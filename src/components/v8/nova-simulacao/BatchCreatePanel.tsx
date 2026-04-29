@@ -70,6 +70,9 @@ export default function BatchCreatePanel(props: Props) {
     autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
     running, onStart,
   } = props;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const maxParcelas = parcelOptions.length > 0 ? Math.max(...parcelOptions) : null;
+  const usingMaxDefault = !advancedOpen && maxParcelas != null && parcelas === maxParcelas;
 
   return (
     <Card>
