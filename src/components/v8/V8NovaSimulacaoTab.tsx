@@ -691,6 +691,9 @@ export default function V8NovaSimulacaoTab() {
                   ? `Parcelas disponíveis nesta tabela: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
                   : 'Selecione uma tabela para ver apenas as parcelas realmente aceitas pela V8.'}
               </p>
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                ⓘ Em lote com auto-simulação ativa, esta parcela é usada para todos os CPFs novos do lote atual.
+              </p>
             </div>
           </div>
 
