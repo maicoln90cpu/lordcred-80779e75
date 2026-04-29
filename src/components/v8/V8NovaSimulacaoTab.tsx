@@ -241,6 +241,12 @@ export default function V8NovaSimulacaoTab() {
         onStart={ops.handleStart}
       />
 
+      {activeBatchId && activeBatchPaused && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-center justify-between">
+          <span>⏸ <strong>Lote pausado.</strong> Cron de retry e poller automático estão ignorando este lote. Ações manuais ainda funcionam.</span>
+        </div>
+      )}
+
       {activeBatchId && (
         <BatchProgressTable
           simulations={simulations}
@@ -263,6 +269,8 @@ export default function V8NovaSimulacaoTab() {
               onCancelBatch={ops.handleCancelBatch}
               onExportCsv={() => downloadBatchCsv(simulations, batchName)}
               exportDisabled={simulations.length === 0}
+              isPaused={activeBatchPaused}
+              onTogglePause={togglePause}
             />
           }
         />
