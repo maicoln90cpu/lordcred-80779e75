@@ -189,6 +189,10 @@ export default function V8OperacoesTab() {
   const [loading, setLoading] = useState(false);
   const [expandedCpf, setExpandedCpf] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  // Etapa 2: linhas que vieram de busca direta por CPF (fora da janela dos 500).
+  // Mescladas no `filtered` para o usuário ver mesmo CPFs antigos.
+  const [remoteRows, setRemoteRows] = useState<CpfRow[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
   // Etapa 3 (item 6) — debounce de 3s + toggle de pausa para a tela parar de
@@ -329,10 +333,52 @@ export default function V8OperacoesTab() {
     void loadAggregates(map[filter] as any);
   }, [loadAggregates, filter]);
 
+  // Etapa 2: busca remota por CPF de 11 dígitos quando o agregado local
+  // não bate (CPF caiu fora dos 500 últimos por updated_at). Resolve o caso
+  // do CPF 80073704989 que existe no banco mas sumia da busca.
+  useEffect(() => {
+    const qDigits = onlyDigits(search);
+    if (qDigits.length !== 11) { setRemoteRows([]); return; }
+    if (rows.some((r) => r.cpf === qDigits)) { setRemoteRows([]); return; }
+    let cancelled = false;
+    setRemoteLoading(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('v8_simulations')
+          .select('cpf, name, status, updated_at, created_at')
+          .eq('cpf', qDigits)
+          .order('updated_at', { ascending: false })
+          .limit(50);
+        if (cancelled) return;
+        if (!data || data.length === 0) { setRemoteRows([]); return; }
+        const row: CpfRow = {
+          cpf: qDigits,
+          name: (data.find((r: any) => r.name)?.name as string) ?? null,
+          lastActivity: (data[0] as any).updated_at || (data[0] as any).created_at,
+          simCount: data.length,
+          opCount: 0,
+          whCount: 0,
+          lastStatus: (data[0] as any).status,
+          successCount: data.filter((r: any) => r.status === 'success').length,
+          failedCount: data.filter((r: any) => r.status === 'failed').length,
+          pendingCount: data.filter((r: any) => r.status === 'pending').length,
+        };
+        setRemoteRows([row]);
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [search, rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(search);
-    return rows.filter((r) => {
+    // Mescla: rows locais + remotos (sem duplicar CPF).
+    const localCpfs = new Set(rows.map((r) => r.cpf));
+    const merged = [...rows, ...remoteRows.filter((r) => !localCpfs.has(r.cpf))];
+    return merged.filter((r) => {
       // Mudança semântica: "tem alguma sim com este status" em vez de "último = X"
       if (filter === 'sucesso' && r.successCount === 0) return false;
       if (filter === 'falha' && r.failedCount === 0) return false;
@@ -342,7 +388,7 @@ export default function V8OperacoesTab() {
       if (r.name?.toLowerCase().includes(q)) return true;
       return false;
     });
-  }, [rows, search, filter]);
+  }, [rows, remoteRows, search, filter]);
 
   const loadTimeline = useCallback(async (cpf: string) => {
     setTimelineLoading(true);
@@ -554,6 +600,9 @@ export default function V8OperacoesTab() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
                 />
+                {remoteLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                )}
               </div>
               <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
                 <TabsList>
@@ -565,13 +614,18 @@ export default function V8OperacoesTab() {
               </Tabs>
             </div>
 
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
+              <span>📊 Mostrando últimas {filter === 'todos' ? 500 : 2000} atividades.</span>
+              <span>Para CPFs antigos, digite o CPF completo (11 dígitos) — busca direto no banco.</span>
+            </div>
+
             {loading && rows.length === 0 ? (
               <div className="py-12 flex justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                Nenhuma pessoa encontrada com esses critérios.
+                {remoteLoading ? 'Buscando no banco completo…' : 'Nenhuma pessoa encontrada com esses critérios.'}
               </div>
             ) : (
               <div className="border rounded-lg divide-y">
@@ -595,7 +649,11 @@ export default function V8OperacoesTab() {
                             <TooltipTrigger asChild>
                               <Badge variant="outline" className="gap-1"><Calculator className="w-3 h-3" />{r.simCount}</Badge>
                             </TooltipTrigger>
-                            <TooltipContent>{r.simCount} simulação(ões) na janela</TooltipContent>
+                            <TooltipContent className="max-w-[260px]">
+                              <strong>{r.simCount}</strong> simulações desse CPF na janela carregada.
+                              <br />
+                              O total real pode ser maior — para ver tudo, busque por este CPF (11 dígitos).
+                            </TooltipContent>
                           </Tooltip>
                           {r.successCount > 0 && (
                             <Tooltip>

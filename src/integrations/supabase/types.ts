@@ -4889,6 +4889,17 @@ export type Database = {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }
+      get_v8_database_health: {
+        Args: never
+        Returns: {
+          database_total_size: string
+          total_simulations: number
+          total_webhooks_v8: number
+          v8_simulations_table_size: string
+          v8_webhook_table_size: string
+          webhooks_v8_older_than_3d: number
+        }[]
+      }
       get_visible_profiles: {
         Args: never
         Returns: {
