@@ -1497,7 +1497,47 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
     return { success: false, error: "parcelas inválido" };
   }
 
-  const simulationBody = buildSimulationBodyWithValue(params, params.consult_id);
+  // FIX 4: Clamp de parcelas e valor padrão usando os limites retornados pela /consult
+  // (sim_installments_min/max, sim_value_min/max). Antes, o handler enviava parcelas fixas
+  // do operador — quando 24x não cabia em monthMax=23 (ex: CPF 04706020158), V8 rejeitava.
+  let parcelasFinal = params.parcelas;
+  let simulationValueFinal = params.simulation_value;
+  let clampNote: string | null = null;
+
+  if (params.simulation_id) {
+    const { data: simRow } = await supabase
+      .from("v8_simulations")
+      .select("sim_installments_min, sim_installments_max, sim_value_min, sim_value_max")
+      .eq("id", params.simulation_id)
+      .maybeSingle();
+    if (simRow) {
+      const instMin = Number(simRow.sim_installments_min ?? 0);
+      const instMax = Number(simRow.sim_installments_max ?? 0);
+      const valMin = Number(simRow.sim_value_min ?? 0);
+      const valMax = Number(simRow.sim_value_max ?? 0);
+
+      if (instMin > 0 && instMax > 0) {
+        const clamped = Math.min(Math.max(parcelasFinal, instMin), instMax);
+        if (clamped !== parcelasFinal) {
+          clampNote = `parcelas ajustadas de ${parcelasFinal} para ${clamped} (limite V8: ${instMin}-${instMax})`;
+          parcelasFinal = clamped;
+        }
+      }
+      // Se operador não informou valor de simulação, usa o meio da faixa permitida.
+      if ((simulationValueFinal == null || simulationValueFinal <= 0) && valMin > 0 && valMax > 0) {
+        simulationValueFinal = Number(((valMin + valMax) / 2).toFixed(2));
+      }
+    }
+  }
+
+  const effectiveParams = {
+    ...params,
+    parcelas: parcelasFinal,
+    simulation_value: simulationValueFinal,
+    simulation_mode: params.simulation_mode ?? (simulationValueFinal != null ? "disbursed_amount" : undefined),
+  };
+
+  const simulationBody = buildSimulationBodyWithValue(effectiveParams, params.consult_id);
   const simResp = await v8FetchWithRetry(V8_PATHS.simulate, {
     method: "POST",
     body: JSON.stringify(simulationBody),
@@ -1512,6 +1552,9 @@ async function actionSimulateOnlyForConsult(supabase: any, params: {
         simulate: simError.parsed,
         simulate_text: simError.rawText || null,
         simulate_status: simResp.status,
+        clamp_note: clampNote,
+        effective_parcelas: parcelasFinal,
+        effective_value: simulationValueFinal,
       },
     });
   }
@@ -2112,24 +2155,35 @@ const handler = async (req: Request) => {
             // Mesma proteção de active_consult — pode chegar aqui se a classificação
             // vier do step `consult` (não `consult_status`). Nunca virar failed.
             const isActiveConsult = (result as any).kind === "active_consult";
+            // FIX 4: quando o erro vem do step `simulate`, grava também em
+            // simulate_error_message (coluna dedicada). error_message continua
+            // recebendo para retrocompat, mas a UI dá preferência à coluna nova.
+            const isSimulateStep = (result as any)?.step === "simulate";
+            const errorMsg = String((result as any).user_message || (result as any).error || "Erro desconhecido");
+            const updates: Record<string, unknown> = {
+              status: isActiveConsult ? "pending" : "failed",
+              error_kind: (result as any).kind ?? null,
+              error_message: errorMsg,
+              webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
+              raw_response: {
+                kind: (result as any).kind ?? null,
+                step: (result as any).step ?? null,
+                title: (result as any).title ?? null,
+                detail: (result as any).detail ?? null,
+                guidance: (result as any).guidance ?? null,
+                payload: (result as any).raw ?? null,
+              },
+              last_step: (result as any).step ?? 'simulate_one',
+              processed_at: new Date().toISOString(),
+            };
+            if (isSimulateStep) {
+              updates.simulate_error_message = errorMsg;
+              updates.simulate_status = "failed";
+              updates.simulate_attempted_at = new Date().toISOString();
+            }
             await supabase
               .from("v8_simulations")
-              .update({
-                status: isActiveConsult ? "pending" : "failed",
-                error_kind: (result as any).kind ?? null,
-                error_message: String((result as any).user_message || (result as any).error || "Erro desconhecido"),
-                webhook_status: isActiveConsult ? "WAITING_EXTERNAL" : undefined,
-                raw_response: {
-                  kind: (result as any).kind ?? null,
-                  step: (result as any).step ?? null,
-                  title: (result as any).title ?? null,
-                  detail: (result as any).detail ?? null,
-                  guidance: (result as any).guidance ?? null,
-                  payload: (result as any).raw ?? null,
-                },
-                last_step: (result as any).step ?? 'simulate_one',
-                processed_at: new Date().toISOString(),
-              })
+              .update(updates)
               .eq("id", params.simulation_id);
             if (params.batch_id && !isActiveConsult) {
               await supabase.rpc("v8_increment_batch_failure", {
@@ -2636,11 +2690,25 @@ const handler = async (req: Request) => {
         // Roda /simulation usando consult_id já validado (botão "Simular selecionados").
         result = await actionSimulateOnlyForConsult(supabase, params);
         if (params?.simulation_id) {
+          // FIX 4: grava motivo do erro em coluna dedicada (simulate_error_message)
+          // — antes ficava null, deixando UI mostrando "Falha sem detalhe".
+          const simErrorMsg = !(result as any)?.success
+            ? String(
+                (result as any)?.user_message
+                  ?? (result as any)?.detail
+                  ?? (result as any)?.title
+                  ?? (result as any)?.error
+                  ?? "Erro desconhecido na simulação V8",
+              )
+            : null;
           await supabase.from("v8_simulations").update({
             simulate_attempted_at: new Date().toISOString(),
             simulate_status: (result as any)?.success ? "done" : "failed",
+            simulate_error_message: simErrorMsg,
           }).eq("id", params.simulation_id);
           if ((result as any)?.success) {
+            // Usa parcelas efetivas (após clamp), não o que veio do request.
+            const effectiveParcelas = (result as any)?.data?.installments ?? params.parcelas;
             await supabase.from("v8_simulations").update({
               released_value: (result as any).data.released_value,
               installment_value: (result as any).data.installment_value,
@@ -2650,7 +2718,7 @@ const handler = async (req: Request) => {
               amount_to_charge: (result as any).data.amount_to_charge,
               v8_simulation_id: (result as any).data.simulation_id ?? null,
               config_id: params.config_id,
-              installments: params.parcelas,
+              installments: effectiveParcelas,
               last_step: "simulate_only",
             }).eq("id", params.simulation_id);
           }
