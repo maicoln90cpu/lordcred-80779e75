@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import type { RateCLT } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
+import { previewRateUpsert, upsertRates } from './rateUpsert';
 
 export default function RatesCLTTab() {
   const { toast } = useToast();
@@ -27,6 +28,7 @@ export default function RatesCLTTab() {
   const [bankFilter, setBankFilter] = useState<string>('__all__');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importStats, setImportStats] = useState<{ newCount: number; replaceCount: number } | null>(null);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
