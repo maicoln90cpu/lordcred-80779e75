@@ -584,6 +584,41 @@ export default function V8OperacoesTab() {
                                       <V8StatusBadgePair status={ev.status} compact />
                                     </div>
                                   )}
+                                  {ev.operation && (ev.operation.disbursedAmount != null || ev.operation.installmentValue != null || ev.operation.paidAt) && (
+                                    <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs space-y-0.5">
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                        {ev.operation.disbursedAmount != null && (
+                                          <div>
+                                            <span className="text-muted-foreground">Liberado: </span>
+                                            <span className="font-semibold text-foreground">
+                                              R$ {ev.operation.disbursedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {ev.operation.installmentValue != null && (
+                                          <div>
+                                            <span className="text-muted-foreground">Parcela: </span>
+                                            <span className="font-semibold text-foreground">
+                                              R$ {ev.operation.installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            {ev.operation.numberOfInstallments ? (
+                                              <span className="text-foreground"> · {ev.operation.numberOfInstallments}x</span>
+                                            ) : null}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {ev.operation.paidAt && (
+                                        <div className="text-emerald-700 dark:text-emerald-400">
+                                          💰 Pago em {new Date(ev.operation.paidAt).toLocaleString('pt-BR')}
+                                        </div>
+                                      )}
+                                      {!ev.operation.paidAt && ev.operation.firstDueDate && (
+                                        <div className="text-muted-foreground">
+                                          1ª parcela: {new Date(ev.operation.firstDueDate).toLocaleDateString('pt-BR')}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {ev.approved && (
                                     <div className="mt-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs space-y-0.5">
                                       <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
