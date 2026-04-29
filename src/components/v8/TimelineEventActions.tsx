@@ -250,6 +250,13 @@ export default function TimelineEventActions({
           borrowerCpf={borrowerCpf}
         />
       )}
+      {showDocsDialog && operationId && (
+        <UploadDocumentsDialog
+          open={showDocsDialog}
+          onOpenChange={setShowDocsDialog}
+          operationId={operationId}
+        />
+      )}
     </>
   );
 }
