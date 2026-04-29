@@ -2028,6 +2028,7 @@ const handler = async (req: Request) => {
         });
         break;
       }
+      case "check_consult_status":
         result = await actionCheckConsultStatus(params);
         await writeAuditLog(supabase, {
           action: "v8_check_consult_status",
