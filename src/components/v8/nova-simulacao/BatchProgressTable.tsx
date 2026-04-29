@@ -209,8 +209,6 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
   const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
-  const meta = getV8ErrorMeta(s.raw_response);
-  const hasErrorInfo = !!(s.error_message || message || s.raw_response);
 
   // Sucesso — não é falha, então mostra o estado da etapa de simulação.
   if (s.status === 'success') {
