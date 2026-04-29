@@ -96,7 +96,23 @@ export function FindBestProposalButton({ cpf, onComplete }: Props) {
         return;
       }
 
-      // 4) Dispara simulação real
+      // 4) Garante sessão válida antes de chamar a edge function.
+      // Se o access_token expirou, tenta refresh; se falhar, instrui o usuário.
+      let { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr || !refreshed?.session?.access_token) {
+          toast.error('Sua sessão expirou. Faça login novamente.', {
+            id: toastId,
+            duration: 8000,
+            action: { label: 'Recarregar', onClick: () => window.location.reload() },
+          });
+          return;
+        }
+        sessionData = { session: refreshed.session } as any;
+      }
+
+      // 5) Dispara simulação real
       toast.loading(
         `Simulando V8: ${best.installments}x · valor ~R$ ${best.estimatedDisbursedValue.toLocaleString('pt-BR')}...`,
         { id: toastId },
