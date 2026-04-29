@@ -22,6 +22,7 @@ import { AutoRetryIndicator, RealtimeFreshness } from './V8RealtimeIndicators';
 import { AnimatedCountBadge } from './V8AnimatedCountBadge';
 import { V8StatusGlossary } from './V8StatusGlossary';
 import { ReuseMarginButton } from './ReuseMarginButton';
+import CreateOperationButton from './CreateOperationButton';
 
 // Retentável imediatamente: failed retentável OU pending preso (>60s sem novidade).
 function isRetriableNow(s: any): boolean {
@@ -272,6 +273,7 @@ function BatchDetail({ batchId }: { batchId: string }) {
                 <th className="px-2 py-1 text-right" title="Valor liberado menos a margem LordCred">A cobrar</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
                 <th className="px-2 py-1 text-left">Motivo</th>
+                <th className="px-2 py-1 text-center">Ação</th>
               </tr>
             </thead>
             <tbody>
@@ -498,6 +500,29 @@ function BatchDetail({ batchId }: { batchId: string }) {
                         </div>
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 text-center">
+                      {s.status === 'success' && s.consult_id ? (
+                        <CreateOperationButton
+                          consultId={s.consult_id}
+                          simulationId={s.id}
+                          origin="simulation"
+                          originId={s.id}
+                          prefill={{
+                            cpf: s.cpf,
+                            name: s.name || undefined,
+                            birth_date: s.birth_date || undefined,
+                            phone: s.phone || undefined,
+                            email: s.email || undefined,
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[11px]"
+                          label="Criar proposta"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
                       )}
                     </td>
                   </tr>

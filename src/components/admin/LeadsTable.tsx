@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Copy, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import CreateOperationButton from '@/components/v8/CreateOperationButton';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
@@ -637,9 +638,26 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
                           </>
                         )}
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <CreateOperationButton
+                              origin="lead"
+                              originId={lead.id}
+                              consultId={null}
+                              prefill={{
+                                cpf: lead.cpf || undefined,
+                                name: lead.nome || undefined,
+                                birth_date: lead.data_nasc || undefined,
+                                phone: lead.telefone || undefined,
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[11px]"
+                              label="Proposta"
+                            />
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)} className="text-destructive hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
