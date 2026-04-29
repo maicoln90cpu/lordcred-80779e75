@@ -4023,6 +4023,120 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_contact_pool: {
+        Row: {
+          birth_date: string | null
+          blocked_reason: string | null
+          cpf: string
+          created_at: string
+          extra: Json | null
+          full_name: string | null
+          id: string
+          imported_at: string
+          imported_by: string | null
+          is_blocked: boolean
+          last_available_margin: number | null
+          last_batch_id: string | null
+          last_simulated_at: string | null
+          last_simulation_status: string | null
+          notes: string | null
+          phone: string | null
+          simulation_count: number
+          source_batch_id: string | null
+          source_file: string | null
+          updated_at: string
+        }
+        Insert: {
+          birth_date?: string | null
+          blocked_reason?: string | null
+          cpf: string
+          created_at?: string
+          extra?: Json | null
+          full_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          is_blocked?: boolean
+          last_available_margin?: number | null
+          last_batch_id?: string | null
+          last_simulated_at?: string | null
+          last_simulation_status?: string | null
+          notes?: string | null
+          phone?: string | null
+          simulation_count?: number
+          source_batch_id?: string | null
+          source_file?: string | null
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          blocked_reason?: string | null
+          cpf?: string
+          created_at?: string
+          extra?: Json | null
+          full_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          is_blocked?: boolean
+          last_available_margin?: number | null
+          last_batch_id?: string | null
+          last_simulated_at?: string | null
+          last_simulation_status?: string | null
+          notes?: string | null
+          phone?: string | null
+          simulation_count?: number
+          source_batch_id?: string | null
+          source_file?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      v8_contact_pool_imports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          duplicate_count: number
+          error_message: string | null
+          file_name: string
+          id: string
+          imported_by: string | null
+          inserted_count: number
+          invalid_count: number
+          row_count: number
+          status: string
+          storage_path: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          duplicate_count?: number
+          error_message?: string | null
+          file_name: string
+          id?: string
+          imported_by?: string | null
+          inserted_count?: number
+          invalid_count?: number
+          row_count?: number
+          status?: string
+          storage_path?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          duplicate_count?: number
+          error_message?: string | null
+          file_name?: string
+          id?: string
+          imported_by?: string | null
+          inserted_count?: number
+          invalid_count?: number
+          row_count?: number
+          status?: string
+          storage_path?: string | null
+        }
+        Relationships: []
+      }
       v8_margin_config: {
         Row: {
           created_at: string
@@ -4987,6 +5101,15 @@ export type Database = {
       }
       v8_increment_batch_success: {
         Args: { _batch_id: string }
+        Returns: undefined
+      }
+      v8_pool_mark_simulated: {
+        Args: {
+          _available_margin?: number
+          _batch_id: string
+          _cpf: string
+          _status: string
+        }
         Returns: undefined
       }
       v8_recalc_batch_counters: {
