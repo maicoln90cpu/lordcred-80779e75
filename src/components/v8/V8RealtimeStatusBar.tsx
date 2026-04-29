@@ -33,7 +33,7 @@ export function V8RealtimeStatusBar() {
   const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const soundOn = settings?.sound_on_complete ?? false;
 
-  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null });
+  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null });
   const [conn, setConn] = useState<ConnectionState>('connecting');
   const lastBatchStateRef = useRef<Map<string, { status: string; success: number; failure: number }>>(new Map());
   const aggRef = useRef(agg);
