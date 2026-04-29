@@ -129,9 +129,27 @@ export async function upsertRates(
   const localSeen = new Map<string, number>();
   rows.forEach((r, idx) => localSeen.set(rateKey(r), idx));
 
+export async function upsertRates(
+  tableName: 'commission_rates_clt_v2' | 'commission_rates_fgts_v2',
+  rowsRaw: RateRow[],
+): Promise<RateUpsertResult> {
+  const result: RateUpsertResult = { inserted: 0, updated: 0, errors: [] };
+  if (rowsRaw.length === 0) return result;
+
+  // 1) Normaliza tudo (UPPERCASE em bank/table_key) ANTES de qualquer comparação ou gravação.
+  const rows = rowsRaw.map(normalizeRow);
+
+  const existing = await fetchExistingMap(tableName, rows);
+
+  const toInsert: RateRow[] = [];
+  const toUpdate: { id: string; row: RateRow }[] = [];
+  // Dedup local: se a mesma chave aparecer duas vezes no arquivo, mantém a última.
+  const localSeen = new Map<string, number>();
+  rows.forEach((r, idx) => localSeen.set(rateKey(r), idx));
+
   rows.forEach((r, idx) => {
     const key = rateKey(r);
-    if (localSeen.get(key) !== idx) return; // versão antiga da mesma chave dentro do mesmo arquivo
+    if (localSeen.get(key) !== idx) return;
     const id = existing.get(key);
     if (id) toUpdate.push({ id, row: r });
     else toInsert.push(r);
