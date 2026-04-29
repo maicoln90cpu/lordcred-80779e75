@@ -1369,8 +1369,13 @@ const handler = async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-        status: 401,
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Unauthorized",
+        code: "AUTH_REQUIRED",
+        fallback: true,
+      }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1407,8 +1412,13 @@ const handler = async (req: Request) => {
     } else {
       const { data: userData, error: userErr } = await supabaseAuth.auth.getUser(token);
       if (userErr || !userData?.user) {
-        return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-          status: 401,
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Unauthorized",
+          code: "AUTH_REQUIRED",
+          fallback: true,
+        }), {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
