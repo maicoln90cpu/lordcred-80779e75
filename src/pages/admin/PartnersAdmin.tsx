@@ -26,6 +26,7 @@ import { CAPTACAO_TIPOS } from '@/lib/partnerUtils';
 
 const PIPELINE_STATUSES = [
   { value: 'contato_inicial', label: 'Contato Inicial', color: 'bg-muted text-muted-foreground' },
+  { value: 'migrado_rh', label: 'Migrados RH', color: 'bg-violet-500/20 text-violet-400' },
   { value: 'reuniao_marcada', label: 'Reunião Marcada', color: 'bg-blue-500/20 text-blue-400' },
   { value: 'link_enviado', label: 'Link Enviado', color: 'bg-indigo-500/20 text-indigo-400' },
   { value: 'confirmou', label: 'Confirmou', color: 'bg-cyan-500/20 text-cyan-400' },

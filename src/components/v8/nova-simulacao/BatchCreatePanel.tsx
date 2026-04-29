@@ -6,8 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight, CalendarClock, ListOrdered } from 'lucide-react';
+import { RefreshCw, Play, Loader2, ChevronDown, ChevronRight, CalendarClock, ListOrdered, Database } from 'lucide-react';
 import { V8StatusGlossary } from '../V8StatusGlossary';
+import V8LoadFromPoolDialog from '../pool/V8LoadFromPoolDialog';
 import type { analyzeV8Paste } from '@/lib/v8Parser';
 
 type SimulationMode = 'none' | 'disbursed_amount' | 'installment_face_value';
@@ -92,6 +93,7 @@ export default function BatchCreatePanel(props: Props) {
   })();
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledLocal, setScheduledLocal] = useState<string>(defaultScheduleStr);
+  const [poolDialogOpen, setPoolDialogOpen] = useState(false);
 
   function handleScheduleClick() {
     if (!onSchedule) return;
@@ -231,7 +233,19 @@ export default function BatchCreatePanel(props: Props) {
         </div>
 
         <div>
-          <Label>Dados dos clientes (1 por linha)</Label>
+          <div className="flex items-center justify-between mb-1">
+            <Label>Dados dos clientes (1 por linha)</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-8"
+              onClick={() => setPoolDialogOpen(true)}
+            >
+              <Database className="w-3.5 h-3.5" />
+              Carregar do Pool
+            </Button>
+          </div>
           <Textarea
             rows={8}
             placeholder={`12345678901 João da Silva 15/03/1985 M 11999998888\n98765432100;Maria Souza;06/08/1990;F;11988887777\nCARLOS PEREIRA LIMA 11122233344 22/11/1978`}
@@ -366,6 +380,15 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         )}
       </CardContent>
+
+      <V8LoadFromPoolDialog
+        open={poolDialogOpen}
+        onOpenChange={setPoolDialogOpen}
+        onLoad={(text) => {
+          // Substitui o conteúdo do textarea pelos contatos do pool.
+          setPasteText(text);
+        }}
+      />
     </Card>
   );
 }

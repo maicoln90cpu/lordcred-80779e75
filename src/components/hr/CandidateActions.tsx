@@ -23,7 +23,8 @@ interface Props {
 export function CandidateActions({
   candidate, saving, onSave, onScheduleE1, onScheduleE2, onMoveToPartner, onDelete,
 }: Props) {
-  const canMoveToPartner = candidate.kanban_status === 'approved' && candidate.type === 'partner';
+  // Etapa 4B (abr/2026): liberado para qualquer candidato aprovado (CLT ou parceiro).
+  const canMoveToPartner = candidate.kanban_status === 'approved';
 
   return (
     <div className="flex flex-wrap gap-2 pt-2">
