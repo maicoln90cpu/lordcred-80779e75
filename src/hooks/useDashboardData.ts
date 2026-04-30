@@ -66,39 +66,52 @@ export function useDashboardData() {
     });
   }, [user?.id]);
 
+  // Sparkline agora vem direto da RPC (7 dias agregados no Postgres),
+  // não precisamos mais carregar mensagens individuais.
+  const [sparklineFromRpc, setSparklineFromRpc] = useState<{ date: string; count: number }[]>([]);
+
   const fetchData = useCallback(async () => {
     if (!user) return;
     try {
-      const chipQuery = supabase.from('chips').select('*').eq('user_id', user.id).order('slot_number');
-      const { data: chipsData } = await chipQuery;
-      if (chipsData) {
+      // 3 chamadas em paralelo: chip summary (RPC), message stats (RPC) e settings.
+      const [chipSummaryRes, msgStatsRes, settingsRes] = await Promise.all([
+        supabase.rpc('dashboard_chip_summary', { p_user_id: user.id }),
+        supabase.rpc('dashboard_message_stats', { p_user_id: user.id }),
+        supabase.from('system_settings').select('id, is_warming_active, messages_day_novo, messages_day_1_3, messages_day_4_7, messages_day_aquecido, messages_day_8_plus').maybeSingle(),
+      ]);
+
+      // Chip summary
+      if (chipSummaryRes.data && !chipSummaryRes.error) {
+        const summary = chipSummaryRes.data as any;
+        const chipsData = (summary.chips || []) as Chip[];
         setChips(chipsData);
-        setChipStats({ total: chipsData.length, connected: chipsData.filter(c => c.status === 'connected').length, disconnected: chipsData.filter(c => c.status !== 'connected').length });
+        setChipStats({
+          total: summary.stats?.total || 0,
+          connected: summary.stats?.connected || 0,
+          disconnected: summary.stats?.disconnected || 0,
+        });
+        setQueueCount(summary.queue_pending || 0);
+      } else if (chipSummaryRes.error) {
+        console.error('dashboard_chip_summary error:', chipSummaryRes.error);
       }
-      const { data: settingsData } = await supabase.from('system_settings').select('id, is_warming_active, messages_day_novo, messages_day_1_3, messages_day_4_7, messages_day_aquecido, messages_day_8_plus').maybeSingle();
-      if (settingsData) setSettings(settingsData);
 
-      const chipIds = chipsData?.map(c => c.id) || [];
-      if (chipIds.length > 0) {
-        const { count: queueCountRes } = await supabase.from('message_queue').select('id', { count: 'exact', head: true }).in('chip_id', chipIds).eq('status', 'pending');
-        setQueueCount(queueCountRes || 0);
+      // Message stats + sparkline
+      if (msgStatsRes.data && !msgStatsRes.error) {
+        const stats = msgStatsRes.data as any;
+        setMessageStats({
+          today: stats.today || 0,
+          week: stats.week || 0,
+          month: stats.month || 0,
+        });
+        setSparklineFromRpc(stats.sparkline || []);
+        // recentMessages mantido vazio — a RPC já entrega o sparkline pronto
+        setRecentMessages([]);
+      } else if (msgStatsRes.error) {
+        console.error('dashboard_message_stats error:', msgStatsRes.error);
       }
 
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      if (chipIds.length > 0) {
-        const [todayRes, weekRes, monthRes, recentRes] = await Promise.all([
-          supabase.from('message_history').select('id', { count: 'exact' }).in('chip_id', chipIds).gte('created_at', todayStart),
-          supabase.from('message_history').select('id', { count: 'exact' }).in('chip_id', chipIds).gte('created_at', weekStart),
-          supabase.from('message_history').select('id', { count: 'exact' }).in('chip_id', chipIds).gte('created_at', monthStart),
-          supabase.from('message_history').select('id, created_at, direction').in('chip_id', chipIds).gte('created_at', weekStart).order('created_at', { ascending: false }),
-        ]);
-        setMessageStats({ today: todayRes.count || 0, week: weekRes.count || 0, month: monthRes.count || 0 });
-        setRecentMessages(recentRes.data || []);
-      }
+      // Settings
+      if (settingsRes.data) setSettings(settingsRes.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
