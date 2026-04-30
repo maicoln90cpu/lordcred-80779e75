@@ -273,24 +273,108 @@ export default function MetaConfigCard({ settings, onChange, webhookUrl }: MetaC
               </p>
             </div>
 
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
-                {isTesting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : connectionStatus === 'success' ? (
-                  <Wifi className="w-4 h-4 mr-2 text-green-500" />
-                ) : connectionStatus === 'error' ? (
-                  <WifiOff className="w-4 h-4 mr-2 text-red-500" />
-                ) : (
-                  <Wifi className="w-4 h-4 mr-2" />
+            <div className="space-y-3 pt-2 border-t">
+              <div className="space-y-2">
+                <Label className="text-xs">WABA ID (para listar números — opcional)</Label>
+                <Input
+                  placeholder="Ex: 987654321098765"
+                  value={wabaInput}
+                  onChange={(e) => setWabaInput(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se preencher, o teste lista todos os <code>phone_number_id</code> do WABA e compara com os chips Meta cadastrados aqui.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
+                  {isTesting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : connectionStatus === 'success' ? (
+                    <Wifi className="w-4 h-4 mr-2 text-green-500" />
+                  ) : connectionStatus === 'error' ? (
+                    <WifiOff className="w-4 h-4 mr-2 text-red-500" />
+                  ) : (
+                    <Wifi className="w-4 h-4 mr-2" />
+                  )}
+                  Testar Conexão
+                </Button>
+                {connectionStatus === 'success' && (
+                  <Badge variant="outline" className="text-green-500 border-green-500">Conectado</Badge>
                 )}
-                Testar Conexão
-              </Button>
-              {connectionStatus === 'success' && (
-                <Badge variant="outline" className="text-green-500 border-green-500">Conectado</Badge>
-              )}
-              {connectionStatus === 'error' && (
-                <Badge variant="outline" className="text-red-500 border-red-500">Falha</Badge>
+                {connectionStatus === 'error' && (
+                  <Badge variant="outline" className="text-red-500 border-red-500">Falha</Badge>
+                )}
+              </div>
+
+              {diagnostic && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-xs">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <span><strong>Token App ID:</strong> <code>{diagnostic.appId}</code></span>
+                    <span><strong>Expira:</strong> {diagnostic.expiresAt}</span>
+                  </div>
+                  {diagnostic.appId && diagnostic.appId !== settings.meta_app_id && (
+                    <Alert className="border-warning/40 bg-warning/5 py-2">
+                      <AlertTriangle className="h-3 w-3 text-warning" />
+                      <AlertDescription className="text-xs">
+                        ⚠️ O token pertence ao App <code>{diagnostic.appId}</code>, mas o App ID salvo é <code>{settings.meta_app_id}</code>. Eles precisam ser do mesmo App.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {diagnostic.scopes && diagnostic.scopes.length > 0 && (
+                    <div>
+                      <strong>Permissões:</strong>{' '}
+                      {diagnostic.scopes.map((s) => (
+                        <Badge key={s} variant="outline" className="text-[10px] mr-1">{s}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {diagnostic.wabaId && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <p className="font-medium">Números no WABA <code>{diagnostic.wabaId}</code> ({diagnostic.phoneNumbers?.length || 0}):</p>
+                      {(diagnostic.phoneNumbers || []).map((p) => {
+                        const isRegistered = (diagnostic.chipsRegistered || []).some(
+                          (c) => c.meta_phone_number_id === p.id
+                        );
+                        return (
+                          <div key={p.id} className="flex items-center justify-between gap-2 rounded bg-background/60 px-2 py-1">
+                            <div>
+                              <code className="text-[11px]">{p.id}</code> — {p.display_phone_number} ({p.verified_name})
+                            </div>
+                            <Badge variant={isRegistered ? 'default' : 'outline'} className="text-[10px]">
+                              {isRegistered ? '✓ Em uso' : 'Disponível'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+
+                      {/* Detecta chips com phone_number_id ÓRFÃO (não pertence ao WABA) */}
+                      {(() => {
+                        const validIds = new Set((diagnostic.phoneNumbers || []).map((p) => p.id));
+                        const orphans = (diagnostic.chipsRegistered || []).filter(
+                          (c) => c.meta_phone_number_id && !validIds.has(c.meta_phone_number_id)
+                        );
+                        if (orphans.length === 0) return null;
+                        return (
+                          <Alert variant="destructive" className="py-2">
+                            <AlertTriangle className="h-3 w-3" />
+                            <AlertDescription className="text-xs">
+                              <strong>{orphans.length} chip(s) com Phone Number ID inválido para este token:</strong>
+                              <ul className="mt-1 space-y-0.5">
+                                {orphans.map((c) => (
+                                  <li key={c.id}>
+                                    • <code>{c.meta_phone_number_id}</code> — {c.nickname || '(sem apelido)'}
+                                  </li>
+                                ))}
+                              </ul>
+                              Estes chips vão dar o erro <em>"Object with ID does not exist"</em> ao tentar enviar. Solução: trocar o token, ou apagar/recriar o chip com um ID válido acima.
+                            </AlertDescription>
+                          </Alert>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </CardContent>
