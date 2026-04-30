@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
   let scanned = 0;
   let matched = 0;
   let promoted = 0;
+  let zombiesClosed = 0;
 
   try {
     // 1. Pega últimos webhooks órfãos (sem simulation_id) com CPF preenchido.
