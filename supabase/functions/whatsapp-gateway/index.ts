@@ -646,12 +646,22 @@ Deno.serve(async (req) => {
         provider = (chipData as any).provider || 'uazapi'
         isSharedChip = !!(chipData as any).is_shared
         
-        // Check authorization for shared chips
+        // Check authorization for shared chips (privileged users bypass)
         if (isSharedChip) {
-          const sharedIds: string[] = (chipData as any).shared_user_ids || []
-          const isOwner = (chipData as any).user_id === userId
-          if (!isOwner && !sharedIds.includes(userId)) {
-            return jsonResponse({ error: 'You are not authorized to use this shared chip' }, 403)
+          const { data: roleRow } = await adminClient
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userId)
+            .single()
+          const role = roleRow?.role || 'seller'
+          const isPrivileged = ['master', 'admin', 'manager'].includes(role)
+
+          if (!isPrivileged) {
+            const sharedIds: string[] = (chipData as any).shared_user_ids || []
+            const isOwner = (chipData as any).user_id === userId
+            if (!isOwner && !sharedIds.includes(userId)) {
+              return jsonResponse({ error: 'You are not authorized to use this shared chip' }, 403)
+            }
           }
         }
       }
