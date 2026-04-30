@@ -2674,6 +2674,62 @@ const handler = async (req: Request) => {
         });
         break;
       }
+
+      case "cancel_batch_hard": {
+        const batchId = String(params?.batch_id ?? "");
+        if (!batchId) {
+          result = { success: false, error: "batch_id obrigatório" };
+        } else {
+          const { data: batchRow, error: batchErr } = await supabase
+            .from("v8_batches")
+            .select("id, status, created_by, name")
+            .eq("id", batchId)
+            .maybeSingle();
+          if (batchErr || !batchRow) {
+            result = { success: false, error: batchErr?.message || "Lote não encontrado" };
+          } else if (!isPriv && batchRow.created_by !== userId) {
+            result = { success: false, error: "Sem permissão para cancelar este lote" };
+          } else if (batchRow.status === "canceled") {
+            result = { success: true, data: { already_canceled: true } };
+          } else {
+            const nowIso = new Date().toISOString();
+            const { error: upBatchErr } = await supabase
+              .from("v8_batches")
+              .update({ status: "canceled", canceled_at: nowIso, canceled_by: userId })
+              .eq("id", batchId);
+            // Marca TODAS as sims não-success como canceled_hard — webhook vai ignorar.
+            const { error: upSimsErr, count: canceledCount } = await supabase
+              .from("v8_simulations")
+              .update({
+                status: "failed",
+                error_kind: "canceled_hard",
+                error_message: "Cancelado pelo operador (webhooks ignorados)",
+                processed_at: nowIso,
+              }, { count: "exact" })
+              .eq("batch_id", batchId)
+              .neq("status", "success");
+            if (upBatchErr || upSimsErr) {
+              result = { success: false, error: upBatchErr?.message || upSimsErr?.message };
+            } else {
+              result = { success: true, data: { batch_id: batchId, canceled_simulations: canceledCount ?? 0 } };
+            }
+          }
+        }
+        await writeAuditLog(supabase, {
+          action: "v8_cancel_batch_hard",
+          category: "simulator",
+          success: !!(result as any)?.success,
+          userId,
+          userEmail,
+          targetTable: "v8_batches",
+          targetId: params?.batch_id ?? null,
+          details: {
+            request_payload: { action: "cancel_batch_hard", batch_id: params?.batch_id ?? null },
+            response_payload: result,
+          },
+        });
+        break;
+      }
       case "schedule_batch": {
         result = await actionScheduleBatch(supabase, params, userId);
         await writeAuditLog(supabase, {
