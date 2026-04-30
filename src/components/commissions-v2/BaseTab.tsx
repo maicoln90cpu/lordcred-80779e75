@@ -267,7 +267,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
     }
   };
 
-  const handleExportBase = () => {
+  const handleExportBase = async () => {
     const data = filteredSales.map(s => ({
       'Semana': s.week_label || '', 'Data Pago': formatDateBR(s.sale_date), 'Produto': s.product,
       'Banco': s.bank, 'Tabela': s.table_name || '', 'Prazo': s.term || '',
