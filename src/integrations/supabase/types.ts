@@ -3944,8 +3944,80 @@ export type Database = {
         }
         Relationships: []
       }
+      v8_auto_best_jobs: {
+        Row: {
+          attempts: number
+          batch_id: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          result_summary: Json | null
+          simulation_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          batch_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          result_summary?: Json | null
+          simulation_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          batch_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          result_summary?: Json | null
+          simulation_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v8_auto_best_jobs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batch_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v8_auto_best_jobs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "v8_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v8_auto_best_jobs_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: true
+            referencedRelation: "v8_simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v8_auto_best_jobs_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: true
+            referencedRelation: "v8_simulations_audit"
+            referencedColumns: ["simulation_id"]
+          },
+        ]
+      }
       v8_batches: {
         Row: {
+          auto_best_enabled: boolean
           canceled_at: string | null
           canceled_by: string | null
           completed_at: string | null
@@ -3973,6 +4045,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_best_enabled?: boolean
           canceled_at?: string | null
           canceled_by?: string | null
           completed_at?: string | null
@@ -4000,6 +4073,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_best_enabled?: boolean
           canceled_at?: string | null
           canceled_by?: string | null
           completed_at?: string | null
@@ -5143,6 +5217,32 @@ export type Database = {
       }
       update_own_profile: {
         Args: { _avatar_url?: string; _name?: string }
+        Returns: undefined
+      }
+      v8_auto_best_claim_jobs: {
+        Args: { _limit?: number; _worker_id?: string }
+        Returns: {
+          attempts: number
+          batch_id: string
+          config_id: string
+          consult_id: string
+          cpf: string
+          job_id: string
+          margem_valor: number
+          sim_installments_max: number
+          sim_installments_min: number
+          sim_value_max: number
+          sim_value_min: number
+          simulation_id: string
+        }[]
+      }
+      v8_auto_best_finish_job: {
+        Args: {
+          _job_id: string
+          _last_error?: string
+          _result_summary?: Json
+          _status: string
+        }
         Returns: undefined
       }
       v8_backfill_operation_fields: {
