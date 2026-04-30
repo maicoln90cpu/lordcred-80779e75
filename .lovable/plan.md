@@ -1,52 +1,76 @@
 
-## Problema
+## Problemas Identificados
 
-1. **Tooltips**: Os botões "Cancelar lote" e "Cancelar tudo" já têm tooltips, mas o pedido é garantir que estejam claros e completos.
-2. **Persistência draft-batch**: O mapa `draftId <-> batchId` vive apenas em `useState` (campo `activeBatchId` dentro de cada `V8DraftSlot`). Se o usuário recarregar a página, o `activeBatchId` é `null` no localStorage porque o `saveDrafts` já salva os drafts inteiros (incluindo `activeBatchId`). **Porém**, o auto-switch via Realtime perde a referência porque o `setDrafts` dentro do listener `postgres_changes` compara `batchName` com drafts que podem ter sido resetados. Solução: salvar um mapa auxiliar `v8:draft-batch-map` no localStorage e usá-lo para restaurar o estado na inicialização.
-3. **Card de progresso não aparece**: O `BatchProgressTable` só renderiza quando `activeBatchId` é truthy (linha 593). Quando o "Executar todos em sequência" enfileira os lotes via `queueAllDrafts`, ele **não** seta `activeBatchId` em nenhum draft --- apenas cria lotes no banco com status `queued`. O auto-switch listener espera um UPDATE para `processing`, mas o primeiro lote da fila pode demorar até 1 min (cron). Além disso, se o `batchName` do draft não bater exatamente com o nome do batch no banco, o `find` falha silenciosamente.
+### 1. v8-webhook QUEBRADO (URGENTE)
+O `v8-webhook` está **completamente fora do ar** desde a última alteração. O erro nos logs:
+```
+Uncaught SyntaxError: Illegal break statement at index.ts:72:11
+```
+**Causa**: Na linha 108, foi adicionado um `break;` dentro de um bloco `if/else if` que está dentro de um `try`. O `break` só funciona dentro de `switch` ou `for/while`. Isso impede o boot da função -- **nenhum webhook V8 está sendo processado agora**.
 
-## Plano (etapa única)
+**Correção**: Trocar `break;` por uma estrutura que pule o resto do código (ex: usar `processed = true;` e deixar o fluxo cair naturalmente, sem o `break`). O `processed = true` já está na linha 107, então basta remover o `break` da linha 108.
 
-### 1. Tooltips dos botões (BatchActionsBar.tsx)
+---
 
-Os tooltips já existem e são detalhados. Vou apenas revisar o texto para ficar mais direto e leigo:
+### 2. Mensagens Meta não aparecendo
 
-- **Cancelar lote**: "Para novas consultas. CPFs já enviados para a V8 continuam sendo ouvidos (não desperdiça consulta paga). Resultados com sucesso são preservados."
-- **Cancelar tudo**: "Para TUDO imediatamente. Ignora inclusive resultados de CPFs que já foram enviados para a V8 (consultas pagas serão perdidas). Use só em emergência."
+**Ponto 1 (mensagem recebida não aparece)**: Quando você envia uma mensagem PARA o número 5548996159114 (chip Meta cadastrado), a Meta envia um webhook para `meta-webhook`. Possíveis causas:
+- O webhook URL pode não estar configurado no Meta Business Manager apontando para `https://sibfqmzsnftscnlyuwiu.supabase.co/functions/v1/meta-webhook`
+- O `verify_token` pode estar incorreto
+- Vou verificar os logs do `meta-webhook` para confirmar se está recebendo chamadas
 
-### 2. Persistir mapa draftId <-> batchId (V8NovaSimulacaoTab.tsx + v8DraftSlots.ts)
+**Ponto 2 (envio de mensagem "pisca e volta")**: O envio via Meta Cloud API **sem template** só funciona dentro da **janela de 24h** (o contato precisa ter enviado uma mensagem primeiro). Fora dessa janela, a Meta exige um template aprovado. O gateway já retorna o erro correto, mas pode estar falhando silenciosamente. Vou verificar o fluxo.
 
-- O `saveDrafts` já serializa `activeBatchId` dentro de cada draft para o localStorage. O problema é que o listener Realtime faz `setDrafts` com um `find` por `batchName` que pode não encontrar o draft correto se o nome foi limpo após enfileirar.
-- **Solução**: Criar um mapa auxiliar `v8:draft-batch-map` (`Record<string, string>` = `{ [draftId]: batchId }`).
-  - Quando `queueAllDrafts` retorna resultados com `status='queued'`, gravar no mapa o `draftId -> batchId` (precisa que `queueAllDrafts` retorne o `batchId` --- hoje não retorna, vou adicionar).
-  - Na inicialização do componente, ler o mapa e restaurar `activeBatchId` nos drafts correspondentes.
-  - No listener Realtime, usar o mapa para encontrar o draft correto (em vez de depender de `batchName`).
-  - Quando batch completa/cancela, remover do mapa.
+---
 
-### 3. Mostrar card de progresso automaticamente (V8NovaSimulacaoTab.tsx + v8RunAllDrafts.ts + v8-clt-api)
+### 3. Multi-tenancy e Facebook Login (resposta consultiva)
 
-- **v8RunAllDrafts.ts**: `queueAllDrafts` precisa retornar o `batchId` criado no backend. Adicionar campo `batchId` ao `RunAllItemResult`.
-- **v8-clt-api** (action `queue_batch`): Já retorna `data.batch_id` na resposta. Basta propagá-lo.
-- **V8NovaSimulacaoTab.tsx**:
-  - Após `queueAllDrafts`, para cada resultado `queued`, setar `activeBatchId` no draft correspondente e salvar no mapa localStorage.
-  - Isso faz o `BatchProgressTable` renderizar imediatamente (condição `activeBatchId` truthy).
-  - O auto-switch Realtime continua funcionando para trocar de aba quando o batch muda para `processing`.
-  - Invocar `v8-scheduled-launcher` imediatamente após enfileirar para não esperar 1 min.
+Isso é uma discussão, não requer código agora.
 
-### Arquivos editados
+---
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/v8/nova-simulacao/BatchActionsBar.tsx` | Revisar texto dos tooltips |
-| `src/lib/v8DraftSlots.ts` | Funções `loadDraftBatchMap`, `saveDraftBatchMap`, `removeDraftBatchEntry` |
-| `src/lib/v8RunAllDrafts.ts` | Retornar `batchId` no `RunAllItemResult` |
-| `src/components/v8/V8NovaSimulacaoTab.tsx` | (a) Após `queueAllDrafts`, setar `activeBatchId` nos drafts + salvar mapa. (b) Na inicialização, restaurar mapa. (c) No listener Realtime, usar mapa ao invés de `batchName`. (d) Invocar launcher após enfileirar. |
+## Plano de Implementação (1 etapa)
 
-### Checklist manual pós-implementação
+### Correção do v8-webhook
+- **Arquivo**: `supabase/functions/v8-webhook/index.ts` linha 108
+- **Ação**: Remover o `break;` (o `processed = true;` já garante que o fluxo encerre corretamente)
 
-1. Criar 3 rascunhos (A=1 CPF, B=2 CPFs, C=3 CPFs).
-2. Clicar "Executar todos em sequência" --- confirmar.
-3. Verificar que o card "Progresso do Lote" aparece imediatamente na aba do rascunho A com 1 CPF.
-4. Ao concluir o lote A, a aba deve mudar automaticamente para B e mostrar 2 CPFs.
-5. Recarregar a página durante a execução --- o progresso deve continuar visível.
-6. Testar "Cancelar lote" e "Cancelar tudo" --- ler os tooltips e confirmar que estão claros.
+### Diagnóstico Meta webhook
+- Verificar logs do `meta-webhook` para confirmar se está recebendo webhooks
+- Verificar se o webhook URL está configurado corretamente no Meta Business Manager
+- Testar o endpoint com `curl` para garantir que está respondendo
+
+### Resposta sobre multi-tenancy
+Responder no chat sobre:
+- Facebook Login / Embedded Signup (viabilidade)
+- Como funciona a cobrança da Meta para múltiplos WABAs
+- O que seria necessário para multi-tenancy real
+
+---
+
+## Detalhes Técnicos
+
+### v8-webhook fix
+```typescript
+// ANTES (linha 105-108):
+if ((currentRow as any).error_kind === "canceled_hard") {
+  console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
+  processed = true;
+  break;  // <-- ILLEGAL: não está em loop/switch
+}
+
+// DEPOIS:
+if ((currentRow as any).error_kind === "canceled_hard") {
+  console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
+  processed = true;
+  // Não faz mais nada -- o else abaixo cuida do resto
+} else {
+  // ... todo o código que vinha depois do if (linhas 110+)
+}
+```
+
+### Checklist manual
+1. Após deploy, verificar nos logs do `v8-webhook` que o boot error sumiu
+2. Enviar uma mensagem de teste para o número Meta e verificar se aparece
+3. Verificar no Meta Business Manager que o webhook URL está correto
+4. Testar envio de mensagem dentro da janela de 24h
