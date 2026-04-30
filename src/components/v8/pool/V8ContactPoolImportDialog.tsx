@@ -271,19 +271,37 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
 
-      // 1) Upload obrigatório (worker depende dele)
+      // 1) Converter XLSX/XLSM/XLS -> CSV no navegador (worker só lê CSV em streaming)
+      let uploadBlob: Blob;
+      let uploadName: string;
+      const ext = file.name.toLowerCase().split('.').pop() || '';
+      if (ext === 'csv') {
+        uploadBlob = file;
+        uploadName = file.name;
+      } else {
+        toast.info('Convertendo planilha para CSV (pode levar 30s para arquivos grandes)...');
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { FS: ',' });
+        uploadBlob = new Blob([csv], { type: 'text/csv' });
+        uploadName = file.name.replace(/\.(xlsx|xlsm|xls)$/i, '.csv');
+        toast.success(`Convertido: ${(uploadBlob.size / 1024 / 1024).toFixed(1)} MB CSV`);
+      }
+
+      // 2) Upload CSV
       const ts = Date.now();
-      const path = `${userId}/${ts}-${file.name}`;
+      const path = `${userId}/${ts}-${uploadName}`;
       const { error: upErr } = await supabase.storage
         .from('v8-contact-pool')
-        .upload(path, file, { upsert: false });
+        .upload(path, uploadBlob, { upsert: false, contentType: 'text/csv' });
       if (upErr) throw new Error('Falha no upload: ' + upErr.message);
 
-      // 2) Cria registro queued
+      // 3) Cria registro queued
       const { data: imp, error: impErr } = await supabase
         .from('v8_contact_pool_imports')
         .insert({
-          file_name: file.name,
+          file_name: uploadName,
           storage_path: path,
           row_count: 0,
           invalid_count: 0,
@@ -297,7 +315,7 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
 
       setWorkerImportId(imp.id);
 
-      // 3) Dispara o worker (fire-and-forget — não aguardamos)
+      // 4) Dispara o worker (responde imediatamente, processa em background)
       supabase.functions.invoke('v8-pool-import-worker', {
         body: { import_id: imp.id },
       }).catch((e) => console.error('worker invoke err:', e));
