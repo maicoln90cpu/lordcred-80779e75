@@ -4996,6 +4996,7 @@ export type Database = {
         Returns: string
       }
       cleanup_audit_logs: { Args: never; Returns: undefined }
+      cleanup_old_logs: { Args: never; Returns: Json }
       cleanup_old_v8_operation_drafts: { Args: never; Returns: number }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       corban_classify_status: { Args: { _status: string }; Returns: string }
@@ -5003,6 +5004,7 @@ export type Database = {
         Args: { _channel_name: string; _target_user_id: string }
         Returns: string
       }
+      db_maintenance_status: { Args: never; Returns: Json }
       get_all_chat_profiles: {
         Args: never
         Returns: {
@@ -5108,6 +5110,7 @@ export type Database = {
         Args: { _keys: string[]; _obj: Json }
         Returns: string
       }
+      maintenance_vacuum_analyze: { Args: never; Returns: Json }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
       match_seller_by_name: {
         Args: { _name: string; _threshold?: number }
