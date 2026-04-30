@@ -573,6 +573,7 @@ export default function V8NovaSimulacaoTab() {
               onSimulateSelected={ops.handleSimulateSelected}
               onReplayPending={ops.handleReplayPending}
               onCancelBatch={ops.handleCancelBatch}
+              onCancelBatchHard={ops.handleCancelBatchHard}
               onExportCsv={() => downloadBatchCsv(simulations, batchName)}
               exportDisabled={simulations.length === 0}
               isPaused={activeBatchPaused}
