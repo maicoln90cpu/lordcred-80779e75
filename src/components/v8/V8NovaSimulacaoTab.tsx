@@ -248,8 +248,9 @@ export default function V8NovaSimulacaoTab() {
   const awaitingManualSim = simulations.filter(
     (s: any) => s.status === 'success' && (s.simulate_status ?? 'not_started') === 'not_started',
   ).length;
-  const autoOn = !!v8Settings?.auto_simulate_after_consult;
-  const showManualWarning = !autoOn && awaitingManualSim > 0;
+  // Item 7 (abr/2026): com toggle removido, "modo automático" agora = autoBest.
+  // Mostramos o aviso manual quando autoBest está OFF e há margens aguardando simular.
+  const showManualWarning = !autoBest && awaitingManualSim > 0;
 
   // Etapa 3 (item 7): handler de agendamento. Cria o lote em status='scheduled'.
   // O launcher (pg_cron) materializa as simulações e dispara as consultas no horário.
