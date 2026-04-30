@@ -131,7 +131,7 @@ export default function RatesFGTSTab() {
           <CardTitle>Taxas Comissão FGTS</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
-            <Button variant="outline" size="sm" onClick={() => {
+            <Button variant="outline" size="sm" onClick={async () => {
               const XLSX = await loadXLSX();
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
               const data = rates.map(r => ({ 'Banco': r.bank, 'Data Vigência': r.effective_date, 'Taxa Sem Seguro (%)': r.rate_no_insurance, 'Taxa Com Seguro (%)': r.rate_with_insurance }));

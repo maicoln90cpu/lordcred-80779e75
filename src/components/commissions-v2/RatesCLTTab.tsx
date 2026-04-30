@@ -190,7 +190,7 @@ export default function RatesCLTTab() {
           <CardTitle>Taxas Comissão CLT</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
-            <Button variant="outline" size="sm" onClick={() => {
+            <Button variant="outline" size="sm" onClick={async () => {
               const XLSX = await loadXLSX();
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
               const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': r.table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Valor Min': r.min_value ?? 0, 'Valor Max': r.max_value ?? 999999999, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));

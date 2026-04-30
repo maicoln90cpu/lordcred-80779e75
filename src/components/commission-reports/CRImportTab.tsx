@@ -229,13 +229,13 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
+      const XLSX = await loadXLSX();
       const data = evt.target?.result;
       const wb = XLSX.read(data, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
 
       let rows: Record<string, any>[];
-      async if (noHeader) {
-        const XLSX = await loadXLSX();
+      if (noHeader) {
         rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[];
         rows = (rows as any[][]).filter(r => r.some(c => c !== '')).map(r => {
           const obj: Record<string, any> = {};
