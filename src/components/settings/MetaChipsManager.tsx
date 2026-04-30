@@ -146,7 +146,49 @@ export default function MetaChipsManager() {
     }
   };
 
-  if (loading) {
+  const handleSyncQuality = async () => {
+    if (chips.length === 0) return;
+    setSyncingQuality(true);
+    let errors: string[] = [];
+    for (const chip of chips) {
+      try {
+        const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+          body: { action: 'sync-quality', chipId: chip.id },
+        });
+        if (error) errors.push(error.message);
+        else if (!data?.success) errors.push(data?.error || `Falha chip ${chip.phone_number}`);
+      } catch (err: any) {
+        errors.push(err.message);
+      }
+    }
+    if (errors.length > 0) {
+      toast({ title: 'Sincronização parcial', description: errors.join('; '), variant: 'destructive' });
+    } else {
+      toast({ title: 'Qualidade sincronizada com sucesso' });
+    }
+    await loadData();
+    setSyncingQuality(false);
+  };
+
+  const qualityColor = (q: string | null) => {
+    if (!q) return 'text-muted-foreground';
+    const u = q.toUpperCase();
+    if (u === 'GREEN') return 'text-green-500';
+    if (u === 'YELLOW') return 'text-yellow-500';
+    if (u === 'RED') return 'text-red-500';
+    return 'text-muted-foreground';
+  };
+
+  const qualityLabel = (q: string | null) => {
+    if (!q) return '—';
+    const u = q.toUpperCase();
+    if (u === 'GREEN') return '🟢 Alta';
+    if (u === 'YELLOW') return '🟡 Média';
+    if (u === 'RED') return '🔴 Baixa';
+    return q;
+  };
+
+
     return (
       <Card>
         <CardContent className="flex justify-center py-8">
