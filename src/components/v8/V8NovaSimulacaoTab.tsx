@@ -20,7 +20,7 @@ import ScheduledBatchesPanel from './nova-simulacao/ScheduledBatchesPanel';
 import QueuedBatchesPanel from './nova-simulacao/QueuedBatchesPanel';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { Input } from '@/components/ui/input';
-import { loadDrafts, saveDrafts, emptyDraft, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
+import { loadDrafts, saveDrafts, emptyDraft, loadDraftBatchMap, addDraftBatchEntry, removeDraftBatchByBatchId, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 
