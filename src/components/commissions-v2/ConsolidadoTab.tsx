@@ -75,7 +75,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
   const grandTotal = sellerData.reduce((a, s) => a + s.total, 0);
   const fmt = fmtBRL;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = sellerData.map(s => ({
       'Vendedor': getSellerName(s.seller_id),
       'Comissão CLT': s.clt,
