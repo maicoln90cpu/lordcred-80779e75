@@ -67,6 +67,42 @@ export default function V8NovaSimulacaoTab() {
 
   useEffect(() => { saveDrafts(drafts, activeId); }, [drafts, activeId]);
 
+  // AUTO-SWITCH: Quando um batch da fila muda para 'processing', encontra o rascunho
+  // correspondente (pelo nome do lote) e troca a aba + associa activeBatchId.
+  // Quando um batch completa/cancela, limpa o activeBatchId do rascunho.
+  useEffect(() => {
+    let cancelled = false;
+    const ch = supabase
+      .channel('v8-auto-switch-tab')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'v8_batches' },
+        (payload: any) => {
+          if (cancelled) return;
+          const newStatus = payload.new?.status;
+          const batchName = payload.new?.name;
+          const batchId = payload.new?.id;
+          
+          if (newStatus === 'processing' && batchName && batchId) {
+            // Encontra o rascunho cujo batchName casa com o batch que acabou de ser promovido
+            setDrafts(prev => {
+              const match = prev.find(d => d.batchName.trim() === String(batchName).trim() && !d.activeBatchId);
+              if (!match) return prev;
+              // Troca a aba ativa para o rascunho correspondente
+              setActiveId(match.id);
+              return prev.map(d => d.id === match.id ? { ...d, activeBatchId: batchId } : d);
+            });
+          } else if ((newStatus === 'completed' || newStatus === 'canceled') && batchId) {
+            // Limpa activeBatchId do rascunho cujo lote terminou
+            setDrafts(prev =>
+              prev.map(d => d.activeBatchId === batchId ? { ...d, activeBatchId: null } : d)
+            );
+          }
+        },
+      )
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, []);
+
   // Aliases p/ não reescrever o resto do componente.
   const batchName = active.batchName;
   const setBatchName = (v: string) => patchActive({ batchName: v });
