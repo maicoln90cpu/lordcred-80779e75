@@ -25,7 +25,6 @@ interface ProviderSettings {
   meta_verify_token: string | null;
   meta_app_secret: string | null;
   meta_webhook_secret: string | null;
-  meta_allowed_user_ids: string[];
 }
 
 export default function Integrations() {
@@ -48,7 +47,7 @@ export default function Integrations() {
     try {
       const { data } = await supabase
         .from('system_settings')
-        .select('id, uazapi_api_url, uazapi_api_key, meta_app_id, meta_access_token, meta_verify_token, meta_app_secret, meta_webhook_secret, meta_allowed_user_ids')
+        .select('id, uazapi_api_url, uazapi_api_key, meta_app_id, meta_access_token, meta_verify_token, meta_app_secret, meta_webhook_secret')
         .limit(1)
         .maybeSingle();
       if (data) {
@@ -56,7 +55,6 @@ export default function Integrations() {
           ...data,
           meta_app_secret: (data as any).meta_app_secret ?? null,
           meta_webhook_secret: (data as any).meta_webhook_secret ?? null,
-          meta_allowed_user_ids: (data as any).meta_allowed_user_ids || [],
         } as unknown as ProviderSettings);
       }
     } catch (err) {
@@ -80,7 +78,6 @@ export default function Integrations() {
         meta_verify_token: providerSettings.meta_verify_token || null,
         meta_app_secret: providerSettings.meta_app_secret || null,
         meta_webhook_secret: providerSettings.meta_webhook_secret || null,
-        meta_allowed_user_ids: providerSettings.meta_allowed_user_ids || [],
       };
       const { error } = await supabase
         .from('system_settings')
@@ -232,52 +229,68 @@ export default function Integrations() {
             </div>
           </TabsContent>
 
-          {/* Meta WhatsApp Tab */}
+          {/* Meta WhatsApp Tab — Sub-tabs */}
           <TabsContent value="meta">
-            <div className="space-y-6">
-              {providerSettings && (
-                <>
-                  <MetaSetupGuide
-                    hasAppId={!!providerSettings.meta_app_id}
-                    hasToken={!!providerSettings.meta_access_token}
-                    hasVerifyToken={!!providerSettings.meta_verify_token}
-                    webhookUrl={metaWebhookUrl}
-                  />
+            {providerSettings ? (
+              <Tabs defaultValue="meta-config" className="space-y-6">
+                <TabsList>
+                  <TabsTrigger value="meta-config">⚙️ Configuração</TabsTrigger>
+                  <TabsTrigger value="meta-chips">📱 Chips</TabsTrigger>
+                  <TabsTrigger value="meta-access">👥 Acesso</TabsTrigger>
+                </TabsList>
 
-                  <MetaConfigCard
-                    settings={{
-                      meta_app_id: providerSettings.meta_app_id || '',
-                      meta_access_token: providerSettings.meta_access_token || '',
-                      meta_verify_token: providerSettings.meta_verify_token || '',
-                      meta_app_secret: providerSettings.meta_app_secret || '',
-                      meta_webhook_secret: providerSettings.meta_webhook_secret || '',
-                    }}
-                    onChange={(field, value) =>
-                      setProviderSettings(s => s ? { ...s, [field]: value } : s)
-                    }
-                    webhookUrl={metaWebhookUrl}
-                  />
+                {/* Sub-tab: Configuração */}
+                <TabsContent value="meta-config">
+                  <div className="space-y-6">
+                    <MetaSetupGuide
+                      hasAppId={!!providerSettings.meta_app_id}
+                      hasToken={!!providerSettings.meta_access_token}
+                      hasVerifyToken={!!providerSettings.meta_verify_token}
+                      webhookUrl={metaWebhookUrl}
+                    />
 
-                  <MetaCredentialsGuide />
+                    <MetaConfigCard
+                      settings={{
+                        meta_app_id: providerSettings.meta_app_id || '',
+                        meta_access_token: providerSettings.meta_access_token || '',
+                        meta_verify_token: providerSettings.meta_verify_token || '',
+                        meta_app_secret: providerSettings.meta_app_secret || '',
+                        meta_webhook_secret: providerSettings.meta_webhook_secret || '',
+                      }}
+                      onChange={(field, value) =>
+                        setProviderSettings(s => s ? { ...s, [field]: value } : s)
+                      }
+                      webhookUrl={metaWebhookUrl}
+                    />
 
-                  <MetaUserAccessCard
-                    allowedUserIds={providerSettings.meta_allowed_user_ids || []}
-                    onChange={(userIds) =>
-                      setProviderSettings(s => s ? { ...s, meta_allowed_user_ids: userIds } : s)
-                    }
-                  />
+                    <MetaCredentialsGuide />
 
-                  <MetaChipsManager />
-
-                  <div className="flex justify-end">
-                    <Button onClick={handleSaveProvider} disabled={isSavingProvider}>
-                      {isSavingProvider && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      <Save className="w-4 h-4 mr-2" /> Salvar Configurações
-                    </Button>
+                    <div className="flex justify-end">
+                      <Button onClick={handleSaveProvider} disabled={isSavingProvider}>
+                        {isSavingProvider && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        <Save className="w-4 h-4 mr-2" /> Salvar Configurações
+                      </Button>
+                    </div>
                   </div>
-                </>
-              )}
-            </div>
+                </TabsContent>
+
+                {/* Sub-tab: Chips */}
+                <TabsContent value="meta-chips">
+                  <MetaChipsManager />
+                </TabsContent>
+
+                {/* Sub-tab: Acesso */}
+                <TabsContent value="meta-access">
+                  <MetaUserAccessCard />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Configurações não carregadas
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Support Chat Tab */}
