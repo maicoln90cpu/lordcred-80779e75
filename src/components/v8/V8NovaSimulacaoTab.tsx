@@ -79,8 +79,8 @@ export default function V8NovaSimulacaoTab() {
   useEffect(() => { saveDrafts(drafts, activeId); }, [drafts, activeId]);
 
   // AUTO-SWITCH: Quando um batch da fila muda para 'processing', encontra o rascunho
-  // correspondente (pelo nome do lote) e troca a aba + associa activeBatchId.
-  // Quando um batch completa/cancela, limpa o activeBatchId do rascunho.
+  // correspondente (via mapa localStorage ou batchName) e troca a aba + associa activeBatchId.
+  // Quando um batch completa/cancela, limpa o activeBatchId do rascunho e remove do mapa.
   useEffect(() => {
     let cancelled = false;
     const ch = supabase
@@ -93,17 +93,22 @@ export default function V8NovaSimulacaoTab() {
           const batchName = payload.new?.name;
           const batchId = payload.new?.id;
           
-          if (newStatus === 'processing' && batchName && batchId) {
-            // Encontra o rascunho cujo batchName casa com o batch que acabou de ser promovido
+          if (newStatus === 'processing' && batchId) {
+            // Primeiro tenta achar via mapa localStorage (mais confiável que batchName)
+            const batchMap = loadDraftBatchMap();
+            const mappedDraftId = Object.keys(batchMap).find(k => batchMap[k] === batchId);
+            
             setDrafts(prev => {
-              const match = prev.find(d => d.batchName.trim() === String(batchName).trim() && !d.activeBatchId);
+              const match = mappedDraftId
+                ? prev.find(d => d.id === mappedDraftId)
+                : prev.find(d => d.batchName.trim() === String(batchName || '').trim() && !d.activeBatchId);
               if (!match) return prev;
-              // Troca a aba ativa para o rascunho correspondente
               setActiveId(match.id);
               return prev.map(d => d.id === match.id ? { ...d, activeBatchId: batchId } : d);
             });
           } else if ((newStatus === 'completed' || newStatus === 'canceled') && batchId) {
-            // Limpa activeBatchId do rascunho cujo lote terminou
+            // Limpa activeBatchId do rascunho cujo lote terminou + remove do mapa
+            removeDraftBatchByBatchId(batchId);
             setDrafts(prev =>
               prev.map(d => d.activeBatchId === batchId ? { ...d, activeBatchId: null } : d)
             );
