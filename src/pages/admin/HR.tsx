@@ -46,6 +46,9 @@ export default function HR() {
             <TabsTrigger value="partners" className="gap-2">
               <Users2 className="w-4 h-4" /> Funil Parceiros
             </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <CalendarDays className="w-4 h-4" /> Calendário
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="settings" className="gap-2">
                 <SettingsIcon className="w-4 h-4" /> Configurações
