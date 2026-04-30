@@ -16,9 +16,7 @@
 
 import "https://deno.land/std@0.224.0/dotenv/load.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { corsHeaders } from "../_shared/auditLog.ts" assert { type: "ts" };
 
-// fallback se _shared/auditLog não exporta corsHeaders
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
