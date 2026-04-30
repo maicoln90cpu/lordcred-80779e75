@@ -229,6 +229,7 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
+      const XLSX = await loadXLSX();
       const data = evt.target?.result;
       const wb = XLSX.read(data, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];

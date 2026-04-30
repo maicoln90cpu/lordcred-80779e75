@@ -291,6 +291,7 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
         uploadName = file.name;
       } else {
         toast.info('Convertendo planilha para CSV (pode levar 30s para arquivos grandes)...');
+        const XLSX = await loadXLSX();
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array', cellDates: false });
         const sheet = wb.Sheets[wb.SheetNames[0]];
