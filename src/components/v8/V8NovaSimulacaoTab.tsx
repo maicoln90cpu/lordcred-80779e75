@@ -20,7 +20,7 @@ import ScheduledBatchesPanel from './nova-simulacao/ScheduledBatchesPanel';
 import QueuedBatchesPanel from './nova-simulacao/QueuedBatchesPanel';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { Input } from '@/components/ui/input';
-import { loadDrafts, saveDrafts, emptyDraft, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
+import { loadDrafts, saveDrafts, emptyDraft, loadDraftBatchMap, addDraftBatchEntry, removeDraftBatchByBatchId, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 
@@ -33,7 +33,18 @@ export default function V8NovaSimulacaoTab() {
   const { settings: v8Settings, save: saveV8Settings } = useV8Settings();
 
   // Multi-slots de rascunho. Cada slot tem seu próprio formulário + lote ativo.
-  const _initial = useMemo(() => loadDrafts(), []);
+  const _initial = useMemo(() => {
+    const loaded = loadDrafts();
+    // Restaurar activeBatchId do mapa persistido (sobrevive a refresh)
+    const batchMap = loadDraftBatchMap();
+    const restoredDrafts = loaded.drafts.map(d => {
+      if (!d.activeBatchId && batchMap[d.id]) {
+        return { ...d, activeBatchId: batchMap[d.id] };
+      }
+      return d;
+    });
+    return { drafts: restoredDrafts, activeId: loaded.activeId };
+  }, []);
   const [drafts, setDrafts] = useState<V8DraftSlot[]>(_initial.drafts);
   const [activeId, setActiveId] = useState<string>(_initial.activeId);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -68,8 +79,8 @@ export default function V8NovaSimulacaoTab() {
   useEffect(() => { saveDrafts(drafts, activeId); }, [drafts, activeId]);
 
   // AUTO-SWITCH: Quando um batch da fila muda para 'processing', encontra o rascunho
-  // correspondente (pelo nome do lote) e troca a aba + associa activeBatchId.
-  // Quando um batch completa/cancela, limpa o activeBatchId do rascunho.
+  // correspondente (via mapa localStorage ou batchName) e troca a aba + associa activeBatchId.
+  // Quando um batch completa/cancela, limpa o activeBatchId do rascunho e remove do mapa.
   useEffect(() => {
     let cancelled = false;
     const ch = supabase
@@ -82,17 +93,22 @@ export default function V8NovaSimulacaoTab() {
           const batchName = payload.new?.name;
           const batchId = payload.new?.id;
           
-          if (newStatus === 'processing' && batchName && batchId) {
-            // Encontra o rascunho cujo batchName casa com o batch que acabou de ser promovido
+          if (newStatus === 'processing' && batchId) {
+            // Primeiro tenta achar via mapa localStorage (mais confiável que batchName)
+            const batchMap = loadDraftBatchMap();
+            const mappedDraftId = Object.keys(batchMap).find(k => batchMap[k] === batchId);
+            
             setDrafts(prev => {
-              const match = prev.find(d => d.batchName.trim() === String(batchName).trim() && !d.activeBatchId);
+              const match = mappedDraftId
+                ? prev.find(d => d.id === mappedDraftId)
+                : prev.find(d => d.batchName.trim() === String(batchName || '').trim() && !d.activeBatchId);
               if (!match) return prev;
-              // Troca a aba ativa para o rascunho correspondente
               setActiveId(match.id);
               return prev.map(d => d.id === match.id ? { ...d, activeBatchId: batchId } : d);
             });
           } else if ((newStatus === 'completed' || newStatus === 'canceled') && batchId) {
-            // Limpa activeBatchId do rascunho cujo lote terminou
+            // Limpa activeBatchId do rascunho cujo lote terminou + remove do mapa
+            removeDraftBatchByBatchId(batchId);
             setDrafts(prev =>
               prev.map(d => d.activeBatchId === batchId ? { ...d, activeBatchId: null } : d)
             );
@@ -117,7 +133,11 @@ export default function V8NovaSimulacaoTab() {
   const pasteText = active.pasteText;
   const setPasteText = (v: string) => patchActive({ pasteText: v });
   const activeBatchId = active.activeBatchId;
-  const setActiveBatchId = (v: string | null) => patchActive({ activeBatchId: v });
+  const setActiveBatchId = (v: string | null) => {
+    patchActive({ activeBatchId: v });
+    if (v) addDraftBatchEntry(activeId, v);
+    else removeDraftBatchByBatchId(activeBatchId ?? '');
+  };
   const autoBest = !!active.autoBest;
   const setAutoBest = async (v: boolean) => {
     patchActive({ autoBest: v });
@@ -457,14 +477,35 @@ export default function V8NovaSimulacaoTab() {
         configs,
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
       });
+
+      // Associar batchId aos drafts e persistir no mapa localStorage
+      const queuedResults = results.filter(r => r.status === 'queued' && r.batchId);
+      if (queuedResults.length > 0) {
+        setDrafts(prev => {
+          const updated = [...prev];
+          for (const r of queuedResults) {
+            const idx = updated.findIndex(d => d.id === r.draftId);
+            if (idx >= 0 && r.batchId) {
+              updated[idx] = { ...updated[idx], activeBatchId: r.batchId };
+              addDraftBatchEntry(r.draftId, r.batchId);
+            }
+          }
+          return updated;
+        });
+        // Trocar para a aba do primeiro lote enfileirado
+        const firstQueued = queuedResults[0];
+        if (firstQueued) setActiveId(firstQueued.draftId);
+        // Disparar launcher imediatamente (não esperar cron de 1 min)
+        supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+      }
+
       const summary = summarizeRunAll(results);
       const hasIssue = summary.skipped > 0 || summary.errors > 0;
       if (hasIssue) {
-        // Abre diálogo detalhado em vez de toast — não dá pra esconder problemas.
         setRunAllReport(results);
       } else {
         toast.success(`▶ Sequência iniciada: ${summary.text}`, {
-          description: 'Acompanhe abaixo na "Fila de execução".',
+          description: 'O progresso aparece automaticamente em cada aba.',
           duration: 8000,
         });
       }

@@ -109,8 +109,9 @@ export default function BatchActionsBar({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1">
-            <div>Para o processamento deste lote. Pendentes ainda <strong>não enviadas</strong> viram FALHA (cancelado).</div>
-            <div className="text-amber-200">⚠️ <strong>Importante:</strong> CPFs <strong>já em análise na V8</strong> continuam sendo monitorados — o webhook ainda chega e o resultado pode aparecer depois (não joga fora consulta já paga).</div>
+            <div><strong>O que faz:</strong> Para novas consultas deste lote. CPFs que ainda não foram enviados viram "cancelado".</div>
+            <div className="text-emerald-200">✅ CPFs <strong>já enviados</strong> para a V8 continuam sendo ouvidos — se o resultado chegar depois, ele aparece normalmente. <strong>Não desperdiça consulta já paga.</strong></div>
+            <div className="text-muted-foreground">Resultados com sucesso são sempre preservados.</div>
           </TooltipContent>
         </Tooltip>
         {onCancelBatchHard && (
@@ -121,8 +122,9 @@ export default function BatchActionsBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1">
-              <div><strong>Versão dura:</strong> cancela TODAS as simulações (inclusive as em análise na V8) e <strong>ignora webhooks futuros</strong>.</div>
-              <div className="text-red-200">🛑 <strong>Atenção:</strong> consultas já pagas serão perdidas. Use apenas quando quiser parar TUDO imediatamente e não se importar com os resultados pendentes.</div>
+              <div><strong>O que faz:</strong> Para TUDO imediatamente — inclusive ignora resultados de CPFs que já foram enviados para a V8.</div>
+              <div className="text-red-200">🛑 <strong>Atenção:</strong> consultas já pagas serão <strong>perdidas</strong> (o sistema vai ignorar os webhooks que a V8 enviar depois).</div>
+              <div className="text-muted-foreground">Use apenas em emergência, quando não se importar com os resultados pendentes.</div>
             </TooltipContent>
           </Tooltip>
         )}

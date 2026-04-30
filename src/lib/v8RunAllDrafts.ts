@@ -19,6 +19,7 @@ export interface RunAllItemResult {
   status: 'queued' | 'skipped' | 'error';
   reason?: string;
   queuePosition?: number;
+  batchId?: string;
 }
 
 export interface RunAllConfig {
@@ -90,6 +91,7 @@ export async function queueAllDrafts(params: {
       results.push({
         draftId: d.id, label: d.label, status: 'queued',
         queuePosition: data?.data?.queue_position,
+        batchId: data?.data?.batch_id,
       });
     } catch (err) {
       results.push({
