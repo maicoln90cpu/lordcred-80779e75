@@ -33,7 +33,18 @@ export default function V8NovaSimulacaoTab() {
   const { settings: v8Settings, save: saveV8Settings } = useV8Settings();
 
   // Multi-slots de rascunho. Cada slot tem seu próprio formulário + lote ativo.
-  const _initial = useMemo(() => loadDrafts(), []);
+  const _initial = useMemo(() => {
+    const loaded = loadDrafts();
+    // Restaurar activeBatchId do mapa persistido (sobrevive a refresh)
+    const batchMap = loadDraftBatchMap();
+    const restoredDrafts = loaded.drafts.map(d => {
+      if (!d.activeBatchId && batchMap[d.id]) {
+        return { ...d, activeBatchId: batchMap[d.id] };
+      }
+      return d;
+    });
+    return { drafts: restoredDrafts, activeId: loaded.activeId };
+  }, []);
   const [drafts, setDrafts] = useState<V8DraftSlot[]>(_initial.drafts);
   const [activeId, setActiveId] = useState<string>(_initial.activeId);
   const [renamingId, setRenamingId] = useState<string | null>(null);
