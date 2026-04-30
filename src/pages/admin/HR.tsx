@@ -67,6 +67,10 @@ export default function HR() {
             <HRPartnerLeadsTab />
           </TabsContent>
 
+          <TabsContent value="calendar">
+            <HRCalendarTab />
+          </TabsContent>
+
           {isAdmin && (
             <TabsContent value="settings">
               <HRSettingsTab />
