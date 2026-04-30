@@ -21,6 +21,7 @@ import {
   type HRCalendarEvent, type HRCalendarEventType,
 } from '@/hooks/useHRCalendarEvents';
 import { useHRCandidates } from '@/hooks/useHRCandidates';
+import { useHREmployees } from '@/hooks/useHREmployees';
 import HRCalendarEventCard from './HRCalendarEventCard';
 import HRCalendarListView from './HRCalendarListView';
 import HRCalendarAgendaView from './HRCalendarAgendaView';
