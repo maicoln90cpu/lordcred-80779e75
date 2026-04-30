@@ -13,6 +13,8 @@ export interface ExtendedChat extends ChatContact {
   is_blocked?: boolean;
   is_muted?: boolean;
   assigned_user_id?: string | null;
+  closed_at?: string | null;
+  closed_reason?: string | null;
 }
 
 export interface LabelItem {
