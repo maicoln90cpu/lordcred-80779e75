@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, MessageSquare, Loader2, Archive, ChevronLeft, Tag, Star, Ban, MessageSquarePlus, UserCheck } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Archive, ChevronLeft, Tag, Star, Ban, MessageSquarePlus, UserCheck, XCircle, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [deleteChatTarget, setDeleteChatTarget] = useState<ExtendedChat | null>(null);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
 
   const { chats, setChats, loading, loadingMore, hasMore, labels, kanbanColumns, refreshLabels, loadMore } = useConversations({ chipId, onUnreadUpdate, refreshKey });
 
@@ -53,6 +54,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   // Filter & sort
   const filteredChats = chats.filter(chat => {
     if (!chat.lastMessage && !chat.lastMessageAt) return false;
+    // Closed conversations filter
+    if (showClosed) return !!chat.closed_at;
+    if (chat.closed_at) return false; // hide closed from normal list
     if (showArchived ? !chat.is_archived : chat.is_archived) return false;
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     if (filterStarred && !chat.is_starred) return false;
@@ -73,7 +77,21 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     return tb - ta;
   });
 
-  const archivedCount = chats.filter(c => c.is_archived).length;
+  const archivedCount = chats.filter(c => c.is_archived && !c.closed_at).length;
+  const closedCount = chats.filter(c => !!c.closed_at).length;
+
+  const handleReopenConversation = async (chat: ExtendedChat) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ closed_at: null, closed_reason: null, closed_by: null } as any)
+        .eq('id', chat.id);
+      if (error) throw error;
+      toast({ title: '🔄 Conversa reaberta', description: chat.name });
+    } catch (err: any) {
+      toast({ title: 'Erro ao reabrir', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return '';
@@ -151,15 +169,28 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
         {/* Filters */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {showArchived ? (
+          {showClosed ? (
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowClosed(false)}>
+              <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
+            </Button>
+          ) : showArchived ? (
             <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowArchived(false)}>
               <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
             </Button>
-          ) : archivedCount > 0 ? (
-            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowArchived(true)}>
-              <Archive className="w-3 h-3 mr-1" /> Arquivadas ({archivedCount})
-            </Button>
-          ) : null}
+          ) : (
+            <>
+              {archivedCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowArchived(true)}>
+                  <Archive className="w-3 h-3 mr-1" /> Arquivadas ({archivedCount})
+                </Button>
+              )}
+              {closedCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowClosed(true)}>
+                  <XCircle className="w-3 h-3 mr-1" /> Finalizadas ({closedCount})
+                </Button>
+              )}
+            </>
+          )}
 
           <Button variant={filterUnread ? "default" : "ghost"} size="sm" className={cn("h-7 text-xs shrink-0", !filterUnread && "text-muted-foreground")} onClick={() => setFilterUnread(!filterUnread)}>Não lidas</Button>
           {filterUnread && <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-destructive hover:text-destructive" onClick={actions.handleClearAllUnread}>Limpar todas</Button>}
@@ -204,41 +235,50 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       }}>
         {sortedChats.length === 0 && !loading ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            {showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
+            {showClosed ? 'Nenhuma conversa finalizada' : showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
           </div>
         ) : (
           <div className="divide-y divide-border/20">
             {sortedChats.map((chat) => (
-              <ChatContactItem
-                key={chat.remoteJid}
-                chat={chat}
-                isSelected={selectedChatId === chat.remoteJid}
-                labels={labels}
-                kanbanColumns={kanbanColumns}
-                formatTime={formatTime}
-                onSelect={() => {
-                  if (chat.unreadCount > 0) {
-                    setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
-                    if (onUnreadUpdate && chipId) {
-                      const newTotal = chats.filter(c => !c.is_archived && c.remoteJid !== chat.remoteJid).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-                      onUnreadUpdate(chipId, newTotal);
+              <div key={chat.remoteJid} className="relative">
+                <ChatContactItem
+                  chat={chat}
+                  isSelected={selectedChatId === chat.remoteJid}
+                  labels={labels}
+                  kanbanColumns={kanbanColumns}
+                  formatTime={formatTime}
+                  onSelect={() => {
+                    if (chat.unreadCount > 0) {
+                      setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
+                      if (onUnreadUpdate && chipId) {
+                        const newTotal = chats.filter(c => !c.is_archived && c.remoteJid !== chat.remoteJid).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+                        onUnreadUpdate(chipId, newTotal);
+                      }
                     }
-                  }
-                  onSelectChat(chat);
-                }}
-                onPin={() => actions.handlePin(chat)}
-                onStar={() => actions.handleStar(chat)}
-                onArchive={(a) => actions.handleArchive(chat, a)}
-                onMarkUnread={() => actions.handleMarkUnread(chat)}
-                onRename={(name) => actions.handleRenameContact(chat, name)}
-                onToggleLabel={(lid) => actions.handleToggleLabel(chat, lid)}
-                onMute={(d) => actions.handleMuteChat(chat, d)}
-                onBlock={(b) => actions.handleBlockContact(chat, b)}
-                onDelete={() => setDeleteChatTarget(chat)}
-                onAddToKanban={(cid) => actions.handleAddToKanban(chat, cid)}
-                onRemoveFromKanban={() => actions.handleRemoveFromKanban(chat)}
-                onManageLabels={() => setManageLabelsOpen(true)}
-              />
+                    onSelectChat(chat);
+                  }}
+                  onPin={() => actions.handlePin(chat)}
+                  onStar={() => actions.handleStar(chat)}
+                  onArchive={(a) => actions.handleArchive(chat, a)}
+                  onMarkUnread={() => actions.handleMarkUnread(chat)}
+                  onRename={(name) => actions.handleRenameContact(chat, name)}
+                  onToggleLabel={(lid) => actions.handleToggleLabel(chat, lid)}
+                  onMute={(d) => actions.handleMuteChat(chat, d)}
+                  onBlock={(b) => actions.handleBlockContact(chat, b)}
+                  onDelete={() => setDeleteChatTarget(chat)}
+                  onAddToKanban={(cid) => actions.handleAddToKanban(chat, cid)}
+                  onRemoveFromKanban={() => actions.handleRemoveFromKanban(chat)}
+                  onManageLabels={() => setManageLabelsOpen(true)}
+                />
+                {showClosed && chat.closed_at && (
+                  <div className="absolute top-1 right-10 flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded">{chat.closed_reason?.slice(0, 25)}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary" title="Reabrir conversa" onClick={(e) => { e.stopPropagation(); handleReopenConversation(chat); }}>
+                      <RotateCcw className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
             {loadingMore && (
               <div className="flex justify-center py-3"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck, XCircle, RotateCcw } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
 import AssignConversationBanner from './AssignConversationBanner';
 import ConversationAuditPanel from './ConversationAuditPanel';
+import CloseConversationDialog from './CloseConversationDialog';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
@@ -44,6 +45,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [notesOpen, setNotesOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [sharedBlockInfo, setSharedBlockInfo] = useState<{ isShared: boolean; blockSend: boolean; assignedUserId: string | null; assignedName: string | null }>({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
 
   const {
@@ -179,6 +181,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button variant="ghost" size="icon" onClick={() => setNotesOpen(!notesOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", notesOpen && "text-primary bg-primary/10")} title="Notas internas"><StickyNote className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setAuditOpen(!auditOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", auditOpen && "text-primary bg-primary/10")} title="Auditoria"><ClipboardList className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} className="text-muted-foreground hover:text-primary hover:bg-primary/10"><Search className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => setCloseDialogOpen(true)} className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Finalizar conversa"><XCircle className="w-4 h-4" /></Button>
         </div>
       </div>
 
@@ -286,6 +289,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
     {chipId && chat && <ConversationNotes chipId={chipId} remoteJid={chat.remoteJid} open={notesOpen} onClose={() => setNotesOpen(false)} />}
     {chat && <ConversationAuditPanel conversationId={chat.id} open={auditOpen} onClose={() => setAuditOpen(false)} />}
+    {chat && <CloseConversationDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen} conversationId={chat.id} contactName={chat.name} />}
     </div>
   );
 }
