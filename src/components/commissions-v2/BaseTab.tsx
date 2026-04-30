@@ -276,7 +276,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       'Data Nascimento': s.client_birth_date || '', 'Vendedor': getSellerName(s.seller_id),
       'ID': s.external_proposal_id || '', 'Taxa %': s.commission_rate, 'Comissão': s.commission_value,
     }));
-    exportToExcel(data, 'comissoes_base.xlsx', 'Base');
+    await exportToExcel(data, 'comissoes_base.xlsx', 'Base');
     toast({ title: 'Exportado com sucesso' });
   };
 
