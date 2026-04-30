@@ -33,12 +33,16 @@ export function CandidateActions({
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         Salvar dados
       </Button>
-      <Button variant="outline" onClick={onScheduleE1} className="gap-1.5">
-        <Calendar className="w-4 h-4" /> Agendar E1
-      </Button>
-      <Button variant="outline" onClick={onScheduleE2} className="gap-1.5">
-        <Calendar className="w-4 h-4" /> Agendar E2
-      </Button>
+      {onScheduleE1 && (
+        <Button variant="outline" onClick={onScheduleE1} className="gap-1.5">
+          <Calendar className="w-4 h-4" /> Agendar E1
+        </Button>
+      )}
+      {onScheduleE2 && (
+        <Button variant="outline" onClick={onScheduleE2} className="gap-1.5">
+          <Calendar className="w-4 h-4" /> Agendar E2
+        </Button>
+      )}
 
       {canMoveToPartner && (
         <AlertDialog>
