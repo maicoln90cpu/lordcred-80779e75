@@ -5284,6 +5284,10 @@ export type Database = {
         }
         Returns: string
       }
+      v8_set_batch_auto_best: {
+        Args: { _batch_id: string; _enabled: boolean }
+        Returns: undefined
+      }
       v8_webhook_type_counts: {
         Args: never
         Returns: {
