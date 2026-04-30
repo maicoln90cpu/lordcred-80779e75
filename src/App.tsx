@@ -66,7 +66,17 @@ const SellerPropostas = lazy(() => import("./pages/corban/SellerPropostas"));
 const SellerFGTS = lazy(() => import("./pages/corban/SellerFGTS"));
 const SellerDashboard = lazy(() => import("./pages/corban/SellerDashboard"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000, // 30s — evita refetch imediato em remontagens
+      gcTime: 5 * 60_000, // 5min — mantém cache em memória após desuso
+      refetchOnWindowFocus: false, // não refaz query ao voltar p/ aba
+      refetchOnReconnect: true,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
