@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Loader2, FileText, CheckCircle, XCircle, Clock, Search } from 'lucide-react';
+import MetaTemplateCreateDialog from './MetaTemplateCreateDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -139,14 +140,17 @@ export default function MetaTemplatesManager() {
               Templates de mensagem aprovados no WhatsApp Business Manager
             </CardDescription>
           </div>
-          <Button onClick={handleSync} disabled={syncing}>
-            {syncing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            Importar Templates
-          </Button>
+          <div className="flex gap-2">
+            <MetaTemplateCreateDialog metaChips={metaChips} onCreated={fetchTemplates} />
+            <Button onClick={handleSync} disabled={syncing}>
+              {syncing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Importar Templates
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

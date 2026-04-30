@@ -15,6 +15,7 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'disconnect-instance',
   'get-qrcode',
   'sync-templates',
+  'create-template',
   'set-profile-name',
   'set-profile-picture',
   'set-privacy',
@@ -487,6 +488,48 @@ async function handleMetaAction(
         synced++
       }
       return jsonResponse({ success: true, synced, total: templates.length })
+    }
+
+    case 'create-template': {
+      const wabaId = chip.meta_waba_id
+      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured' }, 400)
+
+      const { name, language, category, components: tplComponents } = body
+      if (!name || !category || !tplComponents) {
+        return jsonResponse({ error: 'name, category and components are required' }, 400)
+      }
+
+      const resp = await metaFetch(`/${wabaId}/message_templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${metaAccessToken}`,
+        },
+        body: JSON.stringify({
+          name,
+          language: language || 'pt_BR',
+          category: category || 'UTILITY',
+          components: tplComponents,
+        }),
+        timeout: 15000,
+      })
+      const data = await safeJson(resp)
+      if (data.error) {
+        return jsonResponse({ success: false, error: humanizeMetaError(data.error, wabaId), errorCode: data.error.code })
+      }
+
+      // Save locally with PENDING status
+      await adminClient.from('meta_message_templates').upsert({
+        waba_id: wabaId,
+        template_name: name,
+        language: language || 'pt_BR',
+        category: category || 'UTILITY',
+        status: 'PENDING',
+        components: tplComponents,
+        synced_at: new Date().toISOString(),
+      }, { onConflict: 'waba_id,template_name,language', ignoreDuplicates: false })
+
+      return jsonResponse({ success: true, data: { id: data.id, status: data.status || 'PENDING' } })
     }
 
     case 'get-business-profile': {
