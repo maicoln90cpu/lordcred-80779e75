@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Plus, List, LayoutGrid, CalendarClock } from 'lucide-react';
+import { CalendarDays, Plus, List, LayoutGrid, CalendarClock, Filter } from 'lucide-react';
 import {
   useHRCalendarEvents, EVENT_TYPE_LABEL,
   type HRCalendarEvent, type HRCalendarEventType,
