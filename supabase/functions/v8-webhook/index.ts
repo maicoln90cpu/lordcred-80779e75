@@ -195,6 +195,7 @@ async function processV8Payload(
 
         if (updErr) processError = updErr.message;
         else { processed = true; action = canPromoteFromLimit && wantsSuccess ? (isActiveConsultRecovery ? "consult_promoted_active_consult" : "consult_promoted_webhook_only") : "consult_upsert"; }
+        } // end else (not canceled_hard)
       } else {
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
         const insertRow: Record<string, unknown> = {
