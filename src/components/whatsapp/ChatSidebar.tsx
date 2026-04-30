@@ -54,6 +54,9 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   // Filter & sort
   const filteredChats = chats.filter(chat => {
     if (!chat.lastMessage && !chat.lastMessageAt) return false;
+    // Closed conversations filter
+    if (showClosed) return !!chat.closed_at;
+    if (chat.closed_at) return false; // hide closed from normal list
     if (showArchived ? !chat.is_archived : chat.is_archived) return false;
     if (filterUnread && (chat.unreadCount || 0) === 0) return false;
     if (filterStarred && !chat.is_starred) return false;
