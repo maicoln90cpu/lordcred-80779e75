@@ -1,4 +1,25 @@
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
+
+/**
+ * Converte serial date do Excel (número de dias desde 1899-12-30, ajustando
+ * o bug histórico do Excel de tratar 1900 como ano bissexto) em partes de data.
+ * Substitui XLSX.SSF.parse_date_code para evitar carregar a lib xlsx só por isto.
+ */
+function excelSerialToParts(serial: number): { y: number; m: number; d: number; H: number; M: number } | null {
+  if (!isFinite(serial)) return null;
+  // Epoch base do Excel: 1899-12-30 (compensa o bug 1900-bissexto).
+  const epoch = Date.UTC(1899, 11, 30);
+  const ms = epoch + Math.round(serial * 86400 * 1000);
+  const date = new Date(ms);
+  if (isNaN(date.getTime())) return null;
+  return {
+    y: date.getUTCFullYear(),
+    m: date.getUTCMonth() + 1,
+    d: date.getUTCDate(),
+    H: date.getUTCHours(),
+    M: date.getUTCMinutes(),
+  };
+}
 
 // ==================== TYPES ====================
 export interface CommissionSale {
