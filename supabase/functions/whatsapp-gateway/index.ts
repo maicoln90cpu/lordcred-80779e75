@@ -101,27 +101,70 @@ function humanizeMetaError(metaError: any, phoneNumberId?: string): string {
 async function resolveWabaId(
   chip: any,
   metaAccessToken: string,
-  adminClient: any
+  adminClient: any,
+  metaConfig: { appId?: string | null; appSecret?: string | null } = {}
 ): Promise<string | null> {
   if (chip.meta_waba_id) return chip.meta_waba_id
   const phoneNumberId = chip.meta_phone_number_id
   if (!phoneNumberId) return null
+
+  const persistWabaId = async (wabaId: string) => {
+    await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
+    chip.meta_waba_id = wabaId
+    console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
+    return wabaId
+  }
+
+  const candidateWabaIds = new Set<string>()
   try {
-    console.log(`resolveWabaId: attempting for phoneNumberId=${phoneNumberId}`)
-    const wabaResp = await metaFetch(`/${phoneNumberId}?fields=whatsapp_business_account`, {
+    console.log(`resolveWabaId: discovering for phoneNumberId=${phoneNumberId}`)
+
+    if (metaConfig.appId && metaConfig.appSecret) {
+      const appToken = `${metaConfig.appId}|${metaConfig.appSecret}`
+      const debugResp = await metaFetch(`/debug_token?input_token=${encodeURIComponent(metaAccessToken)}&access_token=${encodeURIComponent(appToken)}`, { timeout: 10000 })
+      const debugData = await safeJson(debugResp)
+      const granularScopes = debugData?.data?.granular_scopes || []
+      for (const item of granularScopes) {
+        if (String(item?.scope || '').startsWith('whatsapp_business_')) {
+          for (const targetId of item?.target_ids || []) candidateWabaIds.add(String(targetId))
+        }
+      }
+      console.log(`resolveWabaId: candidates from token scopes=${candidateWabaIds.size}`)
+    }
+
+    const businessesResp = await metaFetch('/me/businesses?fields=id,name&limit=100', {
       headers: { 'Authorization': `Bearer ${metaAccessToken}` },
       timeout: 10000,
     })
-    const wabaData = await safeJson(wabaResp)
-    console.log(`resolveWabaId: response=`, JSON.stringify(wabaData))
-    const wabaId = wabaData?.whatsapp_business_account?.id
-    if (wabaId) {
-      await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
-      chip.meta_waba_id = wabaId
-      console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
-      return wabaId
+    const businessesData = await safeJson(businessesResp)
+    for (const business of businessesData?.data || []) {
+      for (const edge of ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts']) {
+        const accountsResp = await metaFetch(`/${business.id}/${edge}?fields=id,name&limit=100`, {
+          headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+          timeout: 10000,
+        })
+        const accountsData = await safeJson(accountsResp)
+        for (const account of accountsData?.data || []) candidateWabaIds.add(String(account.id))
+      }
     }
-    console.warn(`resolveWabaId: no WABA found in response for phone ${phoneNumberId}`)
+    console.log(`resolveWabaId: total candidate WABAs=${candidateWabaIds.size}`)
+
+    for (const wabaId of candidateWabaIds) {
+      const phonesResp = await metaFetch(`/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&limit=100`, {
+        headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+        timeout: 10000,
+      })
+      const phonesData = await safeJson(phonesResp)
+      if (phonesData?.error) {
+        console.warn(`resolveWabaId: phone_numbers failed for WABA ${wabaId}: ${phonesData.error.message}`)
+        continue
+      }
+      if ((phonesData?.data || []).some((phone: any) => String(phone.id) === String(phoneNumberId))) {
+        return await persistWabaId(wabaId)
+      }
+    }
+
+    console.warn(`resolveWabaId: no matching WABA found for phone ${phoneNumberId}`)
   } catch (e) {
     console.error('Failed to auto-resolve WABA ID:', e)
   }
@@ -493,8 +536,8 @@ async function handleMetaAction(
 
     case 'sync-templates': {
       // Sync Meta message templates
-      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
+      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
 
       const resp = await metaFetch(`/${wabaId}/message_templates?limit=100`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
@@ -523,8 +566,8 @@ async function handleMetaAction(
     }
 
     case 'create-template': {
-      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
+      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
 
       const { name, language, category, components: tplComponents } = body
       if (!name || !category || !tplComponents) {
@@ -578,7 +621,7 @@ async function handleMetaAction(
         quality_rating: data.quality_rating || null,
         messaging_limit: data.messaging_limit || null,
         quality_updated_at: new Date().toISOString(),
-      }).eq('id', chipId)
+      }).eq('id', chip.id)
       return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: data.messaging_limit })
     }
 
@@ -748,7 +791,7 @@ Deno.serve(async (req) => {
       // Get Meta access token — DB priority, then env fallback
       const { data: settings } = await adminClient
         .from('system_settings')
-        .select('meta_access_token')
+        .select('meta_access_token, meta_app_id, meta_app_secret')
         .limit(1)
         .maybeSingle()
 
@@ -756,6 +799,10 @@ Deno.serve(async (req) => {
       if (!metaAccessToken) {
         await logAdmin(false, 500, { error_message: 'Meta access token not configured' })
         return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)
+      }
+      body.metaConfig = {
+        appId: (settings as any)?.meta_app_id || Deno.env.get('META_APP_ID'),
+        appSecret: (settings as any)?.meta_app_secret || Deno.env.get('META_APP_SECRET'),
       }
 
       const metaResp = await handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)

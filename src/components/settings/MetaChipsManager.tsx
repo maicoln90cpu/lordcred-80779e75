@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw, Save } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MetaChip {
@@ -41,6 +41,8 @@ export default function MetaChipsManager() {
   const [deleteChip, setDeleteChip] = useState<MetaChip | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [syncingQuality, setSyncingQuality] = useState(false);
+  const [wabaDrafts, setWabaDrafts] = useState<Record<string, string>>({});
+  const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
@@ -170,6 +172,21 @@ export default function MetaChipsManager() {
     setSyncingQuality(false);
   };
 
+  const handleSaveWaba = async (chip: MetaChip) => {
+    const value = (wabaDrafts[chip.id] ?? chip.meta_waba_id ?? '').trim();
+    setSavingWabaId(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ meta_waba_id: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: 'WABA ID salvo' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar WABA ID', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingWabaId(null);
+    }
+  };
+
   const qualityColor = (q: string | null) => {
     if (!q) return 'text-muted-foreground';
     const u = q.toUpperCase();
@@ -263,7 +280,7 @@ export default function MetaChipsManager() {
                   <TableHead>Nome / Número</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
-                  <TableHead>Phone Number ID</TableHead>
+                  <TableHead>IDs Meta</TableHead>
                   <TableHead>Proprietário</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -304,7 +321,22 @@ export default function MetaChipsManager() {
                       <TableCell className="text-sm">
                         {chip.messaging_limit || '—'}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{chip.meta_phone_number_id || '—'}</TableCell>
+                      <TableCell>
+                        <div className="space-y-2 min-w-[260px]">
+                          <div className="font-mono text-xs text-muted-foreground">Phone: {chip.meta_phone_number_id || '—'}</div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              className="h-8 font-mono text-xs"
+                              placeholder="WABA ID"
+                              value={wabaDrafts[chip.id] ?? chip.meta_waba_id ?? ''}
+                              onChange={e => setWabaDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleSaveWaba(chip)} disabled={savingWabaId === chip.id}>
+                              {savingWabaId === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
                           <User className="w-3 h-3 text-muted-foreground" />
