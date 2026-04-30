@@ -791,7 +791,7 @@ Deno.serve(async (req) => {
       // Get Meta access token — DB priority, then env fallback
       const { data: settings } = await adminClient
         .from('system_settings')
-        .select('meta_access_token')
+        .select('meta_access_token, meta_app_id, meta_app_secret')
         .limit(1)
         .maybeSingle()
 
