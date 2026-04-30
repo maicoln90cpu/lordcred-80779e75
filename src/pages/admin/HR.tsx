@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UserPlus, Users2, Settings as SettingsIcon } from 'lucide-react';
+import { UserPlus, Users2, Settings as SettingsIcon, CalendarDays } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
 import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
 import { HRPartnerLeadsTab } from '@/components/hr/HRPartnerLeadsTab';
 import { HRSettingsTab } from '@/components/hr/HRSettingsTab';
+import { HRCalendarTab } from '@/components/hr/HRCalendarTab';
 import { CandidateModal } from '@/components/hr/CandidateModal';
 import { CandidateCreateDialog } from '@/components/hr/CandidateCreateDialog';
 import { useHRCandidates, type HRCandidate } from '@/hooks/useHRCandidates';
