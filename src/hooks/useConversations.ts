@@ -171,6 +171,8 @@ export function useConversations({ chipId, onUnreadUpdate, refreshKey }: UseConv
           is_blocked: r.is_blocked || false,
           is_muted: r.is_muted || false,
           assigned_user_id: r.assigned_user_id || null,
+          closed_at: r.closed_at || null,
+          closed_reason: r.closed_reason || null,
         };
       });
 
