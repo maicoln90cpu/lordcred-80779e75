@@ -1,49 +1,43 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Wifi, WifiOff, Activity, Clock } from 'lucide-react';
+import { Loader2, Wifi, WifiOff, Activity, Clock, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClassification';
 import { playBatchCompleteSound } from '@/lib/v8Sound';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 type ConnectionState = 'connecting' | 'live' | 'polling' | 'offline';
 
 interface BatchAggregate {
   active_batches: number;
-  retrying_consults: number;     // FIX 5: separa consultas...
-  retrying_simulations: number;  // ...de simulações (baseado em last_step)
+  retrying_consults: number;
+  retrying_simulations: number;
   stale_retrying_simulations: number;
-  awaiting_v8: number; // active_consult / pending sem kind — V8 ainda vai responder, NÃO é retry nosso
+  awaiting_v8: number;
   last_cron_at: string | null;
+  zombie_batches: Array<{ id: string; name: string; updated_at: string }>;
 }
 
 /**
  * Barra global no topo de /admin/v8-simulador.
- *
- * Mostra:
- *  - 🟢/🟡/🔴 conexão WebSocket Realtime
- *  - "Auto-retry: X simulações em N lotes"
- *  - Fallback automático para polling de 10s se o WS cair
- *
- * Também dispara o som de "lote concluído" se o usuário ativou o toggle
- * em Configurações.
  */
 export function V8RealtimeStatusBar() {
   const { settings } = useV8Settings();
   const maxAttempts = settings?.max_auto_retry_attempts ?? MAX_AUTO_RETRY_ATTEMPTS;
   const soundOn = settings?.sound_on_complete ?? false;
 
-  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null });
+  const [agg, setAgg] = useState<BatchAggregate>({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: null, zombie_batches: [] });
   const [conn, setConn] = useState<ConnectionState>('connecting');
   const lastBatchStateRef = useRef<Map<string, { status: string; success: number; failure: number }>>(new Map());
   const aggRef = useRef(agg);
   aggRef.current = agg;
+  const [forcingZombie, setForcingZombie] = useState<string | null>(null);
 
   const refresh = async () => {
     const last24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const activeSinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    // Última varredura do cron de retry (saúde visível para o usuário)
     const { data: cronLog } = await supabase
       .from('audit_logs')
       .select('created_at')
@@ -53,10 +47,9 @@ export function V8RealtimeStatusBar() {
       .maybeSingle();
     const lastCronAt = cronLog?.created_at ?? null;
 
-    // Lotes ativos visíveis = recentes; lotes antigos não entram na badge do topo.
     const { data: batches } = await supabase
       .from('v8_batches')
-      .select('id, status, success_count, failure_count, total_count, created_at')
+      .select('id, status, success_count, failure_count, total_count, created_at, updated_at, name, created_by')
       .gte('created_at', last24hIso)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -65,7 +58,14 @@ export function V8RealtimeStatusBar() {
       (b: any) => b.status !== 'completed' && b.status !== 'cancelled',
     );
 
-    // Sons de conclusão: detectar transição (qualquer status → completed)
+    // Detectar lotes zumbi: processing há >30 min sem update
+    const zombieCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: { user } } = await supabase.auth.getUser();
+    const zombies = (batches || []).filter(
+      (b: any) => b.status === 'processing' && b.updated_at < zombieCutoff && b.created_by === user?.id,
+    ).map((b: any) => ({ id: b.id, name: b.name || '(sem nome)', updated_at: b.updated_at }));
+
+    // Sons de conclusão
     if (soundOn && batches) {
       for (const b of batches as any[]) {
         const prev = lastBatchStateRef.current.get(b.id);
@@ -84,35 +84,33 @@ export function V8RealtimeStatusBar() {
       }
     }
 
-    if (activeBatches.length === 0) {
-      setAgg({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt });
+    if (activeBatches.length === 0 && zombies.length === 0) {
+      setAgg({ active_batches: 0, retrying_consults: 0, retrying_simulations: 0, stale_retrying_simulations: 0, awaiting_v8: 0, last_cron_at: lastCronAt, zombie_batches: [] });
       return;
     }
 
     const ids = activeBatches.map((b: any) => b.id);
-    const { data: sims } = await supabase
-      .from('v8_simulations')
-      .select('status, error_kind, last_attempt_at, raw_response, last_step')
-      .in('batch_id', ids)
-      .in('status', ['failed', 'pending']);
+    let retriableSims: any[] = [];
+    let awaitingV8 = 0;
+    if (ids.length > 0) {
+      const { data: sims } = await supabase
+        .from('v8_simulations')
+        .select('status, error_kind, last_attempt_at, raw_response, last_step')
+        .in('batch_id', ids)
+        .in('status', ['failed', 'pending']);
 
-    const retriableSims = (sims || []).filter((s: any) => {
-      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      return isRetriableErrorKind(kind);
-    });
+      retriableSims = (sims || []).filter((s: any) => {
+        const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+        return isRetriableErrorKind(kind);
+      });
 
-    // "Aguardando V8" = não vamos retentar do nosso lado, a V8 que precisa responder/liberar
-    // (active_consult, pending sem kind aguardando webhook). Honesto separar isto do retry.
-    const awaitingV8 = (sims || []).filter((s: any) => {
-      const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      if (isRetriableErrorKind(kind)) return false;
-      return kind === 'active_consult' || (s.status === 'pending' && !kind);
-    }).length;
+      awaitingV8 = (sims || []).filter((s: any) => {
+        const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
+        if (isRetriableErrorKind(kind)) return false;
+        return kind === 'active_consult' || (s.status === 'pending' && !kind);
+      }).length;
+    }
 
-    // FIX 5: separa consultas vs simulações pelo last_step (etapa onde a linha está parada).
-    // Steps `consult*` = ainda na fase de consulta. Steps `simulate*` = já consultou e está
-    // tentando simular. Diferenciar é importante para o operador entender o que a V8 está
-    // travando.
     const recentRetriable = retriableSims.filter(
       (s: any) => s.last_attempt_at && s.last_attempt_at >= activeSinceIso,
     );
@@ -124,8 +122,7 @@ export function V8RealtimeStatusBar() {
       const step = String(s.last_step ?? '');
       return step.startsWith('simulate');
     }).length;
-    const retryingCount = recentRetriable.length;
-    const staleRetryingCount = retriableSims.length - retryingCount;
+    const staleRetryingCount = retriableSims.length - recentRetriable.length;
 
     setAgg({
       active_batches: activeBatches.length,
@@ -134,7 +131,28 @@ export function V8RealtimeStatusBar() {
       stale_retrying_simulations: staleRetryingCount,
       awaiting_v8: awaitingV8,
       last_cron_at: lastCronAt,
+      zombie_batches: zombies,
     });
+  };
+
+  const forceCloseZombie = async (batchId: string) => {
+    setForcingZombie(batchId);
+    try {
+      const { error } = await supabase
+        .from('v8_batches')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', batchId)
+        .eq('status', 'processing');
+      if (error) throw error;
+      toast.success('Lote zumbi encerrado. Fila desbloqueada.');
+      // Trigger launcher to promote next queued batch
+      supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+      await refresh();
+    } catch (e: any) {
+      toast.error('Falha ao encerrar lote: ' + (e?.message || e));
+    } finally {
+      setForcingZombie(null);
+    }
   };
 
   useEffect(() => {
@@ -160,7 +178,6 @@ export function V8RealtimeStatusBar() {
             pollTimer = null;
           }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // Fallback: polling de 10 em 10s enquanto o WS estiver caído
           setConn('polling');
           if (!pollTimer) {
             pollTimer = setInterval(() => {
@@ -192,14 +209,13 @@ export function V8RealtimeStatusBar() {
 
   const Icon = conn === 'live' ? Wifi : conn === 'polling' ? Activity : WifiOff;
 
-  // Estado "saudável" = WS ativo + nenhum lote ativo + nada aguardando V8 + nada em retry.
-  // Quando saudável, colapsa para um pontinho discreto que pode ser expandido com clique.
   const isHealthy =
     conn === 'live' &&
     agg.active_batches === 0 &&
     agg.awaiting_v8 === 0 &&
     agg.retrying_simulations === 0 &&
-    agg.stale_retrying_simulations === 0;
+    agg.stale_retrying_simulations === 0 &&
+    agg.zombie_batches.length === 0;
 
   const [forceExpanded, setForceExpanded] = useState(false);
   const collapsed = isHealthy && !forceExpanded;
@@ -220,66 +236,100 @@ export function V8RealtimeStatusBar() {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-xs">
-      <div className="flex items-center gap-2">
-        <span className={`inline-block w-2 h-2 rounded-full ${dot} ${conn === 'live' ? 'animate-pulse' : ''}`} />
-        <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="font-medium">{label}</span>
-        {isHealthy && forceExpanded && (
-          <button
-            type="button"
-            onClick={() => setForceExpanded(false)}
-            className="ml-2 text-[10px] text-muted-foreground hover:text-foreground underline"
-          >
-            recolher
-          </button>
-        )}
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className={`inline-block w-2 h-2 rounded-full ${dot} ${conn === 'live' ? 'animate-pulse' : ''}`} />
+          <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="font-medium">{label}</span>
+          {isHealthy && forceExpanded && (
+            <button
+              type="button"
+              onClick={() => setForceExpanded(false)}
+              className="ml-2 text-[10px] text-muted-foreground hover:text-foreground underline"
+            >
+              recolher
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 justify-end">
+          {agg.retrying_consults > 0 && (
+            <span className="inline-flex items-center gap-1 text-amber-600" title="Consultas (etapa /consult) com erro retentável que tiveram tentativa nos últimos 5 min.">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <strong>{agg.retrying_consults} consulta(s) em retry</strong>
+            </span>
+          )}
+          {agg.retrying_simulations > 0 && (
+            <span className="inline-flex items-center gap-1 text-amber-600" title="Simulações (etapa /simulate) com erro retentável que tiveram tentativa nos últimos 5 min.">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <strong>{agg.retrying_simulations} simulação(ões) em retry</strong>
+            </span>
+          )}
+          {(agg.retrying_consults > 0 || agg.retrying_simulations > 0) && (
+            <span
+              className="text-muted-foreground underline decoration-dotted cursor-help"
+              title={`Cada simulação tenta no máximo ${maxAttempts} ciclos internos automáticos (consulta + aceite + cálculo). Após esgotar, fica como falha definitiva. Esse limite NÃO conta novas simulações manuais — cada novo disparo do mesmo CPF gera um novo registro com seu próprio contador de ciclos.`}
+            >· teto {maxAttempts} ciclos por simulação ⓘ</span>
+          )}
+          {agg.awaiting_v8 > 0 && (
+            <span className="inline-flex items-center gap-1 text-sky-600" title="Aguardando a V8: 'consulta ativa' bloqueada ou pending sem resposta. NÃO é nosso retry — é a V8 quem precisa responder/liberar.">
+              <Clock className="w-3 h-3" />
+              <strong>{agg.awaiting_v8} aguardando V8</strong>
+            </span>
+          )}
+          {agg.stale_retrying_simulations > 0 && (
+            <span className="text-muted-foreground" title="Retentáveis sem tentativa nos últimos 5 min — o cron pode estar atrasado.">
+              · {agg.stale_retrying_simulations} sem tentativa recente
+            </span>
+          )}
+          {agg.active_batches > 0 && (
+            <span className="text-muted-foreground">
+              · {agg.active_batches} lote(s) ativo(s)
+            </span>
+          )}
+          {agg.active_batches === 0 && agg.awaiting_v8 === 0 && agg.retrying_consults === 0 && agg.retrying_simulations === 0 && agg.zombie_batches.length === 0 && (
+            <span className="text-muted-foreground">Sem lotes em processamento</span>
+          )}
+          {agg.last_cron_at && (
+            <span className="text-[11px] text-muted-foreground" title="Última execução do cron de retry (varredura a cada ~20s).">
+              · varredura {timeAgo(agg.last_cron_at)}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 justify-end">
-        {agg.retrying_consults > 0 && (
-          <span className="inline-flex items-center gap-1 text-amber-600" title="Consultas (etapa /consult) com erro retentável que tiveram tentativa nos últimos 5 min.">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <strong>{agg.retrying_consults} consulta(s) em retry</strong>
-          </span>
-        )}
-        {agg.retrying_simulations > 0 && (
-          <span className="inline-flex items-center gap-1 text-amber-600" title="Simulações (etapa /simulate) com erro retentável que tiveram tentativa nos últimos 5 min.">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <strong>{agg.retrying_simulations} simulação(ões) em retry</strong>
-          </span>
-        )}
-        {(agg.retrying_consults > 0 || agg.retrying_simulations > 0) && (
-          <span
-            className="text-muted-foreground underline decoration-dotted cursor-help"
-            title={`Cada simulação tenta no máximo ${maxAttempts} ciclos internos automáticos (consulta + aceite + cálculo). Após esgotar, fica como falha definitiva. Esse limite NÃO conta novas simulações manuais — cada novo disparo do mesmo CPF gera um novo registro com seu próprio contador de ciclos.`}
-          >· teto {maxAttempts} ciclos por simulação ⓘ</span>
-        )}
-        {agg.awaiting_v8 > 0 && (
-          <span className="inline-flex items-center gap-1 text-sky-600" title="Aguardando a V8: 'consulta ativa' bloqueada ou pending sem resposta. NÃO é nosso retry — é a V8 quem precisa responder/liberar.">
-            <Clock className="w-3 h-3" />
-            <strong>{agg.awaiting_v8} aguardando V8</strong>
-          </span>
-        )}
-        {agg.stale_retrying_simulations > 0 && (
-          <span className="text-muted-foreground" title="Retentáveis sem tentativa nos últimos 5 min — o cron pode estar atrasado.">
-            · {agg.stale_retrying_simulations} sem tentativa recente
-          </span>
-        )}
-        {agg.active_batches > 0 && (
-          <span className="text-muted-foreground">
-            · {agg.active_batches} lote(s) ativo(s)
-          </span>
-        )}
-        {agg.active_batches === 0 && agg.awaiting_v8 === 0 && agg.retrying_consults === 0 && agg.retrying_simulations === 0 && (
-          <span className="text-muted-foreground">Sem lotes em processamento</span>
-        )}
-        {agg.last_cron_at && (
-          <span className="text-[11px] text-muted-foreground" title="Última execução do cron de retry (varredura a cada ~20s).">
-            · varredura {timeAgo(agg.last_cron_at)}
-          </span>
-        )}
-      </div>
+      {/* Alerta de lotes zumbi */}
+      {agg.zombie_batches.length > 0 && (
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm space-y-2">
+          <div className="flex items-center gap-2 text-red-400 font-medium">
+            <AlertTriangle className="w-4 h-4" />
+            {agg.zombie_batches.length} lote(s) zumbi bloqueando sua fila
+          </div>
+          <p className="text-xs text-red-300/80">
+            Esses lotes estão em "processing" há mais de 30 min sem atualização. Eles impedem que novos lotes da fila comecem. Clique em "Forçar encerramento" para desbloqueá-los.
+          </p>
+          <div className="space-y-1">
+            {agg.zombie_batches.map(z => (
+              <div key={z.id} className="flex items-center justify-between gap-2 rounded border border-red-500/30 bg-red-950/30 px-2 py-1.5 text-xs">
+                <div>
+                  <span className="font-medium text-red-300">{z.name}</span>
+                  <span className="text-red-400/60 ml-2">parado há {timeAgo(z.updated_at)}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-6 text-[10px] px-2"
+                  disabled={forcingZombie === z.id}
+                  onClick={() => forceCloseZombie(z.id)}
+                >
+                  {forcingZombie === z.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Forçar encerramento'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

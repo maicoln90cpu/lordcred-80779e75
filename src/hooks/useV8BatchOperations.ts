@@ -334,6 +334,11 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
     }
   }
 
+  /** Dispara o launcher imediatamente após cancelar para promover próximo da fila. */
+  function triggerLauncherNow() {
+    supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+  }
+
   async function handleCancelBatch() {
     if (!activeBatchId) return;
     const pending = simulations.filter((s: any) => s.status === 'pending').length;
@@ -341,7 +346,8 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       `Cancelar este lote?\n\n` +
       `• ${pending} consulta(s) pendente(s) serão marcadas como FALHA (cancelado).\n` +
       `• Os crons de retry e poller vão ignorar este lote a partir de agora.\n` +
-      `• Resultados já recebidos (success) serão preservados.\n\n` +
+      `• Resultados já recebidos (success) serão preservados.\n` +
+      `• CPFs já em análise continuam sendo monitorados (webhook chega normalmente).\n\n` +
       `Esta ação NÃO pode ser desfeita.`,
     );
     if (!ok) return;
@@ -351,6 +357,31 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       });
       if (error) throw error;
       toast.success(`Lote cancelado · ${data?.canceled ?? 0} pendente(s) marcadas como falha.`);
+      triggerLauncherNow();
+    } catch (e: any) {
+      toast.error(`Falha ao cancelar lote: ${e?.message || e}`);
+    }
+  }
+
+  async function handleCancelBatchHard() {
+    if (!activeBatchId) return;
+    const nonSuccess = simulations.filter((s: any) => s.status !== 'success').length;
+    const ok = window.confirm(
+      `⚠️ CANCELAMENTO TOTAL — Ignorar webhooks futuros\n\n` +
+      `• ${nonSuccess} simulação(ões) serão marcadas como FALHA (inclusive as em análise na V8).\n` +
+      `• Webhooks futuros desses CPFs serão IGNORADOS — consultas já pagas serão perdidas.\n` +
+      `• Apenas resultados já com "sucesso" serão preservados.\n\n` +
+      `Use apenas quando quiser parar TUDO imediatamente.\n\n` +
+      `Esta ação NÃO pode ser desfeita.`,
+    );
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: { action: 'cancel_batch_hard', params: { batch_id: activeBatchId } },
+      });
+      if (error) throw error;
+      toast.success(`Lote cancelado (duro) · ${data?.data?.canceled_simulations ?? 0} simulação(ões) canceladas. Webhooks futuros serão ignorados.`, { duration: 8000 });
+      triggerLauncherNow();
     } catch (e: any) {
       toast.error(`Falha ao cancelar lote: ${e?.message || e}`);
     }
@@ -394,6 +425,6 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
   return {
     running,
     handleStart, handleRetryFailed, handleSimulateSelected,
-    handleReplayPending, handleCancelBatch, handleCheckStatus,
+    handleReplayPending, handleCancelBatch, handleCancelBatchHard, handleCheckStatus,
   };
 }

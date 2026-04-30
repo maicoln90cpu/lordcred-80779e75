@@ -101,6 +101,12 @@ async function processV8Payload(
         .maybeSingle();
 
       if (currentRow) {
+        // GUARD: cancelamento duro — ignora webhooks de sims que o operador cancelou forçadamente.
+        if ((currentRow as any).error_kind === "canceled_hard") {
+          console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
+          processed = true;
+          break;
+        }
         const safeUpdates: Record<string, unknown> = {
           raw_response: payload,
           last_webhook_at: new Date().toISOString(),
