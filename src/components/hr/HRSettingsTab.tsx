@@ -319,6 +319,10 @@ export function HRSettingsTab() {
           </div>
         </Card>
       </TabsContent>
+
+      <TabsContent value="kanban">
+        <HRKanbanSettingsPanel />
+      </TabsContent>
     </Tabs>
   );
 }
