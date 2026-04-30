@@ -166,13 +166,16 @@ export function useDashboardData() {
   };
 
   const sparklineData = useMemo(() => {
+    // Preferimos sparkline já agregado pela RPC (mais barato, vem pronto do Postgres).
+    if (sparklineFromRpc.length > 0) return sparklineFromRpc;
+    // Fallback: agrega no client a partir de recentMessages (caminho legado).
     if (recentMessages.length === 0) return [];
     const days: Record<string, number> = {};
     const now = new Date();
     for (let i = 6; i >= 0; i--) { const d = new Date(now); d.setDate(d.getDate() - i); days[d.toISOString().slice(0, 10)] = 0; }
     recentMessages.forEach(m => { const key = m.created_at.slice(0, 10); if (days[key] !== undefined) days[key]++; });
     return Object.entries(days).map(([date, count]) => ({ date, count }));
-  }, [recentMessages]);
+  }, [recentMessages, sparklineFromRpc]);
 
   const getMessageLimit = (phase: string) => {
     if (!settings) return 50;
