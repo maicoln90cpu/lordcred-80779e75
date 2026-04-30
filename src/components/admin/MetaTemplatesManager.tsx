@@ -54,8 +54,7 @@ export default function MetaTemplatesManager() {
     const { data } = await supabase
       .from('chips')
       .select('id, instance_name, phone_number, meta_phone_number_id, meta_waba_id')
-      .eq('provider', 'meta')
-      .not('meta_waba_id', 'is', null);
+      .eq('provider', 'meta');
     setMetaChips(data || []);
   }, []);
 

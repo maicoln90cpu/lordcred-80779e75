@@ -16,6 +16,7 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'get-qrcode',
   'sync-templates',
   'create-template',
+  'sync-quality',
   'set-profile-name',
   'set-profile-picture',
   'set-privacy',
@@ -530,6 +531,24 @@ async function handleMetaAction(
       }, { onConflict: 'waba_id,template_name,language', ignoreDuplicates: false })
 
       return jsonResponse({ success: true, data: { id: data.id, status: data.status || 'PENDING' } })
+    }
+
+    case 'sync-quality': {
+      // Sync quality_rating and messaging_limit for this chip
+      const resp = await metaFetch(`/${phoneNumberId}?fields=quality_rating,messaging_limit,display_phone_number`, {
+        headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+        timeout: 8000,
+      })
+      const data = await safeJson(resp)
+      if (data.error) {
+        return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
+      }
+      await adminClient.from('chips').update({
+        quality_rating: data.quality_rating || null,
+        messaging_limit: data.messaging_limit || null,
+        quality_updated_at: new Date().toISOString(),
+      }).eq('id', chipId)
+      return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: data.messaging_limit })
     }
 
     case 'get-business-profile': {

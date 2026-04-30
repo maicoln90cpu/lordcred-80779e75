@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User } from 'lucide-react';
+import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MetaChip {
   id: string;
@@ -20,6 +21,9 @@ interface MetaChip {
   status: string;
   user_id: string;
   created_at: string;
+  quality_rating: string | null;
+  messaging_limit: string | null;
+  quality_updated_at: string | null;
 }
 
 interface Profile {
@@ -36,6 +40,7 @@ export default function MetaChipsManager() {
   const [showAdd, setShowAdd] = useState(false);
   const [deleteChip, setDeleteChip] = useState<MetaChip | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [syncingQuality, setSyncingQuality] = useState(false);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
@@ -46,7 +51,7 @@ export default function MetaChipsManager() {
 
   const loadData = async () => {
     const [chipsRes, profilesRes] = await Promise.all([
-      supabase.from('chips').select('id, instance_name, nickname, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at')
+      supabase.from('chips').select('id, instance_name, nickname, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
         .eq('provider', 'meta').order('created_at', { ascending: false }),
       supabase.rpc('get_visible_profiles'),
     ]);
@@ -141,6 +146,48 @@ export default function MetaChipsManager() {
     }
   };
 
+  const handleSyncQuality = async () => {
+    if (chips.length === 0) return;
+    setSyncingQuality(true);
+    let errors: string[] = [];
+    for (const chip of chips) {
+      try {
+        const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+          body: { action: 'sync-quality', chipId: chip.id },
+        });
+        if (error) errors.push(error.message);
+        else if (!data?.success) errors.push(data?.error || `Falha chip ${chip.phone_number}`);
+      } catch (err: any) {
+        errors.push(err.message);
+      }
+    }
+    if (errors.length > 0) {
+      toast({ title: 'Sincronização parcial', description: errors.join('; '), variant: 'destructive' });
+    } else {
+      toast({ title: 'Qualidade sincronizada com sucesso' });
+    }
+    await loadData();
+    setSyncingQuality(false);
+  };
+
+  const qualityColor = (q: string | null) => {
+    if (!q) return 'text-muted-foreground';
+    const u = q.toUpperCase();
+    if (u === 'GREEN') return 'text-green-500';
+    if (u === 'YELLOW') return 'text-yellow-500';
+    if (u === 'RED') return 'text-red-500';
+    return 'text-muted-foreground';
+  };
+
+  const qualityLabel = (q: string | null) => {
+    if (!q) return '—';
+    const u = q.toUpperCase();
+    if (u === 'GREEN') return '🟢 Alta';
+    if (u === 'YELLOW') return '🟡 Média';
+    if (u === 'RED') return '🔴 Baixa';
+    return q;
+  };
+
   if (loading) {
     return (
       <Card>
@@ -165,9 +212,15 @@ export default function MetaChipsManager() {
                 Números conectados via Meta WhatsApp Cloud API ({chips.length} chip{chips.length !== 1 ? 's' : ''})
               </CardDescription>
             </div>
-            <Button size="sm" onClick={() => setShowAdd(!showAdd)} variant={showAdd ? 'secondary' : 'default'}>
-              <Plus className="w-4 h-4 mr-1" /> Adicionar
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleSyncQuality} disabled={syncingQuality || chips.length === 0}>
+                {syncingQuality ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Sincronizar Qualidade
+              </Button>
+              <Button size="sm" onClick={() => setShowAdd(!showAdd)} variant={showAdd ? 'secondary' : 'default'}>
+                <Plus className="w-4 h-4 mr-1" /> Adicionar
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -206,11 +259,12 @@ export default function MetaChipsManager() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Status</TableHead>
+                   <TableHead>Status</TableHead>
                   <TableHead>Nome / Número</TableHead>
+                  <TableHead>Qualidade</TableHead>
+                  <TableHead>Limite Mensagens</TableHead>
                   <TableHead>Phone Number ID</TableHead>
                   <TableHead>Proprietário</TableHead>
-                  <TableHead>Criado</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -231,15 +285,31 @@ export default function MetaChipsManager() {
                           <p className="text-xs text-muted-foreground">{chip.phone_number || '—'}</p>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`text-sm font-medium ${qualityColor(chip.quality_rating)}`}>
+                                {qualityLabel(chip.quality_rating)}
+                              </span>
+                            </TooltipTrigger>
+                            {chip.quality_updated_at && (
+                              <TooltipContent>
+                                Atualizado: {new Date(chip.quality_updated_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {chip.messaging_limit || '—'}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{chip.meta_phone_number_id || '—'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
                           <User className="w-3 h-3 text-muted-foreground" />
                           {owner?.name || owner?.email || chip.user_id.slice(0, 8)}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {new Date(chip.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button size="icon" variant="ghost" onClick={() => setDeleteChip(chip)} className="text-destructive hover:text-destructive">

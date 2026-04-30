@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, HelpCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   metaChips: any[];
@@ -214,7 +215,25 @@ export default function MetaTemplateCreateDialog({ metaChips, onCreated }: Props
           </div>
 
           <div className="space-y-1.5">
-            <Label>Corpo da mensagem *</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Corpo da mensagem *</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                    <p className="font-semibold mb-1">Variáveis aceitas pela Meta:</p>
+                    <ul className="list-disc pl-3 space-y-0.5">
+                      <li><code className="bg-muted px-1 rounded">{'{{1}}'}</code> — Primeira variável (ex: nome do cliente)</li>
+                      <li><code className="bg-muted px-1 rounded">{'{{2}}'}</code> — Segunda variável (ex: nº do pedido)</li>
+                      <li><code className="bg-muted px-1 rounded">{'{{3}}'}</code>, <code className="bg-muted px-1 rounded">{'{{4}}'}</code>… — Variáveis adicionais</li>
+                    </ul>
+                    <p className="mt-1.5 text-muted-foreground">As variáveis devem ser numéricas sequenciais (1, 2, 3…). No envio, você fornecerá o valor real de cada uma.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Textarea
               placeholder="Olá {{1}}, sua solicitação {{2}} foi processada."
               value={bodyText}
