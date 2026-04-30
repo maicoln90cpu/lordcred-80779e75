@@ -133,12 +133,13 @@ export function useV8BatchSimulations(batchId: string | null) {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Fallback de polling 10s — garante que mesmo com WS caído a UI atualiza.
+    // Fallback de polling 10s — pausa quando aba não está visível para economizar egress.
     const startPolling = () => {
       if (pollTimer) return;
-      pollTimer = setInterval(() => {
-        if (!cancelled) reload();
-      }, 10_000);
+      const tick = () => {
+        if (!cancelled && document.visibilityState === 'visible') reload();
+      };
+      pollTimer = setInterval(tick, 10_000);
     };
     const stopPolling = () => {
       if (pollTimer) {
@@ -146,6 +147,11 @@ export function useV8BatchSimulations(batchId: string | null) {
         pollTimer = null;
       }
     };
+    // Ao voltar pra aba, refetch imediato se polling está ativo
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && pollTimer && !cancelled) reload();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     const channel = supabase
       .channel(`v8-sims-${batchId}`)
@@ -180,6 +186,7 @@ export function useV8BatchSimulations(batchId: string | null) {
       cancelled = true;
       clearTimeout(failsafe);
       stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
       supabase.removeChannel(channel);
     };
   }, [batchId, reload]);
