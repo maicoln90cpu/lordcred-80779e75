@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedChats, setCachedChats } from '@/hooks/useMessageCache';
+import { useVisibilityAwareInterval } from '@/hooks/useVisibilityAwareInterval';
 import type { ChatContact } from '@/pages/WhatsApp';
 
 export interface ExtendedChat extends ChatContact {
@@ -206,12 +207,9 @@ export function useConversations({ chipId, onUnreadUpdate, refreshKey }: UseConv
     if (chipId) fetchChats();
   }, [fetchChats, chipId, refreshKey]);
 
-  // Polling every 30s
-  useEffect(() => {
-    if (!chipId) return;
-    const interval = setInterval(() => fetchChats(1, false), 30000);
-    return () => clearInterval(interval);
-  }, [chipId, fetchChats]);
+  // Polling 30s — pausa automaticamente quando aba não está visível
+  const pollFn = useCallback(() => { fetchChats(1, false); }, [fetchChats]);
+  useVisibilityAwareInterval(pollFn, chipId ? 30000 : null);
 
   // Realtime subscription
   useEffect(() => {
