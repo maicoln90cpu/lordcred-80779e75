@@ -120,7 +120,7 @@ export default function MetaChipsManager() {
       setShowAdd(false);
       loadData();
     } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Não foi possível conectar', description: err.message, variant: 'destructive', duration: 12000 });
     } finally {
       setIsAdding(false);
     }
