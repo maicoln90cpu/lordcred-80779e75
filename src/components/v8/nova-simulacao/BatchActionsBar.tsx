@@ -106,8 +106,9 @@ export default function BatchActionsBar({
               <X className="w-3 h-3 mr-1" /> Cancelar lote
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs text-xs">
-            Para imediatamente o processamento deste lote. Pendentes viram FALHA (cancelado), retry/poller param de tocar nele. Use se um lote estiver "preso" ou se você disparou por engano.
+          <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1">
+            <div>Para o processamento deste lote. Pendentes ainda <strong>não enviadas</strong> viram FALHA (cancelado).</div>
+            <div className="text-amber-200">⚠️ <strong>Importante:</strong> CPFs <strong>já em análise na V8</strong> continuam sendo monitorados — o webhook ainda chega e o resultado pode aparecer depois (não joga fora consulta já paga).</div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
