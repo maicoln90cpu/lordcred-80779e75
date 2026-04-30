@@ -45,6 +45,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [deleteChatTarget, setDeleteChatTarget] = useState<ExtendedChat | null>(null);
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
 
   const { chats, setChats, loading, loadingMore, hasMore, labels, kanbanColumns, refreshLabels, loadMore } = useConversations({ chipId, onUnreadUpdate, refreshKey });
 
