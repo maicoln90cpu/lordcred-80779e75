@@ -59,13 +59,17 @@ Deno.serve(async (req) => {
     const rawBody = await req.text()
     const payload = JSON.parse(rawBody)
 
-    // Verify signature — DB priority, then env fallback
+    // Verify signature — Meta signs with the App Secret.
+    // Priority: meta_webhook_secret (explicit override) -> meta_app_secret (standard) -> META_APP_SECRET env
     const { data: secretRow } = await adminClient
       .from('system_settings')
-      .select('meta_webhook_secret')
+      .select('meta_webhook_secret, meta_app_secret')
       .limit(1)
       .maybeSingle()
-    const webhookSecret = (secretRow as any)?.meta_webhook_secret || Deno.env.get('META_WEBHOOK_SECRET')
+    const webhookSecret =
+      (secretRow as any)?.meta_webhook_secret ||
+      (secretRow as any)?.meta_app_secret ||
+      Deno.env.get('META_APP_SECRET')
     if (webhookSecret) {
       const signature = req.headers.get('x-hub-signature-256')
       if (signature) {
