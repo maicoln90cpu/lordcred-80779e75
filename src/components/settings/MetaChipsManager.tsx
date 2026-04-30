@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw, Save } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MetaChip {
@@ -41,6 +41,8 @@ export default function MetaChipsManager() {
   const [deleteChip, setDeleteChip] = useState<MetaChip | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [syncingQuality, setSyncingQuality] = useState(false);
+  const [wabaDrafts, setWabaDrafts] = useState<Record<string, string>>({});
+  const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
@@ -168,6 +170,21 @@ export default function MetaChipsManager() {
     }
     await loadData();
     setSyncingQuality(false);
+  };
+
+  const handleSaveWaba = async (chip: MetaChip) => {
+    const value = (wabaDrafts[chip.id] ?? chip.meta_waba_id ?? '').trim();
+    setSavingWabaId(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ meta_waba_id: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: 'WABA ID salvo' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar WABA ID', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingWabaId(null);
+    }
   };
 
   const qualityColor = (q: string | null) => {
