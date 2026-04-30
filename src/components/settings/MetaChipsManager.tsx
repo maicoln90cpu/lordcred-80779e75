@@ -212,9 +212,15 @@ export default function MetaChipsManager() {
                 Números conectados via Meta WhatsApp Cloud API ({chips.length} chip{chips.length !== 1 ? 's' : ''})
               </CardDescription>
             </div>
-            <Button size="sm" onClick={() => setShowAdd(!showAdd)} variant={showAdd ? 'secondary' : 'default'}>
-              <Plus className="w-4 h-4 mr-1" /> Adicionar
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleSyncQuality} disabled={syncingQuality || chips.length === 0}>
+                {syncingQuality ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Sincronizar Qualidade
+              </Button>
+              <Button size="sm" onClick={() => setShowAdd(!showAdd)} variant={showAdd ? 'secondary' : 'default'}>
+                <Plus className="w-4 h-4 mr-1" /> Adicionar
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
