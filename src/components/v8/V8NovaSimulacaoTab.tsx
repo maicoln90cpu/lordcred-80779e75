@@ -204,8 +204,20 @@ export default function V8NovaSimulacaoTab() {
   const isThisDraftRunning = ops.running && runningDraftId === activeId;
   const wrappedStart = async () => {
     setRunningDraftId(activeId);
-    try { await ops.handleStart(); }
-    finally { setRunningDraftId(null); }
+    try {
+      await ops.handleStart();
+      // Onda 4: se o draft já tinha Auto-melhor ligado, propaga o flag pro batch recém-criado.
+      // Pequeno delay para garantir que `activeBatchId` foi setado pelo handleStart.
+      if (autoBest) {
+        setTimeout(async () => {
+          try {
+            const id = activeBatchId;
+            if (!id) return;
+            await (supabase as any).rpc('v8_set_batch_auto_best', { _batch_id: id, _enabled: true });
+          } catch { /* silencioso — usuário pode religar via toggle */ }
+        }, 800);
+      }
+    } finally { setRunningDraftId(null); }
   };
 
   // Item 7 (abr/2026): toggle "Simular automaticamente após consulta" REMOVIDO.
@@ -505,6 +517,12 @@ export default function V8NovaSimulacaoTab() {
       {activeBatchId && activeBatchPaused && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-center justify-between">
           <span>⏸ <strong>Lote pausado.</strong> Cron de retry e poller automático estão ignorando este lote. Ações manuais ainda funcionam.</span>
+        </div>
+      )}
+
+      {activeBatchId && autoBest && !activeBatchPaused && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          🤖 <strong>Auto-melhor ativo (worker em background).</strong> O sistema testa propostas automaticamente a cada 1 min — você pode <strong>fechar a aba</strong> que continua processando.
         </div>
       )}
 
