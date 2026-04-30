@@ -14,6 +14,7 @@ import MetaCredentialsGuide from '@/components/admin/MetaCredentialsGuide';
 import MetaUserAccessCard from '@/components/admin/MetaUserAccessCard';
 import MetaChipsManager from '@/components/settings/MetaChipsManager';
 import MetaSetupGuide from '@/components/admin/MetaSetupGuide';
+import MetaTemplatesManager from '@/components/admin/MetaTemplatesManager';
 import SupportChatSettings from '@/components/settings/SupportChatSettings';
 
 interface ProviderSettings {
@@ -237,6 +238,7 @@ export default function Integrations() {
                   <TabsTrigger value="meta-config">⚙️ Configuração</TabsTrigger>
                   <TabsTrigger value="meta-chips">📱 Chips</TabsTrigger>
                   <TabsTrigger value="meta-access">👥 Acesso</TabsTrigger>
+                  <TabsTrigger value="meta-templates">📄 Templates</TabsTrigger>
                 </TabsList>
 
                 {/* Sub-tab: Configuração */}
@@ -282,6 +284,11 @@ export default function Integrations() {
                 {/* Sub-tab: Acesso */}
                 <TabsContent value="meta-access">
                   <MetaUserAccessCard />
+                </TabsContent>
+
+                {/* Sub-tab: Templates */}
+                <TabsContent value="meta-templates">
+                  <MetaTemplatesManager />
                 </TabsContent>
               </Tabs>
             ) : (
