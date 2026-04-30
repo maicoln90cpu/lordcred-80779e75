@@ -94,12 +94,15 @@ async function handleMetaAction(
       }
     }
 
-    case 'send-message': {
-      const { phoneNumber, message } = body
-      if (!phoneNumber || !message) {
-        return jsonResponse({ error: 'Phone number and message are required' }, 400)
+    case 'send-message':
+    case 'send-chat-message': {
+      // Aceita { phoneNumber, message } ou { chatId, message } (paridade com UazAPI)
+      const { phoneNumber, message, chatId } = body
+      const rawPhone = phoneNumber || (typeof chatId === 'string' ? chatId.split('@')[0] : '')
+      if (!rawPhone || !message) {
+        return jsonResponse({ error: 'Phone number (or chatId) and message are required' }, 400)
       }
-      let normalizedPhone = phoneNumber.replace(/\D/g, '')
+      let normalizedPhone = rawPhone.replace(/\D/g, '')
       if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
         normalizedPhone = '55' + normalizedPhone
       }
