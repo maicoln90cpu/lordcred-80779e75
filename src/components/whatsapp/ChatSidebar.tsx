@@ -240,36 +240,45 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
         ) : (
           <div className="divide-y divide-border/20">
             {sortedChats.map((chat) => (
-              <ChatContactItem
-                key={chat.remoteJid}
-                chat={chat}
-                isSelected={selectedChatId === chat.remoteJid}
-                labels={labels}
-                kanbanColumns={kanbanColumns}
-                formatTime={formatTime}
-                onSelect={() => {
-                  if (chat.unreadCount > 0) {
-                    setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
-                    if (onUnreadUpdate && chipId) {
-                      const newTotal = chats.filter(c => !c.is_archived && c.remoteJid !== chat.remoteJid).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-                      onUnreadUpdate(chipId, newTotal);
+              <div key={chat.remoteJid} className="relative">
+                <ChatContactItem
+                  chat={chat}
+                  isSelected={selectedChatId === chat.remoteJid}
+                  labels={labels}
+                  kanbanColumns={kanbanColumns}
+                  formatTime={formatTime}
+                  onSelect={() => {
+                    if (chat.unreadCount > 0) {
+                      setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
+                      if (onUnreadUpdate && chipId) {
+                        const newTotal = chats.filter(c => !c.is_archived && c.remoteJid !== chat.remoteJid).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+                        onUnreadUpdate(chipId, newTotal);
+                      }
                     }
-                  }
-                  onSelectChat(chat);
-                }}
-                onPin={() => actions.handlePin(chat)}
-                onStar={() => actions.handleStar(chat)}
-                onArchive={(a) => actions.handleArchive(chat, a)}
-                onMarkUnread={() => actions.handleMarkUnread(chat)}
-                onRename={(name) => actions.handleRenameContact(chat, name)}
-                onToggleLabel={(lid) => actions.handleToggleLabel(chat, lid)}
-                onMute={(d) => actions.handleMuteChat(chat, d)}
-                onBlock={(b) => actions.handleBlockContact(chat, b)}
-                onDelete={() => setDeleteChatTarget(chat)}
-                onAddToKanban={(cid) => actions.handleAddToKanban(chat, cid)}
-                onRemoveFromKanban={() => actions.handleRemoveFromKanban(chat)}
-                onManageLabels={() => setManageLabelsOpen(true)}
-              />
+                    onSelectChat(chat);
+                  }}
+                  onPin={() => actions.handlePin(chat)}
+                  onStar={() => actions.handleStar(chat)}
+                  onArchive={(a) => actions.handleArchive(chat, a)}
+                  onMarkUnread={() => actions.handleMarkUnread(chat)}
+                  onRename={(name) => actions.handleRenameContact(chat, name)}
+                  onToggleLabel={(lid) => actions.handleToggleLabel(chat, lid)}
+                  onMute={(d) => actions.handleMuteChat(chat, d)}
+                  onBlock={(b) => actions.handleBlockContact(chat, b)}
+                  onDelete={() => setDeleteChatTarget(chat)}
+                  onAddToKanban={(cid) => actions.handleAddToKanban(chat, cid)}
+                  onRemoveFromKanban={() => actions.handleRemoveFromKanban(chat)}
+                  onManageLabels={() => setManageLabelsOpen(true)}
+                />
+                {showClosed && chat.closed_at && (
+                  <div className="absolute top-1 right-10 flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded">{chat.closed_reason?.slice(0, 25)}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary" title="Reabrir conversa" onClick={(e) => { e.stopPropagation(); handleReopenConversation(chat); }}>
+                      <RotateCcw className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
             {loadingMore && (
               <div className="flex justify-center py-3"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
