@@ -490,8 +490,8 @@ async function handleMetaAction(
 
     case 'sync-templates': {
       // Sync Meta message templates
-      const wabaId = chip.meta_waba_id
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
+      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
 
       const resp = await metaFetch(`/${wabaId}/message_templates?limit=100`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
