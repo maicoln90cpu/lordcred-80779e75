@@ -372,18 +372,48 @@ export default function V8NovaSimulacaoTab() {
   // Etapa 1 (item 1, abr/2026): "Executar todos em sequência".
   // Enfileira cada rascunho válido. O primeiro vira 'scheduled' (roda já),
   // os demais ficam em 'queued' e o launcher promove um por vez.
+  // Etapa 4 (abr/2026): pré-check de lote ativo + diálogo de relatório claro.
   const [runAllBusy, setRunAllBusy] = useState(false);
+  const [runAllReport, setRunAllReport] = useState<RunAllItemResult[] | null>(null);
   async function handleRunAllDrafts() {
     if (runAllBusy) return;
     const eligible = drafts.filter((d) => d.pasteText.trim() && d.batchName.trim() && d.configId);
     if (eligible.length === 0) {
-      toast.error('Nenhum rascunho preenchido (precisa de nome, tabela e CPFs).');
+      toast.error('Nenhum rascunho preenchido', {
+        description: 'Cada rascunho precisa de NOME, TABELA selecionada e CPFs colados.',
+        duration: 8000,
+      });
       return;
     }
-    if (!window.confirm(
-      `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
-      `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar (verificação a cada 1 min).\n\nConfirmar?`,
-    )) return;
+
+    // Pré-check: existe lote ativo do operador? Texto do diálogo precisa ser honesto.
+    let hasActive = false;
+    let activeName = '';
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data: actives } = await supabase
+          .from('v8_batches')
+          .select('id, name')
+          .eq('created_by', user.id)
+          .in('status', ['processing', 'scheduled'])
+          .gte('updated_at', cutoff)
+          .limit(1);
+        if (actives && actives.length > 0) {
+          hasActive = true;
+          activeName = (actives[0] as any).name || '(sem nome)';
+        }
+      }
+    } catch { /* segue sem pré-check */ }
+
+    const confirmMsg = hasActive
+      ? `Você já tem 1 lote em andamento ("${activeName}").\n\n` +
+        `Vou enfileirar ${eligible.length} rascunho(s). Eles começam SOZINHOS quando o lote atual terminar (verificação a cada 1 min).\n\nConfirmar?`
+      : `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
+        `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar (verificação a cada 1 min).\n\nConfirmar?`;
+    if (!window.confirm(confirmMsg)) return;
+
     setRunAllBusy(true);
     try {
       const results = await queueAllDrafts({
@@ -392,17 +422,15 @@ export default function V8NovaSimulacaoTab() {
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
       });
       const summary = summarizeRunAll(results);
-      const skippedDetail = results
-        .filter((r) => r.status !== 'queued')
-        .map((r) => `• ${r.label}: ${r.reason}`)
-        .join('\n');
-      if (summary.queued > 0) {
+      const hasIssue = summary.skipped > 0 || summary.errors > 0;
+      if (hasIssue) {
+        // Abre diálogo detalhado em vez de toast — não dá pra esconder problemas.
+        setRunAllReport(results);
+      } else {
         toast.success(`▶ Sequência iniciada: ${summary.text}`, {
-          description: skippedDetail || 'Acompanhe abaixo na "Fila de execução".',
+          description: 'Acompanhe abaixo na "Fila de execução".',
           duration: 8000,
         });
-      } else {
-        toast.error(`Nada enfileirado: ${summary.text}`, { description: skippedDetail });
       }
     } finally {
       setRunAllBusy(false);
