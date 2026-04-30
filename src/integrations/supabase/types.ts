@@ -4233,6 +4233,9 @@ export type Database = {
           imported_by: string | null
           inserted_count: number
           invalid_count: number
+          mode: string
+          processed_count: number
+          progress_percent: number
           row_count: number
           status: string
           storage_path: string | null
@@ -4247,6 +4250,9 @@ export type Database = {
           imported_by?: string | null
           inserted_count?: number
           invalid_count?: number
+          mode?: string
+          processed_count?: number
+          progress_percent?: number
           row_count?: number
           status?: string
           storage_path?: string | null
@@ -4261,6 +4267,9 @@ export type Database = {
           imported_by?: string | null
           inserted_count?: number
           invalid_count?: number
+          mode?: string
+          processed_count?: number
+          progress_percent?: number
           row_count?: number
           status?: string
           storage_path?: string | null
