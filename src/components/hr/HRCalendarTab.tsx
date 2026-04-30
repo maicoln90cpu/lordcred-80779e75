@@ -73,7 +73,6 @@ export function HRCalendarTab() {
     if (entityFilter === 'all') return allEvents;
     return allEvents.filter(ev => (ev as any).entity_type === entityFilter);
   }, [allEvents, entityFilter]);
-  const [saving, setSaving] = useState(false);
 
   // Mapa para destacar dias com evento no mês.
   const eventsByDay = useMemo(() => {
