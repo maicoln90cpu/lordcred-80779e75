@@ -101,27 +101,70 @@ function humanizeMetaError(metaError: any, phoneNumberId?: string): string {
 async function resolveWabaId(
   chip: any,
   metaAccessToken: string,
-  adminClient: any
+  adminClient: any,
+  metaConfig: { appId?: string | null; appSecret?: string | null } = {}
 ): Promise<string | null> {
   if (chip.meta_waba_id) return chip.meta_waba_id
   const phoneNumberId = chip.meta_phone_number_id
   if (!phoneNumberId) return null
+
+  const persistWabaId = async (wabaId: string) => {
+    await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
+    chip.meta_waba_id = wabaId
+    console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
+    return wabaId
+  }
+
+  const candidateWabaIds = new Set<string>()
   try {
-    console.log(`resolveWabaId: attempting for phoneNumberId=${phoneNumberId}`)
-    const wabaResp = await metaFetch(`/${phoneNumberId}?fields=whatsapp_business_account`, {
+    console.log(`resolveWabaId: discovering for phoneNumberId=${phoneNumberId}`)
+
+    if (metaConfig.appId && metaConfig.appSecret) {
+      const appToken = `${metaConfig.appId}|${metaConfig.appSecret}`
+      const debugResp = await metaFetch(`/debug_token?input_token=${encodeURIComponent(metaAccessToken)}&access_token=${encodeURIComponent(appToken)}`, { timeout: 10000 })
+      const debugData = await safeJson(debugResp)
+      const granularScopes = debugData?.data?.granular_scopes || []
+      for (const item of granularScopes) {
+        if (String(item?.scope || '').startsWith('whatsapp_business_')) {
+          for (const targetId of item?.target_ids || []) candidateWabaIds.add(String(targetId))
+        }
+      }
+      console.log(`resolveWabaId: candidates from token scopes=${candidateWabaIds.size}`)
+    }
+
+    const businessesResp = await metaFetch('/me/businesses?fields=id,name&limit=100', {
       headers: { 'Authorization': `Bearer ${metaAccessToken}` },
       timeout: 10000,
     })
-    const wabaData = await safeJson(wabaResp)
-    console.log(`resolveWabaId: response=`, JSON.stringify(wabaData))
-    const wabaId = wabaData?.whatsapp_business_account?.id
-    if (wabaId) {
-      await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
-      chip.meta_waba_id = wabaId
-      console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
-      return wabaId
+    const businessesData = await safeJson(businessesResp)
+    for (const business of businessesData?.data || []) {
+      for (const edge of ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts']) {
+        const accountsResp = await metaFetch(`/${business.id}/${edge}?fields=id,name&limit=100`, {
+          headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+          timeout: 10000,
+        })
+        const accountsData = await safeJson(accountsResp)
+        for (const account of accountsData?.data || []) candidateWabaIds.add(String(account.id))
+      }
     }
-    console.warn(`resolveWabaId: no WABA found in response for phone ${phoneNumberId}`)
+    console.log(`resolveWabaId: total candidate WABAs=${candidateWabaIds.size}`)
+
+    for (const wabaId of candidateWabaIds) {
+      const phonesResp = await metaFetch(`/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&limit=100`, {
+        headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+        timeout: 10000,
+      })
+      const phonesData = await safeJson(phonesResp)
+      if (phonesData?.error) {
+        console.warn(`resolveWabaId: phone_numbers failed for WABA ${wabaId}: ${phonesData.error.message}`)
+        continue
+      }
+      if ((phonesData?.data || []).some((phone: any) => String(phone.id) === String(phoneNumberId))) {
+        return await persistWabaId(wabaId)
+      }
+    }
+
+    console.warn(`resolveWabaId: no matching WABA found for phone ${phoneNumberId}`)
   } catch (e) {
     console.error('Failed to auto-resolve WABA ID:', e)
   }
