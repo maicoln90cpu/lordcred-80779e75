@@ -55,6 +55,46 @@ async function safeJson(response: Response): Promise<any> {
   }
 }
 
+/**
+ * Converte erros crus da Meta Graph API em mensagens claras em português
+ * com instrução acionável para o usuário do painel.
+ */
+function humanizeMetaError(metaError: any, phoneNumberId?: string): string {
+  const code = metaError?.code
+  const subcode = metaError?.error_subcode
+  const raw = metaError?.message || 'Erro desconhecido na Meta API'
+
+  // 100 = "Object does not exist / unsupported" → quase sempre número não registrado na Cloud API
+  if (code === 100) {
+    return `Número não registrado na WhatsApp Cloud API. Vá em Meta Business Manager → WhatsApp → API Setup → Phone Numbers, clique no número${phoneNumberId ? ` (ID ${phoneNumberId})` : ''}, escolha "Register" e defina um PIN de 6 dígitos. Sem esse passo, a Meta não aceita envios. Detalhe técnico: ${raw}`
+  }
+  // 190 = token inválido/expirado
+  if (code === 190) {
+    return `Token de acesso da Meta inválido ou expirado. Atualize o Access Token em Configurações → Integrações → Meta WhatsApp. Detalhe: ${raw}`
+  }
+  // 131056 = par destinatário/remetente em pause; 131026 = mensagem indeliverable
+  if (code === 131056 || code === 131026) {
+    return `Meta recusou a entrega para este número (pode ser número inválido, bloqueado, ou janela de 24h fechada exigindo template aprovado). Detalhe: ${raw}`
+  }
+  // 131047 = janela de 24h expirou
+  if (code === 131047) {
+    return `Janela de 24h expirou. Para reabrir conversa com este contato é preciso enviar um template aprovado pela Meta. Detalhe: ${raw}`
+  }
+  // 131051 = tipo de mensagem não suportado
+  if (code === 131051) {
+    return `Tipo de mensagem não suportado pela Meta para este número. Detalhe: ${raw}`
+  }
+  // 368 = bloqueio temporário por política
+  if (code === 368) {
+    return `Conta bloqueada temporariamente pela Meta por violação de política. Acesse o Business Manager para revisar. Detalhe: ${raw}`
+  }
+  // 80007 = rate limit
+  if (code === 80007 || subcode === 2494055) {
+    return `Limite de envio da Meta atingido. Aguarde alguns minutos e tente novamente. Detalhe: ${raw}`
+  }
+  return `Meta API: ${raw}${code ? ` (código ${code})` : ''}`
+}
+
 // ===== META ACTION HANDLERS =====
 
 async function handleMetaAction(
