@@ -63,6 +63,7 @@
     --hr-rejected: 0 84% 60%;       /* vermelho — reprovados */
     --hr-doubt: 215 16% 47%;        /* cinza — dúvida */
     --hr-partner: 330 81% 60%;      /* rosa — virou parceiro */
+    --hr-migrated-partner: 280 65% 55%; /* roxo-magenta — migrados parceiros (controle) */
   }
 
   .dark {

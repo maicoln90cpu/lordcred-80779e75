@@ -14,7 +14,8 @@ export type HRKanbanStatus =
   | 'approved'
   | 'rejected'
   | 'doubt'
-  | 'became_partner';
+  | 'became_partner'
+  | 'migrated_partner';
 
 export interface HRCandidate {
   id: string;
@@ -229,8 +230,8 @@ export function useHRCandidates() {
   }, [toast, fetchCandidates]);
 
   const moveToPartner = useCallback(async (candidate: HRCandidate) => {
-    // 1) flag the candidate
-    await updateCandidate(candidate.id, { kanban_status: 'became_partner' });
+    // 1) Etapa 4C (abr/2026): move para a coluna "Migrados Parceiros" (controle dedicado)
+    await updateCandidate(candidate.id, { kanban_status: 'migrated_partner' });
 
     // 2) Mantém compat: continua criando o registro em hr_partner_leads
     const { error: leadErr } = await (supabase as any).from('hr_partner_leads').insert({

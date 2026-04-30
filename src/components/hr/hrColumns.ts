@@ -21,8 +21,9 @@ export const HR_COLUMNS: HRColumnDef[] = [
   { id: 'done_e2',        name: 'E2 realizada',     token: '--hr-done-e2' },
   { id: 'approved',       name: 'Aprovados',        token: '--hr-approved' },
   { id: 'rejected',       name: 'Reprovados',       token: '--hr-rejected' },
-  { id: 'doubt',          name: 'Dúvida',           token: '--hr-doubt' },
-  { id: 'became_partner', name: 'Virou parceiro',   token: '--hr-partner' },
+  { id: 'doubt',             name: 'Dúvida',              token: '--hr-doubt' },
+  { id: 'became_partner',    name: 'Virou parceiro',      token: '--hr-partner' },
+  { id: 'migrated_partner',  name: 'Migrados Parceiros',  token: '--hr-migrated-partner' },
 ];
 
 /** Helper: retorna a string CSS pronta para uso em `style={{ backgroundColor: hrColor(token) }}` */

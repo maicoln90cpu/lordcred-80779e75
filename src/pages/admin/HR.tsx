@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UserPlus, Users2, Settings as SettingsIcon } from 'lucide-react';
+import { UserPlus, Users2, Settings as SettingsIcon, CalendarDays } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
 import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
 import { HRPartnerLeadsTab } from '@/components/hr/HRPartnerLeadsTab';
 import { HRSettingsTab } from '@/components/hr/HRSettingsTab';
+import { HRCalendarTab } from '@/components/hr/HRCalendarTab';
 import { CandidateModal } from '@/components/hr/CandidateModal';
 import { CandidateCreateDialog } from '@/components/hr/CandidateCreateDialog';
 import { useHRCandidates, type HRCandidate } from '@/hooks/useHRCandidates';
@@ -45,6 +46,9 @@ export default function HR() {
             <TabsTrigger value="partners" className="gap-2">
               <Users2 className="w-4 h-4" /> Funil Parceiros
             </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <CalendarDays className="w-4 h-4" /> Calendário
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="settings" className="gap-2">
                 <SettingsIcon className="w-4 h-4" /> Configurações
@@ -61,6 +65,10 @@ export default function HR() {
 
           <TabsContent value="partners">
             <HRPartnerLeadsTab />
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <HRCalendarTab />
           </TabsContent>
 
           {isAdmin && (
