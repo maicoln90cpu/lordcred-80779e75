@@ -473,14 +473,35 @@ export default function V8NovaSimulacaoTab() {
         configs,
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
       });
+
+      // Associar batchId aos drafts e persistir no mapa localStorage
+      const queuedResults = results.filter(r => r.status === 'queued' && r.batchId);
+      if (queuedResults.length > 0) {
+        setDrafts(prev => {
+          const updated = [...prev];
+          for (const r of queuedResults) {
+            const idx = updated.findIndex(d => d.id === r.draftId);
+            if (idx >= 0 && r.batchId) {
+              updated[idx] = { ...updated[idx], activeBatchId: r.batchId };
+              addDraftBatchEntry(r.draftId, r.batchId);
+            }
+          }
+          return updated;
+        });
+        // Trocar para a aba do primeiro lote enfileirado
+        const firstQueued = queuedResults[0];
+        if (firstQueued) setActiveId(firstQueued.draftId);
+        // Disparar launcher imediatamente (não esperar cron de 1 min)
+        supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+      }
+
       const summary = summarizeRunAll(results);
       const hasIssue = summary.skipped > 0 || summary.errors > 0;
       if (hasIssue) {
-        // Abre diálogo detalhado em vez de toast — não dá pra esconder problemas.
         setRunAllReport(results);
       } else {
         toast.success(`▶ Sequência iniciada: ${summary.text}`, {
-          description: 'Acompanhe abaixo na "Fila de execução".',
+          description: 'O progresso aparece automaticamente em cada aba.',
           duration: 8000,
         });
       }
