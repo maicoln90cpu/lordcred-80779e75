@@ -156,6 +156,16 @@ export function HRCalendarTab() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
+          <Select value={entityFilter} onValueChange={v => setEntityFilter(v as EntityFilter)}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <Filter className="w-3 h-3 mr-1" /><SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="candidate">Candidatos</SelectItem>
+              <SelectItem value="employee">Colaboradores</SelectItem>
+            </SelectContent>
+          </Select>
           <Badge variant="secondary">{events.length} eventos no total</Badge>
           <Button size="sm" onClick={openCreate} className="gap-1.5">
             <Plus className="w-4 h-4" /> Novo evento
