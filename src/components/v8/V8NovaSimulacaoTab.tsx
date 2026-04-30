@@ -83,7 +83,27 @@ export default function V8NovaSimulacaoTab() {
   const activeBatchId = active.activeBatchId;
   const setActiveBatchId = (v: string | null) => patchActive({ activeBatchId: v });
   const autoBest = !!active.autoBest;
-  const setAutoBest = (v: boolean) => patchActive({ autoBest: v });
+  const setAutoBest = async (v: boolean) => {
+    patchActive({ autoBest: v });
+    // Onda 4: persiste o flag no batch ativo para o worker em background processar.
+    if (activeBatchId) {
+      try {
+        const { error } = await (supabase as any).rpc('v8_set_batch_auto_best', {
+          _batch_id: activeBatchId,
+          _enabled: v,
+        });
+        if (error) throw error;
+        if (v) {
+          toast.success('🤖 Auto-melhor ativo neste lote', {
+            description: 'O sistema processa em background — funciona mesmo com a aba fechada (cron 1×/min).',
+            duration: 6000,
+          });
+        }
+      } catch (err: any) {
+        toast.error(`Não foi possível atualizar Auto-melhor: ${err?.message || err}`);
+      }
+    }
+  };
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogData, setStatusDialogData] = useState<{ cpf: string; loading: boolean; result: any | null; error: string | null }>({ cpf: '', loading: false, result: null, error: null });
