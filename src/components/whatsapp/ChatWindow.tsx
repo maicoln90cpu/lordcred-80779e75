@@ -289,6 +289,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
 
     {chipId && chat && <ConversationNotes chipId={chipId} remoteJid={chat.remoteJid} open={notesOpen} onClose={() => setNotesOpen(false)} />}
     {chat && <ConversationAuditPanel conversationId={chat.id} open={auditOpen} onClose={() => setAuditOpen(false)} />}
+    {chat && <CloseConversationDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen} conversationId={chat.id} contactName={chat.name} />}
     </div>
   );
 }
