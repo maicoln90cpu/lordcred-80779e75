@@ -97,6 +97,34 @@ function humanizeMetaError(metaError: any, phoneNumberId?: string): string {
   return `Meta API: ${raw}${code ? ` (código ${code})` : ''}`
 }
 
+// Resolve WABA ID: use chip field, or auto-discover via Meta API and persist
+async function resolveWabaId(
+  chip: any,
+  metaAccessToken: string,
+  adminClient: any
+): Promise<string | null> {
+  if (chip.meta_waba_id) return chip.meta_waba_id
+  const phoneNumberId = chip.meta_phone_number_id
+  if (!phoneNumberId) return null
+  try {
+    const wabaResp = await metaFetch(`/${phoneNumberId}?fields=whatsapp_business_account`, {
+      headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+      timeout: 10000,
+    })
+    const wabaData = await safeJson(wabaResp)
+    const wabaId = wabaData?.whatsapp_business_account?.id
+    if (wabaId) {
+      await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
+      chip.meta_waba_id = wabaId
+      console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
+      return wabaId
+    }
+  } catch (e) {
+    console.error('Failed to auto-resolve WABA ID:', e)
+  }
+  return null
+}
+
 // ===== META ACTION HANDLERS =====
 
 async function handleMetaAction(
