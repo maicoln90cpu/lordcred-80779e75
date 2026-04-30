@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Loader2, Plus, Pencil, Trash2, Settings, AlertTriangle, Search, Download, Upload } from 'lucide-react';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_RULES_CLT } from './CRSortUtils';
 import { parseClipboardText } from '@/lib/clipboardParser';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 
 interface RuleCLT {
   id: string; data_vigencia: string; banco: string; tabela_chave: string;
@@ -86,7 +86,8 @@ export default function CRRulesCLT() {
   };
 
   // ===== IMPORT / EXPORT =====
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await loadXLSX();
     const ws = XLSX.utils.aoa_to_sheet([
       ['Banco', 'Tabela Chave', 'Seguro (Sim/Não/Ambos)', 'Prazo Mín', 'Prazo Máx', 'Valor Mín', 'Valor Máx', 'Taxa (%)'],
       ['BANCO C6', '*', 'Ambos', '0', '999', '0', '999999999', '2.5'],
@@ -99,7 +100,8 @@ export default function CRRulesCLT() {
     XLSX.writeFile(wb, 'modelo_regras_clt.xlsx');
   };
 
-  const exportRules = () => {
+  const exportRules = async () => {
+    const XLSX = await loadXLSX();
     if (rules.length === 0) { toast({ title: 'Nenhuma regra para exportar' }); return; }
     const data = rules.map(r => ({
       'Banco': r.banco,
@@ -136,6 +138,7 @@ export default function CRRulesCLT() {
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const XLSX = await loadXLSX();
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();

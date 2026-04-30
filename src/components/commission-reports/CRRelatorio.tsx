@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { TSHead, useSortState, applySortToData, TipWrap } from './CRSortUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { batchFetchRpc } from '@/lib/batchFetchRpc';
@@ -77,7 +77,8 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
     count: filtered.length,
   }), [filtered]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await loadXLSX();
     const ws = XLSX.utils.json_to_sheet(sorted.map(r => ({
       'Nº Contrato': r.num_contrato, 'Data': fmtDate(r.data_pago), Produto: r.produto,
       Banco: r.banco, Prazo: r.prazo, Tabela: r.tabela, 'Valor Lib.': r.valor_liberado,

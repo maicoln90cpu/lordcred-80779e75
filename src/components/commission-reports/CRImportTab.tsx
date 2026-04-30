@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { uploadSpreadsheet } from '@/lib/storageUpload';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -228,13 +228,14 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
     setRawFile(file);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const data = evt.target?.result;
       const wb = XLSX.read(data, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
 
       let rows: Record<string, any>[];
-      if (noHeader) {
+      async if (noHeader) {
+        const XLSX = await loadXLSX();
         rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[];
         rows = (rows as any[][]).filter(r => r.some(c => c !== '')).map(r => {
           const obj: Record<string, any> = {};
@@ -322,7 +323,8 @@ export default function CRImportTab({ module, tableName, columns, title, descrip
   const sortedExisting = applySortToData(filteredExisting, sort);
   const sortedPreview = applySortToData(parsedData, previewSort);
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await loadXLSX();
     if (filteredExisting.length === 0) return;
     const ws = XLSX.utils.json_to_sheet(filteredExisting.map(row => {
       const r: Record<string, any> = {};

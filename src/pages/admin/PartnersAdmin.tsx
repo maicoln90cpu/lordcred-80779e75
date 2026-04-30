@@ -19,7 +19,7 @@ import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User,
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { PartnersDashboard } from '@/components/partners/PartnersDashboard';
 import PartnerKanbanBoard from '@/components/partners/PartnerKanbanBoard';
 import { CAPTACAO_TIPOS } from '@/lib/partnerUtils';
@@ -252,7 +252,8 @@ export default function PartnersAdmin() {
     return acc;
   }, {});
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await loadXLSX();
     const exportData = filtered.map(p => ({
       Nome: p.nome,
       Telefone: p.telefone || '',

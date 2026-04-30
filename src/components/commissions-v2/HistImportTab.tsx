@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Loader2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import CRImportHistory from '@/components/commission-reports/CRImportHistory';
 import { parseExcelDate, cleanCurrency } from './commissionUtils';
 import type { Profile } from './commissionUtils';
@@ -33,10 +33,12 @@ export default function HistImportTab({ userId, profiles, getSellerName }: HistI
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const XLSX = await loadXLSX();
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
     try {
+      const XLSX = await loadXLSX();
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[0];
