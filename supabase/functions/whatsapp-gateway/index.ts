@@ -536,8 +536,8 @@ async function handleMetaAction(
 
     case 'sync-templates': {
       // Sync Meta message templates
-      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
+      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
 
       const resp = await metaFetch(`/${wabaId}/message_templates?limit=100`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
@@ -566,8 +566,8 @@ async function handleMetaAction(
     }
 
     case 'create-template': {
-      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
+      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
 
       const { name, language, category, components: tplComponents } = body
       if (!name || !category || !tplComponents) {
@@ -799,6 +799,10 @@ Deno.serve(async (req) => {
       if (!metaAccessToken) {
         await logAdmin(false, 500, { error_message: 'Meta access token not configured' })
         return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)
+      }
+      body.metaConfig = {
+        appId: (settings as any)?.meta_app_id || Deno.env.get('META_APP_ID'),
+        appSecret: (settings as any)?.meta_app_secret || Deno.env.get('META_APP_SECRET'),
       }
 
       const metaResp = await handleMetaAction(action, body, adminClient, metaAccessToken, chip, userId)
