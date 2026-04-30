@@ -298,11 +298,14 @@ export type Database = {
           last_sync_cursor: number | null
           last_webhook_at: string | null
           messages_sent_today: number
+          messaging_limit: string | null
           meta_phone_number_id: string | null
           meta_waba_id: string | null
           nickname: string | null
           phone_number: string | null
           provider: string
+          quality_rating: string | null
+          quality_updated_at: string | null
           shared_block_send: boolean
           shared_user_ids: string[] | null
           slot_number: number
@@ -327,11 +330,14 @@ export type Database = {
           last_sync_cursor?: number | null
           last_webhook_at?: string | null
           messages_sent_today?: number
+          messaging_limit?: string | null
           meta_phone_number_id?: string | null
           meta_waba_id?: string | null
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          quality_rating?: string | null
+          quality_updated_at?: string | null
           shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number: number
@@ -356,11 +362,14 @@ export type Database = {
           last_sync_cursor?: number | null
           last_webhook_at?: string | null
           messages_sent_today?: number
+          messaging_limit?: string | null
           meta_phone_number_id?: string | null
           meta_waba_id?: string | null
           nickname?: string | null
           phone_number?: string | null
           provider?: string
+          quality_rating?: string | null
+          quality_updated_at?: string | null
           shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number?: number
