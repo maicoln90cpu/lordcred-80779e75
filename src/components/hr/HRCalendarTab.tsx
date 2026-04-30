@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { format, isSameDay, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar } from '@/components/ui/calendar';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,29 +14,27 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CalendarDays, Plus, List, LayoutGrid, CalendarClock } from 'lucide-react';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { CalendarDays, Plus, MapPin, Clock, Trash2, User } from 'lucide-react';
-import {
-  useHRCalendarEvents, EVENT_TYPE_LABEL, EVENT_TYPE_TOKEN,
+  useHRCalendarEvents, EVENT_TYPE_LABEL,
   type HRCalendarEvent, type HRCalendarEventType,
 } from '@/hooks/useHRCalendarEvents';
 import { useHRCandidates } from '@/hooks/useHRCandidates';
+import HRCalendarEventCard from './HRCalendarEventCard';
+import HRCalendarListView from './HRCalendarListView';
+import HRCalendarAgendaView from './HRCalendarAgendaView';
 
 function toLocalInput(iso: string | null) {
   if (!iso) return '';
   const d = new Date(iso);
-  // yyyy-MM-ddTHH:mm in local time (compatível com <input type="datetime-local">)
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fromLocalInput(value: string): string {
-  // Trata como horário de São Paulo (-03:00) para evitar bugs de fuso (regra do projeto)
+  // Trata como horário de São Paulo (-03:00) — regra de timezone do projeto.
   if (!value) return '';
-  // value no formato "yyyy-MM-ddTHH:mm" — anexa offset
   return new Date(`${value}:00-03:00`).toISOString();
 }
 
@@ -52,27 +50,25 @@ interface EventFormState {
 }
 
 const EMPTY_FORM: EventFormState = {
-  title: '',
-  description: '',
-  event_type: 'meeting',
-  candidate_id: null,
-  starts_at: '',
-  ends_at: '',
-  location: '',
+  title: '', description: '', event_type: 'meeting', candidate_id: null,
+  starts_at: '', ends_at: '', location: '',
 };
+
+type CalendarView = 'month' | 'list' | 'agenda';
 
 export function HRCalendarTab() {
   const { events, loading, createEvent, updateEvent, deleteEvent } = useHRCalendarEvents();
   const { candidates } = useHRCandidates();
+  const [view, setView] = useState<CalendarView>('month');
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<EventFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
-  // Mapa: yyyy-MM-dd → quantidade (para destacar dias com evento)
+  // Mapa para destacar dias com evento no mês.
   const eventsByDay = useMemo(() => {
     const map = new Map<string, HRCalendarEvent[]>();
-    events.forEach(ev => {
+    events.forEach((ev) => {
       const key = format(parseISO(ev.starts_at), 'yyyy-MM-dd');
       const list = map.get(key) ?? [];
       list.push(ev);
@@ -81,9 +77,16 @@ export function HRCalendarTab() {
     return map;
   }, [events]);
 
+  // Mapa candidato → nome (evita find() em loop nas views).
+  const candidateNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    candidates.forEach((c) => m.set(c.id, c.full_name));
+    return m;
+  }, [candidates]);
+
   const dayEvents = useMemo(() => {
     return events
-      .filter(ev => {
+      .filter((ev) => {
         const d = parseISO(ev.starts_at);
         return d >= startOfDay(selectedDay) && d <= endOfDay(selectedDay);
       })
@@ -93,30 +96,22 @@ export function HRCalendarTab() {
   const openCreate = () => {
     const base = new Date(selectedDay);
     base.setHours(9, 0, 0, 0);
-    setForm({
-      ...EMPTY_FORM,
-      starts_at: toLocalInput(base.toISOString()),
-    });
+    setForm({ ...EMPTY_FORM, starts_at: toLocalInput(base.toISOString()) });
     setDialogOpen(true);
   };
 
   const openEdit = (ev: HRCalendarEvent) => {
     setForm({
-      id: ev.id,
-      title: ev.title,
-      description: ev.description ?? '',
-      event_type: ev.event_type,
-      candidate_id: ev.candidate_id,
-      starts_at: toLocalInput(ev.starts_at),
-      ends_at: toLocalInput(ev.ends_at),
+      id: ev.id, title: ev.title, description: ev.description ?? '',
+      event_type: ev.event_type, candidate_id: ev.candidate_id,
+      starts_at: toLocalInput(ev.starts_at), ends_at: toLocalInput(ev.ends_at),
       location: ev.location ?? '',
     });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) return;
-    if (!form.starts_at) return;
+    if (!form.title.trim() || !form.starts_at) return;
     setSaving(true);
     try {
       const payload = {
@@ -128,151 +123,116 @@ export function HRCalendarTab() {
         ends_at: form.ends_at ? fromLocalInput(form.ends_at) : null,
         location: form.location.trim() || null,
       };
-      if (form.id) {
-        await updateEvent(form.id, payload);
-      } else {
-        await createEvent(payload);
-      }
+      if (form.id) await updateEvent(form.id, payload);
+      else await createEvent(payload);
       setDialogOpen(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    await deleteEvent(id);
+    } finally { setSaving(false); }
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
-      {/* Calendário */}
-      <Card className="p-4 w-fit">
-        <Calendar
-          mode="single"
-          locale={ptBR}
-          selected={selectedDay}
-          onSelect={(d) => d && setSelectedDay(d)}
-          modifiers={{
-            hasEvent: (date) => eventsByDay.has(format(date, 'yyyy-MM-dd')),
-          }}
-          modifiersClassNames={{
-            hasEvent: 'relative font-bold text-primary after:content-[""] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-primary',
-          }}
-        />
-        <div className="mt-3 pt-3 border-t border-border/40 text-xs text-muted-foreground space-y-1">
-          <div className="flex items-center justify-between">
-            <span>Total de eventos</span>
-            <Badge variant="secondary">{events.length}</Badge>
-          </div>
-          <p className="text-[11px] text-muted-foreground/70 pt-1">
-            Integração com Google Calendar será adicionada futuramente.
-          </p>
-        </div>
-      </Card>
-
-      {/* Lista de eventos do dia */}
-      <div className="space-y-3 min-w-0">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <CalendarDays className="w-5 h-5" />
-              {format(selectedDay, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {dayEvents.length} evento{dayEvents.length === 1 ? '' : 's'} neste dia
-            </p>
-          </div>
+    <div className="space-y-4">
+      {/* Toolbar: toggle de view + botão Novo evento */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <Tabs value={view} onValueChange={(v) => setView(v as CalendarView)}>
+          <TabsList>
+            <TabsTrigger value="month" className="gap-1.5">
+              <LayoutGrid className="w-4 h-4" /> Mês
+            </TabsTrigger>
+            <TabsTrigger value="list" className="gap-1.5">
+              <List className="w-4 h-4" /> Lista
+            </TabsTrigger>
+            <TabsTrigger value="agenda" className="gap-1.5">
+              <CalendarClock className="w-4 h-4" /> Agenda (30 dias)
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{events.length} eventos no total</Badge>
           <Button size="sm" onClick={openCreate} className="gap-1.5">
             <Plus className="w-4 h-4" /> Novo evento
           </Button>
         </div>
-
-        {loading ? (
-          <Card className="p-8 text-center text-sm text-muted-foreground">Carregando...</Card>
-        ) : dayEvents.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-muted-foreground">
-            Nenhum evento neste dia. Clique em <b>Novo evento</b> para adicionar.
-          </Card>
-        ) : (
-          dayEvents.map(ev => {
-            const candidate = candidates.find(c => c.id === ev.candidate_id);
-            const color = `hsl(var(${EVENT_TYPE_TOKEN[ev.event_type]}))`;
-            return (
-              <Card
-                key={ev.id}
-                className="p-4 cursor-pointer hover:shadow-md transition-all"
-                style={{ borderLeft: `4px solid ${color}` }}
-                onClick={() => openEdit(ev)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-sm">{ev.title}</h3>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px]"
-                        style={{ borderColor: color, color }}
-                      >
-                        {EVENT_TYPE_LABEL[ev.event_type]}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {format(parseISO(ev.starts_at), 'HH:mm')}
-                        {ev.ends_at && ` – ${format(parseISO(ev.ends_at), 'HH:mm')}`}
-                      </span>
-                      {ev.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {ev.location}
-                        </span>
-                      )}
-                      {candidate && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3" /> {candidate.full_name}
-                        </span>
-                      )}
-                    </div>
-                    {ev.description && (
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                        {ev.description}
-                      </p>
-                    )}
-                  </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remover evento?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          <b>{ev.title}</b> será removido da agenda.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(ev.id)}>
-                          Remover
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </Card>
-            );
-          })
-        )}
       </div>
 
-      {/* Dialog criar/editar */}
+      {/* === View Mês: layout original (calendário + lista do dia) === */}
+      {view === 'month' && (
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+          <Card className="p-4 w-fit h-fit">
+            <Calendar
+              mode="single"
+              locale={ptBR}
+              selected={selectedDay}
+              onSelect={(d) => d && setSelectedDay(d)}
+              modifiers={{
+                hasEvent: (date) => eventsByDay.has(format(date, 'yyyy-MM-dd')),
+              }}
+              modifiersClassNames={{
+                hasEvent: 'relative font-bold text-primary after:content-[""] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-primary',
+              }}
+              className="p-3 pointer-events-auto"
+            />
+            <div className="mt-3 pt-3 border-t border-border/40 text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground/70">
+                Integração com Google Calendar será adicionada futuramente.
+              </p>
+            </div>
+          </Card>
+
+          <div className="space-y-3 min-w-0">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <CalendarDays className="w-5 h-5" />
+                {format(selectedDay, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {dayEvents.length} evento{dayEvents.length === 1 ? '' : 's'} neste dia
+              </p>
+            </div>
+
+            {loading ? (
+              <Card className="p-8 text-center text-sm text-muted-foreground">Carregando...</Card>
+            ) : dayEvents.length === 0 ? (
+              <Card className="p-8 text-center text-sm text-muted-foreground">
+                Nenhum evento neste dia. Clique em <b>Novo evento</b> para adicionar.
+              </Card>
+            ) : (
+              dayEvents.map((ev) => (
+                <HRCalendarEventCard
+                  key={ev.id}
+                  event={ev}
+                  candidateName={ev.candidate_id ? candidateNameById.get(ev.candidate_id) : null}
+                  onEdit={openEdit}
+                  onDelete={deleteEvent}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* === View Lista: todos os eventos cronológicos com paginação === */}
+      {view === 'list' && (
+        <HRCalendarListView
+          events={events}
+          loading={loading}
+          candidateNameById={candidateNameById}
+          onEdit={openEdit}
+          onDelete={deleteEvent}
+        />
+      )}
+
+      {/* === View Agenda: próximos 30 dias agrupados por dia === */}
+      {view === 'agenda' && (
+        <HRCalendarAgendaView
+          events={events}
+          loading={loading}
+          candidateNameById={candidateNameById}
+          onEdit={openEdit}
+          onDelete={deleteEvent}
+        />
+      )}
+
+      {/* Dialog criar/editar (compartilhado entre as 3 views) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -311,7 +271,7 @@ export function HRCalendarTab() {
                   <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— sem candidato —</SelectItem>
-                    {candidates.slice(0, 200).map(c => (
+                    {candidates.slice(0, 200).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
                     ))}
                   </SelectContent>
