@@ -105,8 +105,7 @@ async function processV8Payload(
         if ((currentRow as any).error_kind === "canceled_hard") {
           console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
           processed = true;
-          break;
-        }
+        } else {
         const safeUpdates: Record<string, unknown> = {
           raw_response: payload,
           last_webhook_at: new Date().toISOString(),
