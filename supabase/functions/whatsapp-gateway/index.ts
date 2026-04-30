@@ -621,7 +621,7 @@ async function handleMetaAction(
         quality_rating: data.quality_rating || null,
         messaging_limit: data.messaging_limit || null,
         quality_updated_at: new Date().toISOString(),
-      }).eq('id', chipId)
+      }).eq('id', chip.id)
       return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: data.messaging_limit })
     }
 
