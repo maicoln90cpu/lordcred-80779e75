@@ -259,11 +259,12 @@ export default function MetaChipsManager() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Status</TableHead>
+                   <TableHead>Status</TableHead>
                   <TableHead>Nome / Número</TableHead>
+                  <TableHead>Qualidade</TableHead>
+                  <TableHead>Limite Mensagens</TableHead>
                   <TableHead>Phone Number ID</TableHead>
                   <TableHead>Proprietário</TableHead>
-                  <TableHead>Criado</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
