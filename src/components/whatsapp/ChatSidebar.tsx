@@ -169,15 +169,28 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
 
         {/* Filters */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {showArchived ? (
+          {showClosed ? (
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowClosed(false)}>
+              <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
+            </Button>
+          ) : showArchived ? (
             <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setShowArchived(false)}>
               <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
             </Button>
-          ) : archivedCount > 0 ? (
-            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowArchived(true)}>
-              <Archive className="w-3 h-3 mr-1" /> Arquivadas ({archivedCount})
-            </Button>
-          ) : null}
+          ) : (
+            <>
+              {archivedCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowArchived(true)}>
+                  <Archive className="w-3 h-3 mr-1" /> Arquivadas ({archivedCount})
+                </Button>
+              )}
+              {closedCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-muted-foreground" onClick={() => setShowClosed(true)}>
+                  <XCircle className="w-3 h-3 mr-1" /> Finalizadas ({closedCount})
+                </Button>
+              )}
+            </>
+          )}
 
           <Button variant={filterUnread ? "default" : "ghost"} size="sm" className={cn("h-7 text-xs shrink-0", !filterUnread && "text-muted-foreground")} onClick={() => setFilterUnread(!filterUnread)}>Não lidas</Button>
           {filterUnread && <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0 text-destructive hover:text-destructive" onClick={actions.handleClearAllUnread}>Limpar todas</Button>}
