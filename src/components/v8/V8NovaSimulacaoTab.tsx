@@ -627,6 +627,53 @@ export default function V8NovaSimulacaoTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Etapa 4 (abr/2026): relatório claro pós "Executar todos em sequência". */}
+      <Dialog open={!!runAllReport} onOpenChange={(open) => !open && setRunAllReport(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Relatório de enfileiramento</DialogTitle>
+            <DialogDescription>
+              Veja abaixo o que entrou na fila e o que foi pulado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-auto">
+            {(runAllReport ?? []).map((r) => (
+              <div
+                key={r.draftId}
+                className={`rounded border px-3 py-2 text-sm ${
+                  r.status === 'queued'
+                    ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+                    : r.status === 'skipped'
+                      ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+                      : 'border-destructive/50 bg-destructive/10'
+                }`}
+              >
+                <div className="font-medium">
+                  {r.status === 'queued' && '✅'}
+                  {r.status === 'skipped' && '⚠️'}
+                  {r.status === 'error' && '❌'}
+                  {' '}{r.label}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {r.status === 'queued' && `Entrou na fila — posição #${r.queuePosition ?? '?'}`}
+                  {r.status === 'skipped' && `Pulado: ${r.reason ?? 'motivo não informado'}`}
+                  {r.status === 'error' && `Erro: ${r.reason ?? 'erro desconhecido'}`}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 rounded p-2 mt-2">
+            <span>💡</span>
+            <span>
+              <strong>Pulado</strong> normalmente significa: rascunho sem nome, sem tabela escolhida, sem CPFs colados, ou linha com data inválida. Verifique a aba do rascunho pulado e tente de novo.
+            </span>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button onClick={() => setRunAllReport(null)} variant="default">Entendi</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
