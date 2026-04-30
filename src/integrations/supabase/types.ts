@@ -5087,6 +5087,8 @@ export type Database = {
         Args: { _channel_name: string; _target_user_id: string }
         Returns: string
       }
+      dashboard_chip_summary: { Args: { p_user_id: string }; Returns: Json }
+      dashboard_message_stats: { Args: { p_user_id: string }; Returns: Json }
       db_maintenance_status: { Args: never; Returns: Json }
       get_all_chat_profiles: {
         Args: never
@@ -5192,6 +5194,16 @@ export type Database = {
       jsonb_pick_text: {
         Args: { _keys: string[]; _obj: Json }
         Returns: string
+      }
+      leads_paginated: {
+        Args: {
+          p_page?: number
+          p_page_size?: number
+          p_search?: string
+          p_status?: string
+          p_user_id?: string
+        }
+        Returns: Json
       }
       maintenance_vacuum_analyze: { Args: never; Returns: Json }
       mark_channel_read: { Args: { _channel_id: string }; Returns: undefined }
