@@ -471,9 +471,6 @@ export default function V8NovaSimulacaoTab() {
         pasteAnalysis={pasteAnalysis}
         blockingIssues={blockingIssues}
         invalidDateIssue={invalidDateIssue}
-        autoSimulate={v8Settings?.auto_simulate_after_consult ?? false}
-        onToggleAutoSimulate={(v) => saveV8Settings({ auto_simulate_after_consult: v })}
-        v8SettingsLoaded={!!v8Settings}
         autoBest={autoBest}
         onToggleAutoBest={setAutoBest}
         running={isThisDraftRunning}
@@ -508,7 +505,6 @@ export default function V8NovaSimulacaoTab() {
               showManualWarning={showManualWarning}
               awaitingManualSim={awaitingManualSim}
               onSimulateSelected={ops.handleSimulateSelected}
-              onRetryFailed={ops.handleRetryFailed}
               onReplayPending={ops.handleReplayPending}
               onCancelBatch={ops.handleCancelBatch}
               onExportCsv={() => downloadBatchCsv(simulations, batchName)}

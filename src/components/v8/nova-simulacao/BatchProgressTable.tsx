@@ -93,7 +93,7 @@ export default function BatchProgressTable({
             ⚠️ <strong>{awaitingManualSim} consulta(s) com margem aprovada aguardando simulação.</strong>{' '}
             A V8 já liberou a margem desses CPFs, mas o cálculo de parcela e valor liberado ainda não foi feito.
             Clique em <strong>"Simular selecionados"</strong> (botão amarelo pulsante acima) para finalizar.
-            Ou ative o toggle <em>"Simular automaticamente após consulta"</em> em Configurações.
+            Ou ative o toggle <em>🤖 Auto-melhor</em> no formulário do lote para o sistema testar a melhor proposta automaticamente.
           </div>
         )}
         <AutoRetryIndicator retryCount={autoRetryActive} maxAttempts={maxAutoRetry} />
