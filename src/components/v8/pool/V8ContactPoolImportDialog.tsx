@@ -6,8 +6,18 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Upload, CheckCircle2, AlertTriangle, Server } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { supabase } from '@/integrations/supabase/client';
+
+/** Converte serial date Excel (1899-12-30 epoch + bug 1900) — substitui excelSerialToParts
+ *  para evitar carregar a lib xlsx só para parsing de data. */
+function excelSerialToParts(serial: number): { y: number; m: number; d: number; H: number; M: number } | null {
+  if (!isFinite(serial)) return null;
+  const date = new Date(Date.UTC(1899, 11, 30) + Math.round(serial * 86400 * 1000));
+  if (isNaN(date.getTime())) return null;
+  return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate(), H: date.getUTCHours(), M: date.getUTCMinutes() };
+}
+
 
 interface Props {
   open: boolean;
@@ -38,7 +48,7 @@ function isValidCpf(cpf: string): boolean {
 function parseDate(v: any): string | null {
   if (!v) return null;
   if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
+    const d = excelSerialToParts(v);
     if (!d) return null;
     return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
   }
@@ -134,6 +144,7 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
 
     setParsing(true);
     try {
+      const XLSX = await loadXLSX();
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: false });
       const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -275,7 +286,8 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
       let uploadBlob: Blob;
       let uploadName: string;
       const ext = file.name.toLowerCase().split('.').pop() || '';
-      if (ext === 'csv') {
+      async if (ext === 'csv') {
+        const XLSX = await loadXLSX();
         uploadBlob = file;
         uploadName = file.name;
       } else {

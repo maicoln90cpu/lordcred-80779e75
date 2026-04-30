@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Download, Upload, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { parseClipboardText } from '@/lib/clipboardParser';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import type { RateFGTS } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
@@ -82,7 +82,8 @@ export default function RatesFGTSTab() {
     toast({ title: 'Taxa excluída' }); loadRates();
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await loadXLSX();
     const ws = XLSX.utils.aoa_to_sheet([
       ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs', 'Data Vigência (AAAA-MM-DD, opcional)'],
       ['LOTUS', 'LOTUS 1+', '1', '1', '0', '999999999', 'Não', '16', 'Prazo 1 ano', ''],
@@ -124,6 +125,7 @@ export default function RatesFGTSTab() {
   }, [importPreview]);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const XLSX = await loadXLSX();
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();
@@ -179,6 +181,7 @@ export default function RatesFGTSTab() {
             
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
             <Button variant="outline" size="sm" onClick={() => {
+              const XLSX = await loadXLSX();
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
               const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': r.table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Valor Min': r.min_value, 'Valor Max': r.max_value, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));
               const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas FGTS V2'); XLSX.writeFile(wb, 'taxas_fgts_v2.xlsx');

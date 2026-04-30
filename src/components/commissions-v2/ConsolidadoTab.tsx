@@ -75,7 +75,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
   const grandTotal = sellerData.reduce((a, s) => a + s.total, 0);
   const fmt = fmtBRL;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = sellerData.map(s => ({
       'Vendedor': getSellerName(s.seller_id),
       'Comissão CLT': s.clt,
@@ -91,7 +91,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
       'Chave PIX': '',
     });
     const suffix = weekFilters.length > 0 ? '_' + weekFilters.join('+').replace(/[\/\s]/g, '-') : '';
-    exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
+    await exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
   };
 
   return (

@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Download, Upload, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { parseClipboardText } from '@/lib/clipboardParser';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import type { RateCLT } from './commissionUtils';
 import RatesBulkControls from './RatesBulkControls';
 import SmartPasteRatesButton from './SmartPasteRatesButton';
@@ -82,7 +82,8 @@ export default function RatesCLTTab() {
     toast({ title: 'Excluída' }); loadRates();
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await loadXLSX();
     const ws = XLSX.utils.aoa_to_sheet([
       ['Banco', 'Tabela', 'Prazo Min', 'Prazo Max', 'Valor Min', 'Valor Max', 'Seguro (Sim/Não)', 'Taxa (%)', 'Obs'],
       ['BANCO C6', 'SONHO', '0', '999', '0', '999999999', 'Não', '5.5', 'CLT padrão'],
@@ -114,6 +115,7 @@ export default function RatesCLTTab() {
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const XLSX = await loadXLSX();
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();
@@ -149,6 +151,7 @@ export default function RatesCLTTab() {
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="w-4 h-4 mr-1" /> Baixar Modelo</Button>
             <Button variant="outline" size="sm" onClick={() => {
+              const XLSX = await loadXLSX();
               if (rates.length === 0) { toast({ title: 'Nenhuma taxa para exportar' }); return; }
               const data = rates.map(r => ({ 'Banco': r.bank, 'Tabela': r.table_key || '-', 'Prazo Min': r.term_min, 'Prazo Max': r.term_max, 'Valor Min': r.min_value ?? 0, 'Valor Max': r.max_value ?? 999999999, 'Seguro': r.has_insurance ? 'Sim' : 'Não', 'Taxa (%)': r.rate, 'Obs': r.obs || '', 'Data Vigência': r.effective_date }));
               const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Taxas CLT'); XLSX.writeFile(wb, 'taxas_clt_parceiros.xlsx');

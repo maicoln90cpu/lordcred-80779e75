@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -171,7 +171,8 @@ export default function LeadImporter() {
     setImported(false);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
+      const XLSX = await loadXLSX();
       const data = evt.target?.result;
       const workbook = XLSX.read(data, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];

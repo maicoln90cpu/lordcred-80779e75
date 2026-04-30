@@ -13,7 +13,7 @@ import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Co
 import CreateOperationButton from '@/components/v8/CreateOperationButton';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useToast } from '@/hooks/use-toast';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { DEFAULT_ALIASES, type ColumnAlias } from './LeadImporter';
 
 function formatDate(value: string | number | null | undefined): string {
@@ -301,7 +301,8 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await loadXLSX();
     // Use system_label from aliases for export headers
     const getLabel = (key: string, fallback: string) => {
       const alias = columnAliases.find(a => a.key === key);

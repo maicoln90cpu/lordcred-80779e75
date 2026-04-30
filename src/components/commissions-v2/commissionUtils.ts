@@ -1,4 +1,19 @@
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
+
+/** Converte serial date Excel em partes — substitui XLSX.SSF.parse_date_code (ver commissions/commissionUtils.ts). */
+function excelSerialToParts(serial: number): { y: number; m: number; d: number; H: number; M: number } | null {
+  if (!isFinite(serial)) return null;
+  const epoch = Date.UTC(1899, 11, 30);
+  const date = new Date(epoch + Math.round(serial * 86400 * 1000));
+  if (isNaN(date.getTime())) return null;
+  return {
+    y: date.getUTCFullYear(),
+    m: date.getUTCMonth() + 1,
+    d: date.getUTCDate(),
+    H: date.getUTCHours(),
+    M: date.getUTCMinutes(),
+  };
+}
 
 // ==================== TYPES ====================
 export interface CommissionSale {
@@ -82,7 +97,8 @@ export interface AnnualReward {
 // ==================== UTILITIES ====================
 export const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+export async function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+  const XLSX = await loadXLSX();
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -124,7 +140,7 @@ export function parseExcelDate(v: any): string | null {
     return `${y}-${m}-${d}T${h}:${min}-03:00`;
   }
   if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
+    const d = excelSerialToParts(v);
     if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}-03:00`;
   }
   if (typeof v === 'string') {

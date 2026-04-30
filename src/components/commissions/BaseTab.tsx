@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
 import { fmtBRL, exportToExcel, formatDateBR, toDatetimeLocalBR, toBrasiliaTimestamp, parseExcelDate, cleanCurrency } from './commissionUtils';
@@ -184,10 +184,12 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const XLSX = await loadXLSX();
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
     try {
+      const XLSX = await loadXLSX();
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[0];
@@ -267,7 +269,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
     }
   };
 
-  const handleExportBase = () => {
+  const handleExportBase = async () => {
     const data = filteredSales.map(s => ({
       'Semana': s.week_label || '', 'Data Pago': formatDateBR(s.sale_date), 'Produto': s.product,
       'Banco': s.bank, 'Tabela': s.table_name || '', 'Prazo': s.term || '',
@@ -276,7 +278,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       'Data Nascimento': s.client_birth_date || '', 'Vendedor': getSellerName(s.seller_id),
       'ID': s.external_proposal_id || '', 'Taxa %': s.commission_rate, 'Comissão': s.commission_value,
     }));
-    exportToExcel(data, 'comissoes_base.xlsx', 'Base');
+    await exportToExcel(data, 'comissoes_base.xlsx', 'Base');
     toast({ title: 'Exportado com sucesso' });
   };
 
