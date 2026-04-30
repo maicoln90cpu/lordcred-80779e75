@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MessageSquare, ListChecks, Loader2, Save, Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Bell, MessageSquare, ListChecks, Loader2, Save, Trash2, Plus, ArrowUp, ArrowDown, Columns } from 'lucide-react';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import { HRKanbanSettingsPanel } from './HRKanbanSettingsPanel';
 
 interface HRSettings {
   id: string;
