@@ -235,7 +235,7 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
       }}>
         {sortedChats.length === 0 && !loading ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            {showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
+            {showClosed ? 'Nenhuma conversa finalizada' : showArchived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}
           </div>
         ) : (
           <div className="divide-y divide-border/20">
