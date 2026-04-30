@@ -184,7 +184,10 @@ export default function MetaChipsManager() {
                   <Input placeholder="987654321098765" value={wabaId} onChange={e => setWabaId(e.target.value)} />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Encontre esses IDs em Meta Business Manager → WhatsApp → API Setup</p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>Encontre esses IDs em Meta Business Manager → WhatsApp → API Setup.</p>
+                <p className="text-amber-600 dark:text-amber-400">⚠ O número precisa estar com status <strong>CONNECTED</strong> (registrado na Cloud API com PIN de 6 dígitos). Cadastros de números não-registrados serão bloqueados.</p>
+              </div>
               <Button size="sm" onClick={handleAdd} disabled={isAdding}>
                 {isAdding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
                 Validar e Conectar
