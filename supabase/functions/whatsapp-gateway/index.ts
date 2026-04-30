@@ -16,6 +16,7 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'get-qrcode',
   'sync-templates',
   'create-template',
+  'sync-quality',
   'set-profile-name',
   'set-profile-picture',
   'set-privacy',
