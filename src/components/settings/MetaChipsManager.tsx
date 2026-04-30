@@ -280,7 +280,7 @@ export default function MetaChipsManager() {
                   <TableHead>Nome / Número</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
-                  <TableHead>Phone Number ID</TableHead>
+                  <TableHead>IDs Meta</TableHead>
                   <TableHead>Proprietário</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -321,7 +321,22 @@ export default function MetaChipsManager() {
                       <TableCell className="text-sm">
                         {chip.messaging_limit || '—'}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{chip.meta_phone_number_id || '—'}</TableCell>
+                      <TableCell>
+                        <div className="space-y-2 min-w-[260px]">
+                          <div className="font-mono text-xs text-muted-foreground">Phone: {chip.meta_phone_number_id || '—'}</div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              className="h-8 font-mono text-xs"
+                              placeholder="WABA ID"
+                              value={wabaDrafts[chip.id] ?? chip.meta_waba_id ?? ''}
+                              onChange={e => setWabaDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                            />
+                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleSaveWaba(chip)} disabled={savingWabaId === chip.id}>
+                              {savingWabaId === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
                           <User className="w-3 h-3 text-muted-foreground" />
