@@ -297,14 +297,40 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
   }
 
   async function handleReplayPending() {
+    // Item 9 (abr/2026): explicar para o operador o que aconteceu de verdade.
+    // Esta ação NÃO consulta a V8 — ela só reprocessa webhooks que a V8 já nos enviou
+    // mas que ficaram com erro de processamento (ex.: deploy em andamento, RLS bloqueou).
+    // Se total=0, não tem nada pendente — está tudo certo.
+    const toastId = toast.loading('Verificando webhooks pendentes...');
     try {
       const { data, error } = await supabase.functions.invoke('v8-webhook', {
         body: { action: 'replay_pending', limit: 500, batch_id: activeBatchId },
       });
       if (error) throw error;
-      toast.success(`Resultados pendentes buscados: ${data?.success ?? 0} ok · ${data?.failed ?? 0} falhas (de ${data?.total ?? 0})`);
+      const total = Number(data?.total ?? 0);
+      const success = Number(data?.success ?? 0);
+      const failed = Number(data?.failed ?? 0);
+      if (total === 0) {
+        toast.success('Nenhum webhook pendente encontrado ✅', {
+          id: toastId,
+          description: 'Está tudo em dia. Se uma linha está em "aguardando", a V8 ainda não enviou resposta — aguarde ou use o botão "Verificar status" em cada linha.',
+          duration: 7000,
+        });
+      } else if (failed === 0) {
+        toast.success(`✅ ${success} webhook(s) reprocessado(s) com sucesso`, {
+          id: toastId,
+          description: 'Os resultados devem aparecer na tabela em alguns segundos.',
+          duration: 6000,
+        });
+      } else {
+        toast.warning(`⚠️ ${success} ok · ${failed} falha(s) (de ${total})`, {
+          id: toastId,
+          description: 'Algumas falhas persistiram. Veja os detalhes em Webhooks → "Logs com erro".',
+          duration: 8000,
+        });
+      }
     } catch (e: any) {
-      toast.error(`Falha ao buscar pendentes: ${e?.message || e}`);
+      toast.error(`Falha ao buscar pendentes: ${e?.message || e}`, { id: toastId });
     }
   }
 
