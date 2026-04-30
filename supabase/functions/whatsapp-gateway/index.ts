@@ -261,7 +261,7 @@ async function handleMetaAction(
       })
       const sendData = await safeJson(sendResp)
       if (sendData.error) {
-        return jsonResponse({ success: false, error: sendData.error.message })
+        return jsonResponse({ success: false, error: humanizeMetaError(sendData.error, phoneNumberId), errorCode: sendData.error.code })
       }
 
       return jsonResponse({ success: true, data: { messageId: sendData.messages?.[0]?.id } })
