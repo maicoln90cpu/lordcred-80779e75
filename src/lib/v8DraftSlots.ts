@@ -66,3 +66,42 @@ export function saveDrafts(drafts: V8DraftSlot[], activeId: string) {
     window.localStorage.setItem(ACTIVE_KEY, activeId);
   } catch { /* ignore */ }
 }
+
+// --- Mapa auxiliar draftId <-> batchId (sobrevive a refresh) ---
+const DRAFT_BATCH_MAP_KEY = 'v8:draft-batch-map';
+
+export type DraftBatchMap = Record<string, string>; // { draftId: batchId }
+
+export function loadDraftBatchMap(): DraftBatchMap {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(DRAFT_BATCH_MAP_KEY) : null;
+    if (raw) return JSON.parse(raw) as DraftBatchMap;
+  } catch { /* ignore */ }
+  return {};
+}
+
+export function saveDraftBatchMap(map: DraftBatchMap) {
+  try {
+    window.localStorage.setItem(DRAFT_BATCH_MAP_KEY, JSON.stringify(map));
+  } catch { /* ignore */ }
+}
+
+export function addDraftBatchEntry(draftId: string, batchId: string) {
+  const map = loadDraftBatchMap();
+  map[draftId] = batchId;
+  saveDraftBatchMap(map);
+}
+
+export function removeDraftBatchEntry(draftId: string) {
+  const map = loadDraftBatchMap();
+  delete map[draftId];
+  saveDraftBatchMap(map);
+}
+
+export function removeDraftBatchByBatchId(batchId: string) {
+  const map = loadDraftBatchMap();
+  for (const key of Object.keys(map)) {
+    if (map[key] === batchId) delete map[key];
+  }
+  saveDraftBatchMap(map);
+}

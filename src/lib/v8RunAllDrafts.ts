@@ -19,6 +19,7 @@ export interface RunAllItemResult {
   status: 'queued' | 'skipped' | 'error';
   reason?: string;
   queuePosition?: number;
+  batchId?: string;
 }
 
 export interface RunAllConfig {
