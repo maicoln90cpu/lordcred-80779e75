@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
   let scanned = 0;
   let matched = 0;
   let promoted = 0;
+  let zombiesClosed = 0;
 
   try {
     // 1. Pega últimos webhooks órfãos (sem simulation_id) com CPF preenchido.
@@ -96,15 +97,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 3. Fecha lotes zumbis (processing há > 2h sem atualização) — destrava a fila.
+    try {
+      const cutoff2h = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const { data: zombies } = await admin
+        .from("v8_batches")
+        .select("id, name, updated_at")
+        .eq("status", "processing")
+        .lt("updated_at", cutoff2h)
+        .limit(50);
+      for (const z of (zombies ?? []) as any[]) {
+        const { error: zErr } = await admin
+          .from("v8_batches")
+          .update({ status: "completed", completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", z.id)
+          .eq("status", "processing");
+        if (!zErr) {
+          zombiesClosed += 1;
+          console.log(`[v8-orphan-reconciler] closed zombie batch=${z.id} name="${z.name}" last_update=${z.updated_at}`);
+        }
+      }
+    } catch (zErr) {
+      console.warn("[v8-orphan-reconciler] zombie scan failed:", zErr);
+    }
+
     await writeAuditLog(admin, {
       action: "v8_orphan_reconciler_run",
       category: "simulator",
       success: true,
-      details: { scanned, matched, promoted, duration_ms: Date.now() - startedAt },
+      details: { scanned, matched, promoted, zombies_closed: zombiesClosed, duration_ms: Date.now() - startedAt },
     });
 
     return new Response(
-      JSON.stringify({ success: true, scanned, matched, promoted, duration_ms: Date.now() - startedAt }),
+      JSON.stringify({ success: true, scanned, matched, promoted, zombies_closed: zombiesClosed, duration_ms: Date.now() - startedAt }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

@@ -52,14 +52,23 @@ Deno.serve(async (req) => {
       if (!owner || ownersSeen.has(owner)) continue;
       ownersSeen.add(owner);
 
-      // Verifica se o dono já tem outro lote em andamento.
-      const { count: activeCount } = await supabase
+      // Verifica se o dono já tem outro lote ATIVO (não zumbi).
+      // IMPORTANTE: ignora lotes parados há > 30 min — eles são zumbis e não devem
+      // bloquear a fila. Watchdog separado (orphan-reconciler) os fecha.
+      const activityCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: activeRows } = await supabase
         .from("v8_batches")
-        .select("id", { count: "exact", head: true })
+        .select("id, status, updated_at, name")
         .eq("created_by", owner)
-        .in("status", ["processing", "scheduled"]);
+        .in("status", ["processing", "scheduled"])
+        .gte("updated_at", activityCutoff)
+        .limit(1);
 
-      if ((activeCount ?? 0) > 0) continue;
+      if (activeRows && activeRows.length > 0) {
+        const blocker = activeRows[0] as any;
+        console.log(`[v8-scheduled-launcher] queue blocked owner=${owner} by batch=${blocker.id} name="${blocker.name}" status=${blocker.status} updated=${blocker.updated_at}`);
+        continue;
+      }
 
       // Promove para 'scheduled' com scheduled_for=now() — vai cair no select abaixo.
       const promoteIso = new Date().toISOString();

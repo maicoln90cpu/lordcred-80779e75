@@ -1,85 +1,154 @@
-## Diagnóstico do erro persistente na importação
+# Por que travou — diagnóstico nos seus dados
 
-### O que confirmei investigando o código e o banco
+Olhei direto no banco o que aconteceu na sua sessão (últimas 6h, seu user). O que eu encontrei:
 
-1. **Não existe mais nenhum `.upsert()` com `onConflict` apontando para `commission_rates_clt_v2` ou `commission_rates_fgts_v2`** em todo o projeto (verificado com `rg`). O `rateUpsert.ts` faz pre-fetch + INSERT/UPDATE manual.
-2. **O índice único do banco é case-sensitive** em `bank` e `table_key` — confirmado:
-   `CREATE UNIQUE INDEX commission_rates_clt_v2_uniq ON (bank, COALESCE(table_key,''), term_min, term_max, has_insurance, effective_date)`
-3. **O screenshot mostra a mensagem "there is no unique or exclusion constraint matching the ON CONFLICT specification"** — essa mensagem **só aparece quando o cliente envia `ON CONFLICT`**. Como o código atual não faz isso, **o erro veio de bundle antigo carregado no navegador** (cache, antes do último deploy entrar).
+**Lotes criados / cancelados pré-teste** (Rascunho A, 12:52 → 12:54): 6 lotes `canceled` — você ficou clicando em "Iniciar simulação" e "Cancelar lote" antes do teste real. Isso explica a confusão visual no print.
 
-### Por que ainda assim o upsert manual pode falhar em casos extremos
+**Os 3 rascunhos que você queria enfileirar (12:57)**: o sistema só enfileirou **2** (a, b) — não 3.
 
-Existem 2 cenários remanescentes que NÃO geram a mensagem do screenshot, mas geram `duplicate key value violates unique constraint`:
-
-- **Caixa diferente entre planilha e banco**: planilha traz `Facta / Gold`, banco tem `FACTA / GOLD`. Meu `rateKey()` normaliza para uppercase e acha match → UPDATE ok. **Mas o INSERT de uma linha realmente nova com `bank='Facta'` cria duplicata para o índice case-sensitive** se já existir `FACTA` no banco.
-- **Planilha com duplicatas internas exatas pelo índice**: hoje meu dedup local resolve.
-
-A solução robusta é **normalizar bank e table_key para UPPERCASE no payload** antes do INSERT/UPDATE, garantindo que tudo grava em maiúsculas no banco — o que também alinha com a função `calculate_commission_v2` que usa `UPPER(NEW.bank)`.
-
----
-
-## Plano de implementação
-
-### 1. Normalizar bank/table_key no upsert (corrige a causa real do erro)
-- Em `src/components/commissions-v2/rateUpsert.ts`: aplicar `.trim().toUpperCase()` em `bank` e `table_key` no payload de INSERT.
-- Em `RatesCLTTab.parseImportData` e `RatesFGTSTab.parseImportData`: idem no parser.
-- Resultado: índice único e leitura da função de cálculo passam a usar a mesma representação canônica.
-
-### 2. Mover botão "Limpar todas as vendas" para Zona de Perigo
-- Em `src/components/commissions-v2/BaseTab.tsx`: remover o botão do header.
-- Em `src/components/commissions-v2/ConfigTab.tsx`: já tem a Zona de Perigo (criado no turno anterior). Confirmar que o botão está lá com confirmação por "CONFIRMAR" e remover qualquer duplicata.
-
-### 3. Aplicar contador "X novas / Y substituídas" no preview do FGTS V2
-- Em `RatesFGTSTab.tsx` (linha 281): exibir o `importStats` (já calculado via `useEffect`) no preview, igual ao CLT.
-
-### 4. Garantir que o botão "Importar" abre a planilha correta
-- Verificar que o input file dispara abertura nativa (já está implementado, mas o screenshot mostra "Nenhum arquivo selecionado" — provavelmente o usuário ainda não clicou em "Procurar"). Sem mudança de código.
-
----
-
-## Detalhes técnicos
-
-```ts
-// rateUpsert.ts — antes do INSERT/UPDATE
-const norm = (r: RateRow): RateRow => ({
-  ...r,
-  bank: (r.bank || '').trim().toUpperCase(),
-  table_key: r.table_key ? r.table_key.trim().toUpperCase() : null,
-});
-// aplicar em toInsert e em rows do UPDATE payload
+```
+12:57:08.546  lote "a"  status=queued  pos=1  queue_owner=você
+12:57:08.922  lote "b"  status=queued  pos=2  queue_owner=você
+(rascunho C / "c") — NUNCA foi criado no banco
 ```
 
-Esse mesmo `norm()` deve ser aplicado nos dois tabs no `parseImportData` para que o preview já mostre o que será gravado.
+**O que rodou de verdade** (12:59:08 → 12:59:23): apareceu um lote NOVO chamado "a" com `queue_owner=NULL`, `status=completed`, 1 sucesso + 1 falha. Esse é exatamente o lote da sua imagem 574/575 (Vitória ok, Lilian falha).
 
-### Arquivos editados
-- `src/components/commissions-v2/rateUpsert.ts` (normalização)
-- `src/components/commissions-v2/RatesCLTTab.tsx` (parser + remover SmartPaste se quiser; mantenho)
-- `src/components/commissions-v2/RatesFGTSTab.tsx` (parser + contador no preview)
-- `src/components/commissions-v2/BaseTab.tsx` (remover botão duplicado se existir)
-
-### Não vou fazer (escopo enxuto)
-- Mexer no `SmartPasteRatesButton` (ele faz `.insert()` simples; se der duplicata, reporta erro normal — pode ser próximo passo).
-- Criar migração para tornar o índice `LOWER(bank), LOWER(table_key)` (alternativa mais invasiva — só se a normalização no client não bastar em algum caso futuro).
+Conclusão: **3 bugs reais + 1 ação manual sua** que se combinaram:
 
 ---
 
-## Validação manual após implementação
+## Bug 1 — Rascunho 3 ("c") foi silenciosamente pulado
 
-1. Ir em `/admin/commissions-v2` → aba "Taxas CLT".
-2. Clicar em "Importar" → escolher a planilha que falhou hoje.
-3. Conferir no preview os contadores "X novas / Y substituídas".
-4. Clicar em "Importar N taxas". Toast deve mostrar "X nova(s) inserida(s) · Y substituída(s)" sem erro.
-5. Repetir o mesmo teste em "Taxas FGTS V2".
-6. Em "Configurações" → "Zona de Perigo": confirmar que o botão "Limpar todas as vendas" está lá e exige digitar `CONFIRMAR`.
+`queueAllDrafts` (em `src/lib/v8RunAllDrafts.ts`) pula um rascunho com motivo `'skipped'` quando:
+- nome em branco, OU
+- tabela não escolhida, OU
+- pasteText sem CPFs válidos, OU
+- alguma linha com data inválida.
 
-## Prevenção de regressão
-- Adicionar caso de teste em `RatesCLTTab.parseImport.test.ts`: garantir que `bank` e `table_key` saem em UPPERCASE.
-- Adicionar caso: planilha com `Facta`/`facta` deve produzir mesma chave canônica.
+O toast diz `"2 enfileirado(s) · 1 pulado(s)"` em letrinha pequena na descrição — mas **não diz qual** rascunho foi pulado nem **por quê**, e o toast some em 8s. Por isso você não viu.
 
-## Antes vs depois
-- Antes: importação podia falhar por divergência de caixa entre planilha e banco; FGTS V2 sem contadores no preview; botão de limpeza duplicado.
-- Depois: importação determinística (tudo em UPPERCASE); preview de FGTS V2 igual ao CLT; botão de limpeza só na Zona de Perigo.
+**Correção**: tornar o relatório explícito, com nome do rascunho e motivo, em um diálogo (não toast) quando houver `skipped > 0`. Ex.: *"Rascunho 3 (c): sem CPFs válidos — verifique se você colou na aba certa."*
 
-## Pendências
-- Migração opcional para case-insensitive no índice se aparecerem mais cenários no futuro.
-- SmartPasteRatesButton ainda usa `.insert()` puro — se o usuário começar a colar texto livre, vale aplicar mesmo `upsertRates` lá.
+---
+
+## Bug 2 — A fila não rodou imediatamente porque havia outro lote ativo
+
+A regra no launcher (`v8-scheduled-launcher`, linhas 56-62) é:
+
+> "Só promove um `queued` se o operador NÃO tem nenhum lote em `processing` ou `scheduled`."
+
+No print 572 você ainda tinha o lote do Rascunho A em `processing` (4/6, com Pedro/Ordenato/Paulo/João sendo retentados). Por isso os enfileirados (a, b) ficaram esperando — era o esperado, mas a UI/diálogo prometeu *"O 1º começa imediatamente"*. Mentira piedosa.
+
+**Correção**: 
+- Detectar **antes** de enfileirar se já existe lote ativo desse operador. Se sim, mostrar no diálogo de confirmação: *"Você já tem 1 lote em andamento. Os 3 novos vão entrar na fila e começam quando o atual terminar."* Em vez de prometer "imediatamente".
+- Ajustar o texto pós-enfileiramento ("Sequência iniciada") para refletir corretamente.
+
+---
+
+## Bug 3 — Por que a fila travou depois que o lote "a" terminou
+
+Esse é o bug mais sério. O lote do print 574/575 (`b9f88895`, status=completed, 12:59) **não tinha `queue_owner` preenchido** — ele foi criado por outra rota (provavelmente o "Iniciar Simulação" tradicional, não pelo "Executar todos em sequência"). 
+
+Mas mesmo assim, os 2 lotes em fila (a, b com `queue_owner=você`) **não foram promovidos** quando esse acabou. Por quê? Olha o launcher novamente:
+
+```ts
+// linha 56-60
+const { count: activeCount } = await supabase
+  .from("v8_batches")
+  .select("id", { count: "exact", head: true })
+  .eq("created_by", owner)
+  .in("status", ["processing", "scheduled"]);
+if ((activeCount ?? 0) > 0) continue;
+```
+
+Esse check **inclui qualquer lote do operador**, mesmo os "fora da fila" (`queue_owner=NULL`). Se você fica criando/iniciando lotes manuais paralelos (como aconteceu várias vezes às 12:52-12:54), enquanto **qualquer um** deles estiver `processing`, a fila trava.
+
+E pior: olhei agora (15:00 UTC ~ 12:00 BRT) — os lotes a/b ainda estão em `queued` desde 12:57. O launcher rodou ~120 vezes desde então e nunca os promoveu. Isso significa que tem **algum lote seu travado em `processing` no banco** que o launcher considera "ativo". Vou identificar e destravar na implementação.
+
+**Correção dupla**:
+1. **Lógica do launcher**: a checagem de "lote ativo do operador" deve considerar **só lotes recentes** (ex.: `updated_at > now() - interval '1 hour'`). Lotes parados há horas em `processing` viraram zumbis e não devem bloquear a fila.
+2. **Watchdog**: marcar como `failed` (ou `completed` se 100% das sims já estão em terminal state) lotes em `processing` parados há > 2h sem atualização. Isso já existe parcialmente no `v8-orphan-reconciler`, mas precisa garantir que cubra esse caso.
+3. **Destrava manual agora**: identificar e fechar os zumbis seus para que a/b possam rodar.
+
+---
+
+## Sua dúvida sobre Cancelar Lote
+
+Olhei o código (`v8-clt-api/index.ts` linhas 2620-2660). O comportamento atual é:
+
+- O lote vira `status=canceled`.
+- **Apenas as simulações em `pending`** são marcadas como `failed` com `error_kind=canceled`.
+- Simulações que já estão em outro estado (ex.: `processing`, "consulta ativa", aguardando webhook) **NÃO são tocadas**.
+
+Resposta direta: **sim, o sistema continua ouvindo os webhooks dos CPFs que estavam em análise**. O webhook chega normalmente e atualiza a `v8_simulations` correspondente. O lote em si já está `canceled`, mas a sim individual pode terminar com `success` ou `failed` mesmo depois.
+
+Isso pode ser bom (não joga fora consulta cara que já foi paga) ou ruim (fica "pingando" na UI). Vou listar isso como melhoria opcional no final.
+
+---
+
+# O que eu vou implementar (4 itens)
+
+### Item 1 — Diálogo de relatório claro pós-enfileiramento
+
+Em `src/components/v8/V8NovaSimulacaoTab.tsx` (`handleRunAllDrafts`):
+- Substituir o toast genérico por um **AlertDialog** quando houver `skipped` ou `error`.
+- Mostrar lista: ✅ Rascunho 1 (a) — enfileirado pos #1 / ⚠️ Rascunho 3 (c) — pulado: sem CPFs válidos / etc.
+- Botão "Entendi" para fechar.
+
+### Item 2 — Pré-check de lote ativo + texto honesto no diálogo de confirmação
+
+Em `handleRunAllDrafts`, antes do `window.confirm`:
+- Consultar `v8_batches` do user com `status in ('processing','scheduled')`.
+- Adaptar o texto: *"Você já tem 1 lote em andamento (X). Os 3 novos entram na fila e começam quando ele terminar (verificação a cada 1 min)."*
+- Se não houver, manter o texto atual.
+
+### Item 3 — Corrigir launcher: ignorar lotes zumbis + destrava manual
+
+Em `supabase/functions/v8-scheduled-launcher/index.ts`:
+- Mudar a query de `activeCount` para só considerar lotes com `updated_at > now() - interval '30 minutes'` (zumbis não bloqueiam mais).
+- Adicionar log explícito: *"queue blocked for owner X by batch Y (last update: Z)"* para diagnóstico futuro.
+
+Em `supabase/functions/v8-orphan-reconciler/index.ts` (verificar primeiro o que ele já faz):
+- Garantir que lotes em `processing` há > 2h sem `pending_count` sejam fechados como `completed` (se tiverem success+failure = total) ou `failed`.
+
+**Ação imediata na migração**: identificar e destravar os zumbis atuais do seu user, para que os lotes a/b enfileirados desde 12:57 possam rodar.
+
+### Item 4 — Tooltip explicando "Cancelar Lote"
+
+Adicionar tooltip/info no botão "Cancelar lote" do `BatchProgressCard` (ou onde estiver):
+> *"Cancela apenas as simulações ainda pendentes. CPFs já enviados continuam sendo monitorados pelo webhook — o resultado final ainda pode chegar."*
+
+---
+
+# Prevenção de regressão
+
+- **Teste novo** em `src/lib/__tests__/`: `v8RunAllDrafts.test.ts` cobrindo (a) rascunho com nome em branco vira `skipped` com `reason` legível, (b) rascunho com data inválida idem, (c) summarizeRunAll com mix de queued/skipped/error retorna texto correto.
+- **Teste novo** simulando launcher com lote zumbi (mock supabase): garantir que `queue_position=1` é promovido se único `processing` está parado há 1h.
+- **Memória**: salvar memória `mem://features/v8-queue-launcher-rules` registrando: "launcher ignora lotes parados >30min ao decidir promover queued; orphan-reconciler fecha zumbis >2h".
+
+---
+
+# Pendências (após sua aprovação)
+
+**Imediatas (faço já):** itens 1 a 4 acima.
+
+**Futuras (pergunto antes):**
+- (a) Botão "Cancelar lote E os webhooks pendentes" — versão dura que marca tudo como `canceled` e ignora webhooks chegando depois. Útil quando você quer realmente parar de pagar consultas. Hoje não tem.
+- (b) Retomar a fila se o usuário cancelar manualmente todos os lotes "ativos" — disparar o launcher na hora em vez de esperar 1 min.
+- (c) Mostrar em `V8RealtimeStatusBar` quando há lote zumbi bloqueando a fila do user (diagnóstico visível).
+
+---
+
+# Checklist manual após implementação
+
+1. Crie 3 rascunhos (A, B, C) com nome + tabela + CPFs válidos em todos.
+2. Sem nenhum lote ativo, clique "Executar todos em sequência (3)".
+3. Confirme: o diálogo de confirmação deve dizer "1º começa imediatamente; 2 outros entram na fila".
+4. Após o 1º terminar, o 2º deve começar **sozinho em até 1 min**.
+5. Após o 2º terminar, o 3º idem.
+6. **Cenário com lote ativo**: deixe um lote rodando, clique "Executar todos em sequência" — diálogo agora deve avisar "Você já tem 1 lote em andamento, os 3 novos entram na fila".
+7. **Cenário rascunho ruim**: faça 1 rascunho sem CPFs e clique enfileirar todos — em vez de toast pequeno, deve abrir diálogo dizendo qual rascunho foi pulado e por quê.
+8. **Tooltip cancelar**: passe o mouse no botão "Cancelar lote" e leia a explicação.
+
+Posso começar?
