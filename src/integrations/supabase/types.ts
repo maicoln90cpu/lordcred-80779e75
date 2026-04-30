@@ -1268,6 +1268,9 @@ export type Database = {
         Row: {
           assigned_user_id: string | null
           chip_id: string
+          closed_at: string | null
+          closed_by: string | null
+          closed_reason: string | null
           contact_name: string | null
           contact_phone: string | null
           created_at: string | null
@@ -1291,6 +1294,9 @@ export type Database = {
         Insert: {
           assigned_user_id?: string | null
           chip_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_reason?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
@@ -1314,6 +1320,9 @@ export type Database = {
         Update: {
           assigned_user_id?: string | null
           chip_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_reason?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
@@ -5198,6 +5207,10 @@ export type Database = {
     }
     Functions: {
       audit_logs_estimated_count: { Args: never; Returns: number }
+      auto_close_inactive_meta_conversations: {
+        Args: never
+        Returns: undefined
+      }
       auto_match_corban_sellers: { Args: never; Returns: Json }
       calculate_commission_audit: {
         Args: { _date_from?: string; _date_to?: string }
