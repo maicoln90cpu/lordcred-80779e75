@@ -107,11 +107,13 @@ async function resolveWabaId(
   const phoneNumberId = chip.meta_phone_number_id
   if (!phoneNumberId) return null
   try {
+    console.log(`resolveWabaId: attempting for phoneNumberId=${phoneNumberId}`)
     const wabaResp = await metaFetch(`/${phoneNumberId}?fields=whatsapp_business_account`, {
       headers: { 'Authorization': `Bearer ${metaAccessToken}` },
       timeout: 10000,
     })
     const wabaData = await safeJson(wabaResp)
+    console.log(`resolveWabaId: response=`, JSON.stringify(wabaData))
     const wabaId = wabaData?.whatsapp_business_account?.id
     if (wabaId) {
       await adminClient.from('chips').update({ meta_waba_id: wabaId }).eq('id', chip.id)
@@ -119,6 +121,7 @@ async function resolveWabaId(
       console.log(`Auto-resolved WABA ID ${wabaId} for chip ${chip.id}`)
       return wabaId
     }
+    console.warn(`resolveWabaId: no WABA found in response for phone ${phoneNumberId}`)
   } catch (e) {
     console.error('Failed to auto-resolve WABA ID:', e)
   }
