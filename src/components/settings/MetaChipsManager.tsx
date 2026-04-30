@@ -188,7 +188,7 @@ export default function MetaChipsManager() {
     return q;
   };
 
-
+  if (loading) {
     return (
       <Card>
         <CardContent className="flex justify-center py-8">
