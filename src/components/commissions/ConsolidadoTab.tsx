@@ -94,7 +94,7 @@ export default function ConsolidadoTab({ profiles, getSellerName }: ConsolidadoT
       'Chave PIX': '',
     });
     const suffix = weekFilters.length > 0 ? '_' + weekFilters.join('+').replace(/[\/\s]/g, '-') : '';
-    exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
+    await exportToExcel(data, `consolidado_comissoes${suffix}.xlsx`, 'Consolidado');
   };
 
   return (
