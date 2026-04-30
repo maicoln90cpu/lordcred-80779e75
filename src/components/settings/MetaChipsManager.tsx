@@ -285,15 +285,31 @@ export default function MetaChipsManager() {
                           <p className="text-xs text-muted-foreground">{chip.phone_number || '—'}</p>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`text-sm font-medium ${qualityColor(chip.quality_rating)}`}>
+                                {qualityLabel(chip.quality_rating)}
+                              </span>
+                            </TooltipTrigger>
+                            {chip.quality_updated_at && (
+                              <TooltipContent>
+                                Atualizado: {new Date(chip.quality_updated_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {chip.messaging_limit || '—'}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{chip.meta_phone_number_id || '—'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
                           <User className="w-3 h-3 text-muted-foreground" />
                           {owner?.name || owner?.email || chip.user_id.slice(0, 8)}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {new Date(chip.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button size="icon" variant="ghost" onClick={() => setDeleteChip(chip)} className="text-destructive hover:text-destructive">
