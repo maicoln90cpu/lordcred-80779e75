@@ -1,16 +1,15 @@
-// Worker em background para importar grandes planilhas (XLSX/XLSM/CSV) no pool V8.
-// Baixa o arquivo do Storage, faz parse em memória (Deno aguenta planilhas até ~100MB),
-// e faz upsert em chunks de 5000. Atualiza progresso em v8_contact_pool_imports.
+// Worker leve: lê o arquivo do Storage como CSV em STREAMING (linha por linha),
+// memória constante (~20 MB) mesmo para milhões de linhas.
+// O frontend converte XLSX/XLSM -> CSV antes de subir, evitando parse pesado aqui.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const CHUNK_SIZE = 5000;
+const CHUNK_SIZE = 2000;
 
 function cleanCpf(v: unknown): string {
   return String(v ?? '').replace(/\D/g, '');
@@ -20,11 +19,6 @@ function isValidCpf(cpf: string): boolean {
 }
 function parseDate(v: unknown): string | null {
   if (!v) return null;
-  if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
-    if (!d) return null;
-    return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
-  }
   const s = String(v).trim();
   const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (m) {
@@ -35,14 +29,67 @@ function parseDate(v: unknown): string | null {
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
   return null;
 }
-function pickField(row: Record<string, any>, names: string[]): any {
-  const keys = Object.keys(row);
-  for (const n of names) {
-    const target = n.toLowerCase().replace(/[_\s]/g, '');
-    const k = keys.find((k) => k.toLowerCase().trim().replace(/[_\s]/g, '') === target);
-    if (k && row[k] !== undefined && row[k] !== '' && row[k] !== null) return row[k];
+
+function normHeader(h: string): string {
+  return h.toLowerCase().trim().replace(/^\ufeff/, '').replace(/[_\s"]/g, '');
+}
+
+// CSV parser simples (suporta aspas e vírgula/ponto-e-vírgula)
+function detectDelimiter(line: string): string {
+  const c = (line.match(/,/g) || []).length;
+  const sc = (line.match(/;/g) || []).length;
+  return sc > c ? ';' : ',';
+}
+function parseCsvLine(line: string, delim: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else cur += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === delim) { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
   }
-  return null;
+  out.push(cur);
+  return out;
+}
+
+const EXTRA_KEYS = ['genero', 'sexo', 'banco', 'agencia', 'conta', 'mae', 'observacao', 'idade', 'origem'];
+
+interface ColMap {
+  cpf: number;
+  nome: number;
+  telefone: number;
+  nascimento: number;
+  extras: Array<{ idx: number; name: string }>;
+}
+
+function buildColMap(headers: string[]): ColMap {
+  const norm = headers.map(normHeader);
+  const find = (cands: string[]) => {
+    for (const c of cands) {
+      const i = norm.findIndex((h) => h === c || h.includes(c));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const extras: Array<{ idx: number; name: string }> = [];
+  norm.forEach((h, idx) => {
+    if (EXTRA_KEYS.some((k) => h.includes(k))) extras.push({ idx, name: headers[idx] });
+  });
+  return {
+    cpf: find(['cpf', 'documento', 'document']),
+    nome: find(['nome', 'name', 'fullname']),
+    telefone: find(['telefone', 'phone', 'celular', 'fone']),
+    nascimento: find(['datanascimento', 'nascimento', 'dtnasc', 'birthdate']),
+    extras,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -70,132 +117,157 @@ Deno.serve(async (req) => {
       .eq('id', importId)
       .single();
 
-    if (impErr || !imp) throw new Error('Import não encontrado: ' + impErr?.message);
-    if (!imp.storage_path) throw new Error('Storage path ausente — arquivo não foi enviado.');
+    if (impErr || !imp) throw new Error('Import não encontrado');
+    if (!imp.storage_path) throw new Error('Storage path ausente');
     if (imp.status === 'completed') {
-      return new Response(JSON.stringify({ success: true, message: 'Já concluído.' }), {
+      return new Response(JSON.stringify({ success: true, message: 'Já concluído' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Worker só aceita CSV (frontend converte antes de subir)
+    if (!imp.storage_path.toLowerCase().endsWith('.csv')) {
+      throw new Error('Worker só processa CSV. O frontend deve converter XLSX/XLSM antes do upload.');
     }
 
     await supabase.from('v8_contact_pool_imports')
       .update({ status: 'processing', progress_percent: 1 })
       .eq('id', importId);
 
-    // 1) Baixa arquivo
-    const { data: fileBlob, error: dlErr } = await supabase.storage
-      .from('v8-contact-pool')
-      .download(imp.storage_path);
-    if (dlErr || !fileBlob) throw new Error('Erro ao baixar arquivo: ' + dlErr?.message);
+    // Inicia processamento em background (não bloqueia resposta)
+    const job = (async () => {
+      try {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from('v8-contact-pool')
+          .download(imp.storage_path!);
+        if (dlErr || !blob) throw new Error('Falha ao baixar: ' + dlErr?.message);
 
-    const buf = await fileBlob.arrayBuffer();
+        const reader = blob.stream().pipeThrough(new TextDecoderStream('utf-8')).getReader();
 
-    // 2) Parse (xlsx/xlsm/csv — SheetJS detecta pelo conteúdo)
-    const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: false });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        let buffer = '';
+        let headers: string[] | null = null;
+        let colMap: ColMap | null = null;
+        let delim = ',';
+        const seen = new Set<string>();
+        let invalid = 0;
+        let inserted = 0;
+        let duplicates = 0;
+        let processed = 0;
+        let pendingChunk: any[] = [];
 
-    const totalRows = json.length;
-    await supabase.from('v8_contact_pool_imports')
-      .update({ row_count: totalRows, progress_percent: 5 })
-      .eq('id', importId);
+        const flush = async () => {
+          if (pendingChunk.length === 0) return;
+          const chunk = pendingChunk;
+          pendingChunk = [];
+          const { data: ins, error: insErr } = await supabase
+            .from('v8_contact_pool')
+            .upsert(chunk, { onConflict: 'cpf', ignoreDuplicates: true })
+            .select('id');
+          if (insErr) {
+            for (const p of chunk) {
+              const { error: e1 } = await supabase.from('v8_contact_pool')
+                .upsert(p, { onConflict: 'cpf', ignoreDuplicates: true });
+              if (!e1) inserted++; else duplicates++;
+            }
+          } else {
+            const ic = ins?.length || 0;
+            inserted += ic;
+            duplicates += chunk.length - ic;
+          }
+          await supabase.from('v8_contact_pool_imports')
+            .update({
+              processed_count: processed,
+              inserted_count: inserted,
+              duplicate_count: duplicates,
+              invalid_count: invalid,
+              row_count: processed,
+              progress_percent: Math.min(99, Math.max(2, Math.round((processed / Math.max(processed + 1000, 10000)) * 100))),
+            })
+            .eq('id', importId!);
+        };
 
-    // 3) Normaliza + dedup
-    const seen = new Set<string>();
-    const valid: Array<Record<string, any>> = [];
-    let invalid = 0;
+        const processLine = (line: string) => {
+          if (!line.trim()) return;
+          if (!headers) {
+            delim = detectDelimiter(line);
+            headers = parseCsvLine(line, delim);
+            colMap = buildColMap(headers);
+            if (colMap.cpf < 0) throw new Error('Coluna CPF não encontrada no CSV');
+            return;
+          }
+          const cells = parseCsvLine(line, delim);
+          const cpf = cleanCpf(cells[colMap!.cpf]);
+          if (!isValidCpf(cpf)) { invalid++; return; }
+          if (seen.has(cpf)) return;
+          seen.add(cpf);
+          processed++;
 
-    for (const row of json) {
-      const cpf = cleanCpf(pickField(row, ['cpf', 'documento', 'document']));
-      if (!isValidCpf(cpf)) { invalid++; continue; }
-      if (seen.has(cpf)) continue;
-      seen.add(cpf);
+          const extra: Record<string, any> = {};
+          for (const e of colMap!.extras) {
+            const v = cells[e.idx];
+            if (v !== undefined && v !== '') extra[e.name] = v;
+          }
 
-      const name = pickField(row, ['nome', 'name', 'fullname', 'nomecompleto']);
-      const phone = pickField(row, ['telefone', 'phone', 'celular', 'fone']);
-      const birth = pickField(row, ['datanascimento', 'birthdate', 'nascimento', 'dtnasc']);
+          pendingChunk.push({
+            cpf,
+            full_name: colMap!.nome >= 0 && cells[colMap!.nome]
+              ? String(cells[colMap!.nome]).trim().slice(0, 200) : null,
+            phone: colMap!.telefone >= 0 && cells[colMap!.telefone]
+              ? cleanCpf(cells[colMap!.telefone]) : null,
+            birth_date: colMap!.nascimento >= 0 ? parseDate(cells[colMap!.nascimento]) : null,
+            extra,
+            source_file: imp.file_name,
+            source_batch_id: imp.id,
+            imported_by: imp.imported_by,
+          });
+        };
 
-      // extra enxuto: mantém só campos úteis que não viram colunas próprias
-      const extra: Record<string, any> = {};
-      const extraFields = ['genero', 'sexo', 'banco', 'agencia', 'conta', 'mae', 'mae_nome', 'observacao', 'idade', 'origem'];
-      for (const k of Object.keys(row)) {
-        const norm = k.toLowerCase().trim().replace(/[_\s]/g, '');
-        if (extraFields.some((f) => norm.includes(f))) {
-          extra[k] = row[k];
+        // Stream linha por linha
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value;
+          let nl: number;
+          while ((nl = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, nl).replace(/\r$/, '');
+            buffer = buffer.slice(nl + 1);
+            try { processLine(line); } catch (e) {
+              throw new Error('Erro na linha ' + (processed + invalid + 2) + ': ' + (e as Error).message);
+            }
+            if (pendingChunk.length >= CHUNK_SIZE) await flush();
+          }
         }
-      }
+        if (buffer.trim()) processLine(buffer);
+        await flush();
 
-      valid.push({
-        cpf,
-        full_name: name ? String(name).trim().slice(0, 200) : null,
-        phone: phone ? cleanCpf(phone) : null,
-        birth_date: parseDate(birth),
-        extra,
-        source_file: imp.file_name,
-        source_batch_id: imp.id,
-        imported_by: imp.imported_by,
-      });
+        await supabase.from('v8_contact_pool_imports')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            processed_count: processed,
+            inserted_count: inserted,
+            duplicate_count: duplicates,
+            invalid_count: invalid,
+            row_count: processed,
+            progress_percent: 100,
+          })
+          .eq('id', importId!);
+      } catch (err) {
+        const msg = (err as Error)?.message ?? String(err);
+        console.error('[worker bg] erro:', msg);
+        await supabase.from('v8_contact_pool_imports')
+          .update({ status: 'failed', error_message: msg.slice(0, 500) })
+          .eq('id', importId!);
+      }
+    })();
+
+    // @ts-ignore — EdgeRuntime existe em produção
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(job);
     }
 
-    await supabase.from('v8_contact_pool_imports')
-      .update({ invalid_count: invalid, progress_percent: 10 })
-      .eq('id', importId);
-
-    // 4) Upsert em chunks
-    let inserted = 0;
-    let duplicates = 0;
-    let processed = 0;
-
-    for (let i = 0; i < valid.length; i += CHUNK_SIZE) {
-      const chunk = valid.slice(i, i + CHUNK_SIZE);
-      const { data: ins, error: insErr } = await supabase
-        .from('v8_contact_pool')
-        .upsert(chunk, { onConflict: 'cpf', ignoreDuplicates: true })
-        .select('id');
-
-      if (insErr) {
-        console.error('[worker] chunk error:', insErr.message);
-        // tenta um a um para isolar
-        for (const p of chunk) {
-          const { error: e1 } = await supabase.from('v8_contact_pool')
-            .upsert(p, { onConflict: 'cpf', ignoreDuplicates: true });
-          if (!e1) inserted++; else duplicates++;
-        }
-      } else {
-        const ic = ins?.length || 0;
-        inserted += ic;
-        duplicates += chunk.length - ic;
-      }
-      processed += chunk.length;
-
-      // 10% para parsing já consumido + 90% restantes para upsert
-      const pct = Math.min(99, 10 + Math.round((processed / valid.length) * 90));
-      await supabase.from('v8_contact_pool_imports')
-        .update({
-          processed_count: processed,
-          inserted_count: inserted,
-          duplicate_count: duplicates,
-          progress_percent: pct,
-        })
-        .eq('id', importId);
-    }
-
-    await supabase.from('v8_contact_pool_imports')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        processed_count: valid.length,
-        inserted_count: inserted,
-        duplicate_count: duplicates,
-        invalid_count: invalid,
-        progress_percent: 100,
-      })
-      .eq('id', importId);
-
-    return new Response(JSON.stringify({
-      success: true,
-      total: totalRows, inserted, duplicates, invalid,
-    }), {
+    return new Response(JSON.stringify({ success: true, started: true, import_id: importId }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
