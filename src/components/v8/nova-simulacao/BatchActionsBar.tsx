@@ -7,7 +7,8 @@ interface Props {
   showManualWarning: boolean;
   awaitingManualSim: number;
   onSimulateSelected: () => void;
-  onRetryFailed: () => void;
+  /** @deprecated Removido da UI em abr/2026 (Onda 2 / item 8). Auto-retry cobre 100% dos casos. Prop mantida para compat de tipos. */
+  onRetryFailed?: () => void;
   onReplayPending: () => void;
   onCancelBatch: () => void;
   /** Etapa 1 (item 9): exportar simulações do lote ativo em CSV. */
@@ -25,7 +26,7 @@ interface Props {
  */
 export default function BatchActionsBar({
   running, showManualWarning, awaitingManualSim,
-  onSimulateSelected, onRetryFailed, onReplayPending, onCancelBatch,
+  onSimulateSelected, onReplayPending, onCancelBatch,
   onExportCsv, exportDisabled,
   isPaused, onTogglePause,
 }: Props) {
@@ -48,24 +49,23 @@ export default function BatchActionsBar({
             Roda /simulation nos CPFs com consulta SUCCESS — substitui as estimativas (faixa máxima do webhook) pelos valores REAIS calculados pela V8. Throttled (1 CPF a cada ~1.2s).
           </TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="sm" variant="secondary" disabled={running} onClick={onRetryFailed}>
-              <RefreshCw className="w-3 h-3 mr-1" /> Retentar falhados
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-xs text-xs">
-            Pede para a V8 fazer a consulta de novo nos CPFs que falharam por instabilidade ou análise pendente. Aumenta o número de "Tentativas". Não toca em consulta ativa, proposta existente ou dados inválidos.
-          </TooltipContent>
-        </Tooltip>
+        {/* Item 8 (abr/2026): "Retentar falhados" REMOVIDO da UI.
+            Razão: o cron `v8-retry-cron` já reprocessa automaticamente todas as falhas
+            classificadas como recuperáveis (instabilidade, análise pendente) com backoff.
+            O botão manual gerava confusão (operador não sabia se devia clicar ou esperar)
+            e podia estourar o limite de tentativas antes do cron concluir o ciclo. */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="outline" onClick={onReplayPending}>
-              <RefreshCw className="w-3 h-3 mr-1" /> Buscar resultados pendentes
+              <RefreshCw className="w-3 h-3 mr-1" /> Reprocessar webhooks pendentes
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs text-xs">
-            Pergunta à V8 se ela já tem resposta para consultas que enviamos mas que ainda não chegaram pelo webhook. Não conta como nova tentativa. Use se as linhas ficarem em "aguardando" por mais de 2 minutos.
+            <strong>O que faz:</strong> varre os webhooks que a V8 nos enviou nos últimos 7 dias mas que ficaram com erro/sem processar (ex.: payload chegou enquanto o sistema estava em deploy). Reprocessa todos.
+            <br /><br />
+            <strong>O que NÃO faz:</strong> não pergunta nada novo para a V8. Se uma linha está em "aguardando" porque a V8 ainda não respondeu, este botão não muda nada.
+            <br /><br />
+            <strong>Quando usar:</strong> apenas se você suspeitar que algum resultado ficou perdido. Se o contador "ok=0" e "total=0", está tudo certo (não tem nada pendente).
           </TooltipContent>
         </Tooltip>
         {onExportCsv && (
