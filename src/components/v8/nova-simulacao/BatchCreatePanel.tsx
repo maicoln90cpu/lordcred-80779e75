@@ -46,10 +46,12 @@ interface Props {
   blockingIssues: ReturnType<typeof analyzeV8Paste>['issues'];
   invalidDateIssue: ReturnType<typeof analyzeV8Paste>['issues'][number] | undefined;
 
-  // toggle auto simulate
-  autoSimulate: boolean;
-  onToggleAutoSimulate: (v: boolean) => void;
-  v8SettingsLoaded: boolean;
+  // Item 7 (abr/2026): toggle "Simular automaticamente" REMOVIDO da UI.
+  // Auto-melhor é estritamente superior (testa múltiplas combinações até a V8 aceitar).
+  // Props mantidas opcionais só para compat de tipos com chamadas legadas.
+  autoSimulate?: boolean;
+  onToggleAutoSimulate?: (v: boolean) => void;
+  v8SettingsLoaded?: boolean;
 
   // Etapa 2 (abr/2026): Auto-melhor — tenta proposta viável automaticamente em lote.
   autoBest: boolean;
@@ -76,7 +78,6 @@ export default function BatchCreatePanel(props: Props) {
     pasteText, setPasteText,
     configs, parcelOptions, selectedConfig, refreshing, refreshFromV8,
     pasteAnalysis, blockingIssues, invalidDateIssue,
-    autoSimulate, onToggleAutoSimulate, v8SettingsLoaded,
     autoBest, onToggleAutoBest,
     running, onStart, onSchedule, onQueue,
   } = props;
@@ -281,11 +282,13 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         </div>
 
-        {/* Etapa 2 (abr/2026): Auto-melhor — descobre a melhor proposta sozinho. */}
+        {/* Etapa 2 (abr/2026): Auto-melhor — descobre a melhor proposta sozinho.
+            Item 7 (abr/2026): toggle "Simular automaticamente após consulta" REMOVIDO.
+            Auto-melhor é estritamente superior (testa até 6 combinações até a V8 aceitar). */}
         <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-3">
           <div className="space-y-0.5">
             <Label className="text-sm font-medium flex items-center gap-1.5">
-              🤖 Auto-melhor (encontra a melhor proposta sozinha)
+              🤖 Auto-melhor (encontra a melhor proposta sozinha) · <span className="text-[10px] uppercase tracking-wide bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 rounded">recomendado</span>
             </Label>
             <p className="text-xs text-muted-foreground">
               Quando ligado: para cada CPF com margem confirmada, o sistema tenta automaticamente as melhores combinações <strong>valor × prazo</strong> (do maior para o menor) até a V8 aceitar uma. Equivalente a clicar 🔍 "Encontrar proposta viável" em cada CPF — só que em lote. <strong>Ignora os campos "Modo de simulação" e "Valor"</strong> (decide tudo sozinho).
@@ -294,20 +297,6 @@ export default function BatchCreatePanel(props: Props) {
           <Switch
             checked={autoBest}
             onCheckedChange={onToggleAutoBest}
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
-          <div className="space-y-0.5">
-            <Label className="text-sm font-medium">Simular automaticamente após consulta</Label>
-            <p className="text-xs text-muted-foreground">
-              Quando ligado: assim que cada margem volta da V8, o sistema dispara <code>/simulation</code> automaticamente (throttled). Quando desligado (recomendado): você revisa as margens e clica em "Simular selecionados". {autoBest && <span className="text-amber-700 dark:text-amber-400 font-medium">⚠️ Ignorado — Auto-melhor está ligado e cuida da simulação.</span>}
-            </p>
-          </div>
-          <Switch
-            checked={autoSimulate}
-            onCheckedChange={onToggleAutoSimulate}
-            disabled={!v8SettingsLoaded || autoBest}
           />
         </div>
 
