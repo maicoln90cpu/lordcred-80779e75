@@ -70,12 +70,24 @@ export default function MetaChipsManager() {
       const token = (settings as any)?.meta_access_token;
       if (!token) throw new Error('Token Meta não configurado');
 
-      // Validate with Meta
-      const resp = await fetch(`https://graph.facebook.com/v21.0/${phoneId.trim()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Validate with Meta — pedimos explicitamente status, code_verification_status e quality_rating
+      const resp = await fetch(
+        `https://graph.facebook.com/v21.0/${phoneId.trim()}?fields=display_phone_number,verified_name,status,code_verification_status,quality_rating,name_status`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       const data = await resp.json();
       if (data.error) throw new Error(data.error.message || 'Phone Number ID inválido');
+
+      // Bloqueio: o número precisa estar CONNECTED na Cloud API
+      // status pode vir como "CONNECTED", "PENDING", "FLAGGED", "RESTRICTED" ou ausente (não registrado)
+      const phoneStatus = String(data.status || '').toUpperCase();
+      const codeStatus = String(data.code_verification_status || '').toUpperCase();
+      if (phoneStatus !== 'CONNECTED') {
+        const friendly = !phoneStatus
+          ? 'Este número ainda NÃO foi registrado na WhatsApp Cloud API. Vá em Meta Business Manager → WhatsApp → API Setup → Phone Numbers, clique no número, escolha "Register" e defina um PIN de 6 dígitos. Só depois cadastre aqui.'
+          : `Número está com status "${phoneStatus}" na Meta (esperado: CONNECTED). Verificação do código: ${codeStatus || 'desconhecida'}. Conclua o registro/verificação no Meta Business Manager antes de cadastrar.`;
+        throw new Error(friendly);
+      }
 
       const displayPhone = data.display_phone_number || phoneId;
       const verifiedName = data.verified_name || `meta_${displayPhone.replace(/\D/g, '')}`;
