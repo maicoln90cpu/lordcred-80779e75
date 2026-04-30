@@ -21,6 +21,9 @@ interface MetaChip {
   status: string;
   user_id: string;
   created_at: string;
+  quality_rating: string | null;
+  messaging_limit: string | null;
+  quality_updated_at: string | null;
 }
 
 interface Profile {
