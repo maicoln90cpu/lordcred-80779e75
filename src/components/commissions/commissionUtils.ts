@@ -97,7 +97,8 @@ export interface AnnualReward {
 // ==================== UTILITIES ====================
 export const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+export async function exportToExcel(data: Record<string, string | number>[], filename: string, sheetName = 'Dados') {
+  const XLSX = await loadXLSX();
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
