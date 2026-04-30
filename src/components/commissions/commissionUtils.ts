@@ -140,7 +140,7 @@ export function parseExcelDate(v: any): string | null {
     return `${y}-${m}-${d}T${h}:${min}-03:00`;
   }
   if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
+    const d = excelSerialToParts(v);
     if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}T${String(d.H || 0).padStart(2, '0')}:${String(d.M || 0).padStart(2, '0')}-03:00`;
   }
   if (typeof v === 'string') {
