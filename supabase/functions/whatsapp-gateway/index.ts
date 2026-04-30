@@ -520,8 +520,8 @@ async function handleMetaAction(
     }
 
     case 'create-template': {
-      const wabaId = chip.meta_waba_id
-      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured' }, 400)
+      const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient)
+      if (!wabaId) return jsonResponse({ error: 'WABA ID not configured. Verifique se o Phone Number ID está correto e se o token Meta tem permissão whatsapp_business_management.' }, 400)
 
       const { name, language, category, components: tplComponents } = body
       if (!name || !category || !tplComponents) {
