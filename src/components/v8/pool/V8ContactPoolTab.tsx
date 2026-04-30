@@ -119,7 +119,7 @@ export default function V8ContactPoolTab() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => setImportOpen(true)} className="gap-2">
-          <Upload className="w-4 h-4" /> Importar XLSX/CSV
+          <Upload className="w-4 h-4" /> Importar XLSX/XLSM/CSV
         </Button>
         <Button variant="outline" onClick={() => { load(); loadStats(); }} className="gap-2">
           <RefreshCw className="w-4 h-4" /> Atualizar
