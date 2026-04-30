@@ -172,6 +172,7 @@ export function HRSettingsTab() {
         <TabsTrigger value="notifications" className="gap-2"><Bell className="w-4 h-4" /> Notificações</TabsTrigger>
         <TabsTrigger value="templates" className="gap-2"><MessageSquare className="w-4 h-4" /> Templates</TabsTrigger>
         <TabsTrigger value="questions" className="gap-2"><ListChecks className="w-4 h-4" /> Perguntas</TabsTrigger>
+        <TabsTrigger value="kanban" className="gap-2"><Columns className="w-4 h-4" /> Kanban</TabsTrigger>
       </TabsList>
 
       {/* ============ NOTIFICAÇÕES (TIMERS) ============ */}
