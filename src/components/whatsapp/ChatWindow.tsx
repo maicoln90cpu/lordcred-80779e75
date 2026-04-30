@@ -181,6 +181,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <Button variant="ghost" size="icon" onClick={() => setNotesOpen(!notesOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", notesOpen && "text-primary bg-primary/10")} title="Notas internas"><StickyNote className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setAuditOpen(!auditOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", auditOpen && "text-primary bg-primary/10")} title="Auditoria"><ClipboardList className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => { setSearchOpen(!searchOpen); setSearchQuery(''); setTimeout(() => searchInputRef.current?.focus(), 100); }} className="text-muted-foreground hover:text-primary hover:bg-primary/10"><Search className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => setCloseDialogOpen(true)} className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Finalizar conversa"><XCircle className="w-4 h-4" /></Button>
         </div>
       </div>
 
