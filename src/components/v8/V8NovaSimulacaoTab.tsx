@@ -133,7 +133,11 @@ export default function V8NovaSimulacaoTab() {
   const pasteText = active.pasteText;
   const setPasteText = (v: string) => patchActive({ pasteText: v });
   const activeBatchId = active.activeBatchId;
-  const setActiveBatchId = (v: string | null) => patchActive({ activeBatchId: v });
+  const setActiveBatchId = (v: string | null) => {
+    patchActive({ activeBatchId: v });
+    if (v) addDraftBatchEntry(activeId, v);
+    else removeDraftBatchByBatchId(activeBatchId ?? '');
+  };
   const autoBest = !!active.autoBest;
   const setAutoBest = async (v: boolean) => {
     patchActive({ autoBest: v });
