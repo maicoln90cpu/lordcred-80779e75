@@ -77,7 +77,21 @@ export default function ChatSidebar({ selectedChatId, onSelectChat, chipId, onUn
     return tb - ta;
   });
 
-  const archivedCount = chats.filter(c => c.is_archived).length;
+  const archivedCount = chats.filter(c => c.is_archived && !c.closed_at).length;
+  const closedCount = chats.filter(c => !!c.closed_at).length;
+
+  const handleReopenConversation = async (chat: ExtendedChat) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ closed_at: null, closed_reason: null, closed_by: null } as any)
+        .eq('id', chat.id);
+      if (error) throw error;
+      toast({ title: '🔄 Conversa reaberta', description: chat.name });
+    } catch (err: any) {
+      toast({ title: 'Erro ao reabrir', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return '';
