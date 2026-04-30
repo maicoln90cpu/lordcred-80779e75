@@ -119,6 +119,19 @@ async function resolveWabaId(
   try {
     console.log(`resolveWabaId: discovering for phoneNumberId=${phoneNumberId}`)
 
+    const phoneResp = await metaFetch(`/${phoneNumberId}?fields=whatsapp_business_account`, {
+      headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+      timeout: 10000,
+    })
+    const phoneData = await safeJson(phoneResp)
+    const directWabaId = phoneData?.whatsapp_business_account?.id || phoneData?.whatsapp_business_account_id
+    if (directWabaId) {
+      return await persistWabaId(String(directWabaId))
+    }
+    if (phoneData?.error) {
+      console.warn(`resolveWabaId: direct phone lookup failed: ${phoneData.error.message}`)
+    }
+
     if (metaConfig.appId && metaConfig.appSecret) {
       const appToken = `${metaConfig.appId}|${metaConfig.appSecret}`
       const debugResp = await metaFetch(`/debug_token?input_token=${encodeURIComponent(metaAccessToken)}&access_token=${encodeURIComponent(appToken)}`, { timeout: 10000 })
@@ -169,6 +182,18 @@ async function resolveWabaId(
     console.error('Failed to auto-resolve WABA ID:', e)
   }
   return null
+}
+
+function missingWabaIdResponse(chip: any): Response {
+  return jsonResponse({
+    success: false,
+    fallback: true,
+    needsWabaId: true,
+    chipId: chip?.id ?? null,
+    phoneNumberId: chip?.meta_phone_number_id ?? null,
+    error: 'WABA ID obrigatório para templates. Preencha o WABA ID no cadastro do chip Meta e tente novamente.',
+    guidance: 'Vá em Integrações → Meta WhatsApp → Chips, preencha o campo WABA ID do chip e clique no disquete para salvar.',
+  })
 }
 
 // ===== META ACTION HANDLERS =====
@@ -537,7 +562,7 @@ async function handleMetaAction(
     case 'sync-templates': {
       // Sync Meta message templates
       const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
-      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
+      if (!wabaId) return missingWabaIdResponse(chip)
 
       const resp = await metaFetch(`/${wabaId}/message_templates?limit=100`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
@@ -567,7 +592,7 @@ async function handleMetaAction(
 
     case 'create-template': {
       const wabaId = await resolveWabaId(chip, metaAccessToken, adminClient, body.metaConfig)
-      if (!wabaId) return jsonResponse({ error: 'Não consegui descobrir o WABA ID automaticamente. Informe o WABA ID no cadastro do chip Meta ou valide se o token possui acesso ao WhatsApp Business Account que contém este Phone Number ID.' }, 400)
+      if (!wabaId) return missingWabaIdResponse(chip)
 
       const { name, language, category, components: tplComponents } = body
       if (!name || !category || !tplComponents) {
