@@ -301,7 +301,7 @@ async function handleMetaAction(
       })
       const data = await safeJson(resp)
       if (data.error) {
-        return jsonResponse({ success: false, error: data.error.message })
+        return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
 
       // Log cost as utility
