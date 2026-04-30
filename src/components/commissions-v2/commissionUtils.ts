@@ -1,4 +1,19 @@
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/lib/xlsx-lazy';
+
+/** Converte serial date Excel em partes — substitui XLSX.SSF.parse_date_code (ver commissions/commissionUtils.ts). */
+function excelSerialToParts(serial: number): { y: number; m: number; d: number; H: number; M: number } | null {
+  if (!isFinite(serial)) return null;
+  const epoch = Date.UTC(1899, 11, 30);
+  const date = new Date(epoch + Math.round(serial * 86400 * 1000));
+  if (isNaN(date.getTime())) return null;
+  return {
+    y: date.getUTCFullYear(),
+    m: date.getUTCMonth() + 1,
+    d: date.getUTCDate(),
+    H: date.getUTCHours(),
+    M: date.getUTCMinutes(),
+  };
+}
 
 // ==================== TYPES ====================
 export interface CommissionSale {
