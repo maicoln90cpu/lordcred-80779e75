@@ -201,7 +201,40 @@ export function useHRCandidates() {
 
   const moveCandidate = useCallback(async (id: string, status: HRKanbanStatus) => {
     await updateCandidate(id, { kanban_status: status });
-  }, [updateCandidate]);
+
+    // Auto-copy to hr_employees when moved to "approved"
+    if (status === 'approved') {
+      const candidate = candidatesRef.current.find(c => c.id === id);
+      if (candidate) {
+        // Check if already copied
+        const { data: existing } = await (supabase as any)
+          .from('hr_employees')
+          .select('id')
+          .eq('source_candidate_id', id)
+          .maybeSingle();
+        if (!existing) {
+          const { error: empErr } = await (supabase as any).from('hr_employees').insert({
+            source_candidate_id: id,
+            full_name: candidate.full_name,
+            phone: candidate.phone,
+            age: candidate.age,
+            cpf: candidate.cpf,
+            photo_url: candidate.photo_url,
+            resume_url: candidate.resume_url,
+            type: candidate.type,
+            kanban_status: 'send_docs',
+            notes: candidate.notes,
+          });
+          if (empErr) {
+            console.error('Auto-copy to employees failed:', empErr);
+            toast({ title: 'Aviso', description: 'Candidato aprovado, mas falha ao copiar para Colaboradores: ' + empErr.message, variant: 'destructive' });
+          } else {
+            toast({ title: 'Colaborador criado', description: `${candidate.full_name} foi copiado para a aba Colaboradores automaticamente.` });
+          }
+        }
+      }
+    }
+  }, [updateCandidate, toast]);
 
   const deleteCandidate = useCallback(async (id: string) => {
     // Buscar URLs antes de deletar para limpar Storage

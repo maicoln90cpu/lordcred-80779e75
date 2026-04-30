@@ -10,9 +10,9 @@ interface Props {
   candidate: HRCandidate;
   saving: boolean;
   onSave: () => void;
-  onScheduleE1: () => void;
-  onScheduleE2: () => void;
-  onMoveToPartner: () => void;
+  onScheduleE1?: () => void;
+  onScheduleE2?: () => void;
+  onMoveToPartner?: () => void;
   onDelete: () => void;
 }
 
@@ -25,7 +25,7 @@ export function CandidateActions({
 }: Props) {
   // Etapa 4C (abr/2026): liberado para QUALQUER status — candidatos não aprovados em CLT
   // podem ter perfil de parceiro. Só ocultamos se já foi migrado para evitar duplicar.
-  const canMoveToPartner = candidate.kanban_status !== 'migrated_partner';
+  const canMoveToPartner = onMoveToPartner && candidate.kanban_status !== 'migrated_partner';
 
   return (
     <div className="flex flex-wrap gap-2 pt-2">
@@ -33,12 +33,16 @@ export function CandidateActions({
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         Salvar dados
       </Button>
-      <Button variant="outline" onClick={onScheduleE1} className="gap-1.5">
-        <Calendar className="w-4 h-4" /> Agendar E1
-      </Button>
-      <Button variant="outline" onClick={onScheduleE2} className="gap-1.5">
-        <Calendar className="w-4 h-4" /> Agendar E2
-      </Button>
+      {onScheduleE1 && (
+        <Button variant="outline" onClick={onScheduleE1} className="gap-1.5">
+          <Calendar className="w-4 h-4" /> Agendar E1
+        </Button>
+      )}
+      {onScheduleE2 && (
+        <Button variant="outline" onClick={onScheduleE2} className="gap-1.5">
+          <Calendar className="w-4 h-4" /> Agendar E2
+        </Button>
+      )}
 
       {canMoveToPartner && (
         <AlertDialog>

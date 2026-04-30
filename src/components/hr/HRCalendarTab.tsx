@@ -15,12 +15,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Plus, List, LayoutGrid, CalendarClock } from 'lucide-react';
+import { CalendarDays, Plus, List, LayoutGrid, CalendarClock, Filter } from 'lucide-react';
 import {
   useHRCalendarEvents, EVENT_TYPE_LABEL,
   type HRCalendarEvent, type HRCalendarEventType,
 } from '@/hooks/useHRCalendarEvents';
 import { useHRCandidates } from '@/hooks/useHRCandidates';
+import { useHREmployees } from '@/hooks/useHREmployees';
 import HRCalendarEventCard from './HRCalendarEventCard';
 import HRCalendarListView from './HRCalendarListView';
 import HRCalendarAgendaView from './HRCalendarAgendaView';
@@ -55,15 +56,23 @@ const EMPTY_FORM: EventFormState = {
 };
 
 type CalendarView = 'month' | 'list' | 'agenda';
+type EntityFilter = 'all' | 'candidate' | 'employee';
 
 export function HRCalendarTab() {
-  const { events, loading, createEvent, updateEvent, deleteEvent } = useHRCalendarEvents();
+  const { events: allEvents, loading, createEvent, updateEvent, deleteEvent } = useHRCalendarEvents();
   const { candidates } = useHRCandidates();
+  const { employees } = useHREmployees();
   const [view, setView] = useState<CalendarView>('month');
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<EventFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  const events = useMemo(() => {
+    if (entityFilter === 'all') return allEvents;
+    return allEvents.filter(ev => (ev as any).entity_type === entityFilter);
+  }, [allEvents, entityFilter]);
 
   // Mapa para destacar dias com evento no mês.
   const eventsByDay = useMemo(() => {
@@ -77,12 +86,13 @@ export function HRCalendarTab() {
     return map;
   }, [events]);
 
-  // Mapa candidato → nome (evita find() em loop nas views).
+  // Mapa candidato/colaborador → nome (evita find() em loop nas views).
   const candidateNameById = useMemo(() => {
     const m = new Map<string, string>();
     candidates.forEach((c) => m.set(c.id, c.full_name));
+    employees.forEach((e) => m.set(e.id, e.full_name));
     return m;
-  }, [candidates]);
+  }, [candidates, employees]);
 
   const dayEvents = useMemo(() => {
     return events
@@ -147,6 +157,16 @@ export function HRCalendarTab() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
+          <Select value={entityFilter} onValueChange={v => setEntityFilter(v as EntityFilter)}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <Filter className="w-3 h-3 mr-1" /><SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="candidate">Candidatos</SelectItem>
+              <SelectItem value="employee">Colaboradores</SelectItem>
+            </SelectContent>
+          </Select>
           <Badge variant="secondary">{events.length} eventos no total</Badge>
           <Button size="sm" onClick={openCreate} className="gap-1.5">
             <Plus className="w-4 h-4" /> Novo evento

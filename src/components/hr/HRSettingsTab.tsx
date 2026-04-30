@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MessageSquare, ListChecks, Loader2, Save, Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Bell, MessageSquare, ListChecks, Loader2, Save, Trash2, Plus, ArrowUp, ArrowDown, Columns } from 'lucide-react';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import { HRKanbanSettingsPanel } from './HRKanbanSettingsPanel';
 
 interface HRSettings {
   id: string;
@@ -171,6 +172,7 @@ export function HRSettingsTab() {
         <TabsTrigger value="notifications" className="gap-2"><Bell className="w-4 h-4" /> Notificações</TabsTrigger>
         <TabsTrigger value="templates" className="gap-2"><MessageSquare className="w-4 h-4" /> Templates</TabsTrigger>
         <TabsTrigger value="questions" className="gap-2"><ListChecks className="w-4 h-4" /> Perguntas</TabsTrigger>
+        <TabsTrigger value="kanban" className="gap-2"><Columns className="w-4 h-4" /> Kanban</TabsTrigger>
       </TabsList>
 
       {/* ============ NOTIFICAÇÕES (TIMERS) ============ */}
@@ -316,6 +318,10 @@ export function HRSettingsTab() {
             />
           </div>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="kanban">
+        <HRKanbanSettingsPanel />
       </TabsContent>
     </Tabs>
   );

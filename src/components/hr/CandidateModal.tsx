@@ -8,25 +8,30 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useHRCandidates, type HRCandidate, type HRKanbanStatus } from '@/hooks/useHRCandidates';
+import { useHREmployees } from '@/hooks/useHREmployees';
+import { useHRKanbanColumns } from '@/hooks/useHRKanbanColumns';
 import { InterviewForm } from './InterviewForm';
 import { ScheduleModal } from './ScheduleModal';
 import { CandidateActions } from './CandidateActions';
 import { CandidateResumeField } from './CandidateResumeField';
 import { CandidateHeader } from './CandidateHeader';
+import { AccessCredentialsTab } from './AccessCredentialsTab';
 import { validateBrazilianPhone, formatBrazilianPhone } from '@/lib/phoneUtils';
-import { HR_COLUMNS } from './hrColumns';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   candidate: HRCandidate | null;
+  entityType?: 'candidate' | 'employee';
 }
 
-const STATUS_OPTIONS = HR_COLUMNS.map(c => ({ value: c.id, label: c.name }));
-
-export function CandidateModal({ open, onOpenChange, candidate }: Props) {
+export function CandidateModal({ open, onOpenChange, candidate, entityType = 'candidate' }: Props) {
   const { toast } = useToast();
   const { updateCandidate, deleteCandidate, moveToPartner } = useHRCandidates();
+  const { updateEmployee, deleteEmployee } = useHREmployees();
+  const { columns: kanbanColumns } = useHRKanbanColumns(entityType === 'candidate' ? 'candidates' : 'employees');
+
+  const statusOptions = kanbanColumns.map(c => ({ value: c.slug, label: c.name }));
 
   const [form, setForm] = useState<Partial<HRCandidate>>({});
   const [saving, setSaving] = useState(false);
@@ -64,8 +69,12 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     setSaving(true);
     try {
       const payload = { ...form, phone: form.phone ? phoneCheck.normalized : form.phone };
-      await updateCandidate(candidate.id, payload);
-      toast({ title: 'Candidato atualizado' });
+      if (entityType === 'employee') {
+        await updateEmployee(candidate.id, payload);
+      } else {
+        await updateCandidate(candidate.id, payload);
+      }
+      toast({ title: entityType === 'employee' ? 'Colaborador atualizado' : 'Candidato atualizado' });
     } catch { /* hook handles toast */ }
     finally { setSaving(false); }
   };
@@ -79,7 +88,7 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
       return data.publicUrl;
     }
-    return path; // hr-resumes guarda apenas path; URL assinada gerada sob demanda
+    return path;
   };
 
   const handlePhotoUpload = async (file: File) => {
@@ -91,7 +100,8 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     try {
       const url = await handleUpload(file, 'hr-photos');
       setForm(prev => ({ ...prev, photo_url: url }));
-      await updateCandidate(candidate.id, { photo_url: url });
+      if (entityType === 'employee') await updateEmployee(candidate.id, { photo_url: url });
+      else await updateCandidate(candidate.id, { photo_url: url });
     } catch (err: any) {
       toast({ title: 'Erro ao enviar foto', description: err.message, variant: 'destructive' });
     } finally {
@@ -108,7 +118,8 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
     try {
       const url = await handleUpload(file, 'hr-resumes');
       setForm(prev => ({ ...prev, resume_url: url }));
-      await updateCandidate(candidate.id, { resume_url: url });
+      if (entityType === 'employee') await updateEmployee(candidate.id, { resume_url: url });
+      else await updateCandidate(candidate.id, { resume_url: url });
     } catch (err: any) {
       toast({ title: 'Erro ao enviar CV', description: err.message, variant: 'destructive' });
     } finally {
@@ -118,7 +129,8 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
 
   const handleDelete = async () => {
     try {
-      await deleteCandidate(candidate.id);
+      if (entityType === 'employee') await deleteEmployee(candidate.id);
+      else await deleteCandidate(candidate.id);
       onOpenChange(false);
     } catch { /* silent */ }
   };
@@ -129,6 +141,9 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
       onOpenChange(false);
     } catch { /* silent */ }
   };
+
+  const isEmployee = entityType === 'employee';
+  const tabCount = isEmployee ? 2 : 4; // employee: Dados + Acessos; candidate: Dados + E1 + E2 + Acessos
 
   return (
     <>
@@ -144,10 +159,11 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
           </SheetHeader>
 
           <Tabs defaultValue="info" className="mt-4 space-y-4">
-            <TabsList className="w-full grid grid-cols-3">
+            <TabsList className={`w-full grid ${isEmployee ? 'grid-cols-2' : 'grid-cols-4'}`}>
               <TabsTrigger value="info">Dados</TabsTrigger>
-              <TabsTrigger value="e1">Entrevista 1</TabsTrigger>
-              <TabsTrigger value="e2">Entrevista 2</TabsTrigger>
+              {!isEmployee && <TabsTrigger value="e1">Entrevista 1</TabsTrigger>}
+              {!isEmployee && <TabsTrigger value="e2">Entrevista 2</TabsTrigger>}
+              <TabsTrigger value="access">Acessos</TabsTrigger>
             </TabsList>
 
             <TabsContent value="info" className="space-y-3">
@@ -211,12 +227,12 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
                 <div className="col-span-2 space-y-1.5">
                   <Label>Status no funil</Label>
                   <Select
-                    value={form.kanban_status || 'new_resume'}
+                    value={form.kanban_status || (isEmployee ? 'send_docs' : 'new_resume')}
                     onValueChange={(v) => setForm(p => ({ ...p, kanban_status: v as HRKanbanStatus }))}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.map(o => (
+                      {statusOptions.map(o => (
                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -243,19 +259,27 @@ export function CandidateModal({ open, onOpenChange, candidate }: Props) {
                 candidate={candidate}
                 saving={saving}
                 onSave={handleSave}
-                onScheduleE1={() => setScheduleStage(1)}
-                onScheduleE2={() => setScheduleStage(2)}
-                onMoveToPartner={handleMoveToPartner}
+                onScheduleE1={!isEmployee ? () => setScheduleStage(1) : undefined}
+                onScheduleE2={!isEmployee ? () => setScheduleStage(2) : undefined}
+                onMoveToPartner={!isEmployee ? handleMoveToPartner : undefined}
                 onDelete={handleDelete}
               />
             </TabsContent>
 
-            <TabsContent value="e1">
-              <InterviewForm candidate={candidate} stage={1} />
-            </TabsContent>
+            {!isEmployee && (
+              <TabsContent value="e1">
+                <InterviewForm candidate={candidate} stage={1} />
+              </TabsContent>
+            )}
 
-            <TabsContent value="e2">
-              <InterviewForm candidate={candidate} stage={2} />
+            {!isEmployee && (
+              <TabsContent value="e2">
+                <InterviewForm candidate={candidate} stage={2} />
+              </TabsContent>
+            )}
+
+            <TabsContent value="access">
+              <AccessCredentialsTab entityType={entityType} entityId={candidate.id} />
             </TabsContent>
           </Tabs>
         </SheetContent>

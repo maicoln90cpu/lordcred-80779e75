@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Search, Plus } from 'lucide-react';
 import { useHRCandidates, type HRCandidate, type HRKanbanStatus } from '@/hooks/useHRCandidates';
 import { useHRInterviewsMap } from '@/hooks/useHRInterviewsMap';
+import { useHRKanbanColumns } from '@/hooks/useHRKanbanColumns';
 import CandidateCard from './CandidateCard';
 import { HRFiltersBar, DEFAULT_FILTERS, type HRFilters } from './HRFiltersBar';
 import { filterCandidates } from '@/lib/hrFilters';
-import { HR_COLUMNS, hrColor } from './hrColumns';
-
-const COLUMNS = HR_COLUMNS;
 
 interface Props {
   onCandidateClick?: (candidate: HRCandidate) => void;
@@ -20,9 +18,10 @@ interface Props {
 export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
   const { candidates, loading, moveCandidate } = useHRCandidates();
   const { map: interviewsMap } = useHRInterviewsMap();
+  const { columns } = useHRKanbanColumns('candidates');
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<HRFilters>(DEFAULT_FILTERS);
-  const [dragOverColumn, setDragOverColumn] = useState<HRKanbanStatus | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => filterCandidates(candidates, filters, interviewsMap, search),
@@ -30,34 +29,30 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
   );
 
   const byColumn = useMemo(() => {
-    const map = new Map<HRKanbanStatus, HRCandidate[]>();
-    COLUMNS.forEach(col => map.set(col.id, []));
+    const map = new Map<string, HRCandidate[]>();
+    columns.forEach(col => map.set(col.slug, []));
     filtered.forEach(c => {
       const list = map.get(c.kanban_status) ?? [];
       list.push(c);
       map.set(c.kanban_status, list);
     });
     return map;
-  }, [filtered]);
+  }, [filtered, columns]);
 
-  const handleDrop = async (e: DragEvent, status: HRKanbanStatus) => {
+  const handleDrop = async (e: DragEvent, slug: string) => {
     e.preventDefault();
     setDragOverColumn(null);
     const id = e.dataTransfer.getData('text/plain');
     if (!id) return;
     const candidate = candidates.find(c => c.id === id);
-    if (!candidate || candidate.kanban_status === status) return;
-    await moveCandidate(id, status);
+    if (!candidate || candidate.kanban_status === slug) return;
+    await moveCandidate(id, slug as HRKanbanStatus);
   };
 
-  const handleDragOver = (e: DragEvent, status: HRKanbanStatus) => {
+  const handleDragOver = (e: DragEvent, slug: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverColumn !== status) setDragOverColumn(status);
-  };
-
-  const handleClick = (c: HRCandidate) => {
-    onCandidateClick?.(c);
+    if (dragOverColumn !== slug) setDragOverColumn(slug);
   };
 
   return (
@@ -86,40 +81,36 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
 
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3">
-          {COLUMNS.map(col => {
-            const items = byColumn.get(col.id) ?? [];
-            const isOver = dragOverColumn === col.id;
-            const colorSolid = hrColor(col.token);
-            const colorTint = hrColor(col.token, 0.06);
-            const colorChip = hrColor(col.token, 0.12);
-            const colorGlow = hrColor(col.token, 0.4);
+          {columns.map(col => {
+            const items = byColumn.get(col.slug) ?? [];
+            const isOver = dragOverColumn === col.slug;
             return (
               <div
                 key={col.id}
-                onDragOver={e => handleDragOver(e, col.id)}
-                onDragLeave={() => setDragOverColumn(prev => (prev === col.id ? null : prev))}
-                onDrop={e => handleDrop(e, col.id)}
+                onDragOver={e => handleDragOver(e, col.slug)}
+                onDragLeave={() => setDragOverColumn(prev => (prev === col.slug ? null : prev))}
+                onDrop={e => handleDrop(e, col.slug)}
                 className={`flex flex-col w-[280px] min-w-[280px] rounded-xl border transition-all ${
                   isOver ? 'border-primary/60 shadow-lg shadow-primary/10' : 'border-border/30 shadow-sm'
                 }`}
-                style={{ background: `linear-gradient(180deg, ${colorTint} 0%, hsl(var(--card)) 18%)` }}
+                style={{ background: `linear-gradient(180deg, ${col.color_hex}10 0%, hsl(var(--card)) 18%)` }}
               >
                 <div className="relative px-3 py-2.5 border-b border-border/30">
                   <div
                     className="absolute top-0 left-3 right-3 h-[3px] rounded-b-full"
-                    style={{ backgroundColor: colorSolid }}
+                    style={{ backgroundColor: col.color_hex }}
                   />
                   <div className="flex items-center gap-2 mt-0.5">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: colorSolid, boxShadow: `0 0 8px ${colorGlow}` }}
+                      style={{ backgroundColor: col.color_hex, boxShadow: `0 0 8px ${col.color_hex}66` }}
                     />
                     <h3 className="text-sm font-bold text-foreground tracking-tight truncate">
                       {col.name}
                     </h3>
                     <span
                       className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: colorChip, color: colorSolid }}
+                      style={{ backgroundColor: `${col.color_hex}1F`, color: col.color_hex }}
                     >
                       {items.length}
                     </span>
@@ -143,8 +134,8 @@ export function HRCandidatesTab({ onCandidateClick, onCreateClick }: Props) {
                       <CandidateCard
                         key={c.id}
                         candidate={c}
-                        columnColor={colorSolid}
-                        onClick={handleClick}
+                        columnColor={col.color_hex}
+                        onClick={onCandidateClick ?? (() => {})}
                       />
                     ))
                   )}

@@ -1,27 +1,43 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UserPlus, Users2, Settings as SettingsIcon, CalendarDays } from 'lucide-react';
+import { UserPlus, Users2, Settings as SettingsIcon, CalendarDays, Briefcase } from 'lucide-react';
 import { HRIndicators } from '@/components/hr/HRIndicators';
 import { HRCandidatesTab } from '@/components/hr/HRCandidatesTab';
+import { HREmployeesTab } from '@/components/hr/HREmployeesTab';
 import { HRPartnerLeadsTab } from '@/components/hr/HRPartnerLeadsTab';
 import { HRSettingsTab } from '@/components/hr/HRSettingsTab';
 import { HRCalendarTab } from '@/components/hr/HRCalendarTab';
 import { CandidateModal } from '@/components/hr/CandidateModal';
 import { CandidateCreateDialog } from '@/components/hr/CandidateCreateDialog';
 import { useHRCandidates, type HRCandidate } from '@/hooks/useHRCandidates';
+import { useHREmployees, type HREmployee } from '@/hooks/useHREmployees';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function HR() {
   const { candidates, loading } = useHRCandidates();
+  const { employees } = useHREmployees();
   const { isAdmin } = useAuth();
   const [selected, setSelected] = useState<HRCandidate | null>(null);
+  const [selectedEntityType, setSelectedEntityType] = useState<'candidate' | 'employee'>('candidate');
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Keep "selected" in sync with realtime updates so the open Sheet shows fresh data
   const liveSelected = selected
-    ? candidates.find(c => c.id === selected.id) ?? selected
+    ? (selectedEntityType === 'candidate'
+        ? candidates.find(c => c.id === selected.id)
+        : employees.find(e => e.id === selected.id) as any)
+      ?? selected
     : null;
+
+  const handleCandidateClick = (c: HRCandidate) => {
+    setSelectedEntityType('candidate');
+    setSelected(c);
+  };
+
+  const handleEmployeeClick = (e: HREmployee) => {
+    setSelectedEntityType('employee');
+    setSelected(e as any);
+  };
 
   return (
     <DashboardLayout>
@@ -32,7 +48,7 @@ export default function HR() {
             Recursos Humanos
           </h1>
           <p className="text-sm text-muted-foreground">
-            Recrutamento de candidatos CLT, captação de parceiros e configurações de notificação.
+            Recrutamento de candidatos CLT, onboarding de colaboradores, captação de parceiros e configurações.
           </p>
         </div>
 
@@ -42,6 +58,9 @@ export default function HR() {
           <TabsList>
             <TabsTrigger value="candidates" className="gap-2">
               <UserPlus className="w-4 h-4" /> Candidatos CLT
+            </TabsTrigger>
+            <TabsTrigger value="employees" className="gap-2">
+              <Briefcase className="w-4 h-4" /> Colaboradores
             </TabsTrigger>
             <TabsTrigger value="partners" className="gap-2">
               <Users2 className="w-4 h-4" /> Funil Parceiros
@@ -58,9 +77,13 @@ export default function HR() {
 
           <TabsContent value="candidates">
             <HRCandidatesTab
-              onCandidateClick={setSelected}
+              onCandidateClick={handleCandidateClick}
               onCreateClick={() => setCreateOpen(true)}
             />
+          </TabsContent>
+
+          <TabsContent value="employees">
+            <HREmployeesTab onEmployeeClick={handleEmployeeClick} />
           </TabsContent>
 
           <TabsContent value="partners">
@@ -82,6 +105,7 @@ export default function HR() {
           open={!!selected}
           onOpenChange={(o) => !o && setSelected(null)}
           candidate={liveSelected}
+          entityType={selectedEntityType}
         />
 
         <CandidateCreateDialog
