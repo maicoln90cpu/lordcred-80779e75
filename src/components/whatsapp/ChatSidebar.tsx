@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, MessageSquare, Loader2, Archive, ChevronLeft, Tag, Star, Ban, MessageSquarePlus, UserCheck } from 'lucide-react';
+import { Search, MessageSquare, Loader2, Archive, ChevronLeft, Tag, Star, Ban, MessageSquarePlus, UserCheck, XCircle, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
