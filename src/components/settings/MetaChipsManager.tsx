@@ -40,6 +40,7 @@ export default function MetaChipsManager() {
   const [showAdd, setShowAdd] = useState(false);
   const [deleteChip, setDeleteChip] = useState<MetaChip | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [syncingQuality, setSyncingQuality] = useState(false);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
