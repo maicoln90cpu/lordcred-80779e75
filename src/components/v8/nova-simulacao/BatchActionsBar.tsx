@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X, Download, Pause } from 'lucide-react';
+import { Play, RefreshCw, X, Download, Pause, Ban } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -11,6 +11,8 @@ interface Props {
   onRetryFailed?: () => void;
   onReplayPending: () => void;
   onCancelBatch: () => void;
+  /** Cancelamento duro: marca TODAS as sims (inclusive em análise) como falha e ignora webhooks futuros. */
+  onCancelBatchHard?: () => void;
   /** Etapa 1 (item 9): exportar simulações do lote ativo em CSV. */
   onExportCsv?: () => void;
   exportDisabled?: boolean;
@@ -26,7 +28,7 @@ interface Props {
  */
 export default function BatchActionsBar({
   running, showManualWarning, awaitingManualSim,
-  onSimulateSelected, onReplayPending, onCancelBatch,
+  onSimulateSelected, onReplayPending, onCancelBatch, onCancelBatchHard,
   onExportCsv, exportDisabled,
   isPaused, onTogglePause,
 }: Props) {
@@ -111,6 +113,19 @@ export default function BatchActionsBar({
             <div className="text-amber-200">⚠️ <strong>Importante:</strong> CPFs <strong>já em análise na V8</strong> continuam sendo monitorados — o webhook ainda chega e o resultado pode aparecer depois (não joga fora consulta já paga).</div>
           </TooltipContent>
         </Tooltip>
+        {onCancelBatchHard && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="destructive" onClick={onCancelBatchHard} className="bg-red-700 hover:bg-red-800">
+                <Ban className="w-3 h-3 mr-1" /> Cancelar tudo
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1">
+              <div><strong>Versão dura:</strong> cancela TODAS as simulações (inclusive as em análise na V8) e <strong>ignora webhooks futuros</strong>.</div>
+              <div className="text-red-200">🛑 <strong>Atenção:</strong> consultas já pagas serão perdidas. Use apenas quando quiser parar TUDO imediatamente e não se importar com os resultados pendentes.</div>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </TooltipProvider>
     </div>
   );
