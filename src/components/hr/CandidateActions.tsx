@@ -25,7 +25,7 @@ export function CandidateActions({
 }: Props) {
   // Etapa 4C (abr/2026): liberado para QUALQUER status — candidatos não aprovados em CLT
   // podem ter perfil de parceiro. Só ocultamos se já foi migrado para evitar duplicar.
-  const canMoveToPartner = candidate.kanban_status !== 'migrated_partner';
+  const canMoveToPartner = onMoveToPartner && candidate.kanban_status !== 'migrated_partner';
 
   return (
     <div className="flex flex-wrap gap-2 pt-2">
