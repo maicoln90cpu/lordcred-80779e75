@@ -10,9 +10,9 @@ interface Props {
   candidate: HRCandidate;
   saving: boolean;
   onSave: () => void;
-  onScheduleE1: () => void;
-  onScheduleE2: () => void;
-  onMoveToPartner: () => void;
+  onScheduleE1?: () => void;
+  onScheduleE2?: () => void;
+  onMoveToPartner?: () => void;
   onDelete: () => void;
 }
 
