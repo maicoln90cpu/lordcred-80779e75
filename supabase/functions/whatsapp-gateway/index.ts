@@ -15,6 +15,7 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'disconnect-instance',
   'get-qrcode',
   'sync-templates',
+  'create-template',
   'set-profile-name',
   'set-profile-picture',
   'set-privacy',
