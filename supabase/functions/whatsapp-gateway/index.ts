@@ -248,6 +248,36 @@ async function handleMetaAction(
         normalizedPhone = '55' + normalizedPhone
       }
 
+      // --- Verificação da janela de 24h Meta ---
+      // Buscar última mensagem RECEBIDA (incoming) do cliente nesta conversa
+      const { data: lastIncoming } = await adminClient
+        .from('message_history')
+        .select('created_at')
+        .eq('chip_id', chip.id)
+        .eq('direction', 'incoming')
+        .or(`remote_jid.ilike.%${normalizedPhone}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!lastIncoming) {
+        return jsonResponse({
+          success: false,
+          windowClosed: true,
+          error: 'Nenhuma mensagem recebida deste contato. Para iniciar uma conversa pela Meta, envie um Template aprovado primeiro.',
+        })
+      }
+
+      const lastMsgTime = new Date(lastIncoming.created_at).getTime()
+      const hoursSince = (Date.now() - lastMsgTime) / (1000 * 60 * 60)
+      if (hoursSince >= 24) {
+        return jsonResponse({
+          success: false,
+          windowClosed: true,
+          error: `Janela de 24h expirada (última mensagem do cliente há ${Math.floor(hoursSince)}h). Use um Template aprovado para reabrir a conversa. Textos livres só podem ser enviados dentro de 24h após a última mensagem do cliente.`,
+        })
+      }
+
       const resp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {

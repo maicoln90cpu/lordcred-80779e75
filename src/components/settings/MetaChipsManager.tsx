@@ -151,22 +151,30 @@ export default function MetaChipsManager() {
   const handleSyncQuality = async () => {
     if (chips.length === 0) return;
     setSyncingQuality(true);
-    let errors: string[] = [];
+    const successes: string[] = [];
+    const errors: string[] = [];
     for (const chip of chips) {
+      const label = chip.nickname || chip.phone_number || chip.id.slice(0, 8);
       try {
         const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
           body: { action: 'sync-quality', chipId: chip.id },
         });
-        if (error) errors.push(error.message);
-        else if (!data?.success) errors.push(data?.error || `Falha chip ${chip.phone_number}`);
+        if (error) {
+          errors.push(`${label}: ${error.message}`);
+        } else if (!data?.success) {
+          errors.push(`${label}: ${data?.error || 'Falha desconhecida'}`);
+        } else {
+          successes.push(`${label}: ${data.quality_rating || '—'}`);
+        }
       } catch (err: any) {
-        errors.push(err.message);
+        errors.push(`${label}: ${err.message}`);
       }
     }
+    if (successes.length > 0) {
+      toast({ title: `✅ ${successes.length} chip(s) sincronizado(s)`, description: successes.join(', ') });
+    }
     if (errors.length > 0) {
-      toast({ title: 'Sincronização parcial', description: errors.join('; '), variant: 'destructive' });
-    } else {
-      toast({ title: 'Qualidade sincronizada com sucesso' });
+      toast({ title: `⚠️ ${errors.length} chip(s) com erro`, description: errors.join('; '), variant: 'destructive', duration: 15000 });
     }
     await loadData();
     setSyncingQuality(false);
