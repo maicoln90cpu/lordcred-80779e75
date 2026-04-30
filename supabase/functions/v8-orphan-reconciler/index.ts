@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, scanned, matched, promoted, duration_ms: Date.now() - startedAt }),
+      JSON.stringify({ success: true, scanned, matched, promoted, zombies_closed: zombiesClosed, duration_ms: Date.now() - startedAt }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
