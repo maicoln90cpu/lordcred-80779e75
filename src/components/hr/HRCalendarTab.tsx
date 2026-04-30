@@ -86,12 +86,13 @@ export function HRCalendarTab() {
     return map;
   }, [events]);
 
-  // Mapa candidato → nome (evita find() em loop nas views).
+  // Mapa candidato/colaborador → nome (evita find() em loop nas views).
   const candidateNameById = useMemo(() => {
     const m = new Map<string, string>();
     candidates.forEach((c) => m.set(c.id, c.full_name));
+    employees.forEach((e) => m.set(e.id, e.full_name));
     return m;
-  }, [candidates]);
+  }, [candidates, employees]);
 
   const dayEvents = useMemo(() => {
     return events
