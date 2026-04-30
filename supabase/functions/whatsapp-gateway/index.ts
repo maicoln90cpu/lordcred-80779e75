@@ -232,7 +232,7 @@ async function handleMetaAction(
       })
       const uploadData = await safeJson(uploadResp)
       if (uploadData.error || !uploadData.id) {
-        return jsonResponse({ success: false, error: uploadData.error?.message || 'Media upload failed' })
+        return jsonResponse({ success: false, error: uploadData.error ? humanizeMetaError(uploadData.error, phoneNumberId) : 'Falha no upload do arquivo para a Meta', errorCode: uploadData.error?.code })
       }
 
       // Send message with media
