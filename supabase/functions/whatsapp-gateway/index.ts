@@ -163,7 +163,7 @@ async function handleMetaAction(
       })
       const data = await safeJson(resp)
       if (data.error) {
-        return jsonResponse({ success: false, error: data.error.message || 'Meta API error' })
+        return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
 
       // Log cost + audit
