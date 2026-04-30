@@ -2037,6 +2037,42 @@ export type Database = {
         }
         Relationships: []
       }
+      hr_access_credentials: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          login: string
+          notes: string | null
+          password: string
+          system_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          login?: string
+          notes?: string | null
+          password?: string
+          system_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          login?: string
+          notes?: string | null
+          password?: string
+          system_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hr_calendar_events: {
         Row: {
           candidate_id: string | null
@@ -2044,7 +2080,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          employee_id: string | null
           ends_at: string | null
+          entity_type: string
           event_type: string
           google_event_id: string | null
           id: string
@@ -2059,7 +2097,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          employee_id?: string | null
           ends_at?: string | null
+          entity_type?: string
           event_type?: string
           google_event_id?: string | null
           id?: string
@@ -2074,7 +2114,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          employee_id?: string | null
           ends_at?: string | null
+          entity_type?: string
           event_type?: string
           google_event_id?: string | null
           id?: string
@@ -2089,6 +2131,13 @@ export type Database = {
             columns: ["candidate_id"]
             isOneToOne: false
             referencedRelation: "hr_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_calendar_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "hr_employees"
             referencedColumns: ["id"]
           },
         ]
@@ -2140,6 +2189,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      hr_employees: {
+        Row: {
+          age: number | null
+          cpf: string | null
+          created_at: string
+          full_name: string
+          id: string
+          kanban_status: string
+          notes: string | null
+          phone: string
+          photo_url: string | null
+          resume_url: string | null
+          source_candidate_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          kanban_status?: string
+          notes?: string | null
+          phone: string
+          photo_url?: string | null
+          resume_url?: string | null
+          source_candidate_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          cpf?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          kanban_status?: string
+          notes?: string | null
+          phone?: string
+          photo_url?: string | null
+          resume_url?: string | null
+          source_candidate_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_employees_source_candidate_id_fkey"
+            columns: ["source_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "hr_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hr_interview_answers: {
         Row: {
@@ -2292,6 +2397,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      hr_kanban_columns: {
+        Row: {
+          board: string
+          color_hex: string
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          board: string
+          color_hex?: string
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number
+        }
+        Update: {
+          board?: string
+          color_hex?: string
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       hr_notification_settings: {
         Row: {
