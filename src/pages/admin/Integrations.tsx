@@ -146,10 +146,10 @@ export default function Integrations() {
           <p className="text-muted-foreground">Configuração dos provedores WhatsApp e integrações externas</p>
         </div>
 
-        <Tabs defaultValue="uazapi" className="space-y-6">
+        <Tabs defaultValue="meta" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="uazapi">UazAPI</TabsTrigger>
             <TabsTrigger value="meta">Meta WhatsApp</TabsTrigger>
+            <TabsTrigger value="uazapi">UazAPI</TabsTrigger>
             <TabsTrigger value="support">Support Chat</TabsTrigger>
           </TabsList>
 
@@ -233,12 +233,12 @@ export default function Integrations() {
           {/* Meta WhatsApp Tab — Sub-tabs */}
           <TabsContent value="meta">
             {providerSettings ? (
-              <Tabs defaultValue="meta-config" className="space-y-6">
+              <Tabs defaultValue="meta-chips" className="space-y-6">
                 <TabsList>
-                  <TabsTrigger value="meta-config">⚙️ Configuração</TabsTrigger>
                   <TabsTrigger value="meta-chips">📱 Chips</TabsTrigger>
                   <TabsTrigger value="meta-access">👥 Acesso</TabsTrigger>
                   <TabsTrigger value="meta-templates">📄 Templates</TabsTrigger>
+                  <TabsTrigger value="meta-config">⚙️ Configuração</TabsTrigger>
                 </TabsList>
 
                 {/* Sub-tab: Configuração */}
