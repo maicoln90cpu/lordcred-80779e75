@@ -286,8 +286,7 @@ export default function V8ContactPoolImportDialog({ open, onOpenChange, onImport
       let uploadBlob: Blob;
       let uploadName: string;
       const ext = file.name.toLowerCase().split('.').pop() || '';
-      async if (ext === 'csv') {
-        const XLSX = await loadXLSX();
+      if (ext === 'csv') {
         uploadBlob = file;
         uploadName = file.name;
       } else {
