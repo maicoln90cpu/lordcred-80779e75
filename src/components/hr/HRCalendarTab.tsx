@@ -56,14 +56,23 @@ const EMPTY_FORM: EventFormState = {
 };
 
 type CalendarView = 'month' | 'list' | 'agenda';
+type EntityFilter = 'all' | 'candidate' | 'employee';
 
 export function HRCalendarTab() {
-  const { events, loading, createEvent, updateEvent, deleteEvent } = useHRCalendarEvents();
+  const { events: allEvents, loading, createEvent, updateEvent, deleteEvent } = useHRCalendarEvents();
   const { candidates } = useHRCandidates();
+  const { employees } = useHREmployees();
   const [view, setView] = useState<CalendarView>('month');
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<EventFormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const events = useMemo(() => {
+    if (entityFilter === 'all') return allEvents;
+    return allEvents.filter(ev => (ev as any).entity_type === entityFilter);
+  }, [allEvents, entityFilter]);
   const [saving, setSaving] = useState(false);
 
   // Mapa para destacar dias com evento no mês.
