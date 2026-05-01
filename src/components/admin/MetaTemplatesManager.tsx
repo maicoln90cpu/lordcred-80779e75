@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Loader2, FileText, CheckCircle, XCircle, Clock, Search, Eye } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { RefreshCw, Loader2, FileText, CheckCircle, XCircle, Clock, Search, Eye, Smartphone } from 'lucide-react';
 import MetaTemplateCreateDialog from './MetaTemplateCreateDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-
 interface MetaTemplate {
   id: string;
   waba_id: string;
@@ -20,6 +19,15 @@ interface MetaTemplate {
   status: string;
   components: any;
   synced_at: string;
+}
+
+interface MetaChip {
+  id: string;
+  instance_name: string;
+  phone_number: string | null;
+  meta_phone_number_id: string | null;
+  meta_waba_id: string | null;
+  internal_name: string | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle }> = {
@@ -40,7 +48,7 @@ export default function MetaTemplatesManager() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
-  const [metaChips, setMetaChips] = useState<any[]>([]);
+  const [metaChips, setMetaChips] = useState<MetaChip[]>([]);
   const [previewTemplate, setPreviewTemplate] = useState<MetaTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
@@ -56,9 +64,9 @@ export default function MetaTemplatesManager() {
   const fetchMetaChips = useCallback(async () => {
     const { data } = await supabase
       .from('chips')
-      .select('id, instance_name, phone_number, meta_phone_number_id, meta_waba_id')
+      .select('id, instance_name, phone_number, meta_phone_number_id, meta_waba_id, internal_name')
       .eq('provider', 'meta');
-    setMetaChips(data || []);
+    setMetaChips((data as MetaChip[]) || []);
   }, []);
 
   useEffect(() => {
@@ -111,6 +119,26 @@ export default function MetaTemplatesManager() {
     t.category.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Group templates by waba_id
+  const groupedByWaba = useMemo(() => {
+    const groups: Record<string, MetaTemplate[]> = {};
+    for (const t of filtered) {
+      const key = t.waba_id || 'unknown';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    }
+    return groups;
+  }, [filtered]);
+
+  // Map waba_id to chip info
+  const wabaChipMap = useMemo(() => {
+    const map: Record<string, MetaChip> = {};
+    for (const chip of metaChips) {
+      if (chip.meta_waba_id) map[chip.meta_waba_id] = chip;
+    }
+    return map;
+  }, [metaChips]);
+
   const getStatusBadge = (status: string) => {
     const cfg = statusConfig[status] || { label: status, variant: 'outline' as const, icon: Clock };
     const Icon = cfg.icon;
@@ -127,6 +155,13 @@ export default function MetaTemplatesManager() {
     const body = components.find((c: any) => c.type === 'BODY');
     if (!body?.text) return '—';
     return body.text.length > 80 ? body.text.slice(0, 80) + '…' : body.text;
+  };
+
+  const getChipLabel = (wabaId: string) => {
+    const chip = wabaChipMap[wabaId];
+    if (!chip) return `WABA ${wabaId}`;
+    const name = chip.internal_name || chip.instance_name || chip.phone_number || '';
+    return `${name} — ${wabaId}`;
   };
 
   return (
@@ -178,47 +213,68 @@ export default function MetaTemplatesManager() {
               : 'Nenhum template encontrado para a busca.'}
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Idioma</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Preview</TableHead>
-                  <TableHead>Sincronizado em</TableHead>
-                  <TableHead className="w-[60px]"></TableHead>
-                  <TableHead>Preview</TableHead>
-                  <TableHead>Sincronizado em</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(t => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium">{t.template_name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{t.language}</Badge>
-                    </TableCell>
-                    <TableCell>{categoryLabels[t.category] || t.category}</TableCell>
-                    <TableCell>{getStatusBadge(t.status)}</TableCell>
-                    <TableCell className="max-w-[250px] truncate text-xs text-muted-foreground">
-                      {getPreviewText(t.components)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {t.synced_at
-                        ? new Date(t.synced_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-                        : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewTemplate(t)} title="Visualizar template">
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="space-y-6">
+            {Object.entries(groupedByWaba).map(([wabaId, groupTemplates]) => {
+              const chip = wabaChipMap[wabaId];
+              return (
+                <div key={wabaId} className="space-y-2">
+                  {/* WABA section header */}
+                  <div className="flex items-center gap-2 px-1">
+                    <Smartphone className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-semibold">
+                      {chip?.internal_name || chip?.instance_name || 'Conta desconhecida'}
+                    </h3>
+                    <Badge variant="outline" className="text-[10px]">
+                      {chip?.phone_number || wabaId}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      ({groupTemplates.length} template{groupTemplates.length !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Idioma</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Preview</TableHead>
+                          <TableHead>Sincronizado em</TableHead>
+                          <TableHead className="w-[60px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {groupTemplates.map(t => (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">{t.template_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{t.language}</Badge>
+                            </TableCell>
+                            <TableCell>{categoryLabels[t.category] || t.category}</TableCell>
+                            <TableCell>{getStatusBadge(t.status)}</TableCell>
+                            <TableCell className="max-w-[250px] truncate text-xs text-muted-foreground">
+                              {getPreviewText(t.components)}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {t.synced_at
+                                ? new Date(t.synced_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                                : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewTemplate(t)} title="Visualizar template">
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -244,6 +300,11 @@ export default function MetaTemplatesManager() {
               <Badge variant="outline">{previewTemplate.language}</Badge>
               <Badge variant="secondary">{categoryLabels[previewTemplate.category] || previewTemplate.category}</Badge>
               {getStatusBadge(previewTemplate.status)}
+              {/* Show which chip/account this template belongs to */}
+              <Badge variant="outline" className="text-[10px]">
+                <Smartphone className="w-3 h-3 mr-1" />
+                {wabaChipMap[previewTemplate.waba_id]?.internal_name || wabaChipMap[previewTemplate.waba_id]?.instance_name || previewTemplate.waba_id}
+              </Badge>
             </div>
 
             {/* WhatsApp-style bubble preview */}
