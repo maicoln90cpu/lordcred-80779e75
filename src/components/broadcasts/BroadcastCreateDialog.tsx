@@ -619,35 +619,60 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
                   <div className="bg-muted/30 rounded-lg p-3 text-sm whitespace-pre-wrap border border-border/30">
                     {(() => {
+                      const previewVal = (b: VarBinding) => b.kind === 'lead_field' ? `《${b.field}》` : (b.value || '');
                       let preview = getTemplatePreview(selectedTemplate);
-                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(v || k);
-                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(v || k);
+                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(previewVal(v) || k);
+                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(previewVal(v) || k);
                       return preview;
                     })()}
                   </div>
 
+                  {sourceType !== 'leads' && (Object.values(headerVars).some(b => b.kind === 'lead_field') || Object.values(bodyVars).some(b => b.kind === 'lead_field')) && (
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded p-2">
+                      ⚠️ Você está usando "Campo do lead", mas a origem não é Leads. Mude a origem para "Leads" ou troque para "Texto fixo".
+                    </div>
+                  )}
+
                   {Object.keys(headerVars).length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground font-medium">Variáveis do cabeçalho:</p>
-                      {Object.keys(headerVars).map(key => (
-                        <div key={`h-${key}`} className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Header {key}</Label>
-                          <Input value={headerVars[key]} onChange={e => setHeaderVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
-                        </div>
+                      {Object.keys(headerVars).sort().map(key => (
+                        <MetaTemplateVarBinding
+                          key={`h-${key}`}
+                          label={`Header ${key}`}
+                          binding={headerVars[key]}
+                          onChange={(b) => setHeaderVars(p => ({ ...p, [key]: b }))}
+                          disableLeadFields={sourceType !== 'leads'}
+                        />
                       ))}
                     </div>
                   )}
                   {Object.keys(bodyVars).length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground font-medium">Variáveis do corpo:</p>
-                      {Object.keys(bodyVars).map(key => (
-                        <div key={`b-${key}`} className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Body {key}</Label>
-                          <Input value={bodyVars[key]} onChange={e => setBodyVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
-                        </div>
+                      {Object.keys(bodyVars).sort().map(key => (
+                        <MetaTemplateVarBinding
+                          key={`b-${key}`}
+                          label={`Body ${key}`}
+                          binding={bodyVars[key]}
+                          onChange={(b) => setBodyVars(p => ({ ...p, [key]: b }))}
+                          disableLeadFields={sourceType !== 'leads'}
+                        />
                       ))}
                     </div>
                   )}
+
+                  {/* Test send button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowTestSendDialog(true)}
+                  >
+                    <FlaskConical className="w-4 h-4 mr-2" />
+                    Testar template em 1 número antes
+                  </Button>
                 </div>
               ) : metaTemplates.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
