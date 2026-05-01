@@ -180,6 +180,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onR
           <p className="text-sm text-muted-foreground/70">{chat.phone}</p>
         </div>
         <div className="flex items-center gap-0.5">
+          {chipId && chat && chipProvider === 'meta' && (
+            <Window24hBadge chipId={chipId} remoteJid={chat.remoteJid} provider={chipProvider} onWindowStateChange={setWindowExpired} />
+          )}
           <Button variant="ghost" size="icon" onClick={() => setQuickRepliesOpen(true)} className="text-muted-foreground hover:text-primary hover:bg-primary/10" title="Respostas rápidas"><Zap className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setNotesOpen(!notesOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", notesOpen && "text-primary bg-primary/10")} title="Notas internas"><StickyNote className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setAuditOpen(!auditOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", auditOpen && "text-primary bg-primary/10")} title="Auditoria"><ClipboardList className="w-4 h-4" /></Button>
