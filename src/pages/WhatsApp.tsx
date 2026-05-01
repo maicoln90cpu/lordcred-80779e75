@@ -412,6 +412,7 @@ export default function WhatsApp() {
             chat={selectedChat}
             chipId={selectedChipId}
             chipStatus={selectedChipStatus}
+            chipProvider={selectedChipProvider}
             onReconnect={handleReconnectFromChat}
             onStartNewChat={handleStartNewChat}
           />
