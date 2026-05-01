@@ -243,46 +243,103 @@ Deno.serve(async (req) => {
             })
           }
 
-          let response: Response
+          let sendOk = false
+          let sentMessageId: string | null = null
+          let sendError: string | null = null
 
-          if ((campaign.media_type === 'image' || campaign.media_type === 'document') && campaign.media_url) {
-            const mediaBody: Record<string, string> = {
-              number: recipient.phone,
-              type: campaign.media_type,
-              file: campaign.media_url,
+          if (isMeta) {
+            // ── META: invoke whatsapp-gateway with send-template action ──
+            if (!campaign.meta_template_name) {
+              sendError = 'Campanha Meta sem template configurado'
+            } else {
+              // Substitute variables inside template components (lead-driven)
+              let components = campaign.meta_template_components
+              if (components && recipient.lead_id && leadsMap[recipient.lead_id]) {
+                const lead = leadsMap[recipient.lead_id]
+                const vars: Record<string, string | null> = {
+                  nome: lead.nome, cpf: lead.cpf, telefone: lead.telefone,
+                  banco: lead.banco_nome, perfil: lead.perfil, status: lead.status,
+                }
+                components = JSON.parse(JSON.stringify(components))
+                for (const comp of components) {
+                  if (Array.isArray(comp.parameters)) {
+                    for (const p of comp.parameters) {
+                      if (p.type === 'text' && typeof p.text === 'string') {
+                        p.text = replaceVariables(p.text, vars)
+                      }
+                    }
+                  }
+                }
+              }
+
+              const { data: gwData, error: gwErr } = await adminClient.functions.invoke('whatsapp-gateway', {
+                body: {
+                  action: 'send-template',
+                  chipId: activeChip.chipId,
+                  phoneNumber: recipient.phone,
+                  templateName: campaign.meta_template_name,
+                  templateLanguage: campaign.meta_template_language || 'pt_BR',
+                  templateComponents: components || undefined,
+                  filledTemplateText: campaign.message_content,
+                },
+              })
+              if (gwErr) {
+                sendError = gwErr.message || 'Erro no gateway Meta'
+              } else if (gwData?.success) {
+                sendOk = true
+                sentMessageId = gwData?.data?.messageId || null
+              } else {
+                sendError = gwData?.error || 'Falha no envio Meta'
+              }
             }
-            if (messageText) mediaBody.text = messageText
-            if (campaign.media_type === 'document' && campaign.media_filename) {
-              mediaBody.docName = campaign.media_filename
-            }
-            response = await fetch(`${apiUrl}/send/media`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify(mediaBody),
-            })
           } else {
-            response = await fetch(`${apiUrl}/send/text`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'token': chipToken },
-              body: JSON.stringify({
+            // ── UazAPI: free text or media ──
+            const chipToken = activeChip.token
+            let response: Response
+
+            if ((campaign.media_type === 'image' || campaign.media_type === 'document') && campaign.media_url) {
+              const mediaBody: Record<string, string> = {
                 number: recipient.phone,
-                text: messageText,
-              }),
-            })
+                type: campaign.media_type,
+                file: campaign.media_url,
+              }
+              if (messageText) mediaBody.text = messageText
+              if (campaign.media_type === 'document' && campaign.media_filename) {
+                mediaBody.docName = campaign.media_filename
+              }
+              response = await fetch(`${apiUrl}/send/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'token': chipToken },
+                body: JSON.stringify(mediaBody),
+              })
+            } else {
+              response = await fetch(`${apiUrl}/send/text`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'token': chipToken },
+                body: JSON.stringify({
+                  number: recipient.phone,
+                  text: messageText,
+                }),
+              })
+            }
+
+            const resData = await response.json().catch(() => ({}))
+            if (response.ok) {
+              sendOk = true
+              sentMessageId = resData?.messageId || resData?.id || resData?.key?.id || null
+            } else {
+              sendError = resData.message || 'Send failed'
+            }
           }
 
-          if (response.ok) {
-            // Extract message_id from UazAPI response
-            const resData = await response.json().catch(() => ({}))
-            const messageId = resData?.messageId || resData?.id || resData?.key?.id || null
-
+          if (sendOk) {
             await adminClient
               .from('broadcast_recipients')
               .update({
                 status: 'sent',
                 sent_at: new Date().toISOString(),
                 variant,
-                message_id: messageId,
+                message_id: sentMessageId,
                 delivery_status: 'sent',
               })
               .eq('id', recipient.id)
@@ -301,10 +358,9 @@ Deno.serve(async (req) => {
             batchSent++
             totalProcessed++
           } else {
-            const errData = await response.json().catch(() => ({}))
             await adminClient
               .from('broadcast_recipients')
-              .update({ status: 'failed', error_message: errData.message || 'Send failed' })
+              .update({ status: 'failed', error_message: sendError || 'Send failed' })
               .eq('id', recipient.id)
             batchFailed++
             totalFailed++
