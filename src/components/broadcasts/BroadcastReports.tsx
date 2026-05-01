@@ -154,7 +154,7 @@ export default function BroadcastReports() {
   const loadReports = async () => {
     const { data } = await supabase
       .from('broadcast_campaigns')
-      .select('id, name, status, total_recipients, sent_count, failed_count, created_at, completed_at, ab_enabled')
+      .select('id, name, status, total_recipients, sent_count, failed_count, created_at, completed_at, ab_enabled, provider, meta_template_name')
       .in('status', ['completed', 'running', 'paused'])
       .order('created_at', { ascending: false })
       .limit(50);
