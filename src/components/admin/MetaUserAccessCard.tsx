@@ -237,6 +237,19 @@ export default function MetaUserAccessCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Alert className="border-primary/30 bg-primary/5 py-3">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-xs space-y-1.5">
+            <p className="font-medium text-sm">Pré-requisitos para funcionar:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Cadastre o chip Meta na aba <strong>"Chips"</strong> com Phone Number ID</li>
+              <li>O chip precisa estar como <strong>"Compartilhado"</strong> (is_shared = true)</li>
+              <li>O vendedor deve estar habilitado na <strong>Fila de Mensagens</strong> (Admin → Fila)</li>
+              <li>Marque o vendedor abaixo e selecione quais chips ele pode usar</li>
+              <li>Master e Admin sempre têm acesso automático — não precisam ser marcados</li>
+            </ol>
+          </AlertDescription>
+        </Alert>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
