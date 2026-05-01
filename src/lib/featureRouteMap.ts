@@ -15,6 +15,7 @@ export const MASTER_FEATURE_TOGGLE_KEYS = [
   'corban_fgts',
   'corban_propostas',
   'dashboard',
+  'hr',
   'integrations',
   'internal_chat',
   'kanban',
