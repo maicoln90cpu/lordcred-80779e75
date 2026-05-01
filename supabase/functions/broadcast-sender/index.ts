@@ -30,10 +30,12 @@ Deno.serve(async (req) => {
 
     let campaigns: any[] = []
 
+    const chipSelect = 'instance_name, instance_token, status, provider'
+
     if (campaignId) {
       const { data } = await adminClient
         .from('broadcast_campaigns')
-        .select('*, chips(instance_name, instance_token, status)')
+        .select(`*, chips(${chipSelect})`)
         .eq('id', campaignId)
         .in('status', ['running', 'scheduled'])
         .limit(1)
@@ -41,14 +43,14 @@ Deno.serve(async (req) => {
     } else {
       const { data } = await adminClient
         .from('broadcast_campaigns')
-        .select('*, chips(instance_name, instance_token, status)')
+        .select(`*, chips(${chipSelect})`)
         .eq('status', 'running')
         .limit(5)
       campaigns = data || []
 
       const { data: scheduled } = await adminClient
         .from('broadcast_campaigns')
-        .select('*, chips(instance_name, instance_token, status)')
+        .select(`*, chips(${chipSelect})`)
         .eq('status', 'scheduled')
         .limit(10)
 
