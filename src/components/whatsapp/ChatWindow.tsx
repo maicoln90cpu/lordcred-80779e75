@@ -7,6 +7,7 @@ import ForwardDialog from './ForwardDialog';
 import AssignConversationBanner from './AssignConversationBanner';
 import ConversationAuditPanel from './ConversationAuditPanel';
 import CloseConversationDialog from './CloseConversationDialog';
+import Window24hBadge from './Window24hBadge';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
