@@ -291,6 +291,7 @@ export type Database = {
           id: string
           instance_name: string
           instance_token: string | null
+          internal_name: string | null
           is_shared: boolean
           last_connection_attempt: string | null
           last_message_at: string | null
@@ -326,6 +327,7 @@ export type Database = {
           id?: string
           instance_name: string
           instance_token?: string | null
+          internal_name?: string | null
           is_shared?: boolean
           last_connection_attempt?: string | null
           last_message_at?: string | null
@@ -361,6 +363,7 @@ export type Database = {
           id?: string
           instance_name?: string
           instance_token?: string | null
+          internal_name?: string | null
           is_shared?: boolean
           last_connection_attempt?: string | null
           last_message_at?: string | null
