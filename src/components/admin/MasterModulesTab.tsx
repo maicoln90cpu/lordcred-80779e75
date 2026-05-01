@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Power, PowerOff } from 'lucide-react';
+import { Loader2, Power, PowerOff, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Toggle {
@@ -48,6 +49,36 @@ export default function MasterModulesTab() {
     },
   });
 
+  const [search, setSearch] = useState('');
+
+  const { groups, totalVisible, enabledCount, disabledCount } = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = term
+      ? toggles.filter(
+          (t) =>
+            t.feature_label.toLowerCase().includes(term) ||
+            t.feature_key.toLowerCase().includes(term) ||
+            t.feature_group.toLowerCase().includes(term),
+        )
+      : toggles;
+
+    const grouped: Record<string, Toggle[]> = {};
+    filtered.forEach((t) => {
+      if (!grouped[t.feature_group]) grouped[t.feature_group] = [];
+      grouped[t.feature_group].push(t);
+    });
+    Object.values(grouped).forEach((arr) =>
+      arr.sort((a, b) => a.feature_label.localeCompare(b.feature_label, 'pt-BR')),
+    );
+
+    return {
+      groups: grouped,
+      totalVisible: filtered.length,
+      enabledCount: toggles.filter((t) => t.is_enabled).length,
+      disabledCount: toggles.filter((t) => !t.is_enabled).length,
+    };
+  }, [toggles, search]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -56,28 +87,34 @@ export default function MasterModulesTab() {
     );
   }
 
-  // Group by feature_group
-  const groups: Record<string, Toggle[]> = {};
-  toggles.forEach(t => {
-    if (!groups[t.feature_group]) groups[t.feature_group] = [];
-    groups[t.feature_group].push(t);
-  });
-
-  const enabledCount = toggles.filter(t => t.is_enabled).length;
-  const disabledCount = toggles.length - enabledCount;
-
   return (
     <div className="space-y-6">
-      {/* Summary */}
-      <div className="flex gap-4">
-        <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
-          <Power className="w-3.5 h-3.5 text-green-500" />
-          {enabledCount} ativos
-        </Badge>
-        <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
-          <PowerOff className="w-3.5 h-3.5 text-muted-foreground" />
-          {disabledCount} ocultos
-        </Badge>
+      {/* Summary + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+            <Power className="w-3.5 h-3.5 text-green-500" />
+            {enabledCount} ativos
+          </Badge>
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+            <PowerOff className="w-3.5 h-3.5 text-muted-foreground" />
+            {disabledCount} ocultos
+          </Badge>
+          {search && (
+            <Badge variant="secondary" className="px-3 py-1.5 text-sm">
+              {totalVisible} resultado{totalVisible !== 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar módulo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Groups */}

@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { FEATURE_ROUTE_MAP } from "@/lib/featureRouteMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle } from "lucide-react";
@@ -53,6 +54,7 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   commissions_v2: "Comissões de parceiros (versão 2 — sandbox)",
   v8_simulador: "Simulador V8 CLT para cálculo de propostas",
   integrations: "Configurações de integrações WhatsApp (UazAPI / Meta)",
+  hr: "RH/Recrutamento — gestão de candidatos, funcionários e entrevistas",
 };
 
 interface FeaturePermission {
@@ -99,13 +101,24 @@ export default function Permissions() {
     ]);
 
     if (featRes.data) {
-      setFeatures(
-        featRes.data.map((f) => ({
-          ...f,
-          allowed_user_ids: (f as any).allowed_user_ids || [],
-          allowed_roles: (f as any).allowed_roles || [],
-        })),
-      );
+      const mapped = featRes.data.map((f) => ({
+        ...f,
+        allowed_user_ids: (f as any).allowed_user_ids || [],
+        allowed_roles: (f as any).allowed_roles || [],
+      }));
+      setFeatures(mapped);
+
+      // Validador dev: alerta se houver feature_key em FEATURE_ROUTE_MAP sem registro em feature_permissions
+      if (import.meta.env.DEV) {
+        const registered = new Set(mapped.map((f) => f.feature_key));
+        const missing = Object.keys(FEATURE_ROUTE_MAP).filter(
+          (k) => !registered.has(k) && k !== "master_admin",
+        );
+        if (missing.length > 0) {
+          // eslint-disable-next-line no-console
+          console.warn("[Permissions] feature_keys sem registro em feature_permissions:", missing);
+        }
+      }
     }
 
     const rolesMap: Record<string, string> = {};

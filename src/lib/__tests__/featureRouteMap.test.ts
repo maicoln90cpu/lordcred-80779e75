@@ -8,7 +8,7 @@ describe('FEATURE_ROUTE_MAP x master_feature_toggles', () => {
   });
 
   it('não deixa rota mapeada para feature inexistente no painel Master, exceto rotas internas', () => {
-    const allowedInternalOnly = new Set(['master_admin', 'hr']);
+    const allowedInternalOnly = new Set(['master_admin']);
     const extra = Object.keys(FEATURE_ROUTE_MAP).filter(
       (key) => !MASTER_FEATURE_TOGGLE_KEYS.includes(key as any) && !allowedInternalOnly.has(key),
     );
