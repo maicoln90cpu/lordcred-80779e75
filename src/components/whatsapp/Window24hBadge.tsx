@@ -19,24 +19,48 @@ export default function Window24hBadge({ chipId, remoteJid, provider, onWindowSt
 
   const WINDOW_MS = 24 * 60 * 60 * 1000;
 
-  const fetchLastIncoming = useCallback(async () => {
+  const fetchLastWindowOpener = useCallback(async () => {
     if (!chipId || !remoteJid) return;
 
-    // Normalize phone from remoteJid
     const phone = remoteJid.split('@')[0];
 
-    const { data } = await supabase
-      .from('message_history')
-      .select('created_at')
-      .eq('chip_id', chipId)
-      .eq('direction', 'incoming')
-      .or(`remote_jid.ilike.%${phone}%,recipient_phone.ilike.%${phone}%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Window opens on: incoming message OR outgoing template (Meta rule 2024+)
+    // Query both and use the most recent
+    const [incomingRes, templateRes] = await Promise.all([
+      supabase
+        .from('message_history')
+        .select('created_at')
+        .eq('chip_id', chipId)
+        .eq('direction', 'incoming')
+        .or(`remote_jid.ilike.%${phone}%,recipient_phone.ilike.%${phone}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('message_history')
+        .select('created_at')
+        .eq('chip_id', chipId)
+        .eq('direction', 'outgoing')
+        .ilike('message_content', '📋%')
+        .or(`remote_jid.ilike.%${phone}%,recipient_phone.ilike.%${phone}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (data?.created_at) {
-      setLastIncomingAt(new Date(data.created_at));
+    const incomingDate = incomingRes.data?.created_at ? new Date(incomingRes.data.created_at) : null;
+    const templateDate = templateRes.data?.created_at ? new Date(templateRes.data.created_at) : null;
+
+    // Use the most recent between the two
+    let latest: Date | null = null;
+    if (incomingDate && templateDate) {
+      latest = incomingDate > templateDate ? incomingDate : templateDate;
+    } else {
+      latest = incomingDate || templateDate;
+    }
+
+    if (latest) {
+      setLastIncomingAt(latest);
     } else {
       setLastIncomingAt(null);
       setRemainingMs(0);
@@ -44,8 +68,7 @@ export default function Window24hBadge({ chipId, remoteJid, provider, onWindowSt
   }, [chipId, remoteJid]);
 
   useEffect(() => {
-    fetchLastIncoming();
-    // Re-check when new messages arrive
+    fetchLastWindowOpener();
     const channel = supabase
       .channel(`window24h-${chipId}-${remoteJid}`)
       .on('postgres_changes', {
@@ -54,14 +77,18 @@ export default function Window24hBadge({ chipId, remoteJid, provider, onWindowSt
         table: 'message_history',
         filter: `chip_id=eq.${chipId}`,
       }, (payload) => {
-        if ((payload.new as any)?.direction === 'incoming') {
-          setLastIncomingAt(new Date((payload.new as any).created_at));
+        const row = payload.new as any;
+        // Window opens on incoming OR outgoing template
+        if (row?.direction === 'incoming') {
+          setLastIncomingAt(new Date(row.created_at));
+        } else if (row?.direction === 'outgoing' && row?.message_content?.startsWith('📋')) {
+          setLastIncomingAt(new Date(row.created_at));
         }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [chipId, remoteJid, fetchLastIncoming]);
+  }, [chipId, remoteJid, fetchLastWindowOpener]);
 
   // Countdown timer
   useEffect(() => {
