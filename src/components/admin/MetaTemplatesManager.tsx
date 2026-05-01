@@ -131,6 +131,7 @@ export default function MetaTemplatesManager() {
 
   return (
     <>
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
