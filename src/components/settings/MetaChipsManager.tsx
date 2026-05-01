@@ -43,6 +43,8 @@ export default function MetaChipsManager() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [syncingQuality, setSyncingQuality] = useState(false);
   const [wabaDrafts, setWabaDrafts] = useState<Record<string, string>>({});
+  const [internalNameDrafts, setInternalNameDrafts] = useState<Record<string, string>>({});
+  const [savingInternalName, setSavingInternalName] = useState<string | null>(null);
   const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
 
   // Add form
