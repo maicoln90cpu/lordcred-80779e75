@@ -19,7 +19,42 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles } from 'lucide-react';
+
+interface MetaTemplate {
+  id: string;
+  waba_id: string;
+  template_name: string;
+  language: string;
+  category: string;
+  status: string;
+  components: any[];
+}
+
+function extractTemplateVarsByComponent(template: MetaTemplate): { header: string[]; body: string[] } {
+  const result = { header: [] as string[], body: [] as string[] };
+  if (!Array.isArray(template.components)) return result;
+  for (const comp of template.components) {
+    if (!comp.text) continue;
+    const matches = comp.text.match(/\{\{(\d+)\}\}/g);
+    if (!matches) continue;
+    const unique = [...new Set(matches)].sort() as string[];
+    if (comp.type === 'HEADER') result.header = unique;
+    else if (comp.type === 'BODY') result.body = unique;
+  }
+  return result;
+}
+
+function getTemplatePreview(template: MetaTemplate): string {
+  if (!Array.isArray(template.components)) return '';
+  const parts: string[] = [];
+  for (const comp of template.components) {
+    if (comp.type === 'HEADER' && comp.text) parts.push(`*${comp.text}*`);
+    if (comp.type === 'BODY' && comp.text) parts.push(comp.text);
+    if (comp.type === 'FOOTER' && comp.text) parts.push(`_${comp.text}_`);
+  }
+  return parts.join('\n\n');
+}
 
 interface Profile {
   user_id: string;
@@ -61,6 +96,13 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
   // Overflow chips
   const [overflowChipIds, setOverflowChipIds] = useState<string[]>([]);
+
+  // Meta template state (only used when selected chip is Meta)
+  const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null);
+  const [headerVars, setHeaderVars] = useState<Record<string, string>>({});
+  const [bodyVars, setBodyVars] = useState<Record<string, string>>({});
 
   // Basic fields
   const [formName, setFormName] = useState('');
@@ -178,6 +220,52 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   };
 
   const filteredChips = allChips.filter(c => !selectedUserId || c.user_id === selectedUserId);
+  const selectedChip = allChips.find(c => c.id === selectedChipId) || null;
+  const isMetaChip = selectedChip?.provider === 'meta';
+
+  // Load Meta templates when a Meta chip is selected
+  useEffect(() => {
+    if (!selectedChip || selectedChip.provider !== 'meta') {
+      setMetaTemplates([]);
+      setSelectedTemplate(null);
+      return;
+    }
+    (async () => {
+      setLoadingTemplates(true);
+      const { data: chipRow } = await supabase
+        .from('chips')
+        .select('meta_waba_id')
+        .eq('id', selectedChip.id)
+        .maybeSingle();
+      if (!chipRow?.meta_waba_id) {
+        setMetaTemplates([]);
+        setLoadingTemplates(false);
+        return;
+      }
+      const { data } = await supabase
+        .from('meta_message_templates')
+        .select('*')
+        .eq('waba_id', chipRow.meta_waba_id)
+        .eq('status', 'APPROVED')
+        .order('template_name');
+      setMetaTemplates((data as MetaTemplate[]) || []);
+      setLoadingTemplates(false);
+    })();
+  }, [selectedChip]);
+
+  const handleSelectTemplate = (tpl: MetaTemplate) => {
+    setSelectedTemplate(tpl);
+    const vars = extractTemplateVarsByComponent(tpl);
+    const h: Record<string, string> = {};
+    vars.header.forEach(v => { h[v] = ''; });
+    setHeaderVars(h);
+    const b: Record<string, string> = {};
+    vars.body.forEach(v => { b[v] = ''; });
+    setBodyVars(b);
+    // Auto-fill message_content with preview text for record-keeping
+    setFormMessage(getTemplatePreview(tpl));
+  };
+
 
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -214,8 +302,22 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   };
 
   const handleCreate = async () => {
-    if (!formName || !formMessage || !selectedChipId) {
-      toast({ title: 'Preencha nome, chip e mensagem', variant: 'destructive' });
+    if (!formName || !selectedChipId) {
+      toast({ title: 'Preencha nome e chip', variant: 'destructive' });
+      return;
+    }
+    if (isMetaChip) {
+      if (!selectedTemplate) {
+        toast({ title: 'Selecione um template Meta aprovado', variant: 'destructive' });
+        return;
+      }
+      const allFilled = [...Object.values(headerVars), ...Object.values(bodyVars)].every(v => v.trim().length > 0);
+      if (!allFilled) {
+        toast({ title: 'Preencha todas as variáveis do template', variant: 'destructive' });
+        return;
+      }
+    } else if (!formMessage) {
+      toast({ title: 'Preencha a mensagem', variant: 'destructive' });
       return;
     }
 
@@ -270,21 +372,46 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         scheduledDate = dt.toISOString();
       }
 
+      // Build Meta template components (only filled values)
+      let metaComponents: any[] | null = null;
+      if (isMetaChip && selectedTemplate) {
+        metaComponents = [];
+        const hKeys = Object.keys(headerVars).sort();
+        if (hKeys.length > 0) {
+          metaComponents.push({
+            type: 'header',
+            parameters: hKeys.map(k => ({ type: 'text', text: headerVars[k] })),
+          });
+        }
+        const bKeys = Object.keys(bodyVars).sort();
+        if (bKeys.length > 0) {
+          metaComponents.push({
+            type: 'body',
+            parameters: bKeys.map(k => ({ type: 'text', text: bodyVars[k] })),
+          });
+        }
+      }
+
       const { data: campaign, error } = await supabase
         .from('broadcast_campaigns')
         .insert({
           name: formName,
-          message_content: formMessage,
-          message_variant_b: abEnabled ? formMessageB : null,
-          ab_enabled: abEnabled,
+          message_content: isMetaChip && selectedTemplate ? getTemplatePreview(selectedTemplate) : formMessage,
+          message_variant_b: !isMetaChip && abEnabled ? formMessageB : null,
+          ab_enabled: !isMetaChip && abEnabled,
           chip_id: selectedChipId,
+          provider: isMetaChip ? 'meta' : 'uazapi',
+          meta_template_id: isMetaChip && selectedTemplate ? selectedTemplate.id : null,
+          meta_template_name: isMetaChip && selectedTemplate ? selectedTemplate.template_name : null,
+          meta_template_language: isMetaChip && selectedTemplate ? selectedTemplate.language : null,
+          meta_template_components: metaComponents,
           rate_per_minute: formRate,
           total_recipients: phones.length,
           created_by: user!.id,
           status: enableSchedule ? 'scheduled' : 'draft',
-          media_type: mediaType === 'none' ? null : mediaType,
-          media_url: mediaType !== 'none' ? mediaUrl : null,
-          media_filename: mediaType === 'document' ? mediaFilename : null,
+          media_type: !isMetaChip && mediaType !== 'none' ? mediaType : null,
+          media_url: !isMetaChip && mediaType !== 'none' ? mediaUrl : null,
+          media_filename: !isMetaChip && mediaType === 'document' ? mediaFilename : null,
           scheduled_date: scheduledDate,
           source_type: sourceType,
           source_filters: sourceType === 'leads' ? {
@@ -330,6 +457,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
     setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false); setOverflowChipIds([]);
+    setSelectedTemplate(null); setHeaderVars({}); setBodyVars({}); setMetaTemplates([]);
   };
 
   const MultiSelect = ({ label, options, selected, onChange }: {
@@ -435,6 +563,100 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </div>
           )}
 
+          {/* META: Template picker (substitui Mensagem/A-B/Mídia) */}
+          {isMetaChip && (
+            <div className="border rounded-lg p-3 space-y-3 bg-blue-500/5 border-blue-500/30">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-500" />
+                <Label className="text-sm font-medium">Template Meta WhatsApp</Label>
+                <Badge variant="outline" className="text-[10px]">Obrigatório</Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Chips Meta só permitem envio via templates aprovados. Texto livre, A/B e mídia ficam desativados.
+              </p>
+
+              {loadingTemplates ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : selectedTemplate ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">{selectedTemplate.template_name}</span>
+                      <Badge variant="outline" className="text-[10px]">{selectedTemplate.language}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selectedTemplate.category === 'MARKETING' ? 'Mkt' : selectedTemplate.category === 'UTILITY' ? 'Util' : selectedTemplate.category}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs"
+                      onClick={() => { setSelectedTemplate(null); setHeaderVars({}); setBodyVars({}); }}>
+                      ← Trocar template
+                    </Button>
+                  </div>
+
+                  <div className="bg-muted/30 rounded-lg p-3 text-sm whitespace-pre-wrap border border-border/30">
+                    {(() => {
+                      let preview = getTemplatePreview(selectedTemplate);
+                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(v || k);
+                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(v || k);
+                      return preview;
+                    })()}
+                  </div>
+
+                  {Object.keys(headerVars).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Variáveis do cabeçalho:</p>
+                      {Object.keys(headerVars).map(key => (
+                        <div key={`h-${key}`} className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Header {key}</Label>
+                          <Input value={headerVars[key]} onChange={e => setHeaderVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {Object.keys(bodyVars).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Variáveis do corpo:</p>
+                      {Object.keys(bodyVars).map(key => (
+                        <div key={`b-${key}`} className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Body {key}</Label>
+                          <Input value={bodyVars[key]} onChange={e => setBodyVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : metaTemplates.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  Nenhum template aprovado. Importe em Admin → Integrações → Templates Meta.
+                </p>
+              ) : (
+                <ScrollArea className="h-[220px] border rounded-md">
+                  <div className="space-y-1 p-1">
+                    {metaTemplates.map(t => {
+                      const bodyComp = Array.isArray(t.components) ? t.components.find((c: any) => c.type === 'BODY') : null;
+                      const preview = bodyComp?.text ? (bodyComp.text.length > 70 ? bodyComp.text.slice(0, 70) + '…' : bodyComp.text) : '—';
+                      return (
+                        <button key={t.id} type="button" onClick={() => handleSelectTemplate(t)}
+                          className="w-full text-left p-2.5 rounded-lg hover:bg-secondary/50 transition-colors">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium truncate">{t.template_name}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">{t.language}</Badge>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              {t.category === 'MARKETING' ? 'Mkt' : t.category === 'UTILITY' ? 'Util' : t.category}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{preview}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          )}
+
+          {!isMetaChip && (<>
 
           <div>
             <Label>{abEnabled ? 'Mensagem (Variante A)' : 'Mensagem'}</Label>
@@ -600,6 +822,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
               </div>
             )}
           </div>
+          </>)}
 
           {/* Agendamento */}
           <div className="border rounded-lg p-3 space-y-2">

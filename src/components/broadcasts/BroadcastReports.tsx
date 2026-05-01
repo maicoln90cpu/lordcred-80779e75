@@ -18,6 +18,8 @@ interface Campaign {
   created_at: string;
   completed_at: string | null;
   ab_enabled?: boolean;
+  provider?: string;
+  meta_template_name?: string | null;
 }
 
 interface ABStats {
@@ -152,7 +154,7 @@ export default function BroadcastReports() {
   const loadReports = async () => {
     const { data } = await supabase
       .from('broadcast_campaigns')
-      .select('id, name, status, total_recipients, sent_count, failed_count, created_at, completed_at, ab_enabled')
+      .select('id, name, status, total_recipients, sent_count, failed_count, created_at, completed_at, ab_enabled, provider, meta_template_name')
       .in('status', ['completed', 'running', 'paused'])
       .order('created_at', { ascending: false })
       .limit(50);
@@ -218,6 +220,14 @@ export default function BroadcastReports() {
     return { totalSent, totalFailed, totalRecipients, completed, globalRate, total: campaigns.length };
   }, [campaigns]);
 
+  const providerBreakdown = useMemo(() => {
+    let meta = 0, uazapi = 0;
+    for (const c of campaigns) {
+      if (c.provider === 'meta') meta++; else uazapi++;
+    }
+    return { meta, uazapi };
+  }, [campaigns]);
+
   // Delivery percentages
   const deliveryPct = useMemo(() => {
     const t = deliveryMetrics.total || 1;
@@ -280,6 +290,13 @@ export default function BroadcastReports() {
       </div>
 
       <div id="broadcast-report-content">
+      {(providerBreakdown.meta > 0 || providerBreakdown.uazapi > 0) && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-muted-foreground">Por provedor:</span>
+          <Badge variant="outline" className="text-[10px]">UazAPI: {providerBreakdown.uazapi}</Badge>
+          <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-500">META: {providerBreakdown.meta}</Badge>
+        </div>
+      )}
 
       {/* KPI Cards - Row 1: Sending */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -455,7 +472,15 @@ export default function BroadcastReports() {
                 return (
                   <div key={ab.campaignId} className="border rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium text-sm">{ab.campaignName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{ab.campaignName}</p>
+                        {(() => {
+                          const c = campaigns.find(x => x.id === ab.campaignId);
+                          return c?.provider === 'meta'
+                            ? <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-500">META</Badge>
+                            : <Badge variant="outline" className="text-[10px]">UazAPI</Badge>;
+                        })()}
+                      </div>
                       <Badge variant={winner === 'Empate' ? 'outline' : 'default'} className="text-xs">
                         {winner === 'Empate' ? '🤝 Empate' : `🏆 Variante ${winner} venceu`}
                       </Badge>

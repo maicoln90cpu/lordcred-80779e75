@@ -115,9 +115,14 @@ export type Database = {
           media_url: string | null
           message_content: string
           message_variant_b: string | null
+          meta_template_components: Json | null
+          meta_template_id: string | null
+          meta_template_language: string | null
+          meta_template_name: string | null
           name: string
           overflow_chip_ids: string[] | null
           owner_user_id: string | null
+          provider: string
           rate_per_minute: number
           scheduled_at: string | null
           scheduled_date: string | null
@@ -142,9 +147,14 @@ export type Database = {
           media_url?: string | null
           message_content: string
           message_variant_b?: string | null
+          meta_template_components?: Json | null
+          meta_template_id?: string | null
+          meta_template_language?: string | null
+          meta_template_name?: string | null
           name: string
           overflow_chip_ids?: string[] | null
           owner_user_id?: string | null
+          provider?: string
           rate_per_minute?: number
           scheduled_at?: string | null
           scheduled_date?: string | null
@@ -169,9 +179,14 @@ export type Database = {
           media_url?: string | null
           message_content?: string
           message_variant_b?: string | null
+          meta_template_components?: Json | null
+          meta_template_id?: string | null
+          meta_template_language?: string | null
+          meta_template_name?: string | null
           name?: string
           overflow_chip_ids?: string[] | null
           owner_user_id?: string | null
+          provider?: string
           rate_per_minute?: number
           scheduled_at?: string | null
           scheduled_date?: string | null
@@ -189,6 +204,13 @@ export type Database = {
             columns: ["chip_id"]
             isOneToOne: false
             referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_campaigns_meta_template_id_fkey"
+            columns: ["meta_template_id"]
+            isOneToOne: false
+            referencedRelation: "meta_message_templates"
             referencedColumns: ["id"]
           },
         ]
