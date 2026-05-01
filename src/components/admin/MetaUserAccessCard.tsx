@@ -34,7 +34,7 @@ export default function MetaUserAccessCard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-
+  const [vendorSearch, setVendorSearch] = useState('');
   // Local state: which chips each user has access to
   const [userChipMap, setUserChipMap] = useState<UserChipMap>({});
   // Track which users are "enabled" (have at least concept of access)
