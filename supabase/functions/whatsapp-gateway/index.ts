@@ -663,8 +663,8 @@ async function handleMetaAction(
     }
 
     case 'sync-quality': {
-      // Sync quality_rating and messaging_limit for this chip
-      const resp = await metaFetch(`/${phoneNumberId}?fields=quality_rating,messaging_limit,display_phone_number`, {
+      // Sync quality_rating for this chip (messaging_limit removed from Graph API v21+)
+      const resp = await metaFetch(`/${phoneNumberId}?fields=quality_rating,display_phone_number,throughput`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
         timeout: 8000,
       })
@@ -672,12 +672,14 @@ async function handleMetaAction(
       if (data.error) {
         return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
+      // throughput.level replaces the old messaging_limit field
+      const messagingLimit = data.throughput?.level || null
       await adminClient.from('chips').update({
         quality_rating: data.quality_rating || null,
-        messaging_limit: data.messaging_limit || null,
+        messaging_limit: messagingLimit,
         quality_updated_at: new Date().toISOString(),
       }).eq('id', chip.id)
-      return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: data.messaging_limit })
+      return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: messagingLimit })
     }
 
     case 'get-business-profile': {
