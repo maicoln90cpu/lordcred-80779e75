@@ -457,6 +457,7 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
     setSourceType('manual'); setFormPhones('');
     setCsvPhones([]);
     setLeadStatuses([]); setLeadBanks([]); setLeadProfiles([]); setLeadSellers([]); setShowPreview(false); setOverflowChipIds([]);
+    setSelectedTemplate(null); setHeaderVars({}); setBodyVars({}); setMetaTemplates([]);
   };
 
   const MultiSelect = ({ label, options, selected, onChange }: {
