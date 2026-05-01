@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Globe, Key, Wifi, WifiOff, Loader2, Copy, Check, Webhook, ExternalLink, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Globe, Key, Wifi, WifiOff, Loader2, Copy, Check, Webhook, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,7 +54,6 @@ export default function MetaConfigCard({ settings, onChange, webhookUrl }: MetaC
     setConnectionStatus('idle');
     setDiagnostic(null);
     try {
-      // 1) Valida o token
       const debugRes = await fetch(
         `https://graph.facebook.com/v21.0/debug_token?input_token=${encodeURIComponent(settings.meta_access_token)}&access_token=${encodeURIComponent(settings.meta_access_token)}`
       );
@@ -67,7 +66,6 @@ export default function MetaConfigCard({ settings, onChange, webhookUrl }: MetaC
       const appIdMatch = tokenInfo.app_id && tokenInfo.app_id !== settings.meta_app_id;
       const expiresAt = tokenInfo.expires_at ? new Date(tokenInfo.expires_at * 1000).toLocaleString('pt-BR') : 'Nunca expira';
 
-      // 2) Lista phone_number_ids do WABA (se informado)
       let phoneNumbers: any[] = [];
       const wabaToCheck = wabaInput.trim();
       if (wabaToCheck) {
@@ -81,7 +79,6 @@ export default function MetaConfigCard({ settings, onChange, webhookUrl }: MetaC
         phoneNumbers = phData?.data || [];
       }
 
-      // 3) Lista chips Meta cadastrados no LordCred para comparar
       const { data: chipsData } = await import('@/integrations/supabase/client').then(({ supabase }) =>
         supabase.from('chips').select('id, nickname, meta_phone_number_id').eq('provider', 'meta')
       );
@@ -123,289 +120,195 @@ export default function MetaConfigCard({ settings, onChange, webhookUrl }: MetaC
     settings.meta_webhook_secret,
   ].filter(Boolean).length;
 
-  return (
-    <div className="space-y-6">
-      <Alert className="border-warning/40 bg-warning/5">
-        <AlertTriangle className="h-4 w-4 text-warning" />
-        <AlertDescription className="text-sm">
-          <strong>Modo Configuração:</strong> credenciais salvas aqui têm prioridade sobre os secrets de produção.
-          Limpe os campos para voltar a usar os secrets do servidor. Preenchido: <strong>{filledCount}/5</strong> campos.
-        </AlertDescription>
-      </Alert>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="w-5 h-5" />
-              Meta WhatsApp Cloud API
-            </CardTitle>
-            <CardDescription>
-              API oficial do WhatsApp via Meta Business Platform
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Badge variant="outline" className="text-blue-500 border-blue-500">
-              Meta Cloud API
-            </Badge>
-            <p className="text-xs text-muted-foreground">
-              Conexão oficial, sem risco de ban. Requer conta no{' '}
-              <a
-                href="https://business.facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline inline-flex items-center gap-1"
-              >
-                Meta Business Manager <ExternalLink className="w-3 h-3" />
-              </a>
-            </p>
-            <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1">
-              <p className="font-medium">Como configurar:</p>
-              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                <li>Acesse developers.facebook.com</li>
-                <li>Crie um App com produto WhatsApp</li>
-                <li>Registre e verifique um número</li>
-                <li>Copie o App ID e Access Token</li>
-                <li>Cole nos campos ao lado (use o guia abaixo)</li>
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="w-5 h-5" />
-              Credenciais Meta (5 campos)
-            </CardTitle>
-            <CardDescription>Todas editáveis. Veja o "Manual Passo a Passo" abaixo.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>App ID</Label>
-                {settings.meta_app_id && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange('meta_app_id', '')}>
-                    Limpar
-                  </Button>
-                )}
-              </div>
-              <Input
-                placeholder="123456789012345"
-                value={settings.meta_app_id}
-                onChange={(e) => onChange('meta_app_id', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Access Token (permanente)</Label>
-                {settings.meta_access_token && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange('meta_access_token', '')}>
-                    Limpar
-                  </Button>
-                )}
-              </div>
-              <Input
-                type="password"
-                placeholder="EAAxxxxxxx..."
-                value={settings.meta_access_token}
-                onChange={(e) => onChange('meta_access_token', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Verify Token (webhook)</Label>
-                {settings.meta_verify_token && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange('meta_verify_token', '')}>
-                    Limpar
-                  </Button>
-                )}
-              </div>
-              <Input
-                placeholder="Ex: lordcred2026 (você inventa)"
-                value={settings.meta_verify_token}
-                onChange={(e) => onChange('meta_verify_token', e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Texto livre que você cola IGUAL no Meta Webhook.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>App Secret</Label>
-                {settings.meta_app_secret && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange('meta_app_secret', '')}>
-                    Limpar
-                  </Button>
-                )}
-              </div>
-              <Input
-                type="password"
-                placeholder="Chave secreta do App (32 caracteres)"
-                value={settings.meta_app_secret}
-                onChange={(e) => onChange('meta_app_secret', e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Encontrado em Configurações → Básico no painel do App.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Webhook Secret (opcional)</Label>
-                {settings.meta_webhook_secret && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange('meta_webhook_secret', '')}>
-                    Limpar
-                  </Button>
-                )}
-              </div>
-              <Input
-                type="password"
-                placeholder="Segredo de assinatura HMAC (opcional)"
-                value={settings.meta_webhook_secret}
-                onChange={(e) => onChange('meta_webhook_secret', e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Se vazio, o sistema aceita webhooks sem validação de assinatura.
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-2 border-t">
-              <div className="space-y-2">
-                <Label className="text-xs">WABA ID (para listar números — opcional)</Label>
-                <Input
-                  placeholder="Ex: 987654321098765"
-                  value={wabaInput}
-                  onChange={(e) => setWabaInput(e.target.value)}
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Se preencher, o teste lista todos os <code>phone_number_id</code> do WABA e compara com os chips Meta cadastrados aqui.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
-                  {isTesting ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : connectionStatus === 'success' ? (
-                    <Wifi className="w-4 h-4 mr-2 text-green-500" />
-                  ) : connectionStatus === 'error' ? (
-                    <WifiOff className="w-4 h-4 mr-2 text-red-500" />
-                  ) : (
-                    <Wifi className="w-4 h-4 mr-2" />
-                  )}
-                  Testar Conexão
-                </Button>
-                {connectionStatus === 'success' && (
-                  <Badge variant="outline" className="text-green-500 border-green-500">Conectado</Badge>
-                )}
-                {connectionStatus === 'error' && (
-                  <Badge variant="outline" className="text-red-500 border-red-500">Falha</Badge>
-                )}
-              </div>
-
-              {diagnostic && (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-xs">
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    <span><strong>Token App ID:</strong> <code>{diagnostic.appId}</code></span>
-                    <span><strong>Expira:</strong> {diagnostic.expiresAt}</span>
-                  </div>
-                  {diagnostic.appId && diagnostic.appId !== settings.meta_app_id && (
-                    <Alert className="border-warning/40 bg-warning/5 py-2">
-                      <AlertTriangle className="h-3 w-3 text-warning" />
-                      <AlertDescription className="text-xs">
-                        ⚠️ O token pertence ao App <code>{diagnostic.appId}</code>, mas o App ID salvo é <code>{settings.meta_app_id}</code>. Eles precisam ser do mesmo App.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {diagnostic.scopes && diagnostic.scopes.length > 0 && (
-                    <div>
-                      <strong>Permissões:</strong>{' '}
-                      {diagnostic.scopes.map((s) => (
-                        <Badge key={s} variant="outline" className="text-[10px] mr-1">{s}</Badge>
-                      ))}
-                    </div>
-                  )}
-                  {diagnostic.wabaId && (
-                    <div className="space-y-2 pt-2 border-t">
-                      <p className="font-medium">Números no WABA <code>{diagnostic.wabaId}</code> ({diagnostic.phoneNumbers?.length || 0}):</p>
-                      {(diagnostic.phoneNumbers || []).map((p) => {
-                        const isRegistered = (diagnostic.chipsRegistered || []).some(
-                          (c) => c.meta_phone_number_id === p.id
-                        );
-                        return (
-                          <div key={p.id} className="flex items-center justify-between gap-2 rounded bg-background/60 px-2 py-1">
-                            <div>
-                              <code className="text-[11px]">{p.id}</code> — {p.display_phone_number} ({p.verified_name})
-                            </div>
-                            <Badge variant={isRegistered ? 'default' : 'outline'} className="text-[10px]">
-                              {isRegistered ? '✓ Em uso' : 'Disponível'}
-                            </Badge>
-                          </div>
-                        );
-                      })}
-
-                      {/* Detecta chips com phone_number_id ÓRFÃO (não pertence ao WABA) */}
-                      {(() => {
-                        const validIds = new Set((diagnostic.phoneNumbers || []).map((p) => p.id));
-                        const orphans = (diagnostic.chipsRegistered || []).filter(
-                          (c) => c.meta_phone_number_id && !validIds.has(c.meta_phone_number_id)
-                        );
-                        if (orphans.length === 0) return null;
-                        return (
-                          <Alert variant="destructive" className="py-2">
-                            <AlertTriangle className="h-3 w-3" />
-                            <AlertDescription className="text-xs">
-                              <strong>{orphans.length} chip(s) com Phone Number ID inválido para este token:</strong>
-                              <ul className="mt-1 space-y-0.5">
-                                {orphans.map((c) => (
-                                  <li key={c.id}>
-                                    • <code>{c.meta_phone_number_id}</code> — {c.nickname || '(sem apelido)'}
-                                  </li>
-                                ))}
-                              </ul>
-                              Estes chips vão dar o erro <em>"Object with ID does not exist"</em> ao tentar enviar. Solução: trocar o token, ou apagar/recriar o chip com um ID válido acima.
-                            </AlertDescription>
-                          </Alert>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Webhook className="w-5 h-5" />
-              Webhook Meta
-            </CardTitle>
-            <CardDescription>
-              URL para receber eventos do Meta (configure no Meta Business Manager → Webhook)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>URL do Webhook</Label>
-              <div className="flex gap-2">
-                <Input value={webhookUrl} readOnly className="font-mono text-xs" />
-                <Button variant="outline" size="icon" onClick={handleCopyWebhook}>
-                  {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Cole esta URL no Meta Business Manager → App → WhatsApp → Configuration → Webhook URL
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+  const FieldRow = ({ label, field, type = 'text', placeholder, hint, optional }: {
+    label: string; field: keyof MetaSettings; type?: string; placeholder: string; hint?: string; optional?: boolean;
+  }) => (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">
+          {label}
+          {optional && <span className="text-muted-foreground ml-1">(opcional)</span>}
+        </Label>
+        {settings[field] && (
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => onChange(field, '')}>
+            Limpar
+          </Button>
+        )}
       </div>
+      <Input
+        type={type}
+        placeholder={placeholder}
+        value={settings[field]}
+        onChange={(e) => onChange(field, e.target.value)}
+        className="h-9 text-sm"
+      />
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Key className="w-4 h-4 text-muted-foreground" />
+            Credenciais Meta
+          </CardTitle>
+          <Badge variant={filledCount === 5 ? 'default' : 'secondary'} className="text-xs">
+            {filledCount}/5 campos
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert className="border-warning/40 bg-warning/5 py-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+          <AlertDescription className="text-xs">
+            <strong>Token Global (fallback):</strong> O Access Token aqui é usado quando o chip não tem token próprio na aba Chips.
+            Hierarquia: Token do Chip → Token Global → Secret do servidor.
+          </AlertDescription>
+        </Alert>
+
+        {/* Identification */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldRow label="App ID" field="meta_app_id" placeholder="123456789012345" />
+          <FieldRow label="App Secret" field="meta_app_secret" type="password" placeholder="32 caracteres" hint="Configurações → Básico no painel do App" />
+        </div>
+
+        {/* Tokens */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldRow label="Access Token Global (fallback)" field="meta_access_token" type="password" placeholder="EAAxxxxxxx..." hint="Usado quando o chip não tem token próprio" />
+          <FieldRow label="Verify Token (webhook)" field="meta_verify_token" placeholder="lordcred2026" hint="Texto que você inventa e cola IGUAL no Meta Webhook" />
+        </div>
+
+        <FieldRow label="Webhook Secret (HMAC)" field="meta_webhook_secret" type="password" placeholder="Segredo HMAC" hint="Se vazio, webhooks são aceitos sem validação de assinatura" optional />
+
+        <div className="border-t pt-4 space-y-3">
+          {/* Webhook URL */}
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1.5">
+              <Webhook className="w-3 h-3 text-muted-foreground" />
+              Webhook URL
+            </Label>
+            <div className="flex gap-2">
+              <Input value={webhookUrl} readOnly className="font-mono text-xs h-9 bg-muted/30" />
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={handleCopyWebhook}>
+                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Cole no Meta → App → WhatsApp → Configuration → Webhook URL</p>
+          </div>
+
+          {/* Test */}
+          <div className="space-y-2">
+            <Label className="text-xs">WABA ID (para listar números — opcional)</Label>
+            <Input
+              placeholder="Ex: 987654321098765"
+              value={wabaInput}
+              onChange={(e) => setWabaInput(e.target.value)}
+              className="font-mono text-xs h-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isTesting}>
+              {isTesting ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : connectionStatus === 'success' ? (
+                <Wifi className="w-3.5 h-3.5 mr-1.5 text-green-500" />
+              ) : connectionStatus === 'error' ? (
+                <WifiOff className="w-3.5 h-3.5 mr-1.5 text-red-500" />
+              ) : (
+                <Wifi className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Testar Conexão
+            </Button>
+            {connectionStatus === 'success' && <Badge variant="outline" className="text-green-500 border-green-500 text-xs">Conectado</Badge>}
+            {connectionStatus === 'error' && <Badge variant="outline" className="text-red-500 border-red-500 text-xs">Falha</Badge>}
+          </div>
+
+          {/* Diagnostic results */}
+          {diagnostic && (
+            <DiagnosticPanel diagnostic={diagnostic} settings={settings} />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DiagnosticPanel({ diagnostic, settings }: {
+  diagnostic: {
+    tokenValid: boolean;
+    appId?: string;
+    expiresAt?: string;
+    scopes?: string[];
+    wabaId?: string;
+    phoneNumbers?: Array<{ id: string; display_phone_number: string; verified_name: string }>;
+    chipsRegistered?: Array<{ id: string; nickname: string | null; meta_phone_number_id: string | null }>;
+  };
+  settings: MetaSettings;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span><strong>Token App ID:</strong> <code>{diagnostic.appId}</code></span>
+        <span><strong>Expira:</strong> {diagnostic.expiresAt}</span>
+      </div>
+      {diagnostic.appId && diagnostic.appId !== settings.meta_app_id && (
+        <Alert className="border-warning/40 bg-warning/5 py-2">
+          <AlertTriangle className="h-3 w-3 text-warning" />
+          <AlertDescription className="text-xs">
+            ⚠️ Token pertence ao App <code>{diagnostic.appId}</code>, mas o App ID salvo é <code>{settings.meta_app_id}</code>.
+          </AlertDescription>
+        </Alert>
+      )}
+      {diagnostic.scopes && diagnostic.scopes.length > 0 && (
+        <div>
+          <strong>Permissões:</strong>{' '}
+          {diagnostic.scopes.map((s) => (
+            <Badge key={s} variant="outline" className="text-[10px] mr-1">{s}</Badge>
+          ))}
+        </div>
+      )}
+      {diagnostic.wabaId && (
+        <div className="space-y-2 pt-2 border-t">
+          <p className="font-medium">Números no WABA <code>{diagnostic.wabaId}</code> ({diagnostic.phoneNumbers?.length || 0}):</p>
+          {(diagnostic.phoneNumbers || []).map((p) => {
+            const isRegistered = (diagnostic.chipsRegistered || []).some(
+              (c) => c.meta_phone_number_id === p.id
+            );
+            return (
+              <div key={p.id} className="flex items-center justify-between gap-2 rounded bg-background/60 px-2 py-1">
+                <div>
+                  <code className="text-[11px]">{p.id}</code> — {p.display_phone_number} ({p.verified_name})
+                </div>
+                <Badge variant={isRegistered ? 'default' : 'outline'} className="text-[10px]">
+                  {isRegistered ? '✓ Em uso' : 'Disponível'}
+                </Badge>
+              </div>
+            );
+          })}
+          {(() => {
+            const validIds = new Set((diagnostic.phoneNumbers || []).map((p) => p.id));
+            const orphans = (diagnostic.chipsRegistered || []).filter(
+              (c) => c.meta_phone_number_id && !validIds.has(c.meta_phone_number_id)
+            );
+            if (orphans.length === 0) return null;
+            return (
+              <Alert variant="destructive" className="py-2">
+                <AlertTriangle className="h-3 w-3" />
+                <AlertDescription className="text-xs">
+                  <strong>{orphans.length} chip(s) com Phone Number ID inválido:</strong>
+                  <ul className="mt-1 space-y-0.5">
+                    {orphans.map((c) => (
+                      <li key={c.id}>• <code>{c.meta_phone_number_id}</code> — {c.nickname || '(sem apelido)'}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }

@@ -150,7 +150,7 @@ const navGroups: NavGroupWithChildren[] = [
   {
     groupLabel: 'Integrações',
     items: [
-      { label: 'UazAPI / Meta', icon: Globe, href: '/admin/integrations', sellerHidden: true },
+      { label: 'API WhatsApp', icon: Globe, href: '/admin/integrations', sellerHidden: true },
     ],
   },
   {

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Save, Loader2, Wifi, WifiOff, Copy, Check, Globe, Key, Webhook } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -142,8 +144,8 @@ export default function Integrations() {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Integrações</h1>
-          <p className="text-muted-foreground">Configuração dos provedores WhatsApp e integrações externas</p>
+          <h1 className="text-2xl font-bold">API WhatsApp</h1>
+          <p className="text-muted-foreground">Configuração dos provedores WhatsApp e integrações</p>
         </div>
 
         <Tabs defaultValue="meta" className="space-y-6">
@@ -153,84 +155,83 @@ export default function Integrations() {
             <TabsTrigger value="support">Support Chat</TabsTrigger>
           </TabsList>
 
-          {/* UazAPI Tab */}
+          {/* ────────── UazAPI Tab — Vertical Slim ────────── */}
           <TabsContent value="uazapi">
-            <div className="space-y-6">
-              <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe className="w-5 h-5" />
-                      Provedor WhatsApp — UazAPI
-                    </CardTitle>
-                    <CardDescription>Conexão via QR Code (WhatsApp Web)</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Badge variant="secondary">UazAPI ativo</Badge>
-                  </CardContent>
-                </Card>
+            <Card className="max-w-xl mx-auto">
+              <CardContent className="pt-6 space-y-5">
+                {/* Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-muted-foreground opacity-60" />
+                    <span className="text-sm font-medium">Provedor UazAPI</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Key className="w-5 h-5" />
-                      Credenciais UazAPI
-                    </CardTitle>
-                    <CardDescription>URL e Admin Token da UazAPI</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>URL da API</Label>
-                      <Input placeholder="https://sua-uazapi.exemplo.com" value={providerSettings?.uazapi_api_url || ''} onChange={(e) => setProviderSettings(s => s ? { ...s, uazapi_api_url: e.target.value } : s)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Admin Token</Label>
-                      <Input type="password" placeholder="Seu admin token" value={providerSettings?.uazapi_api_key || ''} onChange={(e) => setProviderSettings(s => s ? { ...s, uazapi_api_key: e.target.value } : s)} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
-                        {isTesting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : connectionStatus === 'success' ? <Wifi className="w-4 h-4 mr-2 text-green-500" /> : connectionStatus === 'error' ? <WifiOff className="w-4 h-4 mr-2 text-red-500" /> : <Wifi className="w-4 h-4 mr-2" />}
-                        Testar Conexão
-                      </Button>
-                      {connectionStatus === 'success' && <Badge variant="outline" className="text-green-500 border-green-500">Conectado</Badge>}
-                      {connectionStatus === 'error' && <Badge variant="outline" className="text-red-500 border-red-500">Falha</Badge>}
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="border-t" />
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Webhook className="w-5 h-5" />
-                      Webhook UazAPI
-                    </CardTitle>
-                    <CardDescription>URL para receber eventos da UazAPI</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>URL do Webhook</Label>
-                      <div className="flex gap-2">
-                        <Input value={webhookUrl} readOnly className="font-mono text-xs" />
-                        <Button variant="outline" size="icon" onClick={() => handleCopy(webhookUrl, 'uazapi')}>
-                          {copied === 'uazapi' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Cole esta URL no painel da UazAPI para receber eventos automaticamente</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                {/* URL */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">URL da API</Label>
+                  <Input
+                    placeholder="https://sua-uazapi.exemplo.com"
+                    value={providerSettings?.uazapi_api_url || ''}
+                    onChange={(e) => setProviderSettings(s => s ? { ...s, uazapi_api_url: e.target.value } : s)}
+                    className="h-9 text-sm"
+                  />
+                </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handleSaveProvider} disabled={isSavingProvider}>
+                {/* Token */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Admin Token</Label>
+                  <Input
+                    type="password"
+                    placeholder="Seu admin token"
+                    value={providerSettings?.uazapi_api_key || ''}
+                    onChange={(e) => setProviderSettings(s => s ? { ...s, uazapi_api_key: e.target.value } : s)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                {/* Test */}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isTesting}>
+                    {isTesting ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : connectionStatus === 'success' ? <Wifi className="w-3.5 h-3.5 mr-1.5 text-green-500" /> : connectionStatus === 'error' ? <WifiOff className="w-3.5 h-3.5 mr-1.5 text-red-500" /> : <Wifi className="w-3.5 h-3.5 mr-1.5" />}
+                    Testar
+                  </Button>
+                  {connectionStatus === 'success' && <Badge variant="outline" className="text-green-500 border-green-500 text-xs">Conectado</Badge>}
+                  {connectionStatus === 'error' && <Badge variant="outline" className="text-red-500 border-red-500 text-xs">Falha</Badge>}
+                </div>
+
+                <div className="border-t" />
+
+                {/* Webhook */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Webhook className="w-3 h-3 text-muted-foreground" />
+                    Webhook URL
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input value={webhookUrl} readOnly className="font-mono text-xs h-9 bg-muted/30" />
+                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => handleCopy(webhookUrl, 'uazapi')}>
+                      {copied === 'uazapi' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Cole no painel da UazAPI para receber eventos.</p>
+                </div>
+
+                <div className="border-t" />
+
+                {/* Save */}
+                <Button onClick={handleSaveProvider} disabled={isSavingProvider} className="w-full">
                   {isSavingProvider && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  <Save className="w-4 h-4 mr-2" /> Salvar Configurações
+                  <Save className="w-4 h-4 mr-2" /> Salvar
                 </Button>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Meta WhatsApp Tab — Sub-tabs */}
+          {/* ────────── Meta WhatsApp Tab — Sub-tabs ────────── */}
           <TabsContent value="meta">
             {providerSettings ? (
               <Tabs defaultValue="meta-chips" className="space-y-6">
@@ -241,16 +242,9 @@ export default function Integrations() {
                   <TabsTrigger value="meta-config">⚙️ Configuração</TabsTrigger>
                 </TabsList>
 
-                {/* Sub-tab: Configuração */}
+                {/* Sub-tab: Configuração — Campos inline + guias colapsáveis */}
                 <TabsContent value="meta-config">
-                  <div className="space-y-6">
-                    <MetaSetupGuide
-                      hasAppId={!!providerSettings.meta_app_id}
-                      hasToken={!!providerSettings.meta_access_token}
-                      hasVerifyToken={!!providerSettings.meta_verify_token}
-                      webhookUrl={metaWebhookUrl}
-                    />
-
+                  <div className="space-y-4">
                     <MetaConfigCard
                       settings={{
                         meta_app_id: providerSettings.meta_app_id || '',
@@ -265,14 +259,41 @@ export default function Integrations() {
                       webhookUrl={metaWebhookUrl}
                     />
 
-                    <MetaCredentialsGuide />
-
                     <div className="flex justify-end">
                       <Button onClick={handleSaveProvider} disabled={isSavingProvider}>
                         {isSavingProvider && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         <Save className="w-4 h-4 mr-2" /> Salvar Configurações
                       </Button>
                     </div>
+
+                    {/* Guias colapsáveis */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-2 w-full p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-medium text-left">
+                        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 transition-transform [[data-state=open]>&]:rotate-180" />
+                        📋 Guia de Configuração (5 etapas)
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {[providerSettings.meta_app_id, providerSettings.meta_access_token, providerSettings.meta_verify_token].filter(Boolean).length}/5
+                        </Badge>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-3">
+                        <MetaSetupGuide
+                          hasAppId={!!providerSettings.meta_app_id}
+                          hasToken={!!providerSettings.meta_access_token}
+                          hasVerifyToken={!!providerSettings.meta_verify_token}
+                          webhookUrl={metaWebhookUrl}
+                        />
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-2 w-full p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-medium text-left">
+                        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 transition-transform [[data-state=open]>&]:rotate-180" />
+                        📖 Manual Passo a Passo — Credenciais
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-3">
+                        <MetaCredentialsGuide />
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 </TabsContent>
 
