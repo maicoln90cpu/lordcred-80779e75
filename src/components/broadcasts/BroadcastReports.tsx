@@ -290,6 +290,13 @@ export default function BroadcastReports() {
       </div>
 
       <div id="broadcast-report-content">
+      {(providerBreakdown.meta > 0 || providerBreakdown.uazapi > 0) && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-muted-foreground">Por provedor:</span>
+          <Badge variant="outline" className="text-[10px]">UazAPI: {providerBreakdown.uazapi}</Badge>
+          <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-500">META: {providerBreakdown.meta}</Badge>
+        </div>
+      )}
 
       {/* KPI Cards - Row 1: Sending */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
