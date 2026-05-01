@@ -476,6 +476,35 @@ async function handleMetaAction(
         return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
 
+      // Persist outgoing template message
+      const tplMsgId = data.messages?.[0]?.id
+      const tplRemoteJid = `${normalizedPhone}@s.whatsapp.net`
+      // Build a readable text from template name
+      const tplText = `📋 Template: ${templateName}`
+      try {
+        if (tplMsgId) {
+          await adminClient.from('message_history').insert({
+            chip_id: chip.id,
+            remote_jid: tplRemoteJid,
+            message_id: tplMsgId,
+            direction: 'outgoing',
+            message_content: tplText,
+            media_type: 'text',
+            status: 'sent',
+            sender_name: '',
+            sent_by_user_id: userId || null,
+          })
+          await adminClient.from('conversations').upsert({
+            chip_id: chip.id,
+            remote_jid: tplRemoteJid,
+            last_message_text: tplText,
+            last_message_at: new Date().toISOString(),
+            contact_phone: normalizedPhone,
+            is_group: false,
+          }, { onConflict: 'chip_id,remote_jid' })
+        }
+      } catch (e) { console.error('Failed to persist outgoing template:', e) }
+
       // Log cost as utility
       try {
         await adminClient.from('whatsapp_cost_log').insert({
@@ -487,7 +516,7 @@ async function handleMetaAction(
         })
       } catch { /* non-critical */ }
 
-      return jsonResponse({ success: true, data: { messageId: data.messages?.[0]?.id } })
+      return jsonResponse({ success: true, data: { messageId: tplMsgId } })
     }
 
     case 'mark-read': {
