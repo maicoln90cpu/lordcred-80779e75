@@ -220,6 +220,14 @@ export default function BroadcastReports() {
     return { totalSent, totalFailed, totalRecipients, completed, globalRate, total: campaigns.length };
   }, [campaigns]);
 
+  const providerBreakdown = useMemo(() => {
+    let meta = 0, uazapi = 0;
+    for (const c of campaigns) {
+      if (c.provider === 'meta') meta++; else uazapi++;
+    }
+    return { meta, uazapi };
+  }, [campaigns]);
+
   // Delivery percentages
   const deliveryPct = useMemo(() => {
     const t = deliveryMetrics.total || 1;
