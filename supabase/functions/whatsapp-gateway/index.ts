@@ -297,7 +297,35 @@ async function handleMetaAction(
         return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
 
-      // Log cost + audit
+      // Persist outgoing message in message_history immediately
+      const metaMsgId = data.messages?.[0]?.id
+      const remoteJid = `${normalizedPhone}@s.whatsapp.net`
+      try {
+        if (metaMsgId) {
+          await adminClient.from('message_history').insert({
+            chip_id: chip.id,
+            remote_jid: remoteJid,
+            message_id: metaMsgId,
+            direction: 'outgoing',
+            message_content: message,
+            media_type: 'text',
+            status: 'sent',
+            sender_name: '',
+            sent_by_user_id: userId || null,
+          })
+          // Update conversation last_message
+          await adminClient.from('conversations').upsert({
+            chip_id: chip.id,
+            remote_jid: remoteJid,
+            last_message_text: message,
+            last_message_at: new Date().toISOString(),
+            contact_phone: normalizedPhone,
+            is_group: false,
+          }, { onConflict: 'chip_id,remote_jid' })
+        }
+      } catch (e) { console.error('Failed to persist outgoing message:', e) }
+
+      // Log cost
       try {
         await adminClient.from('whatsapp_cost_log').insert({
           chip_id: chip.id,
@@ -308,21 +336,7 @@ async function handleMetaAction(
         })
       } catch { /* non-critical */ }
 
-      // Audit: log who sent this message
-      if (userId && data.messages?.[0]?.id) {
-        try {
-          // Wait briefly for webhook to create the message_history row
-          setTimeout(async () => {
-            await adminClient
-              .from('message_history')
-              .update({ sent_by_user_id: userId } as any)
-              .eq('chip_id', chip.id)
-              .eq('message_id', data.messages[0].id)
-          }, 2000)
-        } catch { /* non-critical */ }
-      }
-
-      return jsonResponse({ success: true, data: { messageId: data.messages?.[0]?.id } })
+      return jsonResponse({ success: true, data: { messageId: metaMsgId } })
     }
 
     case 'send-media': {
