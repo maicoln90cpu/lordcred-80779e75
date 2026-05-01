@@ -325,9 +325,10 @@ export default function MetaChipsManager() {
                   <TableHead>Nome Interno</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
-                  <TableHead>IDs Meta</TableHead>
-                  <TableHead>Proprietário</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                   <TableHead>IDs Meta</TableHead>
+                   <TableHead>Access Token</TableHead>
+                   <TableHead>Proprietário</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
