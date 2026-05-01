@@ -397,6 +397,32 @@ export default function MetaChipsManager() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5 min-w-[200px]">
+                                <Input
+                                  className="h-8 font-mono text-xs"
+                                  type={showTokenFor === chip.id ? 'text' : 'password'}
+                                  placeholder="Token específico (opcional)"
+                                  value={accessTokenDrafts[chip.id] ?? ''}
+                                  onChange={e => setAccessTokenDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                                />
+                                <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setShowTokenFor(prev => prev === chip.id ? null : chip.id)}>
+                                  {showTokenFor === chip.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </Button>
+                                <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => handleSaveAccessToken(chip)} disabled={savingAccessToken === chip.id}>
+                                  {savingAccessToken === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[250px]">
+                              <p className="text-xs">Preencha apenas se este chip pertence a uma BM diferente da principal. O token do System User dessa BM será usado no lugar do global.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
                           <User className="w-3 h-3 text-muted-foreground" />
                           {owner?.name || owner?.email || chip.user_id.slice(0, 8)}
