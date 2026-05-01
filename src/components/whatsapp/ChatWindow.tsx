@@ -271,10 +271,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onR
           <span className="text-sm text-destructive/80">Esta conversa está sendo atendida por <strong>{sharedBlockInfo.assignedName}</strong></span>
         </div>
       ) : chipProvider === 'meta' && windowExpired ? (
-        <div className="flex items-center justify-center gap-3 px-4 py-3 bg-orange-500/5 border-t border-orange-500/20">
-          <FileText className="w-4 h-4 text-orange-400 shrink-0" />
-          <span className="text-sm text-orange-400">Janela de 24h expirada — use um template para reabrir a conversa</span>
-          <TemplatePicker disabled={sending} onInsertText={(text) => handleSend(text)} onLoadMedia={(url, type, filename) => handleSendMedia(url, type, '', filename)} />
+        <div className="flex flex-col items-center gap-2 px-4 py-3 bg-orange-500/5 border-t border-orange-500/20">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-orange-400 shrink-0" />
+            <span className="text-sm text-orange-400">Janela de 24h expirada — use um template para reabrir a conversa</span>
+          </div>
+          <MetaTemplatePicker chipId={chipId!} contactPhone={chat?.phone || ''} disabled={sending} onSent={() => setWindowExpired(false)} />
         </div>
       ) : chipStatus && chipStatus !== 'connected' ? (
         <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">
