@@ -78,7 +78,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
     // Fetch personal chips
     const { data: personalData } = await (supabase
       .from('chips')
-      .select('id, phone_number, instance_name, status, slot_number, nickname, provider')
+      .select('id, phone_number, instance_name, status, slot_number, nickname, internal_name, provider')
       .eq('user_id', user.id)
       .order('slot_number')
       .limit(5) as any).eq('chip_type', 'whatsapp');
