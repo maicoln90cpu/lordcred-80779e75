@@ -409,7 +409,34 @@ async function handleMetaAction(
         return jsonResponse({ success: false, error: humanizeMetaError(sendData.error, phoneNumberId), errorCode: sendData.error.code })
       }
 
-      return jsonResponse({ success: true, data: { messageId: sendData.messages?.[0]?.id } })
+      // Persist outgoing media message
+      const mediaMsgId = sendData.messages?.[0]?.id
+      const mediaRemoteJid = `${normalizedPhone}@s.whatsapp.net`
+      try {
+        if (mediaMsgId) {
+          await adminClient.from('message_history').insert({
+            chip_id: chip.id,
+            remote_jid: mediaRemoteJid,
+            message_id: mediaMsgId,
+            direction: 'outgoing',
+            message_content: mediaCaption || `📎 ${mediaType}`,
+            media_type: mediaType || 'document',
+            status: 'sent',
+            sender_name: '',
+            sent_by_user_id: userId || null,
+          })
+          await adminClient.from('conversations').upsert({
+            chip_id: chip.id,
+            remote_jid: mediaRemoteJid,
+            last_message_text: mediaCaption || `📎 ${mediaType}`,
+            last_message_at: new Date().toISOString(),
+            contact_phone: normalizedPhone,
+            is_group: false,
+          }, { onConflict: 'chip_id,remote_jid' })
+        }
+      } catch (e) { console.error('Failed to persist outgoing media:', e) }
+
+      return jsonResponse({ success: true, data: { messageId: mediaMsgId } })
     }
 
     case 'send-template': {
