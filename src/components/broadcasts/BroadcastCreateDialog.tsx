@@ -1008,6 +1008,19 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Test-send dialog (item B) — only mounts when chip+template selected */}
+      {isMetaChip && selectedTemplate && selectedChipId && (
+        <TestTemplateSendDialog
+          open={showTestSendDialog}
+          onOpenChange={setShowTestSendDialog}
+          chipId={selectedChipId}
+          templateName={selectedTemplate.template_name}
+          templateLanguage={selectedTemplate.language}
+          headerVars={headerVars}
+          bodyVars={bodyVars}
+        />
+      )}
     </Dialog>
   );
 }
