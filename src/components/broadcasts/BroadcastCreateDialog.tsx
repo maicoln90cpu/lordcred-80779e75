@@ -372,21 +372,46 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         scheduledDate = dt.toISOString();
       }
 
+      // Build Meta template components (only filled values)
+      let metaComponents: any[] | null = null;
+      if (isMetaChip && selectedTemplate) {
+        metaComponents = [];
+        const hKeys = Object.keys(headerVars).sort();
+        if (hKeys.length > 0) {
+          metaComponents.push({
+            type: 'header',
+            parameters: hKeys.map(k => ({ type: 'text', text: headerVars[k] })),
+          });
+        }
+        const bKeys = Object.keys(bodyVars).sort();
+        if (bKeys.length > 0) {
+          metaComponents.push({
+            type: 'body',
+            parameters: bKeys.map(k => ({ type: 'text', text: bodyVars[k] })),
+          });
+        }
+      }
+
       const { data: campaign, error } = await supabase
         .from('broadcast_campaigns')
         .insert({
           name: formName,
-          message_content: formMessage,
-          message_variant_b: abEnabled ? formMessageB : null,
-          ab_enabled: abEnabled,
+          message_content: isMetaChip && selectedTemplate ? getTemplatePreview(selectedTemplate) : formMessage,
+          message_variant_b: !isMetaChip && abEnabled ? formMessageB : null,
+          ab_enabled: !isMetaChip && abEnabled,
           chip_id: selectedChipId,
+          provider: isMetaChip ? 'meta' : 'uazapi',
+          meta_template_id: isMetaChip && selectedTemplate ? selectedTemplate.id : null,
+          meta_template_name: isMetaChip && selectedTemplate ? selectedTemplate.template_name : null,
+          meta_template_language: isMetaChip && selectedTemplate ? selectedTemplate.language : null,
+          meta_template_components: metaComponents,
           rate_per_minute: formRate,
           total_recipients: phones.length,
           created_by: user!.id,
           status: enableSchedule ? 'scheduled' : 'draft',
-          media_type: mediaType === 'none' ? null : mediaType,
-          media_url: mediaType !== 'none' ? mediaUrl : null,
-          media_filename: mediaType === 'document' ? mediaFilename : null,
+          media_type: !isMetaChip && mediaType !== 'none' ? mediaType : null,
+          media_url: !isMetaChip && mediaType !== 'none' ? mediaUrl : null,
+          media_filename: !isMetaChip && mediaType === 'document' ? mediaFilename : null,
           scheduled_date: scheduledDate,
           source_type: sourceType,
           source_filters: sourceType === 'leads' ? {
