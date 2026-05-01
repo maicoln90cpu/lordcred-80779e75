@@ -403,23 +403,15 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         scheduledDate = dt.toISOString();
       }
 
-      // Build Meta template components (only filled values)
+      // Build Meta template components (text values OR lead_field bindings)
       let metaComponents: any[] | null = null;
       if (isMetaChip && selectedTemplate) {
         metaComponents = [];
-        const hKeys = Object.keys(headerVars).sort();
-        if (hKeys.length > 0) {
-          metaComponents.push({
-            type: 'header',
-            parameters: hKeys.map(k => ({ type: 'text', text: headerVars[k] })),
-          });
+        if (Object.keys(headerVars).length > 0) {
+          metaComponents.push({ type: 'header', parameters: bindingsToParameters(headerVars) });
         }
-        const bKeys = Object.keys(bodyVars).sort();
-        if (bKeys.length > 0) {
-          metaComponents.push({
-            type: 'body',
-            parameters: bKeys.map(k => ({ type: 'text', text: bodyVars[k] })),
-          });
+        if (Object.keys(bodyVars).length > 0) {
+          metaComponents.push({ type: 'body', parameters: bindingsToParameters(bodyVars) });
         }
       }
 
