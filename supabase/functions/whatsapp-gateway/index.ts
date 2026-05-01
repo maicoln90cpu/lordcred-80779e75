@@ -249,32 +249,48 @@ async function handleMetaAction(
       }
 
       // --- Verificação da janela de 24h Meta ---
-      // Buscar última mensagem RECEBIDA (incoming) do cliente nesta conversa
-      const { data: lastIncoming } = await adminClient
-        .from('message_history')
-        .select('created_at')
-        .eq('chip_id', chip.id)
-        .eq('direction', 'incoming')
-        .or(`remote_jid.ilike.%${normalizedPhone}%`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      // Window opens on: incoming message OR outgoing template (Meta rule 2024+)
+      const [{ data: lastIncoming }, { data: lastOutgoingTemplate }] = await Promise.all([
+        adminClient
+          .from('message_history')
+          .select('created_at')
+          .eq('chip_id', chip.id)
+          .eq('direction', 'incoming')
+          .or(`remote_jid.ilike.%${normalizedPhone}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        adminClient
+          .from('message_history')
+          .select('created_at')
+          .eq('chip_id', chip.id)
+          .eq('direction', 'outgoing')
+          .ilike('message_content', '📋%')
+          .or(`remote_jid.ilike.%${normalizedPhone}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
 
-      if (!lastIncoming) {
+      // Use the most recent between incoming and outgoing template
+      const incomingTime = lastIncoming?.created_at ? new Date(lastIncoming.created_at).getTime() : 0
+      const templateTime = lastOutgoingTemplate?.created_at ? new Date(lastOutgoingTemplate.created_at).getTime() : 0
+      const lastWindowOpenerTime = Math.max(incomingTime, templateTime)
+
+      if (lastWindowOpenerTime === 0) {
         return jsonResponse({
           success: false,
           windowClosed: true,
-          error: 'Nenhuma mensagem recebida deste contato. Para iniciar uma conversa pela Meta, envie um Template aprovado primeiro.',
+          error: 'Nenhuma mensagem recebida deste contato e nenhum template enviado. Para iniciar uma conversa pela Meta, envie um Template aprovado primeiro.',
         })
       }
 
-      const lastMsgTime = new Date(lastIncoming.created_at).getTime()
-      const hoursSince = (Date.now() - lastMsgTime) / (1000 * 60 * 60)
+      const hoursSince = (Date.now() - lastWindowOpenerTime) / (1000 * 60 * 60)
       if (hoursSince >= 24) {
         return jsonResponse({
           success: false,
           windowClosed: true,
-          error: `Janela de 24h expirada (última mensagem do cliente há ${Math.floor(hoursSince)}h). Use um Template aprovado para reabrir a conversa. Textos livres só podem ser enviados dentro de 24h após a última mensagem do cliente.`,
+          error: `Janela de 24h expirada (última atividade há ${Math.floor(hoursSince)}h). Use um Template aprovado para reabrir a conversa.`,
         })
       }
 
