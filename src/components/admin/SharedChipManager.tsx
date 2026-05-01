@@ -48,21 +48,23 @@ export default function SharedChipManager() {
   }, []);
 
   const loadData = async () => {
-    const [chipsRes, profilesRes] = await Promise.all([
+    const [chipsRes, profilesRes, blockedRes] = await Promise.all([
       supabase
         .from('chips')
         .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, round_robin_enabled, round_robin_timeout_minutes, status, user_id')
         .order('instance_name'),
-      supabase
-        .from('profiles')
-        .select('user_id, email, name')
-        .eq('is_blocked', false)
-        .order('name'),
+      // RPC oculta automaticamente users com role 'master'
+      supabase.rpc('get_visible_profiles'),
+      supabase.from('profiles').select('user_id, is_blocked'),
     ]);
 
     const chipsData = (chipsRes.data || []) as unknown as ChipRow[];
     setChips(chipsData);
-    setProfiles(profilesRes.data || []);
+    const blockedSet = new Set((blockedRes.data || []).filter((p: any) => p.is_blocked).map((p: any) => p.user_id));
+    const filteredProfiles = ((profilesRes.data as any[]) || [])
+      .filter(p => !blockedSet.has(p.user_id))
+      .map(p => ({ user_id: p.user_id, email: p.email, name: p.name }));
+    setProfiles(filteredProfiles);
 
     // Init local state
     const ids: Record<string, string[]> = {};

@@ -26,7 +26,8 @@ interface UserProfile {
 
 const getRoleLabel = (role: string) => {
   switch (role) {
-    case 'master': return 'Master';
+    // 'master' nunca deve chegar aqui (filtrado no Users.tsx); fallback neutro por defesa em profundidade.
+    case 'master': return 'Administrador';
     case 'admin': return 'Administrador';
     case 'manager': return 'Gerente';
     case 'seller': return 'Vendedor';
