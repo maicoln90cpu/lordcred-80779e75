@@ -101,8 +101,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null);
-  const [headerVars, setHeaderVars] = useState<Record<string, string>>({});
-  const [bodyVars, setBodyVars] = useState<Record<string, string>>({});
+  const [headerVars, setHeaderVars] = useState<Record<string, VarBinding>>({});
+  const [bodyVars, setBodyVars] = useState<Record<string, VarBinding>>({});
+  const [showTestSendDialog, setShowTestSendDialog] = useState(false);
 
   // Basic fields
   const [formName, setFormName] = useState('');
