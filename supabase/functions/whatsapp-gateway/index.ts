@@ -479,8 +479,8 @@ async function handleMetaAction(
       // Persist outgoing template message
       const tplMsgId = data.messages?.[0]?.id
       const tplRemoteJid = `${normalizedPhone}@s.whatsapp.net`
-      // Build a readable text from template name
-      const tplText = `📋 Template: ${templateName}`
+      // Use filled text if provided, fallback to template name
+      const tplText = filledTemplateText ? `📋 ${filledTemplateText}` : `📋 Template: ${templateName}`
       try {
         if (tplMsgId) {
           await adminClient.from('message_history').insert({
