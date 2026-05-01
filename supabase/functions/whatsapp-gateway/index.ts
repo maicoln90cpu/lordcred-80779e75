@@ -947,7 +947,8 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle()
 
-      const metaAccessToken = (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
+      // Priority: chip-specific token → system_settings → env fallback
+      const metaAccessToken = (chip as any)?.meta_access_token || (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
       if (!metaAccessToken) {
         await logAdmin(false, 500, { error_message: 'Meta access token not configured' })
         return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)
