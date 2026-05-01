@@ -100,11 +100,12 @@ export default function WhatsApp() {
     if (id) {
       const { data: chip } = await supabase
         .from('chips')
-        .select('status, instance_name')
+        .select('status, instance_name, provider')
         .eq('id', id)
         .single();
       setSelectedChipStatus(chip?.status || 'disconnected');
       setSelectedChipInstanceName(chip?.instance_name || null);
+      setSelectedChipProvider(chip?.provider || 'uazapi');
 
       // Auto-sync disabled — use manual "Sincronizar mensagens" button
       // runStagedSync(id);
