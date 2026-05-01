@@ -729,7 +729,6 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </div>
           )}
           </div>
-          </>)}
 
 
           <div className="border rounded-lg p-3 space-y-2">
