@@ -102,11 +102,16 @@ Deno.serve(async (req) => {
     let totalSkipped = 0
 
     for (const campaign of campaigns) {
+      const isMeta = campaign.provider === 'meta'
+
       // Build list of available chips: primary + overflow
+      // For UazAPI: requires instance_token. For Meta: only chipId is needed (gateway resolves token).
       const chipCandidates: { token: string; chipId: string }[] = []
 
-      if (campaign.chips && campaign.chips.status === 'connected' && campaign.chips.instance_token) {
-        chipCandidates.push({ token: campaign.chips.instance_token, chipId: campaign.chip_id })
+      if (campaign.chips && campaign.chips.status === 'connected') {
+        if (isMeta || campaign.chips.instance_token) {
+          chipCandidates.push({ token: campaign.chips.instance_token || '', chipId: campaign.chip_id })
+        }
       }
 
       // Load overflow chips if configured
@@ -114,13 +119,15 @@ Deno.serve(async (req) => {
       if (overflowIds.length > 0) {
         const { data: overflowChips } = await adminClient
           .from('chips')
-          .select('id, instance_token, status, broadcast_daily_limit, messages_sent_today')
+          .select('id, instance_token, status, broadcast_daily_limit, messages_sent_today, provider')
           .in('id', overflowIds)
           .eq('status', 'connected')
         if (overflowChips) {
           for (const oc of overflowChips) {
-            if (oc.instance_token) {
-              chipCandidates.push({ token: oc.instance_token, chipId: oc.id })
+            // Same provider only (avoid mixing meta/uazapi mid-campaign)
+            if (oc.provider !== campaign.provider) continue
+            if (isMeta || oc.instance_token) {
+              chipCandidates.push({ token: oc.instance_token || '', chipId: oc.id })
             }
           }
         }
