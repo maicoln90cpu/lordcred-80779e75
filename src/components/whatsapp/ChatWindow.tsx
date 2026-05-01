@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck, XCircle, RotateCcw } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck, XCircle, RotateCcw, FileText } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
