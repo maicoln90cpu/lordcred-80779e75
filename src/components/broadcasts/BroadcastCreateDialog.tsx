@@ -19,7 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles, FlaskConical } from 'lucide-react';
+import MetaTemplateVarBinding, { type VarBinding, bindingsToParameters } from './MetaTemplateVarBinding';
+import TestTemplateSendDialog from './TestTemplateSendDialog';
+import { suggestAutoMapping } from '@/lib/templateMapping';
 
 interface MetaTemplate {
   id: string;
