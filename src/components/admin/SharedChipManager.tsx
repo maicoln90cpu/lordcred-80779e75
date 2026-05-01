@@ -250,15 +250,16 @@ export default function SharedChipManager() {
             </Button>
             {isExpanded && (
               <div className="space-y-2 border-t pt-3">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <Shield className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Selecione quem pode atender por este número:</span>
                 </div>
                 <Input
-                  placeholder="Buscar vendedor por nome ou email..."
+                  placeholder="🔍 Buscar vendedor por nome ou email..."
                   value={vendorSearch[chip.id] || ''}
                   onChange={e => setVendorSearch(prev => ({ ...prev, [chip.id]: e.target.value }))}
-                  className="h-8 text-sm"
+                  className="h-9 text-sm sticky top-0 z-10 bg-background"
+                  autoFocus
                 />
                 <ScrollArea className="h-[200px]">
                   <div className="space-y-1">
