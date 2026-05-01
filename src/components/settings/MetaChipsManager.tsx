@@ -216,6 +216,21 @@ export default function MetaChipsManager() {
     }
   };
 
+  const handleSaveAccessToken = async (chip: MetaChip) => {
+    const value = (accessTokenDrafts[chip.id] ?? '').trim();
+    setSavingAccessToken(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ meta_access_token: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: value ? 'Access Token salvo' : 'Access Token removido' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar Access Token', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingAccessToken(null);
+    }
+  };
+
   const qualityColor = (q: string | null) => {
     if (!q) return 'text-muted-foreground';
     const u = q.toUpperCase();
