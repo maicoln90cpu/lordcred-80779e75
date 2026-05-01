@@ -1,16 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { writeAuditLog } from "../_shared/auditLog.ts"
+import { replaceVariables, applyComponentMapping } from "../_shared/templateMapping.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function replaceVariables(text: string, vars: Record<string, string | null>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    const val = vars[key.toLowerCase()]
-    return val ?? match
-  })
 }
 
 Deno.serve(async (req) => {
