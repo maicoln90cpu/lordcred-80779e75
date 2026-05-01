@@ -37,6 +37,7 @@ export default function WhatsApp() {
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [selectedChipStatus, setSelectedChipStatus] = useState<string>('disconnected');
   const [selectedChipInstanceName, setSelectedChipInstanceName] = useState<string | null>(null);
+  const [selectedChipProvider, setSelectedChipProvider] = useState<string>('uazapi');
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
   
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
