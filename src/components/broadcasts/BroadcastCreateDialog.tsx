@@ -260,14 +260,34 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const handleSelectTemplate = (tpl: MetaTemplate) => {
     setSelectedTemplate(tpl);
     const vars = extractTemplateVarsByComponent(tpl);
-    const h: Record<string, string> = {};
-    vars.header.forEach(v => { h[v] = ''; });
+
+    // Try auto-mapping if source is leads (greeting heuristic on body text)
+    const bodyText = Array.isArray(tpl.components)
+      ? (tpl.components.find((c: any) => c.type === 'BODY')?.text || '')
+      : '';
+    const autoField = sourceType === 'leads' ? suggestAutoMapping(bodyText, vars.body.length) : null;
+
+    const h: Record<string, VarBinding> = {};
+    vars.header.forEach(v => { h[v] = { kind: 'text', value: '' }; });
     setHeaderVars(h);
-    const b: Record<string, string> = {};
-    vars.body.forEach(v => { b[v] = ''; });
+
+    const b: Record<string, VarBinding> = {};
+    vars.body.forEach((v, idx) => {
+      // Auto-map first body var to lead.nome when greeting detected
+      if (idx === 0 && autoField) b[v] = { kind: 'lead_field', field: autoField };
+      else b[v] = { kind: 'text', value: '' };
+    });
     setBodyVars(b);
+
     // Auto-fill message_content with preview text for record-keeping
     setFormMessage(getTemplatePreview(tpl));
+
+    if (autoField) {
+      toast({
+        title: 'Variável mapeada automaticamente',
+        description: `{{1}} ligado a "${autoField}" do lead. Você pode trocar abaixo.`,
+      });
+    }
   };
 
 
