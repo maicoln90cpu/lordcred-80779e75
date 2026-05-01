@@ -239,8 +239,14 @@ export default function SharedChipManager() {
                 <span className="text-xs text-muted-foreground">min</span>
               </div>
             )}
-            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpandedChip(isExpanded ? null : chip.id)}>
-              {isExpanded ? 'Recolher' : 'Gerenciar usuários autorizados'}
+            <Button
+              variant={isExpanded ? 'ghost' : 'outline'}
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => setExpandedChip(isExpanded ? null : chip.id)}
+            >
+              <Users className="w-3.5 h-3.5 mr-1.5" />
+              {isExpanded ? 'Recolher' : `Gerenciar usuários autorizados (${userIds.length} selecionados)`}
             </Button>
             {isExpanded && (
               <div className="space-y-2 border-t pt-3">
