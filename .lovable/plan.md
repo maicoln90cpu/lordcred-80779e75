@@ -1,76 +1,57 @@
 
-## Problemas Identificados
+## Confirmação dos seus dados (tudo correto)
 
-### 1. v8-webhook QUEBRADO (URGENTE)
-O `v8-webhook` está **completamente fora do ar** desde a última alteração. O erro nos logs:
-```
-Uncaught SyntaxError: Illegal break statement at index.ts:72:11
-```
-**Causa**: Na linha 108, foi adicionado um `break;` dentro de um bloco `if/else if` que está dentro de um `try`. O `break` só funciona dentro de `switch` ou `for/while`. Isso impede o boot da função -- **nenhum webhook V8 está sendo processado agora**.
+Pelos prints que você mandou:
 
-**Correção**: Trocar `break;` por uma estrutura que pule o resto do código (ex: usar `processed = true;` e deixar o fluxo cair naturalmente, sem o `break`). O `processed = true` já está na linha 107, então basta remover o `break` da linha 108.
+| Celular | Phone Number ID | WABA ID | No LordCred |
+|---|---|---|---|
+| +55 48 9615-9114 | 1019660597905406 | 970875535458386 | Correto |
+| +55 48 9978-1709 | 1153714314481686 | 4368180816766123 | Correto |
 
----
-
-### 2. Mensagens Meta não aparecendo
-
-**Ponto 1 (mensagem recebida não aparece)**: Quando você envia uma mensagem PARA o número 5548996159114 (chip Meta cadastrado), a Meta envia um webhook para `meta-webhook`. Possíveis causas:
-- O webhook URL pode não estar configurado no Meta Business Manager apontando para `https://sibfqmzsnftscnlyuwiu.supabase.co/functions/v1/meta-webhook`
-- O `verify_token` pode estar incorreto
-- Vou verificar os logs do `meta-webhook` para confirmar se está recebendo chamadas
-
-**Ponto 2 (envio de mensagem "pisca e volta")**: O envio via Meta Cloud API **sem template** só funciona dentro da **janela de 24h** (o contato precisa ter enviado uma mensagem primeiro). Fora dessa janela, a Meta exige um template aprovado. O gateway já retorna o erro correto, mas pode estar falhando silenciosamente. Vou verificar o fluxo.
+Os cadastros no LordCred estao certos. Agora os 3 bugs:
 
 ---
 
-### 3. Multi-tenancy e Facebook Login (resposta consultiva)
+## Bug 1: Erro ao sincronizar qualidade
 
-Isso é uma discussão, não requer código agora.
+**Causa**: A Meta API retorna erro `#100 Tried accessing nonexisting field (messaging_limit)` porque o campo `messaging_limit` nao existe mais na versao atual da Graph API (v21.0). Foi substituido por `throughput` ou simplesmente removido.
 
----
-
-## Plano de Implementação (1 etapa)
-
-### Correção do v8-webhook
-- **Arquivo**: `supabase/functions/v8-webhook/index.ts` linha 108
-- **Ação**: Remover o `break;` (o `processed = true;` já garante que o fluxo encerre corretamente)
-
-### Diagnóstico Meta webhook
-- Verificar logs do `meta-webhook` para confirmar se está recebendo webhooks
-- Verificar se o webhook URL está configurado corretamente no Meta Business Manager
-- Testar o endpoint com `curl` para garantir que está respondendo
-
-### Resposta sobre multi-tenancy
-Responder no chat sobre:
-- Facebook Login / Embedded Signup (viabilidade)
-- Como funciona a cobrança da Meta para múltiplos WABAs
-- O que seria necessário para multi-tenancy real
+**Correcao**: Alterar a chamada de `sync-quality` no `whatsapp-gateway` para nao pedir `messaging_limit`. Pedir apenas `quality_rating,display_phone_number,throughput`. Se a Meta retornar erro para um chip, continuar com os outros (hoje ja faz isso, mas o erro assusta).
 
 ---
 
-## Detalhes Técnicos
+## Bug 2: Templates importados mas nao aparecem na tela
 
-### v8-webhook fix
-```typescript
-// ANTES (linha 105-108):
-if ((currentRow as any).error_kind === "canceled_hard") {
-  console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
-  processed = true;
-  break;  // <-- ILLEGAL: não está em loop/switch
-}
+**Causa**: A tabela `meta_message_templates` tem RLS ativado com apenas 1 policy: `"Privileged users can manage meta templates"` (ALL). A edge function grava com `service_role_key` (bypassa RLS), entao os 7 templates **foram gravados com sucesso**. Porem, ao verificar no banco, a tabela esta **vazia** -- o que indica que o `upsert` falhou silenciosamente ou a policy bloqueou.
 
-// DEPOIS:
-if ((currentRow as any).error_kind === "canceled_hard") {
-  console.log(`[v8-webhook] skipping canceled_hard sim consult_id=${consultId}`);
-  processed = true;
-  // Não faz mais nada -- o else abaixo cuida do resto
-} else {
-  // ... todo o código que vinha depois do if (linhas 110+)
-}
-```
+Verificacao real: a query retornou 0 rows. Provavelmente o upsert retornou erro que foi ignorado (o codigo nao checa `error` do upsert). Vou adicionar tratamento de erro E verificar se o `adminClient` (service role) esta sendo usado corretamente.
 
-### Checklist manual
-1. Após deploy, verificar nos logs do `v8-webhook` que o boot error sumiu
-2. Enviar uma mensagem de teste para o número Meta e verificar se aparece
-3. Verificar no Meta Business Manager que o webhook URL está correto
-4. Testar envio de mensagem dentro da janela de 24h
+**Correcao**:
+1. Adicionar checagem de erro no upsert de templates
+2. Adicionar policy de SELECT para usuarios autenticados (leitura)
+3. Re-sincronizar para popular a tabela
+
+---
+
+## Bug 3: Danielle nao ve o chip na tela WhatsApp
+
+**Causa**: Voce atribuiu Danielle (62af138a...) ao chip 9615-9114, e ele esta com `is_shared=true` e `shared_user_ids` contendo o ID dela. Porem o chip 9978-1709 esta com `is_shared=false` e `shared_user_ids=[]`.
+
+Mas o problema maior: o `ChipSelector` busca chips **pessoais** (`user_id = user.id`) e **compartilhados** (`is_shared=true AND shared_user_ids contains user.id`). Como o dono dos chips e outro usuario (Silas), Danielle so veria o chip 9615-9114 (que esta shared). Mas pelo print dela a tela mostra "Nenhum chip conectado".
+
+Possiveis causas:
+- O `SharedChipManager` (tela de acesso) nao esta salvando o `shared_user_ids` corretamente
+- Ou a RLS do `chips` nao permite Danielle ler o chip
+
+**Correcao**: Verificar e corrigir o fluxo de salvamento de acesso no `SharedChipManager` e garantir que a RLS de `chips` permita leitura por usuarios em `shared_user_ids`.
+
+---
+
+## Resumo das alteracoes
+
+1. **whatsapp-gateway/index.ts** -- Remover `messaging_limit` da chamada sync-quality, adicionar checagem de erro nos upserts de templates
+2. **Migration SQL** -- Adicionar policy de SELECT na `meta_message_templates` para authenticated
+3. **SharedChipManager ou ChipSelector** -- Garantir que o fluxo de atribuicao de vendedor funcione end-to-end
+4. **Re-deploy** da edge function apos correcao
+
+Tempo estimado: ~15 minutos de implementacao.

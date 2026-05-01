@@ -605,8 +605,9 @@ async function handleMetaAction(
 
       const templates = data.data || []
       let synced = 0
+      const upsertErrors: string[] = []
       for (const t of templates) {
-        await adminClient.from('meta_message_templates').upsert({
+        const { error: upsertErr } = await adminClient.from('meta_message_templates').upsert({
           waba_id: wabaId,
           template_name: t.name,
           language: t.language,
@@ -615,9 +616,17 @@ async function handleMetaAction(
           components: t.components || [],
           synced_at: new Date().toISOString(),
         }, { onConflict: 'waba_id,template_name,language', ignoreDuplicates: false })
-        synced++
+        if (upsertErr) {
+          console.error(`Template upsert error for ${t.name}:`, upsertErr.message)
+          upsertErrors.push(`${t.name}: ${upsertErr.message}`)
+        } else {
+          synced++
+        }
       }
-      return jsonResponse({ success: true, synced, total: templates.length })
+      if (upsertErrors.length > 0) {
+        console.error('Template sync had errors:', upsertErrors)
+      }
+      return jsonResponse({ success: true, synced, total: templates.length, errors: upsertErrors.length > 0 ? upsertErrors : undefined })
     }
 
     case 'create-template': {
@@ -663,8 +672,8 @@ async function handleMetaAction(
     }
 
     case 'sync-quality': {
-      // Sync quality_rating and messaging_limit for this chip
-      const resp = await metaFetch(`/${phoneNumberId}?fields=quality_rating,messaging_limit,display_phone_number`, {
+      // Sync quality_rating for this chip (messaging_limit removed from Graph API v21+)
+      const resp = await metaFetch(`/${phoneNumberId}?fields=quality_rating,display_phone_number,throughput`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
         timeout: 8000,
       })
@@ -672,12 +681,14 @@ async function handleMetaAction(
       if (data.error) {
         return jsonResponse({ success: false, error: humanizeMetaError(data.error, phoneNumberId), errorCode: data.error.code })
       }
+      // throughput.level replaces the old messaging_limit field
+      const messagingLimit = data.throughput?.level || null
       await adminClient.from('chips').update({
         quality_rating: data.quality_rating || null,
-        messaging_limit: data.messaging_limit || null,
+        messaging_limit: messagingLimit,
         quality_updated_at: new Date().toISOString(),
       }).eq('id', chip.id)
-      return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: data.messaging_limit })
+      return jsonResponse({ success: true, quality_rating: data.quality_rating, messaging_limit: messagingLimit })
     }
 
     case 'get-business-profile': {
