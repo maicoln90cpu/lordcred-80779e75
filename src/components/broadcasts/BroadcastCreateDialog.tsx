@@ -335,9 +335,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         toast({ title: 'Selecione um template Meta aprovado', variant: 'destructive' });
         return;
       }
-      const allFilled = [...Object.values(headerVars), ...Object.values(bodyVars)].every(v => v.trim().length > 0);
+      const allBindings = [...Object.values(headerVars), ...Object.values(bodyVars)];
+      const allFilled = allBindings.every(v => v.kind === 'lead_field' || (v.value && v.value.trim().length > 0));
       if (!allFilled) {
-        toast({ title: 'Preencha todas as variáveis do template', variant: 'destructive' });
+        toast({ title: 'Preencha todas as variáveis (texto fixo) ou ligue a um campo do lead', variant: 'destructive' });
+        return;
+      }
+      // lead_field bindings only make sense when source is 'leads'
+      const usesLeadField = allBindings.some(v => v.kind === 'lead_field');
+      if (usesLeadField && sourceType !== 'leads') {
+        toast({ title: 'Variáveis "Campo do lead" exigem origem = Leads', variant: 'destructive' });
         return;
       }
     } else if (!formMessage) {
