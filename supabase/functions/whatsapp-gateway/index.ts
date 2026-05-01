@@ -605,8 +605,9 @@ async function handleMetaAction(
 
       const templates = data.data || []
       let synced = 0
+      const upsertErrors: string[] = []
       for (const t of templates) {
-        await adminClient.from('meta_message_templates').upsert({
+        const { error: upsertErr } = await adminClient.from('meta_message_templates').upsert({
           waba_id: wabaId,
           template_name: t.name,
           language: t.language,
@@ -615,9 +616,17 @@ async function handleMetaAction(
           components: t.components || [],
           synced_at: new Date().toISOString(),
         }, { onConflict: 'waba_id,template_name,language', ignoreDuplicates: false })
-        synced++
+        if (upsertErr) {
+          console.error(`Template upsert error for ${t.name}:`, upsertErr.message)
+          upsertErrors.push(`${t.name}: ${upsertErr.message}`)
+        } else {
+          synced++
+        }
       }
-      return jsonResponse({ success: true, synced, total: templates.length })
+      if (upsertErrors.length > 0) {
+        console.error('Template sync had errors:', upsertErrors)
+      }
+      return jsonResponse({ success: true, synced, total: templates.length, errors: upsertErrors.length > 0 ? upsertErrors : undefined })
     }
 
     case 'create-template': {
