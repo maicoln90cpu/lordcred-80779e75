@@ -187,6 +187,9 @@ export default function MetaTemplatesManager() {
                   <TableHead>Status</TableHead>
                   <TableHead>Preview</TableHead>
                   <TableHead>Sincronizado em</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                  <TableHead>Preview</TableHead>
+                  <TableHead>Sincronizado em</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
