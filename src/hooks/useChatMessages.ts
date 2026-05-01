@@ -228,28 +228,42 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
 
     setSending(true);
     const sentAt = new Date().toISOString();
-    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text' };
+    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text', status: 'pending' };
     setMessages(prev => [...prev, tempMsg]);
 
+    let shouldRemoveTemp = false;
     try {
       void invokeUazapiWithRetry({ action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' }, { retries: 0, retryDelayMs: 0 });
-      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
+      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; windowClosed?: boolean }>(
         { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text }, { retries: 2, retryDelayMs: 400 }
       );
-      if (isDisconnectError(response)) { setChipDisconnected(true); setFailedMessage(text); return; }
+      if (isDisconnectError(response)) { setChipDisconnected(true); setFailedMessage(text); shouldRemoveTemp = true; return; }
       if (response.isTransportError) {
         const delivered = await reconcileMessage(chipId, chat.remoteJid, sentAt);
-        if (!delivered) toast({ title: 'Instabilidade temporária', description: 'A mensagem pode não ter sido enviada.', variant: 'destructive' });
+        if (!delivered) { toast({ title: 'Instabilidade temporária', description: 'A mensagem pode não ter sido enviada.', variant: 'destructive' }); shouldRemoveTemp = true; }
         return;
       }
-      if (response.error) { toast({ title: 'Erro ao enviar', description: String(response.error?.message || response.error), variant: 'destructive' }); return; }
+      if (response.error) { toast({ title: 'Erro ao enviar', description: String(response.error?.message || response.error), variant: 'destructive' }); shouldRemoveTemp = true; return; }
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
-        if (errMsg.toLowerCase().includes('not on whatsapp')) toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' });
-        else if (errMsg) toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' });
+        if (errMsg.toLowerCase().includes('not on whatsapp')) { toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' }); shouldRemoveTemp = true; }
+        else if ((response.data as any)?.windowClosed) { toast({ title: 'Janela expirada', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
+        else if (errMsg) { toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
+        else { shouldRemoveTemp = true; }
+        return;
       }
-    } catch { toast({ title: 'Erro ao enviar mensagem', variant: 'destructive' }); }
-    finally { setMessages(prev => prev.filter(m => m.id !== tempMsg.id)); setSending(false); }
+      // Success — keep temp msg visible until realtime replaces it
+      // Fallback: remove after 10s if realtime never arrives
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      }, 10000);
+    } catch { toast({ title: 'Erro ao enviar mensagem', variant: 'destructive' }); shouldRemoveTemp = true; }
+    finally {
+      if (shouldRemoveTemp) {
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+      }
+      setSending(false);
+    }
   }, [chipId, chat, checkChipConnected, toast, reconcileMessage]);
 
   const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
