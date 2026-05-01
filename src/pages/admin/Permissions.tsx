@@ -53,6 +53,7 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   commissions_v2: "Comissões de parceiros (versão 2 — sandbox)",
   v8_simulador: "Simulador V8 CLT para cálculo de propostas",
   integrations: "Configurações de integrações WhatsApp (UazAPI / Meta)",
+  hr: "RH/Recrutamento — gestão de candidatos, funcionários e entrevistas",
 };
 
 interface FeaturePermission {
