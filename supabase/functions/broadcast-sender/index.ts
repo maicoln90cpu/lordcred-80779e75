@@ -1,16 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { writeAuditLog } from "../_shared/auditLog.ts"
+import { replaceVariables, applyComponentMapping } from "../_shared/templateMapping.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function replaceVariables(text: string, vars: Record<string, string | null>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    const val = vars[key.toLowerCase()]
-    return val ?? match
-  })
 }
 
 Deno.serve(async (req) => {
@@ -253,24 +247,15 @@ Deno.serve(async (req) => {
             if (!campaign.meta_template_name) {
               sendError = 'Campanha Meta sem template configurado'
             } else {
-              // Substitute variables inside template components (lead-driven)
+              // Apply lead-driven substitution (supports both {type:'text',text:'{{var}}'} and {type:'lead_field',field:'nome'})
               let components = campaign.meta_template_components
-              if (components && recipient.lead_id && leadsMap[recipient.lead_id]) {
-                const lead = leadsMap[recipient.lead_id]
-                const vars: Record<string, string | null> = {
-                  nome: lead.nome, cpf: lead.cpf, telefone: lead.telefone,
-                  banco: lead.banco_nome, perfil: lead.perfil, status: lead.status,
-                }
-                components = JSON.parse(JSON.stringify(components))
-                for (const comp of components) {
-                  if (Array.isArray(comp.parameters)) {
-                    for (const p of comp.parameters) {
-                      if (p.type === 'text' && typeof p.text === 'string') {
-                        p.text = replaceVariables(p.text, vars)
-                      }
-                    }
-                  }
-                }
+              const leadObj = recipient.lead_id && leadsMap[recipient.lead_id] ? leadsMap[recipient.lead_id] : null
+              const leadVars = leadObj ? {
+                nome: leadObj.nome, cpf: leadObj.cpf, telefone: leadObj.telefone,
+                banco: leadObj.banco_nome, perfil: leadObj.perfil, status: leadObj.status,
+              } : null
+              if (Array.isArray(components)) {
+                components = applyComponentMapping(components, leadVars)
               }
 
               const { data: gwData, error: gwErr } = await adminClient.functions.invoke('whatsapp-gateway', {

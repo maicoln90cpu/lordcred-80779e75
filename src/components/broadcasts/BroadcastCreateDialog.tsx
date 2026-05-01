@@ -19,7 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles, FlaskConical } from 'lucide-react';
+import MetaTemplateVarBinding, { type VarBinding, bindingsToParameters } from './MetaTemplateVarBinding';
+import TestTemplateSendDialog from './TestTemplateSendDialog';
+import { suggestAutoMapping } from '@/lib/templateMapping';
 
 interface MetaTemplate {
   id: string;
@@ -101,8 +104,9 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null);
-  const [headerVars, setHeaderVars] = useState<Record<string, string>>({});
-  const [bodyVars, setBodyVars] = useState<Record<string, string>>({});
+  const [headerVars, setHeaderVars] = useState<Record<string, VarBinding>>({});
+  const [bodyVars, setBodyVars] = useState<Record<string, VarBinding>>({});
+  const [showTestSendDialog, setShowTestSendDialog] = useState(false);
 
   // Basic fields
   const [formName, setFormName] = useState('');
@@ -256,14 +260,34 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   const handleSelectTemplate = (tpl: MetaTemplate) => {
     setSelectedTemplate(tpl);
     const vars = extractTemplateVarsByComponent(tpl);
-    const h: Record<string, string> = {};
-    vars.header.forEach(v => { h[v] = ''; });
+
+    // Try auto-mapping if source is leads (greeting heuristic on body text)
+    const bodyText = Array.isArray(tpl.components)
+      ? (tpl.components.find((c: any) => c.type === 'BODY')?.text || '')
+      : '';
+    const autoField = sourceType === 'leads' ? suggestAutoMapping(bodyText, vars.body.length) : null;
+
+    const h: Record<string, VarBinding> = {};
+    vars.header.forEach(v => { h[v] = { kind: 'text', value: '' }; });
     setHeaderVars(h);
-    const b: Record<string, string> = {};
-    vars.body.forEach(v => { b[v] = ''; });
+
+    const b: Record<string, VarBinding> = {};
+    vars.body.forEach((v, idx) => {
+      // Auto-map first body var to lead.nome when greeting detected
+      if (idx === 0 && autoField) b[v] = { kind: 'lead_field', field: autoField };
+      else b[v] = { kind: 'text', value: '' };
+    });
     setBodyVars(b);
+
     // Auto-fill message_content with preview text for record-keeping
     setFormMessage(getTemplatePreview(tpl));
+
+    if (autoField) {
+      toast({
+        title: 'Variável mapeada automaticamente',
+        description: `{{1}} ligado a "${autoField}" do lead. Você pode trocar abaixo.`,
+      });
+    }
   };
 
 
@@ -311,9 +335,16 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         toast({ title: 'Selecione um template Meta aprovado', variant: 'destructive' });
         return;
       }
-      const allFilled = [...Object.values(headerVars), ...Object.values(bodyVars)].every(v => v.trim().length > 0);
+      const allBindings = [...Object.values(headerVars), ...Object.values(bodyVars)];
+      const allFilled = allBindings.every(v => v.kind === 'lead_field' || (v.value && v.value.trim().length > 0));
       if (!allFilled) {
-        toast({ title: 'Preencha todas as variáveis do template', variant: 'destructive' });
+        toast({ title: 'Preencha todas as variáveis (texto fixo) ou ligue a um campo do lead', variant: 'destructive' });
+        return;
+      }
+      // lead_field bindings only make sense when source is 'leads'
+      const usesLeadField = allBindings.some(v => v.kind === 'lead_field');
+      if (usesLeadField && sourceType !== 'leads') {
+        toast({ title: 'Variáveis "Campo do lead" exigem origem = Leads', variant: 'destructive' });
         return;
       }
     } else if (!formMessage) {
@@ -372,23 +403,15 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
         scheduledDate = dt.toISOString();
       }
 
-      // Build Meta template components (only filled values)
+      // Build Meta template components (text values OR lead_field bindings)
       let metaComponents: any[] | null = null;
       if (isMetaChip && selectedTemplate) {
         metaComponents = [];
-        const hKeys = Object.keys(headerVars).sort();
-        if (hKeys.length > 0) {
-          metaComponents.push({
-            type: 'header',
-            parameters: hKeys.map(k => ({ type: 'text', text: headerVars[k] })),
-          });
+        if (Object.keys(headerVars).length > 0) {
+          metaComponents.push({ type: 'header', parameters: bindingsToParameters(headerVars) });
         }
-        const bKeys = Object.keys(bodyVars).sort();
-        if (bKeys.length > 0) {
-          metaComponents.push({
-            type: 'body',
-            parameters: bKeys.map(k => ({ type: 'text', text: bodyVars[k] })),
-          });
+        if (Object.keys(bodyVars).length > 0) {
+          metaComponents.push({ type: 'body', parameters: bindingsToParameters(bodyVars) });
         }
       }
 
@@ -596,35 +619,60 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
 
                   <div className="bg-muted/30 rounded-lg p-3 text-sm whitespace-pre-wrap border border-border/30">
                     {(() => {
+                      const previewVal = (b: VarBinding) => b.kind === 'lead_field' ? `《${b.field}》` : (b.value || '');
                       let preview = getTemplatePreview(selectedTemplate);
-                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(v || k);
-                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(v || k);
+                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(previewVal(v) || k);
+                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(previewVal(v) || k);
                       return preview;
                     })()}
                   </div>
 
+                  {sourceType !== 'leads' && (Object.values(headerVars).some(b => b.kind === 'lead_field') || Object.values(bodyVars).some(b => b.kind === 'lead_field')) && (
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded p-2">
+                      ⚠️ Você está usando "Campo do lead", mas a origem não é Leads. Mude a origem para "Leads" ou troque para "Texto fixo".
+                    </div>
+                  )}
+
                   {Object.keys(headerVars).length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground font-medium">Variáveis do cabeçalho:</p>
-                      {Object.keys(headerVars).map(key => (
-                        <div key={`h-${key}`} className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Header {key}</Label>
-                          <Input value={headerVars[key]} onChange={e => setHeaderVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
-                        </div>
+                      {Object.keys(headerVars).sort().map(key => (
+                        <MetaTemplateVarBinding
+                          key={`h-${key}`}
+                          label={`Header ${key}`}
+                          binding={headerVars[key]}
+                          onChange={(b) => setHeaderVars(p => ({ ...p, [key]: b }))}
+                          disableLeadFields={sourceType !== 'leads'}
+                        />
                       ))}
                     </div>
                   )}
                   {Object.keys(bodyVars).length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground font-medium">Variáveis do corpo:</p>
-                      {Object.keys(bodyVars).map(key => (
-                        <div key={`b-${key}`} className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Body {key}</Label>
-                          <Input value={bodyVars[key]} onChange={e => setBodyVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
-                        </div>
+                      {Object.keys(bodyVars).sort().map(key => (
+                        <MetaTemplateVarBinding
+                          key={`b-${key}`}
+                          label={`Body ${key}`}
+                          binding={bodyVars[key]}
+                          onChange={(b) => setBodyVars(p => ({ ...p, [key]: b }))}
+                          disableLeadFields={sourceType !== 'leads'}
+                        />
                       ))}
                     </div>
                   )}
+
+                  {/* Test send button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowTestSendDialog(true)}
+                  >
+                    <FlaskConical className="w-4 h-4 mr-2" />
+                    Testar template em 1 número antes
+                  </Button>
                 </div>
               ) : metaTemplates.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
@@ -960,6 +1008,19 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Test-send dialog (item B) — only mounts when chip+template selected */}
+      {isMetaChip && selectedTemplate && selectedChipId && (
+        <TestTemplateSendDialog
+          open={showTestSendDialog}
+          onOpenChange={setShowTestSendDialog}
+          chipId={selectedChipId}
+          templateName={selectedTemplate.template_name}
+          templateLanguage={selectedTemplate.language}
+          headerVars={headerVars}
+          bodyVars={bodyVars}
+        />
+      )}
     </Dialog>
   );
 }
