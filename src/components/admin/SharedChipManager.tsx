@@ -50,7 +50,7 @@ export default function SharedChipManager() {
     const [chipsRes, profilesRes] = await Promise.all([
       supabase
         .from('chips')
-        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, status, user_id')
+        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, round_robin_enabled, round_robin_timeout_minutes, status, user_id')
         .order('instance_name'),
       supabase
         .from('profiles')
