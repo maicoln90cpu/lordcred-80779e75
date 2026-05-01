@@ -236,11 +236,26 @@ export default function MetaUserAccessCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar vendedor por nome ou email..."
+            value={vendorSearch}
+            onChange={e => setVendorSearch(e.target.value)}
+            className="pl-9 h-9 text-sm"
+          />
+        </div>
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
           {users.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
           ) : (
-            users.map((user) => {
+            users
+              .filter(u => {
+                if (!vendorSearch.trim()) return true;
+                const q = vendorSearch.toLowerCase();
+                return (u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+              })
+              .map((user) => {
               const isEnabled = enabledUsers.has(user.user_id);
               const isExpanded = expandedUser === user.user_id;
               const selectedChips = userChipMap[user.user_id] || new Set();
