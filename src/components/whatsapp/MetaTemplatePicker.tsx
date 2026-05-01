@@ -36,7 +36,7 @@ function extractVariablesByComponent(template: MetaTemplate): { header: string[]
     if (!comp.text) continue;
     const matches = comp.text.match(/\{\{(\d+)\}\}/g);
     if (!matches) continue;
-    const unique = [...new Set(matches)].sort();
+    const unique = [...new Set(matches)].sort() as string[];
     if (comp.type === 'HEADER') result.header = unique;
     else if (comp.type === 'BODY') result.body = unique;
   }
@@ -99,10 +99,10 @@ export default function MetaTemplatePicker({ chipId, contactPhone, disabled, onS
   const getFilledPreview = (template: MetaTemplate): string => {
     let text = getPreviewText(template);
     for (const [key, value] of Object.entries(headerVars)) {
-      text = text.replaceAll(key, value || key);
+      text = text.split(key).join(value || key);
     }
     for (const [key, value] of Object.entries(bodyVars)) {
-      text = text.replaceAll(key, value || key);
+      text = text.split(key).join(value || key);
     }
     return text;
   };
