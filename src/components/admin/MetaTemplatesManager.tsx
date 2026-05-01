@@ -41,6 +41,7 @@ export default function MetaTemplatesManager() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [metaChips, setMetaChips] = useState<any[]>([]);
+  const [previewTemplate, setPreviewTemplate] = useState<MetaTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
