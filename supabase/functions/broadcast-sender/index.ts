@@ -84,7 +84,8 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     const apiUrl = (providerSettings?.provider_api_url || '').replace(/\/$/, '')
-    if (!apiUrl) {
+    const hasUazapiCampaign = campaigns.some((c: any) => (c.provider || 'uazapi') !== 'meta')
+    if (!apiUrl && hasUazapiCampaign) {
       return new Response(
         JSON.stringify({ error: 'UazAPI not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
