@@ -18,6 +18,8 @@ interface Campaign {
   created_at: string;
   completed_at: string | null;
   ab_enabled?: boolean;
+  provider?: string;
+  meta_template_name?: string | null;
 }
 
 interface ABStats {
