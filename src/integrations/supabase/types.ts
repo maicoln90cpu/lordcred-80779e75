@@ -5246,6 +5246,14 @@ export type Database = {
           vendedor: string
         }[]
       }
+      can_view_shared_conversation: {
+        Args: {
+          _chip_id: string
+          _conv_assigned_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       classify_v8_error_kind: {
         Args: { error_message: string; raw_response: Json }
         Returns: string
