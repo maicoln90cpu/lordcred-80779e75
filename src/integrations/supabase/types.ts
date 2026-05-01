@@ -306,6 +306,9 @@ export type Database = {
           provider: string
           quality_rating: string | null
           quality_updated_at: string | null
+          round_robin_enabled: boolean
+          round_robin_last_index: number
+          round_robin_timeout_minutes: number
           shared_block_send: boolean
           shared_user_ids: string[] | null
           slot_number: number
@@ -338,6 +341,9 @@ export type Database = {
           provider?: string
           quality_rating?: string | null
           quality_updated_at?: string | null
+          round_robin_enabled?: boolean
+          round_robin_last_index?: number
+          round_robin_timeout_minutes?: number
           shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number: number
@@ -370,6 +376,9 @@ export type Database = {
           provider?: string
           quality_rating?: string | null
           quality_updated_at?: string | null
+          round_robin_enabled?: boolean
+          round_robin_last_index?: number
+          round_robin_timeout_minutes?: number
           shared_block_send?: boolean
           shared_user_ids?: string[] | null
           slot_number?: number
@@ -1266,6 +1275,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assigned_at: string | null
           assigned_user_id: string | null
           chip_id: string
           closed_at: string | null
@@ -1292,6 +1302,7 @@ export type Database = {
           wa_name: string | null
         }
         Insert: {
+          assigned_at?: string | null
           assigned_user_id?: string | null
           chip_id: string
           closed_at?: string | null
@@ -1318,6 +1329,7 @@ export type Database = {
           wa_name?: string | null
         }
         Update: {
+          assigned_at?: string | null
           assigned_user_id?: string | null
           chip_id?: string
           closed_at?: string | null
@@ -5376,6 +5388,7 @@ export type Database = {
       purge_old_deleted_batches: { Args: never; Returns: number }
       reset_daily_message_count: { Args: never; Returns: undefined }
       restore_import_batch: { Args: { _batch_id: string }; Returns: Json }
+      round_robin_assign_conversations: { Args: never; Returns: undefined }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_import_batch: {

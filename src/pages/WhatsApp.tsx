@@ -37,6 +37,7 @@ export default function WhatsApp() {
   const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
   const [selectedChipStatus, setSelectedChipStatus] = useState<string>('disconnected');
   const [selectedChipInstanceName, setSelectedChipInstanceName] = useState<string | null>(null);
+  const [selectedChipProvider, setSelectedChipProvider] = useState<string>('uazapi');
   const [selectedChat, setSelectedChat] = useState<ChatContact | null>(null);
   
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -99,17 +100,19 @@ export default function WhatsApp() {
     if (id) {
       const { data: chip } = await supabase
         .from('chips')
-        .select('status, instance_name')
+        .select('status, instance_name, provider')
         .eq('id', id)
         .single();
       setSelectedChipStatus(chip?.status || 'disconnected');
       setSelectedChipInstanceName(chip?.instance_name || null);
+      setSelectedChipProvider(chip?.provider || 'uazapi');
 
       // Auto-sync disabled — use manual "Sincronizar mensagens" button
       // runStagedSync(id);
     } else {
       setSelectedChipStatus('disconnected');
       setSelectedChipInstanceName(null);
+      setSelectedChipProvider('uazapi');
     }
   }, [runStagedSync]);
 
@@ -409,6 +412,7 @@ export default function WhatsApp() {
             chat={selectedChat}
             chipId={selectedChipId}
             chipStatus={selectedChipStatus}
+            chipProvider={selectedChipProvider}
             onReconnect={handleReconnectFromChat}
             onStartNewChat={handleStartNewChat}
           />

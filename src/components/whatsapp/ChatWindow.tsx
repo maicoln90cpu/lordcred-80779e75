@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck, XCircle, RotateCcw } from 'lucide-react';
+import { MessageSquare, Loader2, Search, X, WifiOff, RefreshCw, StickyNote, Zap, ClipboardList, UserCheck, XCircle, RotateCcw, FileText } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageBubble from './MessageBubble';
 import ForwardDialog from './ForwardDialog';
 import AssignConversationBanner from './AssignConversationBanner';
 import ConversationAuditPanel from './ConversationAuditPanel';
 import CloseConversationDialog from './CloseConversationDialog';
+import Window24hBadge from './Window24hBadge';
+import TemplatePicker from './TemplatePicker';
 import { type MessageData } from './MessageContextMenu';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeUazapiWithRetry } from '@/lib/invokeEdgeWithRetry';
@@ -24,6 +26,7 @@ interface ChatWindowProps {
   chat: ChatContact | null;
   chipId: string | null;
   chipStatus?: string;
+  chipProvider?: string;
   onReconnect?: () => void;
   onStartNewChat?: (phone: string) => void;
   readOnly?: boolean;
@@ -31,7 +34,7 @@ interface ChatWindowProps {
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
+export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -46,6 +49,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
   const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [windowExpired, setWindowExpired] = useState(false);
   const [sharedBlockInfo, setSharedBlockInfo] = useState<{ isShared: boolean; blockSend: boolean; assignedUserId: string | null; assignedName: string | null }>({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
 
   const {
@@ -177,6 +181,9 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
           <p className="text-sm text-muted-foreground/70">{chat.phone}</p>
         </div>
         <div className="flex items-center gap-0.5">
+          {chipId && chat && chipProvider === 'meta' && (
+            <Window24hBadge chipId={chipId} remoteJid={chat.remoteJid} provider={chipProvider} onWindowStateChange={setWindowExpired} />
+          )}
           <Button variant="ghost" size="icon" onClick={() => setQuickRepliesOpen(true)} className="text-muted-foreground hover:text-primary hover:bg-primary/10" title="Respostas rápidas"><Zap className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setNotesOpen(!notesOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", notesOpen && "text-primary bg-primary/10")} title="Notas internas"><StickyNote className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => setAuditOpen(!auditOpen)} className={cn("text-muted-foreground hover:text-primary hover:bg-primary/10", auditOpen && "text-primary bg-primary/10")} title="Auditoria"><ClipboardList className="w-4 h-4" /></Button>
@@ -261,6 +268,12 @@ export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onSt
         <div className="flex items-center justify-center gap-2 px-4 py-3 bg-destructive/5 border-t border-destructive/20">
           <UserCheck className="w-4 h-4 text-destructive/70 shrink-0" />
           <span className="text-sm text-destructive/80">Esta conversa está sendo atendida por <strong>{sharedBlockInfo.assignedName}</strong></span>
+        </div>
+      ) : chipProvider === 'meta' && windowExpired ? (
+        <div className="flex items-center justify-center gap-3 px-4 py-3 bg-orange-500/5 border-t border-orange-500/20">
+          <FileText className="w-4 h-4 text-orange-400 shrink-0" />
+          <span className="text-sm text-orange-400">Janela de 24h expirada — use um template para reabrir a conversa</span>
+          <TemplatePicker disabled={sending} onInsertText={(text) => handleSend(text)} onLoadMedia={(url, type, filename) => handleSendMedia(url, type, '', filename)} />
         </div>
       ) : chipStatus && chipStatus !== 'connected' ? (
         <div className="flex items-center justify-center gap-3 px-4 py-3 bg-muted/50 border-t border-border/50">

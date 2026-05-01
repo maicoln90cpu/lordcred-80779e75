@@ -8,7 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Users, Smartphone, Share2, Shield, Save, Lock } from 'lucide-react';
+import { Loader2, Users, Smartphone, Share2, Shield, Save, Lock, RotateCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface ChipRow {
   id: string;
@@ -19,6 +21,8 @@ interface ChipRow {
   is_shared: boolean;
   shared_user_ids: string[];
   shared_block_send: boolean;
+  round_robin_enabled: boolean;
+  round_robin_timeout_minutes: number;
   status: string;
   user_id: string;
 }
@@ -46,7 +50,7 @@ export default function SharedChipManager() {
     const [chipsRes, profilesRes] = await Promise.all([
       supabase
         .from('chips')
-        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, status, user_id')
+        .select('id, instance_name, nickname, phone_number, provider, is_shared, shared_user_ids, shared_block_send, round_robin_enabled, round_robin_timeout_minutes, status, user_id')
         .order('instance_name'),
       supabase
         .from('profiles')
@@ -205,6 +209,35 @@ export default function SharedChipManager() {
               <span className="text-xs text-muted-foreground flex-1">Bloquear envio se outro operador já assumiu</span>
               <Switch checked={chip.shared_block_send} onCheckedChange={() => toggleBlockSend(chip)} />
             </div>
+            {/* Round-robin toggle */}
+            <div className="flex items-center gap-2 px-1">
+              <RotateCw className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground flex-1">Round-Robin automático (distribuição entre vendedores)</span>
+              <Switch checked={chip.round_robin_enabled} onCheckedChange={async () => {
+                const newVal = !chip.round_robin_enabled;
+                await supabase.from('chips').update({ round_robin_enabled: newVal } as any).eq('id', chip.id);
+                setChips(prev => prev.map(c => c.id === chip.id ? { ...c, round_robin_enabled: newVal } : c));
+                toast({ title: newVal ? 'Round-Robin ativado' : 'Round-Robin desativado' });
+              }} />
+            </div>
+            {chip.round_robin_enabled && (
+              <div className="flex items-center gap-2 px-1">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Timeout reatribuição:</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={120}
+                  className="h-7 w-20 text-xs"
+                  value={chip.round_robin_timeout_minutes}
+                  onChange={async (e) => {
+                    const val = Math.max(1, Math.min(120, parseInt(e.target.value) || 10));
+                    await supabase.from('chips').update({ round_robin_timeout_minutes: val } as any).eq('id', chip.id);
+                    setChips(prev => prev.map(c => c.id === chip.id ? { ...c, round_robin_timeout_minutes: val } : c));
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">min</span>
+              </div>
+            )}
             <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpandedChip(isExpanded ? null : chip.id)}>
               {isExpanded ? 'Recolher' : 'Gerenciar usuários autorizados'}
             </Button>
