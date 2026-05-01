@@ -248,9 +248,21 @@ export default function SharedChipManager() {
                   <Shield className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">Selecione quem pode atender por este número:</span>
                 </div>
+                <Input
+                  placeholder="Buscar vendedor por nome ou email..."
+                  value={vendorSearch[chip.id] || ''}
+                  onChange={e => setVendorSearch(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                  className="h-8 text-sm"
+                />
                 <ScrollArea className="h-[200px]">
                   <div className="space-y-1">
-                    {profiles.map(p => (
+                    {profiles
+                      .filter(p => {
+                        const q = (vendorSearch[chip.id] || '').toLowerCase();
+                        if (!q) return true;
+                        return (p.name || '').toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+                      })
+                      .map(p => (
                       <label key={p.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
                         <Checkbox checked={userIds.includes(p.user_id)} onCheckedChange={() => toggleUser(chip.id, p.user_id)} />
                         <div className="min-w-0 flex-1">
