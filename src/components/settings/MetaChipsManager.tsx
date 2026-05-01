@@ -330,6 +330,19 @@ export default function MetaChipsManager() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Nome interno..."
+                            value={internalNameDrafts[chip.id] ?? chip.internal_name ?? ''}
+                            onChange={e => setInternalNameDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                          />
+                          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => handleSaveInternalName(chip)} disabled={savingInternalName === chip.id}>
+                            {savingInternalName === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
