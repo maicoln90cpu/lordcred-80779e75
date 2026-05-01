@@ -33,7 +33,7 @@ interface ChatWindowProps {
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export default function ChatWindow({ chat, chipId, chipStatus, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
+export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onReconnect, onStartNewChat, readOnly = false }: ChatWindowProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
