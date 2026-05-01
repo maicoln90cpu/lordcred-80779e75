@@ -112,6 +112,7 @@ export default function WhatsApp() {
     } else {
       setSelectedChipStatus('disconnected');
       setSelectedChipInstanceName(null);
+      setSelectedChipProvider('uazapi');
     }
   }, [runStagedSync]);
 
