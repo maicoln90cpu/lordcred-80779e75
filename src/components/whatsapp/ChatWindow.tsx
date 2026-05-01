@@ -48,6 +48,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onR
   const [auditOpen, setAuditOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [windowExpired, setWindowExpired] = useState(false);
   const [sharedBlockInfo, setSharedBlockInfo] = useState<{ isShared: boolean; blockSend: boolean; assignedUserId: string | null; assignedName: string | null }>({ isShared: false, blockSend: false, assignedUserId: null, assignedName: null });
 
   const {
