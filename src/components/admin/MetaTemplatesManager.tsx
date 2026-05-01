@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Loader2, FileText, CheckCircle, XCircle, Clock, Search } from 'lucide-react';
+import { RefreshCw, Loader2, FileText, CheckCircle, XCircle, Clock, Search, Eye } from 'lucide-react';
 import MetaTemplateCreateDialog from './MetaTemplateCreateDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
 
 interface MetaTemplate {
   id: string;
@@ -39,6 +41,7 @@ export default function MetaTemplatesManager() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [metaChips, setMetaChips] = useState<any[]>([]);
+  const [previewTemplate, setPreviewTemplate] = useState<MetaTemplate | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -127,6 +130,7 @@ export default function MetaTemplatesManager() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -184,6 +188,9 @@ export default function MetaTemplatesManager() {
                   <TableHead>Status</TableHead>
                   <TableHead>Preview</TableHead>
                   <TableHead>Sincronizado em</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                  <TableHead>Preview</TableHead>
+                  <TableHead>Sincronizado em</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -203,6 +210,11 @@ export default function MetaTemplatesManager() {
                         ? new Date(t.synced_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
                         : '—'}
                     </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewTemplate(t)} title="Visualizar template">
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -216,5 +228,74 @@ export default function MetaTemplatesManager() {
         </p>
       </CardContent>
     </Card>
+
+    {/* Template Preview Dialog */}
+    <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            {previewTemplate?.template_name}
+          </DialogTitle>
+        </DialogHeader>
+        {previewTemplate && (
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              <Badge variant="outline">{previewTemplate.language}</Badge>
+              <Badge variant="secondary">{categoryLabels[previewTemplate.category] || previewTemplate.category}</Badge>
+              {getStatusBadge(previewTemplate.status)}
+            </div>
+
+            {/* WhatsApp-style bubble preview */}
+            <div className="bg-muted/30 rounded-xl p-4 space-y-2 border border-border/30">
+              {Array.isArray(previewTemplate.components) && previewTemplate.components.map((comp: any, i: number) => {
+                if (comp.type === 'HEADER') {
+                  if (comp.format === 'IMAGE') {
+                    return <div key={i} className="bg-muted rounded-lg h-32 flex items-center justify-center text-muted-foreground text-xs">📷 Imagem (header)</div>;
+                  }
+                  if (comp.format === 'VIDEO') {
+                    return <div key={i} className="bg-muted rounded-lg h-32 flex items-center justify-center text-muted-foreground text-xs">🎬 Vídeo (header)</div>;
+                  }
+                  if (comp.format === 'DOCUMENT') {
+                    return <div key={i} className="bg-muted rounded-lg h-16 flex items-center justify-center text-muted-foreground text-xs">📄 Documento (header)</div>;
+                  }
+                  return <p key={i} className="font-semibold text-sm">{comp.text}</p>;
+                }
+                if (comp.type === 'BODY') {
+                  return (
+                    <p key={i} className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {(comp.text || '').replace(/\*(.*?)\*/g, '**$1**').replace(/_(.*?)_/g, '_$1_')}
+                    </p>
+                  );
+                }
+                if (comp.type === 'FOOTER') {
+                  return <p key={i} className="text-xs text-muted-foreground italic">{comp.text}</p>;
+                }
+                if (comp.type === 'BUTTONS') {
+                  return (
+                    <div key={i} className="border-t border-border/30 pt-2 space-y-1">
+                      {(comp.buttons || []).map((btn: any, j: number) => (
+                        <div key={j} className="text-center py-1.5 text-xs text-primary font-medium border border-primary/20 rounded-lg">
+                          {btn.type === 'URL' ? '🔗 ' : btn.type === 'PHONE_NUMBER' ? '📞 ' : '↩️ '}
+                          {btn.text}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+
+            {previewTemplate.synced_at && (
+              <p className="text-xs text-muted-foreground">
+                Sincronizado em: {new Date(previewTemplate.synced_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+              </p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

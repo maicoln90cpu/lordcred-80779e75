@@ -15,6 +15,7 @@ interface MetaChip {
   id: string;
   instance_name: string;
   nickname: string | null;
+  internal_name: string | null;
   phone_number: string | null;
   meta_phone_number_id: string | null;
   meta_waba_id: string | null;
@@ -42,6 +43,8 @@ export default function MetaChipsManager() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [syncingQuality, setSyncingQuality] = useState(false);
   const [wabaDrafts, setWabaDrafts] = useState<Record<string, string>>({});
+  const [internalNameDrafts, setInternalNameDrafts] = useState<Record<string, string>>({});
+  const [savingInternalName, setSavingInternalName] = useState<string | null>(null);
   const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
 
   // Add form
@@ -53,7 +56,7 @@ export default function MetaChipsManager() {
 
   const loadData = async () => {
     const [chipsRes, profilesRes] = await Promise.all([
-      supabase.from('chips').select('id, instance_name, nickname, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
+      supabase.from('chips').select('id, instance_name, nickname, internal_name, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
         .eq('provider', 'meta').order('created_at', { ascending: false }),
       supabase.rpc('get_visible_profiles'),
     ]);
@@ -195,6 +198,21 @@ export default function MetaChipsManager() {
     }
   };
 
+  const handleSaveInternalName = async (chip: MetaChip) => {
+    const value = (internalNameDrafts[chip.id] ?? chip.internal_name ?? '').trim();
+    setSavingInternalName(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ internal_name: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: 'Nome interno salvo' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar nome interno', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingInternalName(null);
+    }
+  };
+
   const qualityColor = (q: string | null) => {
     if (!q) return 'text-muted-foreground';
     const u = q.toUpperCase();
@@ -286,6 +304,7 @@ export default function MetaChipsManager() {
                 <TableRow>
                    <TableHead>Status</TableHead>
                   <TableHead>Nome / Número</TableHead>
+                  <TableHead>Nome Interno</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
                   <TableHead>IDs Meta</TableHead>
@@ -308,6 +327,19 @@ export default function MetaChipsManager() {
                         <div>
                           <p className="text-sm font-medium">{chip.nickname || chip.instance_name}</p>
                           <p className="text-xs text-muted-foreground">{chip.phone_number || '—'}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 min-w-[150px]">
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Nome interno..."
+                            value={internalNameDrafts[chip.id] ?? chip.internal_name ?? ''}
+                            onChange={e => setInternalNameDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                          />
+                          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => handleSaveInternalName(chip)} disabled={savingInternalName === chip.id}>
+                            {savingInternalName === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          </Button>
                         </div>
                       </TableCell>
                       <TableCell>
