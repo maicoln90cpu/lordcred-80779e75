@@ -76,7 +76,11 @@ export function applyComponentMapping(
 export function suggestAutoMapping(bodyText: string | undefined, varCount: number): string | null {
   if (varCount !== 1 || !bodyText) return null;
   const t = bodyText.toLowerCase();
-  const greetingHints = ['olá', 'ola', 'oi ', 'prezad', 'caro ', 'cara ', 'bom dia', 'boa tarde', 'boa noite', 'tudo bem'];
-  if (greetingHints.some(h => t.includes(h))) return 'nome';
+  // Use word-boundary regex to avoid false positives like "foi " matching "oi "
+  const greetingPatterns = [
+    /\bol[áa]\b/, /\boi\b/, /\bprezad[oa]s?\b/, /\bcar[oa]s?\b/,
+    /\bbom dia\b/, /\bboa tarde\b/, /\bboa noite\b/, /\btudo bem\b/,
+  ];
+  if (greetingPatterns.some(re => re.test(t))) return 'nome';
   return null;
 }
