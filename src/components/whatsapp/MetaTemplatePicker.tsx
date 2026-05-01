@@ -148,6 +148,9 @@ export default function MetaTemplatePicker({ chipId, contactPhone, disabled, onS
         });
       }
 
+      // Build the full filled text to persist as message_content
+      const filledTemplateText = getFilledPreview(selectedTemplate);
+
       const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
         body: {
           action: 'send-template',
@@ -155,8 +158,8 @@ export default function MetaTemplatePicker({ chipId, contactPhone, disabled, onS
           phoneNumber: phone,
           templateName: selectedTemplate.template_name,
           templateLanguage: selectedTemplate.language,
-          // Only send components if there are actual variables
           templateComponents: templateComponents.length > 0 ? templateComponents : undefined,
+          filledTemplateText,
         },
       });
 
