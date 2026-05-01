@@ -41,6 +41,7 @@ interface Chip {
   status: string;
   slot_number: number;
   nickname?: string | null;
+  internal_name?: string | null;
   provider?: string;
 }
 
