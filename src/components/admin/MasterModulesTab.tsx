@@ -57,28 +57,34 @@ export default function MasterModulesTab() {
     );
   }
 
-  // Group by feature_group
-  const groups: Record<string, Toggle[]> = {};
-  toggles.forEach(t => {
-    if (!groups[t.feature_group]) groups[t.feature_group] = [];
-    groups[t.feature_group].push(t);
-  });
-
-  const enabledCount = toggles.filter(t => t.is_enabled).length;
-  const disabledCount = toggles.length - enabledCount;
-
   return (
     <div className="space-y-6">
-      {/* Summary */}
-      <div className="flex gap-4">
-        <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
-          <Power className="w-3.5 h-3.5 text-green-500" />
-          {enabledCount} ativos
-        </Badge>
-        <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
-          <PowerOff className="w-3.5 h-3.5 text-muted-foreground" />
-          {disabledCount} ocultos
-        </Badge>
+      {/* Summary + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+            <Power className="w-3.5 h-3.5 text-green-500" />
+            {enabledCount} ativos
+          </Badge>
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+            <PowerOff className="w-3.5 h-3.5 text-muted-foreground" />
+            {disabledCount} ocultos
+          </Badge>
+          {search && (
+            <Badge variant="secondary" className="px-3 py-1.5 text-sm">
+              {totalVisible} resultado{totalVisible !== 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar módulo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Groups */}
