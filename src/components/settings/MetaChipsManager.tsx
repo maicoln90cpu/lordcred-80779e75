@@ -304,6 +304,7 @@ export default function MetaChipsManager() {
                 <TableRow>
                    <TableHead>Status</TableHead>
                   <TableHead>Nome / Número</TableHead>
+                  <TableHead>Nome Interno</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
                   <TableHead>IDs Meta</TableHead>
