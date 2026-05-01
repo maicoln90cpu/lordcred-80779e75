@@ -65,7 +65,14 @@ export default function MetaChipsManager() {
       supabase.rpc('get_visible_profiles'),
     ]);
 
-    setChips((chipsRes.data || []) as unknown as MetaChip[]);
+    const loadedChips = (chipsRes.data || []) as unknown as MetaChip[];
+    setChips(loadedChips);
+    // Initialize access token drafts with masked indicators
+    const tokenDrafts: Record<string, string> = {};
+    loadedChips.forEach(c => {
+      tokenDrafts[c.id] = (c as any).meta_access_token ? '••••••••' : '';
+    });
+    setAccessTokenDrafts(tokenDrafts);
     const pMap: Record<string, Profile> = {};
     (profilesRes.data || []).forEach(p => { pMap[p.user_id] = p; });
     setProfiles(pMap);
