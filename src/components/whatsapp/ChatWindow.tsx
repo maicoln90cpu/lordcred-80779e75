@@ -25,6 +25,7 @@ interface ChatWindowProps {
   chat: ChatContact | null;
   chipId: string | null;
   chipStatus?: string;
+  chipProvider?: string;
   onReconnect?: () => void;
   onStartNewChat?: (phone: string) => void;
   readOnly?: boolean;
