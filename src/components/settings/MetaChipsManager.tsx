@@ -46,6 +46,9 @@ export default function MetaChipsManager() {
   const [internalNameDrafts, setInternalNameDrafts] = useState<Record<string, string>>({});
   const [savingInternalName, setSavingInternalName] = useState<string | null>(null);
   const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
+  const [accessTokenDrafts, setAccessTokenDrafts] = useState<Record<string, string>>({});
+  const [savingAccessToken, setSavingAccessToken] = useState<string | null>(null);
+  const [showTokenFor, setShowTokenFor] = useState<string | null>(null);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
