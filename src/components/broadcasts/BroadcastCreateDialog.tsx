@@ -97,6 +97,13 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   // Overflow chips
   const [overflowChipIds, setOverflowChipIds] = useState<string[]>([]);
 
+  // Meta template state (only used when selected chip is Meta)
+  const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<MetaTemplate | null>(null);
+  const [headerVars, setHeaderVars] = useState<Record<string, string>>({});
+  const [bodyVars, setBodyVars] = useState<Record<string, string>>({});
+
   // Basic fields
   const [formName, setFormName] = useState('');
   const [formMessage, setFormMessage] = useState('');
