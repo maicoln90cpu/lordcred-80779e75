@@ -198,6 +198,21 @@ export default function MetaChipsManager() {
     }
   };
 
+  const handleSaveInternalName = async (chip: MetaChip) => {
+    const value = (internalNameDrafts[chip.id] ?? chip.internal_name ?? '').trim();
+    setSavingInternalName(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ internal_name: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: 'Nome interno salvo' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar nome interno', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingInternalName(null);
+    }
+  };
+
   const qualityColor = (q: string | null) => {
     if (!q) return 'text-muted-foreground';
     const u = q.toUpperCase();
