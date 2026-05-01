@@ -897,7 +897,7 @@ Deno.serve(async (req) => {
     if (!chipId && body.instanceName) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id, meta_access_token')
         .eq('instance_name', body.instanceName)
         .single()
       
