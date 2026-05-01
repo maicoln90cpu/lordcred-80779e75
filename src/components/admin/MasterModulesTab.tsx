@@ -49,6 +49,36 @@ export default function MasterModulesTab() {
     },
   });
 
+  const [search, setSearch] = useState('');
+
+  const { groups, totalVisible, enabledCount, disabledCount } = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = term
+      ? toggles.filter(
+          (t) =>
+            t.feature_label.toLowerCase().includes(term) ||
+            t.feature_key.toLowerCase().includes(term) ||
+            t.feature_group.toLowerCase().includes(term),
+        )
+      : toggles;
+
+    const grouped: Record<string, Toggle[]> = {};
+    filtered.forEach((t) => {
+      if (!grouped[t.feature_group]) grouped[t.feature_group] = [];
+      grouped[t.feature_group].push(t);
+    });
+    Object.values(grouped).forEach((arr) =>
+      arr.sort((a, b) => a.feature_label.localeCompare(b.feature_label, 'pt-BR')),
+    );
+
+    return {
+      groups: grouped,
+      totalVisible: filtered.length,
+      enabledCount: toggles.filter((t) => t.is_enabled).length,
+      disabledCount: toggles.filter((t) => !t.is_enabled).length,
+    };
+  }, [toggles, search]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
