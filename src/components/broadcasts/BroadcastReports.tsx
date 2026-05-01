@@ -457,7 +457,15 @@ export default function BroadcastReports() {
                 return (
                   <div key={ab.campaignId} className="border rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium text-sm">{ab.campaignName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{ab.campaignName}</p>
+                        {(() => {
+                          const c = campaigns.find(x => x.id === ab.campaignId);
+                          return c?.provider === 'meta'
+                            ? <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-500">META</Badge>
+                            : <Badge variant="outline" className="text-[10px]">UazAPI</Badge>;
+                        })()}
+                      </div>
                       <Badge variant={winner === 'Empate' ? 'outline' : 'default'} className="text-xs">
                         {winner === 'Empate' ? '🤝 Empate' : `🏆 Variante ${winner} venceu`}
                       </Badge>
