@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Users, Shield, Loader2, Save, Smartphone, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Shield, Loader2, Save, Smartphone, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
