@@ -209,6 +209,11 @@ export default function MetaTemplatesManager() {
                         ? new Date(t.synced_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
                         : '—'}
                     </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewTemplate(t)} title="Visualizar template">
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
