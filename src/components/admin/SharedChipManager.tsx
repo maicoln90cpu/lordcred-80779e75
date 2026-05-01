@@ -8,7 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Users, Smartphone, Share2, Shield, Save, Lock } from 'lucide-react';
+import { Loader2, Users, Smartphone, Share2, Shield, Save, Lock, RotateCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface ChipRow {
   id: string;
@@ -19,6 +21,8 @@ interface ChipRow {
   is_shared: boolean;
   shared_user_ids: string[];
   shared_block_send: boolean;
+  round_robin_enabled: boolean;
+  round_robin_timeout_minutes: number;
   status: string;
   user_id: string;
 }
