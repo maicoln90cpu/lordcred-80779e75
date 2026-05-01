@@ -189,7 +189,8 @@ export default function Permissions() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'master': return 'Master';
+      // 'master' não deve aparecer (RPC get_visible_profiles oculta); fallback neutro.
+      case 'master': return 'Administrador';
       case 'admin': return 'Admin';
       case 'manager': return 'Gerente';
       case 'support': return 'Suporte';
@@ -199,7 +200,7 @@ export default function Permissions() {
 
   const getRoleBadgeVariant = (role: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
     switch (role) {
-      case 'master': return 'destructive';
+      case 'master': return 'default';
       case 'admin': return 'default';
       case 'manager': return 'default';
       case 'support': return 'secondary';
@@ -207,15 +208,18 @@ export default function Permissions() {
     }
   };
 
-  // Filter out master_admin from all views
+  // Filter out master_admin from all views (privilegiado, não exposto)
   const editableFeatures = features.filter(f => f.feature_key !== 'master_admin');
+
+  // Defesa adicional: ocultar qualquer profile com role 'master' caso passe pela RPC
+  const visibleProfiles = profiles.filter(p => p.role !== 'master');
 
   const groups = editableFeatures.reduce<Record<string, FeaturePermission[]>>((acc, f) => {
     (acc[f.feature_group] = acc[f.feature_group] || []).push(f);
     return acc;
   }, {});
 
-  const filteredProfiles = profiles.filter(p => {
+  const filteredProfiles = visibleProfiles.filter(p => {
     if (!searchUser) return true;
     const s = searchUser.toLowerCase();
     return (p.name?.toLowerCase().includes(s)) || p.email.toLowerCase().includes(s);
@@ -239,7 +243,7 @@ export default function Permissions() {
             <Shield className="w-6 h-6 text-primary" />
             <div>
               <h1 className="text-2xl font-bold">Permissões do Sistema</h1>
-              <p className="text-sm text-muted-foreground">{features.length} funcionalidades mapeadas · {profiles.length} usuários</p>
+              <p className="text-sm text-muted-foreground">{editableFeatures.length} funcionalidades mapeadas · {visibleProfiles.length} usuários</p>
             </div>
           </div>
           <Button onClick={handleSave} disabled={saving || dirty.size === 0}>
@@ -250,7 +254,7 @@ export default function Permissions() {
 
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
           <strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente.
-          Master e Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.
+          Administradores sempre têm acesso total. Gerente tem acesso total exceto esta página.
           Se nenhum cargo e nenhum usuário estiver marcado, a funcionalidade fica aberta a todos.
         </div>
 
