@@ -863,7 +863,7 @@ Deno.serve(async (req) => {
     if (chipId) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id, meta_access_token')
         .eq('id', chipId)
         .single()
       
@@ -897,7 +897,7 @@ Deno.serve(async (req) => {
     if (!chipId && body.instanceName) {
       const { data: chipData } = await adminClient
         .from('chips')
-        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id')
+        .select('id, provider, meta_phone_number_id, meta_waba_id, instance_name, instance_token, is_shared, shared_user_ids, user_id, meta_access_token')
         .eq('instance_name', body.instanceName)
         .single()
       
@@ -947,7 +947,8 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle()
 
-      const metaAccessToken = (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
+      // Priority: chip-specific token → system_settings → env fallback
+      const metaAccessToken = (chip as any)?.meta_access_token || (settings as any)?.meta_access_token || Deno.env.get('META_ACCESS_TOKEN')
       if (!metaAccessToken) {
         await logAdmin(false, 500, { error_message: 'Meta access token not configured' })
         return jsonResponse({ error: 'Meta access token not configured. Set it in Admin → Integrations → Meta.' }, 500)

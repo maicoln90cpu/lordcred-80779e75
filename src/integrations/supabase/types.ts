@@ -300,6 +300,7 @@ export type Database = {
           last_webhook_at: string | null
           messages_sent_today: number
           messaging_limit: string | null
+          meta_access_token: string | null
           meta_phone_number_id: string | null
           meta_waba_id: string | null
           nickname: string | null
@@ -336,6 +337,7 @@ export type Database = {
           last_webhook_at?: string | null
           messages_sent_today?: number
           messaging_limit?: string | null
+          meta_access_token?: string | null
           meta_phone_number_id?: string | null
           meta_waba_id?: string | null
           nickname?: string | null
@@ -372,6 +374,7 @@ export type Database = {
           last_webhook_at?: string | null
           messages_sent_today?: number
           messaging_limit?: string | null
+          meta_access_token?: string | null
           meta_phone_number_id?: string | null
           meta_waba_id?: string | null
           nickname?: string | null

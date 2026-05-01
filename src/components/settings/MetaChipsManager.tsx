@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw, Save } from 'lucide-react';
+import { Loader2, Plus, Trash2, Smartphone, Wifi, WifiOff, Shield, User, RefreshCw, Save, Eye, EyeOff, Key } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MetaChip {
@@ -19,6 +19,7 @@ interface MetaChip {
   phone_number: string | null;
   meta_phone_number_id: string | null;
   meta_waba_id: string | null;
+  meta_access_token: string | null;
   status: string;
   user_id: string;
   created_at: string;
@@ -46,6 +47,9 @@ export default function MetaChipsManager() {
   const [internalNameDrafts, setInternalNameDrafts] = useState<Record<string, string>>({});
   const [savingInternalName, setSavingInternalName] = useState<string | null>(null);
   const [savingWabaId, setSavingWabaId] = useState<string | null>(null);
+  const [accessTokenDrafts, setAccessTokenDrafts] = useState<Record<string, string>>({});
+  const [savingAccessToken, setSavingAccessToken] = useState<string | null>(null);
+  const [showTokenFor, setShowTokenFor] = useState<string | null>(null);
 
   // Add form
   const [phoneId, setPhoneId] = useState('');
@@ -56,12 +60,19 @@ export default function MetaChipsManager() {
 
   const loadData = async () => {
     const [chipsRes, profilesRes] = await Promise.all([
-      supabase.from('chips').select('id, instance_name, nickname, internal_name, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
+      supabase.from('chips').select('id, instance_name, nickname, internal_name, phone_number, meta_phone_number_id, meta_waba_id, meta_access_token, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
         .eq('provider', 'meta').order('created_at', { ascending: false }),
       supabase.rpc('get_visible_profiles'),
     ]);
 
-    setChips((chipsRes.data || []) as unknown as MetaChip[]);
+    const loadedChips = (chipsRes.data || []) as unknown as MetaChip[];
+    setChips(loadedChips);
+    // Initialize access token drafts with masked indicators
+    const tokenDrafts: Record<string, string> = {};
+    loadedChips.forEach(c => {
+      tokenDrafts[c.id] = (c as any).meta_access_token ? '••••••••' : '';
+    });
+    setAccessTokenDrafts(tokenDrafts);
     const pMap: Record<string, Profile> = {};
     (profilesRes.data || []).forEach(p => { pMap[p.user_id] = p; });
     setProfiles(pMap);
@@ -213,6 +224,21 @@ export default function MetaChipsManager() {
     }
   };
 
+  const handleSaveAccessToken = async (chip: MetaChip) => {
+    const value = (accessTokenDrafts[chip.id] ?? '').trim();
+    setSavingAccessToken(chip.id);
+    try {
+      const { error } = await supabase.from('chips').update({ meta_access_token: value || null } as any).eq('id', chip.id);
+      if (error) throw error;
+      toast({ title: value ? 'Access Token salvo' : 'Access Token removido' });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar Access Token', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingAccessToken(null);
+    }
+  };
+
   const qualityColor = (q: string | null) => {
     if (!q) return 'text-muted-foreground';
     const u = q.toUpperCase();
@@ -307,9 +333,10 @@ export default function MetaChipsManager() {
                   <TableHead>Nome Interno</TableHead>
                   <TableHead>Qualidade</TableHead>
                   <TableHead>Limite Mensagens</TableHead>
-                  <TableHead>IDs Meta</TableHead>
-                  <TableHead>Proprietário</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                   <TableHead>IDs Meta</TableHead>
+                   <TableHead>Access Token</TableHead>
+                   <TableHead>Proprietário</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -376,6 +403,32 @@ export default function MetaChipsManager() {
                             </Button>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5 min-w-[200px]">
+                                <Input
+                                  className="h-8 font-mono text-xs"
+                                  type={showTokenFor === chip.id ? 'text' : 'password'}
+                                  placeholder="Token específico (opcional)"
+                                  value={accessTokenDrafts[chip.id] ?? ''}
+                                  onChange={e => setAccessTokenDrafts(prev => ({ ...prev, [chip.id]: e.target.value }))}
+                                />
+                                <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setShowTokenFor(prev => prev === chip.id ? null : chip.id)}>
+                                  {showTokenFor === chip.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </Button>
+                                <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => handleSaveAccessToken(chip)} disabled={savingAccessToken === chip.id}>
+                                  {savingAccessToken === chip.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[250px]">
+                              <p className="text-xs">Preencha apenas se este chip pertence a uma BM diferente da principal. O token do System User dessa BM será usado no lugar do global.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-xs">
