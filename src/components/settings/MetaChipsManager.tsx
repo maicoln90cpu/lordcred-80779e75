@@ -15,6 +15,7 @@ interface MetaChip {
   id: string;
   instance_name: string;
   nickname: string | null;
+  internal_name: string | null;
   phone_number: string | null;
   meta_phone_number_id: string | null;
   meta_waba_id: string | null;
