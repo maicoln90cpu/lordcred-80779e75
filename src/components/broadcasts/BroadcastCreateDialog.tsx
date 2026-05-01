@@ -220,6 +220,52 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   };
 
   const filteredChips = allChips.filter(c => !selectedUserId || c.user_id === selectedUserId);
+  const selectedChip = allChips.find(c => c.id === selectedChipId) || null;
+  const isMetaChip = selectedChip?.provider === 'meta';
+
+  // Load Meta templates when a Meta chip is selected
+  useEffect(() => {
+    if (!selectedChip || selectedChip.provider !== 'meta') {
+      setMetaTemplates([]);
+      setSelectedTemplate(null);
+      return;
+    }
+    (async () => {
+      setLoadingTemplates(true);
+      const { data: chipRow } = await supabase
+        .from('chips')
+        .select('meta_waba_id')
+        .eq('id', selectedChip.id)
+        .maybeSingle();
+      if (!chipRow?.meta_waba_id) {
+        setMetaTemplates([]);
+        setLoadingTemplates(false);
+        return;
+      }
+      const { data } = await supabase
+        .from('meta_message_templates')
+        .select('*')
+        .eq('waba_id', chipRow.meta_waba_id)
+        .eq('status', 'APPROVED')
+        .order('template_name');
+      setMetaTemplates((data as MetaTemplate[]) || []);
+      setLoadingTemplates(false);
+    })();
+  }, [selectedChip]);
+
+  const handleSelectTemplate = (tpl: MetaTemplate) => {
+    setSelectedTemplate(tpl);
+    const vars = extractTemplateVarsByComponent(tpl);
+    const h: Record<string, string> = {};
+    vars.header.forEach(v => { h[v] = ''; });
+    setHeaderVars(h);
+    const b: Record<string, string> = {};
+    vars.body.forEach(v => { b[v] = ''; });
+    setBodyVars(b);
+    // Auto-fill message_content with preview text for record-keeping
+    setFormMessage(getTemplatePreview(tpl));
+  };
+
 
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
