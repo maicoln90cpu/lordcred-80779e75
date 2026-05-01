@@ -218,7 +218,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
               ) : (
                 <WifiOff className="w-3.5 h-3.5" />
               )}
-              <span>{chip.nickname || chip.phone_number || chip.instance_name}</span>
+              <span>{chip.internal_name || chip.nickname || chip.phone_number || chip.instance_name}</span>
               {chip.provider === 'meta' && (
                 <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-primary/20 text-primary leading-none">META</span>
               )}
