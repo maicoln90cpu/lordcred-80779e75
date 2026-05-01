@@ -19,7 +19,42 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye } from 'lucide-react';
+import { Loader2, Plus, CalendarIcon, Upload, Image, FileText, Users, Filter, Eye, Sparkles } from 'lucide-react';
+
+interface MetaTemplate {
+  id: string;
+  waba_id: string;
+  template_name: string;
+  language: string;
+  category: string;
+  status: string;
+  components: any[];
+}
+
+function extractTemplateVarsByComponent(template: MetaTemplate): { header: string[]; body: string[] } {
+  const result = { header: [] as string[], body: [] as string[] };
+  if (!Array.isArray(template.components)) return result;
+  for (const comp of template.components) {
+    if (!comp.text) continue;
+    const matches = comp.text.match(/\{\{(\d+)\}\}/g);
+    if (!matches) continue;
+    const unique = [...new Set(matches)].sort() as string[];
+    if (comp.type === 'HEADER') result.header = unique;
+    else if (comp.type === 'BODY') result.body = unique;
+  }
+  return result;
+}
+
+function getTemplatePreview(template: MetaTemplate): string {
+  if (!Array.isArray(template.components)) return '';
+  const parts: string[] = [];
+  for (const comp of template.components) {
+    if (comp.type === 'HEADER' && comp.text) parts.push(`*${comp.text}*`);
+    if (comp.type === 'BODY' && comp.text) parts.push(comp.text);
+    if (comp.type === 'FOOTER' && comp.text) parts.push(`_${comp.text}_`);
+  }
+  return parts.join('\n\n');
+}
 
 interface Profile {
   user_id: string;
