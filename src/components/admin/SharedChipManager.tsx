@@ -41,6 +41,7 @@ export default function SharedChipManager() {
   const [saving, setSaving] = useState<string | null>(null);
   const [expandedChip, setExpandedChip] = useState<string | null>(null);
   const [localSharedIds, setLocalSharedIds] = useState<Record<string, string[]>>({});
+  const [vendorSearch, setVendorSearch] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
