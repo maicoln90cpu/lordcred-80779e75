@@ -60,7 +60,7 @@ export default function MetaChipsManager() {
 
   const loadData = async () => {
     const [chipsRes, profilesRes] = await Promise.all([
-      supabase.from('chips').select('id, instance_name, nickname, internal_name, phone_number, meta_phone_number_id, meta_waba_id, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
+      supabase.from('chips').select('id, instance_name, nickname, internal_name, phone_number, meta_phone_number_id, meta_waba_id, meta_access_token, status, user_id, created_at, quality_rating, messaging_limit, quality_updated_at')
         .eq('provider', 'meta').order('created_at', { ascending: false }),
       supabase.rpc('get_visible_profiles'),
     ]);
