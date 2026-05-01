@@ -302,8 +302,22 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
   };
 
   const handleCreate = async () => {
-    if (!formName || !formMessage || !selectedChipId) {
-      toast({ title: 'Preencha nome, chip e mensagem', variant: 'destructive' });
+    if (!formName || !selectedChipId) {
+      toast({ title: 'Preencha nome e chip', variant: 'destructive' });
+      return;
+    }
+    if (isMetaChip) {
+      if (!selectedTemplate) {
+        toast({ title: 'Selecione um template Meta aprovado', variant: 'destructive' });
+        return;
+      }
+      const allFilled = [...Object.values(headerVars), ...Object.values(bodyVars)].every(v => v.trim().length > 0);
+      if (!allFilled) {
+        toast({ title: 'Preencha todas as variáveis do template', variant: 'destructive' });
+        return;
+      }
+    } else if (!formMessage) {
+      toast({ title: 'Preencha a mensagem', variant: 'destructive' });
       return;
     }
 
