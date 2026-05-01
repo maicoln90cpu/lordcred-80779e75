@@ -563,6 +563,100 @@ export default function BroadcastCreateDialog({ open, onOpenChange, onCreated }:
             </div>
           )}
 
+          {/* META: Template picker (substitui Mensagem/A-B/Mídia) */}
+          {isMetaChip && (
+            <div className="border rounded-lg p-3 space-y-3 bg-blue-500/5 border-blue-500/30">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-500" />
+                <Label className="text-sm font-medium">Template Meta WhatsApp</Label>
+                <Badge variant="outline" className="text-[10px]">Obrigatório</Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Chips Meta só permitem envio via templates aprovados. Texto livre, A/B e mídia ficam desativados.
+              </p>
+
+              {loadingTemplates ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : selectedTemplate ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">{selectedTemplate.template_name}</span>
+                      <Badge variant="outline" className="text-[10px]">{selectedTemplate.language}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selectedTemplate.category === 'MARKETING' ? 'Mkt' : selectedTemplate.category === 'UTILITY' ? 'Util' : selectedTemplate.category}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs"
+                      onClick={() => { setSelectedTemplate(null); setHeaderVars({}); setBodyVars({}); }}>
+                      ← Trocar template
+                    </Button>
+                  </div>
+
+                  <div className="bg-muted/30 rounded-lg p-3 text-sm whitespace-pre-wrap border border-border/30">
+                    {(() => {
+                      let preview = getTemplatePreview(selectedTemplate);
+                      for (const [k, v] of Object.entries(headerVars)) preview = preview.split(k).join(v || k);
+                      for (const [k, v] of Object.entries(bodyVars)) preview = preview.split(k).join(v || k);
+                      return preview;
+                    })()}
+                  </div>
+
+                  {Object.keys(headerVars).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Variáveis do cabeçalho:</p>
+                      {Object.keys(headerVars).map(key => (
+                        <div key={`h-${key}`} className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Header {key}</Label>
+                          <Input value={headerVars[key]} onChange={e => setHeaderVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {Object.keys(bodyVars).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Variáveis do corpo:</p>
+                      {Object.keys(bodyVars).map(key => (
+                        <div key={`b-${key}`} className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground w-16 shrink-0">Body {key}</Label>
+                          <Input value={bodyVars[key]} onChange={e => setBodyVars(p => ({ ...p, [key]: e.target.value }))} placeholder={`Valor para ${key}`} className="h-8 text-sm" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : metaTemplates.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  Nenhum template aprovado. Importe em Admin → Integrações → Templates Meta.
+                </p>
+              ) : (
+                <ScrollArea className="h-[220px] border rounded-md">
+                  <div className="space-y-1 p-1">
+                    {metaTemplates.map(t => {
+                      const bodyComp = Array.isArray(t.components) ? t.components.find((c: any) => c.type === 'BODY') : null;
+                      const preview = bodyComp?.text ? (bodyComp.text.length > 70 ? bodyComp.text.slice(0, 70) + '…' : bodyComp.text) : '—';
+                      return (
+                        <button key={t.id} type="button" onClick={() => handleSelectTemplate(t)}
+                          className="w-full text-left p-2.5 rounded-lg hover:bg-secondary/50 transition-colors">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium truncate">{t.template_name}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">{t.language}</Badge>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              {t.category === 'MARKETING' ? 'Mkt' : t.category === 'UTILITY' ? 'Util' : t.category}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{preview}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          )}
+
+          {!isMetaChip && (<>
 
           <div>
             <Label>{abEnabled ? 'Mensagem (Variante A)' : 'Mensagem'}</Label>
