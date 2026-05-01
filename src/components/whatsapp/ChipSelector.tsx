@@ -86,7 +86,7 @@ export default function ChipSelector({ selectedChipId, onSelectChip, unreadCount
     // Fetch shared chips where this user is authorized
     const { data: sharedData } = await supabase
       .from('chips')
-      .select('id, phone_number, instance_name, status, slot_number, nickname, provider, is_shared, shared_user_ids')
+      .select('id, phone_number, instance_name, status, slot_number, nickname, internal_name, provider, is_shared, shared_user_ids')
       .eq('is_shared', true)
       .contains('shared_user_ids', [user.id] as any);
 
