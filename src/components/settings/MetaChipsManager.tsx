@@ -19,6 +19,7 @@ interface MetaChip {
   phone_number: string | null;
   meta_phone_number_id: string | null;
   meta_waba_id: string | null;
+  meta_access_token: string | null;
   status: string;
   user_id: string;
   created_at: string;
