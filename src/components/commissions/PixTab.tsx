@@ -116,8 +116,9 @@ export default function PixTab({ profiles, getSellerName, isAdmin, userId }: Pix
                 <Select value={form.pix_type} onValueChange={v => setForm({ ...form, pix_type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cpf">CPF</SelectItem><SelectItem value="celular">Celular</SelectItem>
-                    <SelectItem value="email">E-mail</SelectItem><SelectItem value="aleatoria">Aleatória</SelectItem>
+                    <SelectItem value="cpf">CPF</SelectItem><SelectItem value="cnpj">CNPJ</SelectItem>
+                    <SelectItem value="celular">Celular</SelectItem><SelectItem value="email">E-mail</SelectItem>
+                    <SelectItem value="aleatoria">Aleatória</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

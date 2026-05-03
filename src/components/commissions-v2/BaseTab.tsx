@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns, Copy, Loader2 } from 'lucide-react';
 import { loadXLSX } from '@/lib/xlsx-lazy';
 import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
 import type { CommissionSale, Profile } from './commissionUtils';
@@ -282,12 +282,41 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
     toast({ title: 'Exportado com sucesso' });
   };
 
-  // Função handleCopyFromV1 removida ao promover V2 a módulo oficial.
-  // Histórico V1 (legado) continua acessível em /admin/commissions, mas sem cópia automática.
-
-  // handleClearV2 movido para ConfigTab > "Zona de Perigo".
-
-
+  // ---- Copiar tudo da V1 → V2 (restaurado por pedido do usuário durante homologação) ----
+  const [copying, setCopying] = useState(false);
+  const handleCopyFromV1 = async () => {
+    const typed = window.prompt('Esta ação vai COPIAR TODAS as vendas de Comissões V1 para V2.\n\nVendas duplicadas serão recriadas (a trigger V2 recalcula taxa e bônus).\n\nPara prosseguir, digite COPIAR (em maiúsculas):');
+    if (typed !== 'COPIAR') { toast({ title: 'Cancelado' }); return; }
+    setCopying(true);
+    try {
+      const all: any[] = [];
+      let from = 0; const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase.from('commission_sales').select('*').range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      if (all.length === 0) { toast({ title: 'Nada a copiar', description: 'V1 está vazia.' }); return; }
+      // Remove campos que serão recalculados pela trigger V2
+      const cleaned = all.map(({ id, week_label, commission_rate, commission_value, bonus_value, created_at, updated_at, batch_id, ...rest }) => ({ ...rest, created_by: rest.created_by || userId }));
+      let inserted = 0; let errors = 0;
+      for (let i = 0; i < cleaned.length; i += 50) {
+        const batch = cleaned.slice(i, i + 50);
+        const { error } = await supabase.from('commission_sales_v2').insert(batch as any);
+        if (error) { errors += batch.length; console.error('[copy V1→V2]', error); }
+        else inserted += batch.length;
+      }
+      toast({ title: '📋 Cópia concluída', description: `${inserted} venda(s) copiadas${errors > 0 ? `, ${errors} com erro` : ''}.` });
+      loadSales();
+    } catch (err: any) {
+      toast({ title: 'Erro ao copiar', description: err.message, variant: 'destructive' });
+    } finally {
+      setCopying(false);
+    }
+  };
 
   return (
     <Card>
@@ -318,6 +347,10 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                   ))}
                 </PopoverContent>
               </Popover>
+              <Button variant="outline" size="sm" onClick={handleCopyFromV1} disabled={copying}>
+                {copying ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
+                {copying ? 'Copiando...' : 'Copiar V1 → V2'}
+              </Button>
               <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Venda</Button>
             </div>
           )}
