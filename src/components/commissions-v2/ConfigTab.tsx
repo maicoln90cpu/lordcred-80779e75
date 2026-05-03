@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Settings, Loader2, Save, BarChart3 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings, Loader2, Save, BarChart3, RefreshCw } from 'lucide-react';
 import { fmtBRL, DAY_NAMES } from './commissionUtils';
 import type { Profile, BonusTier, AnnualReward } from './commissionUtils';
 
@@ -179,11 +179,12 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
             </div>
           </div>
 
-          <div className="flex justify-start">
+          <div className="flex flex-wrap justify-start gap-2">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Salvar Configurações
             </Button>
+            <RecalcAllV2Button />
           </div>
 
           <div className="border-t pt-6">
