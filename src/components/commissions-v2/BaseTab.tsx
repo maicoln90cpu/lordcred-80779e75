@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ interface BaseTabProps {
 
 export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: BaseTabProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const { sort, toggle } = useSortState();
   const [loading, setLoading] = useState(true);
@@ -261,6 +263,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
         description: `${imported - errors} registros importados${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}`,
       });
       loadSales();
+      queryClient.invalidateQueries({ queryKey: ['cr-import-batches', 'parceiros_v2'] });
     } catch (err: any) {
       toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
     } finally {
