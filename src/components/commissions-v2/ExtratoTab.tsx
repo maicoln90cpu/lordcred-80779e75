@@ -8,13 +8,13 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import WeekMultiSelect from './WeekMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
-import KpiDelta from '@/components/commissions/KpiDelta';
+import KpiDelta from './KpiDelta';
 import {
   getPreviousWeekLabels,
   filterPreviousMonthSales,
   filterCurrentMonthSales,
   computeKpiTotals,
-} from '@/components/commissions/kpiPeriodUtils';
+} from './kpiPeriodUtils';
 
 interface ExtratoTabProps {
   profiles: Profile[];

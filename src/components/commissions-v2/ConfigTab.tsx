@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Settings, Loader2, Save, BarChart3 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings, Loader2, Save, BarChart3, RefreshCw } from 'lucide-react';
 import { fmtBRL, DAY_NAMES } from './commissionUtils';
 import type { Profile, BonusTier, AnnualReward } from './commissionUtils';
 
@@ -179,11 +179,12 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
             </div>
           </div>
 
-          <div className="flex justify-start">
+          <div className="flex flex-wrap justify-start gap-2">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Salvar Configurações
             </Button>
+            <RecalcAllV2Button />
           </div>
 
           <div className="border-t pt-6">
@@ -242,6 +243,31 @@ export default function ConfigTab({ profiles, getSellerName }: ConfigTabProps) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function RecalcAllV2Button() {
+  const { toast } = useToast();
+  const [running, setRunning] = useState(false);
+  const handleClick = async () => {
+    if (!confirm('Recalcular todas as vendas V2?\n\nIsso reaplica taxas e bônus em TODA a base V2 (pode levar alguns segundos).')) return;
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.rpc('recalculate_commissions_v2' as any);
+      if (error) throw error;
+      const n = (data as any)?.recalculated ?? 0;
+      toast({ title: '🔄 Recalculado', description: `${n} venda(s) reprocessada(s).` });
+    } catch (err: any) {
+      toast({ title: 'Erro ao recalcular', description: err.message, variant: 'destructive' });
+    } finally {
+      setRunning(false);
+    }
+  };
+  return (
+    <Button variant="outline" onClick={handleClick} disabled={running}>
+      {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+      Recalcular Vendas V2
+    </Button>
   );
 }
 
