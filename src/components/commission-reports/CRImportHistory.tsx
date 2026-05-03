@@ -155,6 +155,11 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {showDeleted && deletedCount > 0 && (
+          <p className="text-xs text-muted-foreground mb-3 px-2 py-1.5 rounded bg-muted/40 border">
+            ℹ️ <strong>Restaurar</strong> traz o cabeçalho do lote de volta, mas <strong>NÃO recupera as linhas excluídas</strong>. Para repor os dados, reimporte a planilha original.
+          </p>
+        )}
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : batches.length === 0 ? (
