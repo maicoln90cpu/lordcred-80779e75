@@ -314,6 +314,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       }
       toast({ title: '📋 Cópia concluída', description: `${inserted} venda(s) copiadas${errors > 0 ? `, ${errors} com erro` : ''}.` });
       loadSales();
+      queryClient.invalidateQueries({ queryKey: ['cr-import-batches', 'parceiros_v2'] });
     } catch (err: any) {
       toast({ title: 'Erro ao copiar', description: err.message, variant: 'destructive' });
     } finally {
@@ -332,7 +333,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
                 <Upload className="w-4 h-4 mr-1" /> {importing ? 'Importando...' : 'Importar'}
               </Button>
-              <PasteImportButton profiles={profiles} userId={userId} onImported={loadSales} />
+              <PasteImportButton profiles={profiles} userId={userId} onImported={() => { loadSales(); queryClient.invalidateQueries({ queryKey: ['cr-import-batches', 'parceiros_v2'] }); }} />
               <Button variant="outline" size="sm" onClick={handleExportBase} disabled={filteredSales.length === 0}>
                 <Download className="w-4 h-4 mr-1" /> Exportar
               </Button>

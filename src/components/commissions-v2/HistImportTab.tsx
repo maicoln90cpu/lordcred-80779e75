@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,9 +19,15 @@ interface HistImportTabProps {
 
 export default function HistImportTab({ userId, profiles, getSellerName }: HistImportTabProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Invalida cache do histórico ao montar (ex.: vindo de uma nova importação na Base)
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['cr-import-batches', 'parceiros_v2'] });
+  }, [queryClient]);
 
   const findSellerByName = async (name: string): Promise<string | null> => {
     const r = await resolveSellerByName(name, profiles);
@@ -91,6 +98,7 @@ export default function HistImportTab({ userId, profiles, getSellerName }: HistI
 
       toast({ title: 'Importação concluída', description: `${payloads.length - errors} registros importados${skipped > 0 ? `, ${skipped} ignorados` : ''}${errors > 0 ? `, ${errors} com erro` : ''}` });
       setRefreshKey(k => k + 1);
+      queryClient.invalidateQueries({ queryKey: ['cr-import-batches', 'parceiros_v2'] });
     } catch (err: any) {
       toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
     } finally {
