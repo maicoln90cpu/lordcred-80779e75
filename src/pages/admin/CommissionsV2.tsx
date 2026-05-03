@@ -48,6 +48,7 @@ export default function CommissionsV2() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <V2BetaBanner />
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="base">Base</TabsTrigger>
             <TabsTrigger value="pix">PIX</TabsTrigger>
