@@ -253,8 +253,8 @@ export default function RatesFGTSTab() {
               <div><Label>Vigência *</Label><Input type="date" value={form.effective_date} onChange={e => setForm({ ...form, effective_date: e.target.value })} /></div>
               <div><Label>Banco *</Label><Input value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })} placeholder="LOTUS" /></div>
               <div className="col-span-2"><Label>Chave Tabela</Label><Input value={form.table_key} onChange={e => setForm({ ...form, table_key: e.target.value })} placeholder="LOTUS 1+, SONHO, GOLD PLUS, CARTA NA MANGA" /></div>
-              <div><Label>Prazo Min (anos)</Label><Input type="number" value={form.term_min} onChange={e => setForm({ ...form, term_min: e.target.value })} /></div>
-              <div><Label>Prazo Max (anos)</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
+              <div><Label>Prazo Min (meses)</Label><Input type="number" value={form.term_min} onChange={e => setForm({ ...form, term_min: e.target.value })} placeholder="Ex: 0" /></div>
+              <div><Label>Prazo Max (meses)</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} placeholder="Ex: 120" /></div>
               <div><Label>Valor Min (R$)</Label><Input type="number" step="0.01" value={form.min_value} onChange={e => setForm({ ...form, min_value: e.target.value })} /></div>
               <div><Label>Valor Max (R$)</Label><Input type="number" step="0.01" value={form.max_value} onChange={e => setForm({ ...form, max_value: e.target.value })} /></div>
               <div className="flex items-end gap-2 pb-1"><Switch checked={form.has_insurance} onCheckedChange={v => setForm({ ...form, has_insurance: v })} /><Label>Com Seguro</Label></div>
