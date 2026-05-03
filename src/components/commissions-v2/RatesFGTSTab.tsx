@@ -1,3 +1,7 @@
+// ⚠️ Dependência intencional: este arquivo importa RatesBulkControls e
+// SmartPasteRatesButton de src/components/commissions/ (V1) por serem
+// utilitários genéricos sem estado de produto. Trocar tabela alvo é via prop.
+// Não duplicar — manter sincronia visual entre V1 e V2.
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -212,7 +216,7 @@ export default function RatesFGTSTab() {
                 <TSHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
                 <TSHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
                 <TSHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
-                <TSHead label="Prazo" sortKey="term_min" sort={sort} toggle={toggle} />
+                <TSHead label="Prazo (meses)" sortKey="term_min" sort={sort} toggle={toggle} />
                 <TSHead label="Faixa Valor" sortKey="min_value" sort={sort} toggle={toggle} />
                 <TSHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
                 <TSHead label="Taxa" sortKey="rate" sort={sort} toggle={toggle} className="text-right" />
