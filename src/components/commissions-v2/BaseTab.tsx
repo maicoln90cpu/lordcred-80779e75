@@ -347,6 +347,10 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                   ))}
                 </PopoverContent>
               </Popover>
+              <Button variant="outline" size="sm" onClick={handleCopyFromV1} disabled={copying}>
+                {copying ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
+                {copying ? 'Copiando...' : 'Copiar V1 → V2'}
+              </Button>
               <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Nova Venda</Button>
             </div>
           )}
