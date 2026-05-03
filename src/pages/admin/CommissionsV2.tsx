@@ -16,6 +16,7 @@ import ExtratoTab from '@/components/commissions-v2/ExtratoTab';
 import ConsolidadoTab from '@/components/commissions-v2/ConsolidadoTab';
 import ConfigTab from '@/components/commissions-v2/ConfigTab';
 import HistImportTab from '@/components/commissions-v2/HistImportTab';
+import V2BetaBanner from '@/components/commissions-v2/V2BetaBanner';
 import type { Profile } from '@/components/commissions-v2/commissionUtils';
 
 export default function CommissionsV2() {
