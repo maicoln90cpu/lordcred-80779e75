@@ -297,20 +297,24 @@ async function handleMetaStatus(adminClient: any, chip: any, status: any) {
     .filter(([, rank]) => rank >= newRank && newRank > 0)
     .map(([s]) => s)
 
+  let updatedCount = 0
   if (newStatus === 'failed') {
-    // Failed can always override
-    await adminClient
+    const { data: rows } = await adminClient
       .from('message_history')
       .update({ status: 'failed' })
       .eq('chip_id', chip.id)
       .eq('message_id', messageId)
+      .select('id')
+    updatedCount = rows?.length || 0
   } else {
-    await adminClient
+    const { data: rows } = await adminClient
       .from('message_history')
       .update({ status: newStatus })
       .eq('chip_id', chip.id)
       .eq('message_id', messageId)
       .not('status', 'in', `(${excludeStatuses.join(',')})`)
+      .select('id')
+    updatedCount = rows?.length || 0
   }
 
   // Handle errors
@@ -319,7 +323,7 @@ async function handleMetaStatus(adminClient: any, chip: any, status: any) {
     console.error(`Meta message ${messageId} error: ${errorMsg}`)
   }
 
-  console.log(`Meta status update: ${messageId} -> ${newStatus}`)
+  console.log(`Meta status update: ${messageId} -> ${newStatus} (rows updated: ${updatedCount})`)
 }
 
 // ===== HELPERS =====
