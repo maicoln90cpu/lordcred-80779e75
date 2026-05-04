@@ -227,21 +227,21 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     return !!(data && data.length > 0);
   }, []);
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, quotedMessageId?: string) => {
     if (!chipId || !chat || !text.trim()) return;
     const connected = await checkChipConnected();
     if (!connected) { setChipDisconnected(true); setFailedMessage(text); return; }
 
     setSending(true);
     const sentAt = new Date().toISOString();
-    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text', status: 'pending' };
+    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text', status: 'pending', quotedMessageId };
     setMessages(prev => [...prev, tempMsg]);
 
     let shouldRemoveTemp = false;
     try {
       void invokeUazapiWithRetry({ action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' }, { retries: 0, retryDelayMs: 0 });
-      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; windowClosed?: boolean }>(
-        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text }, { retries: 2, retryDelayMs: 400 }
+      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; windowClosed?: boolean; unsupported?: boolean }>(
+        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text, quotedMessageId }, { retries: 2, retryDelayMs: 400 }
       );
       if (isDisconnectError(response)) { setChipDisconnected(true); setFailedMessage(text); shouldRemoveTemp = true; return; }
       if (response.isTransportError) {
@@ -252,7 +252,8 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
       if (response.error) { toast({ title: 'Erro ao enviar', description: String(response.error?.message || response.error), variant: 'destructive' }); shouldRemoveTemp = true; return; }
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
-        if (errMsg.toLowerCase().includes('not on whatsapp')) { toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' }); shouldRemoveTemp = true; }
+        if ((response.data as any)?.unsupported) { toast({ title: 'Função indisponível na Meta', description: errMsg }); shouldRemoveTemp = true; }
+        else if (errMsg.toLowerCase().includes('not on whatsapp')) { toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' }); shouldRemoveTemp = true; }
         else if ((response.data as any)?.windowClosed) { toast({ title: 'Janela expirada', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
         else if (errMsg) { toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
         else { shouldRemoveTemp = true; }
