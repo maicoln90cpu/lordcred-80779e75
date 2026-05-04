@@ -222,8 +222,8 @@ export default function RatesCLTTab() {
                 <TSHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
                 <TSHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
                 <TSHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
-                <TSHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
-                <TSHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
+                <TSHead label="Prazo Min (meses)" sortKey="term_min" sort={sort} toggle={toggle} />
+                <TSHead label="Prazo Max (meses)" sortKey="term_max" sort={sort} toggle={toggle} />
                 <TSHead label="Valor Min" sortKey="min_value" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Valor Max" sortKey="max_value" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
