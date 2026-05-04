@@ -40,7 +40,7 @@ export interface CalcResult {
 /** Heurística de extração de table_key a partir do table_name (espelho do trigger). */
 export function extractTableKey(tableName: string | null | undefined): string | null {
   if (!tableName) return null;
-  const u = tableName.toUpperCase().trim();
+  const u = tableName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
   // Heurísticas suportadas (ordem importa — específico → genérico)
   const patterns: Array<[RegExp, string]> = [
     [/LOTUS\s*5\+/i, 'LOTUS 5+'],
