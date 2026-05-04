@@ -601,16 +601,22 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 ))}
               </div>
             )}
-            <Input
+            <Textarea
               ref={inputRef}
-              placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas..."}
+              rows={1}
+              placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas... (Shift+Enter = nova linha)"}
               value={message}
               onChange={(e) => handleMessageChange(e.target.value)}
               onPaste={handlePaste}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
                   if (showQuickReplies && filteredQuickReplies.length > 0) {
-                    e.preventDefault();
                     selectQuickReply(filteredQuickReplies[0]);
                   } else {
                     handleSend();
@@ -619,7 +625,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 if (e.key === 'Escape') setShowQuickReplies(false);
               }}
               onBlur={() => setTimeout(() => setShowQuickReplies(false), 200)}
-              className="bg-secondary/30 border border-border/20 h-10 rounded-xl focus-visible:ring-primary/30 transition-colors"
+              className="bg-secondary/30 border border-border/20 min-h-10 max-h-32 rounded-xl focus-visible:ring-primary/30 transition-colors resize-none py-2"
               disabled={disabled}
             />
           </div>
