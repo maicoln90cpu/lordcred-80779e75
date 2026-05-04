@@ -286,7 +286,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Set up analyser for waveform
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
@@ -295,7 +295,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const { mime, ext } = pickAudioMime();
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -308,11 +309,11 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
         audioCtx.close();
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         analyserRef.current = null;
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: mime });
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
-          setMediaPreview({ type: 'ptt', name: 'audio.webm', base64 });
+          setMediaPreview({ type: 'ptt', name: `audio.${ext}`, base64, mimeType: mime });
         };
         reader.readAsDataURL(blob);
       };
