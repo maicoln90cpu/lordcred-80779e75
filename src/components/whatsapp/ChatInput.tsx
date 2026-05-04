@@ -266,6 +266,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       case 'document':
         input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar';
         break;
+      case 'sticker':
+        input.accept = 'image/webp';
+        break;
       default:
         input.accept = '*/*';
     }
