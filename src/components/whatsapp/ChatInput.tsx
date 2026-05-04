@@ -30,8 +30,8 @@ let quickReplyCache: { userId: string; data: QuickReply[] } | null = null;
 const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean; media_url?: string | null; media_type?: string | null; media_filename?: string | null }[]> = {};
 
 interface ChatInputProps {
-  onSend: (text: string) => void;
-  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => void;
+  onSend: (text: string, quotedMessageId?: string) => void;
+  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string, quotedMessageId?: string) => void;
   disabled?: boolean;
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
@@ -202,17 +202,19 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       return;
     }
     if (!message.trim() || disabled) return;
-    onSend(message.trim());
+    onSend(message.trim(), replyTo?.messageId);
     setMessage('');
+    onCancelReply?.();
   };
 
   const handleSendMedia = async () => {
     if (!mediaPreview) return;
     setIsSendingMedia(true);
     try {
-      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType);
+      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType, replyTo?.messageId);
       setMediaPreview(null);
       setMessage('');
+      onCancelReply?.();
     } finally {
       setIsSendingMedia(false);
     }
@@ -263,6 +265,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
         break;
       case 'document':
         input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar';
+        break;
+      case 'sticker':
+        input.accept = 'image/webp';
         break;
       default:
         input.accept = '*/*';
@@ -568,6 +573,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openFilePicker('document')}>
                 <FileText className="w-4 h-4 mr-2" />Documento
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openFilePicker('sticker')}>
+                <Image className="w-4 h-4 mr-2" />Sticker (.webp)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -227,21 +227,21 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     return !!(data && data.length > 0);
   }, []);
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, quotedMessageId?: string) => {
     if (!chipId || !chat || !text.trim()) return;
     const connected = await checkChipConnected();
     if (!connected) { setChipDisconnected(true); setFailedMessage(text); return; }
 
     setSending(true);
     const sentAt = new Date().toISOString();
-    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text', status: 'pending' };
+    const tempMsg: ChatMessage = { id: `temp-${Date.now()}`, text, fromMe: true, timestamp: sentAt, senderName: '', messageType: 'text', status: 'pending', quotedMessageId };
     setMessages(prev => [...prev, tempMsg]);
 
     let shouldRemoveTemp = false;
     try {
       void invokeUazapiWithRetry({ action: 'send-presence', chipId, chatId: chat.remoteJid, presence: 'composing' }, { retries: 0, retryDelayMs: 0 });
-      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; windowClosed?: boolean }>(
-        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text }, { retries: 2, retryDelayMs: 400 }
+      const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; windowClosed?: boolean; unsupported?: boolean }>(
+        { action: 'send-chat-message', chipId, chatId: chat.remoteJid, message: text, quotedMessageId }, { retries: 2, retryDelayMs: 400 }
       );
       if (isDisconnectError(response)) { setChipDisconnected(true); setFailedMessage(text); shouldRemoveTemp = true; return; }
       if (response.isTransportError) {
@@ -252,7 +252,8 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
       if (response.error) { toast({ title: 'Erro ao enviar', description: String(response.error?.message || response.error), variant: 'destructive' }); shouldRemoveTemp = true; return; }
       if (!response.data?.success) {
         const errMsg = response.data?.error || '';
-        if (errMsg.toLowerCase().includes('not on whatsapp')) { toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' }); shouldRemoveTemp = true; }
+        if ((response.data as any)?.unsupported) { toast({ title: 'Função indisponível na Meta', description: errMsg }); shouldRemoveTemp = true; }
+        else if (errMsg.toLowerCase().includes('not on whatsapp')) { toast({ title: 'Número inválido', description: 'Este número não está registrado no WhatsApp', variant: 'destructive' }); shouldRemoveTemp = true; }
         else if ((response.data as any)?.windowClosed) { toast({ title: 'Janela expirada', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
         else if (errMsg) { toast({ title: 'Erro ao enviar', description: errMsg, variant: 'destructive' }); shouldRemoveTemp = true; }
         else { shouldRemoveTemp = true; }
@@ -272,17 +273,20 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     }
   }, [chipId, chat, checkChipConnected, toast, reconcileMessage]);
 
-  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => {
+  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string, quotedMessageId?: string) => {
     if (!chipId || !chat) return;
     const sentAt = new Date().toISOString();
-    const tempMsg: ChatMessage = { id: `temp-media-${Date.now()}`, text: caption || `📎 Enviando ${mediaType}...`, fromMe: true, timestamp: sentAt, senderName: '', messageType: mediaType };
+    const tempMsg: ChatMessage = { id: `temp-media-${Date.now()}`, text: caption || `📎 Enviando ${mediaType}...`, fromMe: true, timestamp: sentAt, senderName: '', messageType: mediaType, quotedMessageId };
     setMessages(prev => [...prev, tempMsg]);
 
     (async () => {
       try {
-        const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
-          { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined, mimeType },
-          { retries: 2, retryDelayMs: 500 }
+        const isSticker = mediaType === 'sticker';
+        const body: any = isSticker
+          ? { action: 'send-sticker', chipId, chatId: chat.remoteJid, stickerBase64: mediaBase64, quotedMessageId }
+          : { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined, mimeType, quotedMessageId };
+        const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; unsupported?: boolean }>(
+          body, { retries: 2, retryDelayMs: 500 }
         );
         if (response.isTransportError) {
           const delivered = await reconcileMessage(chipId, chat.remoteJid, sentAt);
@@ -295,7 +299,12 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
         }
         if (!response.data?.success) {
           setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-          toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' }); return;
+          if ((response.data as any)?.unsupported) {
+            toast({ title: 'Função indisponível na Meta', description: response.data?.error || '' });
+          } else {
+            toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' });
+          }
+          return;
         }
         if ((response.data as any)?.data?.degradedToDocument) {
           toast({ title: 'Áudio enviado como anexo', description: 'Seu navegador grava em formato webm; usamos Firefox/Safari para enviar como áudio nativo.' });
