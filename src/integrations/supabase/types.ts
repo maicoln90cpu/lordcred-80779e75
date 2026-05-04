@@ -1045,6 +1045,7 @@ export type Database = {
           has_insurance: boolean
           id: string
           product: string
+          rate_match_level: string | null
           released_value: number
           sale_date: string
           seller_id: string
@@ -1069,6 +1070,7 @@ export type Database = {
           has_insurance?: boolean
           id?: string
           product: string
+          rate_match_level?: string | null
           released_value?: number
           sale_date: string
           seller_id: string
@@ -1093,6 +1095,7 @@ export type Database = {
           has_insurance?: boolean
           id?: string
           product?: string
+          rate_match_level?: string | null
           released_value?: number
           sale_date?: string
           seller_id?: string

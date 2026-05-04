@@ -222,8 +222,8 @@ export default function RatesCLTTab() {
                 <TSHead label="Vigência" sortKey="effective_date" sort={sort} toggle={toggle} />
                 <TSHead label="Banco" sortKey="bank" sort={sort} toggle={toggle} />
                 <TSHead label="Tabela" sortKey="table_key" sort={sort} toggle={toggle} />
-                <TSHead label="Prazo Min" sortKey="term_min" sort={sort} toggle={toggle} />
-                <TSHead label="Prazo Max" sortKey="term_max" sort={sort} toggle={toggle} />
+                <TSHead label="Prazo Min (meses)" sortKey="term_min" sort={sort} toggle={toggle} />
+                <TSHead label="Prazo Max (meses)" sortKey="term_max" sort={sort} toggle={toggle} />
                 <TSHead label="Valor Min" sortKey="min_value" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Valor Max" sortKey="max_value" sort={sort} toggle={toggle} className="text-right" />
                 <TSHead label="Seguro" sortKey="has_insurance" sort={sort} toggle={toggle} />
@@ -266,8 +266,8 @@ export default function RatesCLTTab() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Vigência *</Label><Input type="date" value={form.effective_date} onChange={e => setForm({ ...form, effective_date: e.target.value })} /></div>
               <div><Label>Banco *</Label><Input value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })} /></div>
-              <div><Label>Prazo Min</Label><Input type="number" value={form.term_min} onChange={e => setForm({ ...form, term_min: e.target.value })} /></div>
-              <div><Label>Prazo Max</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
+              <div><Label>Prazo Min (meses)</Label><Input type="number" value={form.term_min} onChange={e => setForm({ ...form, term_min: e.target.value })} /></div>
+              <div><Label>Prazo Max (meses)</Label><Input type="number" value={form.term_max} onChange={e => setForm({ ...form, term_max: e.target.value })} /></div>
               <div><Label>Valor Mín. (R$)</Label><Input type="number" step="0.01" value={form.min_value} onChange={e => setForm({ ...form, min_value: e.target.value })} placeholder="0" /></div>
               <div><Label>Valor Máx. (R$)</Label><Input type="number" step="0.01" value={form.max_value} onChange={e => setForm({ ...form, max_value: e.target.value })} placeholder="999999999 = sem limite" /></div>
               <div className="flex items-end gap-2 pb-1"><Switch checked={form.has_insurance} onCheckedChange={v => setForm({ ...form, has_insurance: v })} /><Label>Seguro</Label></div>
