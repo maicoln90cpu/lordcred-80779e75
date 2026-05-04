@@ -471,7 +471,7 @@ async function handleMetaAction(
         }
       } catch (e) { console.error('Failed to persist outgoing media:', e) }
 
-      return jsonResponse({ success: true, data: { messageId: mediaMsgId } })
+      return jsonResponse({ success: true, data: { messageId: mediaMsgId, degradedToDocument } })
     }
 
     case 'send-template': {
