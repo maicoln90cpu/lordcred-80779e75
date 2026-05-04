@@ -10,6 +10,7 @@ interface MediaRendererProps {
   mediaType: string;
   chipId: string;
   caption?: string;
+  provider?: string; // 'meta' | 'uazapi' (default)
 }
 
 // === Global media URL cache ===
