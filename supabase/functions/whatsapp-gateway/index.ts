@@ -469,7 +469,8 @@ async function handleMetaAction(
             message_id: mediaMsgId,
             direction: 'outgoing',
             message_content: mediaCaption || `📎 ${mediaType}`,
-            media_type: mediaType || 'document',
+            media_type: degradedToDocument ? 'document' : (mediaType || 'document'),
+            media_url: uploadData.id, // Meta media_id for later download
             status: 'sent',
             sender_name: '',
             sent_by_user_id: userId || null,
