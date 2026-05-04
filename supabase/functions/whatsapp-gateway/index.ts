@@ -637,6 +637,23 @@ async function handleMetaAction(
       }
       if (!mediaId) return jsonResponse({ success: false, error: 'mediaId not found for this message' })
 
+      // === Storage cache: avoid re-downloading from Graph API (cost & speed) ===
+      const BUCKET = 'whatsapp-media-cache'
+      const cachePath = `meta/${chip.id}/${mediaId}`
+      const { data: existing } = await adminClient.storage.from(BUCKET).list(`meta/${chip.id}`, {
+        limit: 1, search: mediaId,
+      })
+      if (existing && existing.length > 0) {
+        const { data: pub } = adminClient.storage.from(BUCKET).getPublicUrl(cachePath)
+        if (pub?.publicUrl) {
+          return jsonResponse({
+            success: true,
+            cached: true,
+            data: { base64: pub.publicUrl, mimetype: existing[0].metadata?.mimetype || 'application/octet-stream' },
+          })
+        }
+      }
+
       // Step 1: get media URL
       const urlResp = await metaFetch(`/${mediaId}`, {
         headers: { 'Authorization': `Bearer ${metaAccessToken}` },
@@ -656,7 +673,27 @@ async function handleMetaAction(
       }
 
       const arrayBuffer = await mediaResp.arrayBuffer()
-      // Use chunked btoa to avoid call-stack overflow on large files
+      const mimeType = urlData.mime_type || mediaResp.headers.get('content-type') || 'application/octet-stream'
+
+      // Step 3: upload to Storage cache (best-effort) and return public URL
+      try {
+        await adminClient.storage.from(BUCKET).upload(cachePath, arrayBuffer, {
+          contentType: mimeType,
+          upsert: true,
+        })
+        const { data: pub } = adminClient.storage.from(BUCKET).getPublicUrl(cachePath)
+        if (pub?.publicUrl) {
+          return jsonResponse({
+            success: true,
+            cached: false,
+            data: { base64: pub.publicUrl, mimetype: mimeType },
+          })
+        }
+      } catch (e) {
+        console.error('[download-media] cache upload failed, falling back to base64', e)
+      }
+
+      // Fallback: chunked base64 (legacy behavior)
       const bytes = new Uint8Array(arrayBuffer)
       let binary = ''
       const CHUNK = 0x8000
@@ -664,10 +701,10 @@ async function handleMetaAction(
         binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as any)
       }
       const base64 = btoa(binary)
-      const mimeType = urlData.mime_type || mediaResp.headers.get('content-type') || 'application/octet-stream'
 
       return jsonResponse({
         success: true,
+        cached: false,
         data: {
           base64: `data:${mimeType};base64,${base64}`,
           mimetype: mimeType,
