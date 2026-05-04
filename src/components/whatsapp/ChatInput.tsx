@@ -42,7 +42,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string } | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string; mimeType?: string } | null>(null);
   const [isSendingMedia, setIsSendingMedia] = useState(false);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(30).fill(4));
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
