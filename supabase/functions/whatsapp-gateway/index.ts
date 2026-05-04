@@ -622,8 +622,19 @@ async function handleMetaAction(
     }
 
     case 'download-media': {
-      const { messageId: mediaId } = body
-      if (!mediaId) return jsonResponse({ error: 'mediaId required' }, 400)
+      // Accept either a Meta media_id directly, or a wamid (message_id) — lookup media_url from DB
+      let mediaId: string | null = body.mediaId || null
+      const wamid = body.messageId
+      if (!mediaId && wamid) {
+        const { data: row } = await adminClient
+          .from('message_history')
+          .select('media_url')
+          .eq('chip_id', chip.id)
+          .eq('message_id', wamid)
+          .maybeSingle()
+        mediaId = row?.media_url || null
+      }
+      if (!mediaId) return jsonResponse({ success: false, error: 'mediaId not found for this message' })
 
       // Step 1: get media URL
       const urlResp = await metaFetch(`/${mediaId}`, {
@@ -644,7 +655,14 @@ async function handleMetaAction(
       }
 
       const arrayBuffer = await mediaResp.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      // Use chunked btoa to avoid call-stack overflow on large files
+      const bytes = new Uint8Array(arrayBuffer)
+      let binary = ''
+      const CHUNK = 0x8000
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as any)
+      }
+      const base64 = btoa(binary)
       const mimeType = urlData.mime_type || mediaResp.headers.get('content-type') || 'application/octet-stream'
 
       return jsonResponse({
