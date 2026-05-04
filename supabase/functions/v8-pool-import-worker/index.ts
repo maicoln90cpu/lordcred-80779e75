@@ -2,7 +2,7 @@
 // memória constante (~20 MB) mesmo para milhões de linhas.
 // O frontend converte XLSX/XLSM -> CSV antes de subir, evitando parse pesado aqui.
 
-import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

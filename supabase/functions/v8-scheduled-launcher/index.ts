@@ -4,7 +4,7 @@
 // Idempotente: troca status='scheduled' -> 'processing' com cláusula de match
 // (.eq('status', 'scheduled')) — duas execuções concorrentes nunca disparam o mesmo lote.
 
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

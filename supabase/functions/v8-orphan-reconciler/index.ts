@@ -2,7 +2,7 @@
 // com simulações pending por CPF e promove os dados quando match.
 // Chamado por pg_cron a cada 2 min.
 
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { applyConsultExtras, extractConsultExtras, mapV8ConsultStatus } from "../_shared/v8Status.ts";
 import { writeAuditLog } from "../_shared/auditLog.ts";
 
