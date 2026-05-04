@@ -570,9 +570,25 @@ async function handleMetaAction(
     }
 
     case 'mark-read': {
-      const { messageId } = body
+      // IMPORTANTE: zerar `unread_count` no banco SEMPRE — independente do read
+      // receipt da Meta. Sem isso, o realtime/refetch trazia o valor antigo de
+      // unread_count e o badge "voltava" alguns segundos depois do clique.
+      const { messageId, chatId } = body
+      try {
+        if (chatId) {
+          await adminClient
+            .from('conversations')
+            .update({ unread_count: 0 })
+            .eq('chip_id', chip.id)
+            .eq('remote_jid', chatId)
+        }
+      } catch (e) {
+        console.warn('mark-read: failed to zero unread_count:', (e as Error)?.message)
+      }
+
+      // Read receipt na Meta exige messageId. Sem ele, só zeramos o badge local.
       if (!messageId) {
-        return jsonResponse({ success: true, unsupported: false })
+        return jsonResponse({ success: true, unsupported: false, badgeCleared: true })
       }
       const resp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
@@ -588,7 +604,7 @@ async function handleMetaAction(
         timeout: 8000,
       })
       await safeJson(resp) // consume
-      return jsonResponse({ success: true })
+      return jsonResponse({ success: true, badgeCleared: true })
     }
 
     case 'react-message': {
