@@ -273,17 +273,20 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     }
   }, [chipId, chat, checkChipConnected, toast, reconcileMessage]);
 
-  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => {
+  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string, quotedMessageId?: string) => {
     if (!chipId || !chat) return;
     const sentAt = new Date().toISOString();
-    const tempMsg: ChatMessage = { id: `temp-media-${Date.now()}`, text: caption || `📎 Enviando ${mediaType}...`, fromMe: true, timestamp: sentAt, senderName: '', messageType: mediaType };
+    const tempMsg: ChatMessage = { id: `temp-media-${Date.now()}`, text: caption || `📎 Enviando ${mediaType}...`, fromMe: true, timestamp: sentAt, senderName: '', messageType: mediaType, quotedMessageId };
     setMessages(prev => [...prev, tempMsg]);
 
     (async () => {
       try {
-        const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
-          { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined, mimeType },
-          { retries: 2, retryDelayMs: 500 }
+        const isSticker = mediaType === 'sticker';
+        const body: any = isSticker
+          ? { action: 'send-sticker', chipId, chatId: chat.remoteJid, stickerBase64: mediaBase64, quotedMessageId }
+          : { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined, mimeType, quotedMessageId };
+        const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string; unsupported?: boolean }>(
+          body, { retries: 2, retryDelayMs: 500 }
         );
         if (response.isTransportError) {
           const delivered = await reconcileMessage(chipId, chat.remoteJid, sentAt);
@@ -296,7 +299,12 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
         }
         if (!response.data?.success) {
           setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-          toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' }); return;
+          if ((response.data as any)?.unsupported) {
+            toast({ title: 'Função indisponível na Meta', description: response.data?.error || '' });
+          } else {
+            toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' });
+          }
+          return;
         }
         if ((response.data as any)?.data?.degradedToDocument) {
           toast({ title: 'Áudio enviado como anexo', description: 'Seu navegador grava em formato webm; usamos Firefox/Safari para enviar como áudio nativo.' });
