@@ -255,8 +255,14 @@ function RecalcAllV2Button() {
     try {
       const { data, error } = await supabase.rpc('recalculate_commissions_v2' as any);
       if (error) throw error;
-      const n = (data as any)?.recalculated ?? 0;
-      toast({ title: '🔄 Recalculado', description: `${n} venda(s) reprocessada(s).` });
+      const d = (data as any) || {};
+      const n = d.recalculated ?? 0;
+      const sp = d.specific ?? 0, ge = d.generic ?? 0, fb = d.fallback ?? 0, no = d.none ?? 0;
+      toast({
+        title: `🔄 ${n} venda(s) reprocessada(s)`,
+        description: `✅ Específico: ${sp}  •  📋 Genérico: ${ge}  •  ⚠️ Fallback: ${fb}  •  ❌ Sem taxa: ${no}`,
+        duration: 8000,
+      });
     } catch (err: any) {
       toast({ title: 'Erro ao recalcular', description: err.message, variant: 'destructive' });
     } finally {
