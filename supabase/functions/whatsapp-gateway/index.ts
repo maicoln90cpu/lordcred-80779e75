@@ -1355,7 +1355,11 @@ Deno.serve(async (req) => {
       // Read body to capture success flag without consuming the response
       let parsedBody: any = {}
       try { parsedBody = await metaResp.clone().json() } catch { /* ignore */ }
-      await logAdmin(parsedBody?.success !== false && metaResp.ok, metaResp.status, parsedBody?.error ? { error_message: parsedBody.error } : undefined)
+      const extra: Record<string, unknown> = {}
+      if (parsedBody?.error) extra.error_message = parsedBody.error
+      if (parsedBody?.unsupported) extra.unsupported = true
+      if (parsedBody?.fallback) extra.fallback = true
+      await logAdmin(parsedBody?.success !== false && metaResp.ok, metaResp.status, extra)
       return metaResp
     }
 
