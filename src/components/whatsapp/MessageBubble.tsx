@@ -232,7 +232,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
           )}
           {isMedia && messageId && chipId && (
             <div className="mb-1">
-              <MediaRenderer messageId={messageId} mediaType={effectiveMediaType!} chipId={chipId} caption={displayText || undefined} />
+              <MediaRenderer messageId={messageId} mediaType={effectiveMediaType!} chipId={chipId} provider={chipProvider} caption={displayText || undefined} />
             </div>
           )}
           {isTempMedia && (
@@ -241,17 +241,24 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
           {!isMedia && !isTempMedia && displayText && <p className="break-words whitespace-pre-wrap">{formattedText}</p>}
           <div className="flex items-center justify-end gap-1 mt-1">
             <span className="text-[10px] text-muted-foreground">{time}</span>
-            {fromMe && (
-              status === 'read' ? (
-                <CheckCheck className="w-3.5 h-3.5 text-blue-500" aria-label="Lida" />
-              ) : status === 'delivered' ? (
-                <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" aria-label="Entregue" />
-              ) : status === 'pending' ? (
-                <Clock className="w-3 h-3 text-muted-foreground/70" aria-label="Pendente" />
-              ) : (
-                <Check className="w-3.5 h-3.5 text-muted-foreground" aria-label="Enviada" />
-              )
-            )}
+            {fromMe && (() => {
+              const { icon, label } =
+                status === 'read' ? { icon: <CheckCheck className="w-3.5 h-3.5 text-blue-500" />, label: 'Lida' } :
+                status === 'delivered' ? { icon: <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" />, label: 'Entregue' } :
+                status === 'pending' ? { icon: <Clock className="w-3 h-3 text-muted-foreground/70" />, label: 'Pendente' } :
+                status === 'failed' ? { icon: <Check className="w-3.5 h-3.5 text-destructive" />, label: 'Falhou' } :
+                { icon: <Check className="w-3.5 h-3.5 text-muted-foreground" />, label: 'Enviada' };
+              return (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span aria-label={label} className="inline-flex">{icon}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">{label}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })()}
           </div>
         </div>
 
