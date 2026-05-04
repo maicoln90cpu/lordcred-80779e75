@@ -741,9 +741,13 @@ async function handleMetaAction(
     }
 
     case 'forward-message': {
-      // Etapa 4: Meta Cloud API NÃO tem endpoint nativo de "forward".
-      // Estratégia: buscar a mensagem original em message_history e reenviar
-      // (texto: novo type:text; mídia: reusar media_url=media_id da Meta).
+      // Etapa 4 + B: Meta Cloud API NÃO tem endpoint nativo de "forward".
+      // Estratégia em camadas:
+      //  1) Cache `meta_media_cache` (hit = reusa media_id sem nada baixar)
+      //  2) Mesmo chip de origem → reusa `media_url` direto (já é media_id válido)
+      //  3) Outro chip / cache miss → baixa do Graph API e re-upload no chip destino
+      //  4) Texto → reenvia como texto
+      //  5) Nada disso possível → fallback amigável
       const { sourceMessageId, chatId: targetChatId, phoneNumber: targetPhone } = body
       if (!sourceMessageId) {
         return jsonResponse({ error: 'sourceMessageId é obrigatório' }, 400)
@@ -755,11 +759,10 @@ async function handleMetaAction(
       let toPhone = rawTo.replace(/\D/g, '')
       if (toPhone.length === 10 || toPhone.length === 11) toPhone = '55' + toPhone
 
-      // Buscar mensagem original no histórico (qualquer chip — usuário pode encaminhar
-      // mensagem recebida de outro número).
+      // Buscar mensagem original (qualquer chip — pode ser cross-chip).
       const { data: original } = await adminClient
         .from('message_history')
-        .select('message_content, media_type, media_url')
+        .select('chip_id, message_content, media_type, media_url')
         .eq('message_id', sourceMessageId)
         .limit(1)
         .maybeSingle()
@@ -767,11 +770,13 @@ async function handleMetaAction(
       if (!original) {
         return jsonResponse({
           success: false,
+          fallback: true,
+          reason: 'original_not_found',
           error: 'Mensagem original não encontrada no histórico — não é possível encaminhar.',
         })
       }
 
-      // Janela 24h: mesma regra do send-message — exige conversa aberta no destino.
+      // Janela 24h
       const [{ data: lastIn }, { data: lastTpl }] = await Promise.all([
         adminClient.from('message_history').select('created_at').eq('chip_id', chip.id).eq('direction', 'incoming').or(`remote_jid.ilike.%${toPhone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         adminClient.from('message_history').select('created_at').eq('chip_id', chip.id).eq('direction', 'outgoing').ilike('message_content', '📋%').or(`remote_jid.ilike.%${toPhone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -793,23 +798,117 @@ async function handleMetaAction(
       let logContent = ''
       let logMediaType = 'text'
       let logMediaUrl: string | null = null
+      let resolvedMediaId: string | null = null
+      let mediaSource: 'cache' | 'reuse' | 'reupload' | 'text' = 'text'
+      let mediaMime: string | null = null
+      let mediaSize: number | null = null
 
-      if (isMedia && original.media_url) {
+      if (isMedia) {
         const mt = original.media_type === 'ptt' ? 'audio' : original.media_type
+
+        // 1) Cache hit?
+        const { data: cached } = await adminClient
+          .from('meta_media_cache')
+          .select('media_id, mime_type, size_bytes')
+          .eq('source_message_id', sourceMessageId)
+          .eq('target_chip_id', chip.id)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle()
+
+        if (cached?.media_id) {
+          resolvedMediaId = cached.media_id
+          mediaSource = 'cache'
+          mediaMime = (cached as any).mime_type || null
+          mediaSize = (cached as any).size_bytes || null
+        } else if (original.chip_id === chip.id && original.media_url) {
+          // 2) Mesmo chip → media_id da Meta ainda válido
+          resolvedMediaId = original.media_url
+          mediaSource = 'reuse'
+        } else if (original.media_url) {
+          // 3) Cross-chip ou cache miss → baixa via Graph API e re-faz upload
+          try {
+            // Resolver token do chip de origem (quando cross-chip)
+            let downloadToken = metaAccessToken
+            if (original.chip_id && original.chip_id !== chip.id) {
+              const { data: srcChip } = await adminClient
+                .from('chips')
+                .select('meta_access_token')
+                .eq('id', original.chip_id)
+                .maybeSingle()
+              if ((srcChip as any)?.meta_access_token) {
+                downloadToken = (srcChip as any).meta_access_token
+              }
+            }
+
+            // 3a) Resolver URL temporária da mídia
+            const metaResp = await metaFetch(`/${original.media_url}`, {
+              headers: { 'Authorization': `Bearer ${downloadToken}` },
+              timeout: 10000,
+            })
+            const metaInfo = await safeJson(metaResp)
+            const mediaUrlTmp: string | undefined = metaInfo?.url
+            mediaMime = metaInfo?.mime_type || null
+            mediaSize = metaInfo?.file_size || null
+            if (!mediaUrlTmp) throw new Error('media_url indisponível')
+
+            // 3b) Baixar bytes
+            const binResp = await fetch(mediaUrlTmp, {
+              headers: { 'Authorization': `Bearer ${downloadToken}` },
+              signal: AbortSignal.timeout(30000),
+            })
+            if (!binResp.ok) throw new Error(`download status ${binResp.status}`)
+            const blob = await binResp.blob()
+            mediaSize = mediaSize || blob.size
+
+            // 3c) Re-upload no chip destino
+            const form = new FormData()
+            form.append('messaging_product', 'whatsapp')
+            form.append('type', mediaMime || blob.type || 'application/octet-stream')
+            form.append('file', blob, `forward-${Date.now()}`)
+            const upResp = await metaFetch(`/${phoneNumberId}/media`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+              body: form,
+              timeout: 30000,
+            })
+            const upData = await safeJson(upResp)
+            if (!upData?.id) throw new Error(upData?.error?.message || 'upload sem id')
+            resolvedMediaId = upData.id
+            mediaSource = 'reupload'
+          } catch (e: any) {
+            console.error('forward reupload failed:', e?.message || e)
+            return jsonResponse({
+              success: false,
+              fallback: true,
+              reason: 'media_unavailable',
+              error: 'Mídia original indisponível para encaminhamento (expirada ou inacessível). Encaminhe novamente a partir do contato original ou envie como nova mensagem.',
+            })
+          }
+        } else {
+          return jsonResponse({
+            success: false,
+            fallback: true,
+            reason: 'media_url_missing',
+            error: 'Mensagem original não tem referência de mídia recuperável.',
+          })
+        }
+
         payload = {
           messaging_product: 'whatsapp',
           to: toPhone,
           type: mt,
-          [mt]: { id: original.media_url },
+          [mt]: { id: resolvedMediaId },
         }
         logContent = original.message_content || `📎 ${mt}`
         logMediaType = original.media_type
-        logMediaUrl = original.media_url
+        logMediaUrl = resolvedMediaId
       } else {
         const txt = original.message_content || ''
         if (!txt) {
           return jsonResponse({
             success: false,
+            fallback: true,
+            reason: 'empty_content',
             error: 'Mensagem original sem conteúdo encaminhável.',
           })
         }
@@ -835,6 +934,24 @@ async function handleMetaAction(
 
       const fwdMsgId = d.messages?.[0]?.id
       const fwdJid = `${toPhone}@s.whatsapp.net`
+
+      // Persist cache (somente para mídia e quando temos media_id válido)
+      if (isMedia && resolvedMediaId && mediaSource !== 'cache') {
+        try {
+          await adminClient.from('meta_media_cache').upsert({
+            source_message_id: sourceMessageId,
+            source_chip_id: original.chip_id || null,
+            target_chip_id: chip.id,
+            media_id: resolvedMediaId,
+            media_type: original.media_type,
+            mime_type: mediaMime,
+            size_bytes: mediaSize,
+            origin: mediaSource,
+            expires_at: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+          }, { onConflict: 'source_message_id,target_chip_id' })
+        } catch (e) { console.error('Failed to write meta_media_cache:', e) }
+      }
+
       try {
         if (fwdMsgId) {
           await adminClient.from('message_history').insert({
@@ -860,7 +977,7 @@ async function handleMetaAction(
         }
       } catch (e) { console.error('Failed to persist forwarded message:', e) }
 
-      return jsonResponse({ success: true, data: { messageId: fwdMsgId } })
+      return jsonResponse({ success: true, data: { messageId: fwdMsgId, mediaSource } })
     }
 
     case 'delete-message': {

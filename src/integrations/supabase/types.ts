@@ -3205,6 +3205,63 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_media_cache: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          media_id: string
+          media_type: string | null
+          mime_type: string | null
+          origin: string
+          size_bytes: number | null
+          source_chip_id: string | null
+          source_message_id: string
+          target_chip_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_id: string
+          media_type?: string | null
+          mime_type?: string | null
+          origin?: string
+          size_bytes?: number | null
+          source_chip_id?: string | null
+          source_message_id: string
+          target_chip_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_id?: string
+          media_type?: string | null
+          mime_type?: string | null
+          origin?: string
+          size_bytes?: number | null
+          source_chip_id?: string | null
+          source_message_id?: string
+          target_chip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_media_cache_source_chip_id_fkey"
+            columns: ["source_chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_media_cache_target_chip_id_fkey"
+            columns: ["target_chip_id"]
+            isOneToOne: false
+            referencedRelation: "chips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_message_templates: {
         Row: {
           category: string
@@ -5287,6 +5344,7 @@ export type Database = {
         Returns: string
       }
       cleanup_audit_logs: { Args: never; Returns: undefined }
+      cleanup_meta_media_cache: { Args: never; Returns: number }
       cleanup_old_logs: { Args: never; Returns: Json }
       cleanup_old_v8_operation_drafts: { Args: never; Returns: number }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
