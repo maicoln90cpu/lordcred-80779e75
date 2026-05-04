@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Reply, SmilePlus, Forward, Download, Pin, Star } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -22,6 +23,7 @@ interface MessageBubbleProps {
   hasMedia?: boolean;
   messageId?: string;
   chipId?: string;
+  chipProvider?: string;
   senderName?: string;
   isGroup?: boolean;
   onReply?: (msg: MessageData) => void;
