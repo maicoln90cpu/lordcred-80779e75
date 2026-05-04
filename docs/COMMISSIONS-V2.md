@@ -142,3 +142,43 @@ Quando V2 for validado:
 
 📅 **Atualizado em:** 2026-04-23
 🔄 **Atualizar quando:** mudar estrutura de `_v2`, adicionar/remover banco, migrar V2 → produção.
+
+---
+
+## 🆕 Etapa 3 — Hardening & validação (2026-05-04)
+
+### 1. Suite Vitest do trigger
+Arquivos:
+- `src/lib/commissionTriggerLogic.ts` — espelho TS puro do trigger PG `calculate_commission_v2` (e do V1 para comparação).
+- `src/lib/__tests__/commissionTriggerLogic.test.ts` — **15 testes** cobrindo:
+  - `extractTableKey` (LOTUS 1+→5+, FACTA GOLD vs GOLD PLUS, Paraná/Parana, null).
+  - 3 níveis de fallback (specific → generic → fallback → none).
+  - Case-insensitive bank, has_insurance, vigência mais recente.
+  - Divergência esperada V1 × V2.
+
+> Se mudar o trigger no banco, **atualize `commissionTriggerLogic.ts`** para manter paridade.
+
+### 2. Relatório side-by-side V1 × V2
+Componente: `src/components/commissions-v2/V1V2CompareReport.tsx`
+Aba: **"V1 × V2"** (apenas admin) em `/admin/commissions-v2`.
+
+Funcionalidades:
+- Carrega últimas N vendas (default 500) de `commission_sales` e `commission_sales_v2` por `id` comum.
+- Compara `commission_value` linha a linha + totais.
+- Filtra "só divergentes" (default) ou "todas".
+- Mostra match level V2 (FB / GEN / OK / ×).
+- Exporta XLSX para auditoria offline.
+
+### 3. Indicador `rate_match_level` na UI
+Já implementado em `ExtratoTab.tsx`:
+- 🟢 **OK** = specific (ideal)
+- 🔵 **GEN** = generic (sem table_key)
+- 🟡 **FB** = fallback (paridade V1)
+- 🔴 **×** = none (sem taxa cadastrada)
+
+### Como validar
+1. Acesse **/admin/commissions-v2 → V1 × V2**.
+2. Clique em **Carregar comparação** (ajuste N se quiser).
+3. Δ Total deve ficar **verde** (≤ R$ 0,01) → paridade OK.
+4. Se houver linhas amarelas, exporte XLSX e revise as taxas FGTS.
+5. Rode `bunx vitest run src/lib/__tests__/commissionTriggerLogic.test.ts` antes de qualquer alteração no trigger.
