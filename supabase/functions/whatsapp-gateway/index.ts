@@ -1291,12 +1291,23 @@ Deno.serve(async (req) => {
 
     console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}, shared=${isSharedChip}, user=${userId}`)
 
-    const shouldAudit = ADMIN_AUDIT_ACTIONS.has(action)
+    const isAdminAction = ADMIN_AUDIT_ACTIONS.has(action)
+    const isParityAction = PARITY_AUDIT_ACTIONS.has(action)
+    const isSendAction = action === 'send-chat-message' || action === 'send-media'
     const startedAt = Date.now()
 
-    // Helper to log admin actions only.
+    // Helper to log admin/parity/send actions.
+    // - Admin actions: always logged
+    // - Parity actions (sticker/forward): always logged
+    // - Send actions: logged only on error, unsupported, or when quoted (to track parity)
     const logAdmin = async (success: boolean, statusCode: number, extra?: Record<string, unknown>) => {
-      if (!shouldAudit) return
+      const hasQuoted = !!body?.quotedMessageId
+      const isUnsupported = !!extra?.unsupported
+      const shouldLog =
+        isAdminAction ||
+        isParityAction ||
+        (isSendAction && (!success || isUnsupported || hasQuoted))
+      if (!shouldLog) return
       try {
         const userEmail = (claimsData.claims as any)?.email as string | undefined
         await writeAuditLog(adminClient, {
@@ -1313,6 +1324,7 @@ Deno.serve(async (req) => {
             instance_name: chip?.instance_name ?? body.instanceName ?? null,
             status_code: statusCode,
             duration_ms: Date.now() - startedAt,
+            quoted: hasQuoted,
             ...(extra || {}),
           },
         })
