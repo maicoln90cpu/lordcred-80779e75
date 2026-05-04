@@ -145,5 +145,27 @@ Cobrança pela Meta diretamente (não passa pelo LordCred).
 
 ---
 
-📅 **Atualizado em:** 2026-04-23
-🔄 **Atualizar quando:** Meta mudar UI do Developers, alterar preços, adicionar novos campos obrigatórios.
+## Paridade de Recursos — UazAPI vs Meta (atualizado 2026-05-04)
+
+| Recurso | UazAPI | Meta Cloud API | Observação |
+|---|---|---|---|
+| Enviar texto | ✅ | ✅ | — |
+| Enviar imagem / vídeo / documento | ✅ | ✅ | Meta: upload prévio em `/media` |
+| Enviar áudio (PTT) | ✅ | ✅ | Meta exige `.ogg/opus` ou `.mp3` |
+| Enviar figurinha (sticker `.webp`) | ✅ | ✅ | Meta: limite 500KB estático |
+| Responder citando mensagem (quoted reply) | ✅ | ✅ | Meta: campo `context.message_id` |
+| Encaminhar mensagem | ✅ | ✅ | Meta: reusa `media_id`, exige janela 24h ativa no destino |
+| Marcar como lida | ✅ | ✅ | — |
+| Indicador "digitando" | ✅ | ❌ | Meta não suporta |
+| Reagir a mensagem (emoji) | ✅ | ✅ | — |
+| Editar mensagem enviada | ✅ | ❌ | Meta API não expõe edição (apenas via Business Manager UI) |
+| Deletar mensagem ("apagar para todos") | ✅ | ❌ | Meta não suporta deleção via API |
+| Iniciar conversa fora da janela 24h | ✅ | ⚠️ | Meta exige template aprovado |
+| Recepção de webhooks (msgs, status, mídia) | ✅ | ✅ | — |
+
+**Comportamento do gateway para recursos não suportados na Meta:** retorna `{ success:false, unsupported:true, error: "Função indisponível na Meta" }`. O frontend exibe toast amigável em vez de erro genérico.
+
+---
+
+📅 **Atualizado em:** 2026-05-04
+🔄 **Atualizar quando:** Meta mudar UI do Developers, alterar preços, adicionar novos campos obrigatórios, ou liberar edição/deleção via API.
