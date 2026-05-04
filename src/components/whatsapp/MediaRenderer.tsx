@@ -113,7 +113,7 @@ function AudioPlayer({ src }: { src: string }) {
   );
 }
 
-export default function MediaRenderer({ messageId, mediaType, chipId, caption }: MediaRendererProps) {
+export default function MediaRenderer({ messageId, mediaType, chipId, caption, provider }: MediaRendererProps) {
   const [mediaUrl, setMediaUrl] = useState<string | null>(() => mediaUrlCache.get(messageId) || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -124,7 +124,6 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    // If already cached, skip observer
     if (mediaUrlCache.has(messageId)) {
       setIsVisible(true);
       return;
@@ -136,7 +135,7 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
           observer.disconnect();
         }
       },
-      { rootMargin: '200px' } // start loading 200px before visible
+      { rootMargin: '200px' }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -144,20 +143,23 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
 
   const downloadMedia = useCallback(async () => {
     if (mediaUrl || loading) return;
-    // Check cache first
     const cached = mediaUrlCache.get(messageId);
     if (cached) { setMediaUrl(cached); return; }
-    
+
     setLoading(true);
     setError(false);
     await acquireSlot();
     try {
-      const response = await supabase.functions.invoke('uazapi-api', {
+      const isMeta = provider === 'meta';
+      const fnName = isMeta ? 'whatsapp-gateway' : 'uazapi-api';
+      const response = await supabase.functions.invoke(fnName, {
         body: { action: 'download-media', chipId, messageId },
       });
-      if (response.data?.fileURL) {
-        mediaUrlCache.set(messageId, response.data.fileURL);
-        setMediaUrl(response.data.fileURL);
+      // uazapi-api -> data.fileURL; whatsapp-gateway (Meta) -> data.data.base64 (data URL)
+      const url = response.data?.data?.base64 || response.data?.fileURL || response.data?.base64;
+      if (url) {
+        mediaUrlCache.set(messageId, url);
+        setMediaUrl(url);
       } else {
         setError(true);
       }
@@ -168,7 +170,7 @@ export default function MediaRenderer({ messageId, mediaType, chipId, caption }:
       releaseSlot();
       setLoading(false);
     }
-  }, [messageId, chipId, mediaUrl, loading]);
+  }, [messageId, chipId, mediaUrl, loading, provider]);
 
   // Auto-load when visible
   useEffect(() => {
