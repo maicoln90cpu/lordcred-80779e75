@@ -30,8 +30,8 @@ let quickReplyCache: { userId: string; data: QuickReply[] } | null = null;
 const shortcutCache: Record<string, { trigger_word: string; response_text: string; is_active: boolean; media_url?: string | null; media_type?: string | null; media_filename?: string | null }[]> = {};
 
 interface ChatInputProps {
-  onSend: (text: string) => void;
-  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => void;
+  onSend: (text: string, quotedMessageId?: string) => void;
+  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string, quotedMessageId?: string) => void;
   disabled?: boolean;
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
