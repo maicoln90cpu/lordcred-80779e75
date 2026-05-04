@@ -172,7 +172,6 @@ export default function NoneAuditTab({ getSellerName }: Props) {
 
   const enriched = useMemo(() => {
     return sales
-      .filter(s => Number(s.released_value) > 0 || s.commission_value === 0)
       .map(s => {
         const rates = (s.product || '').toUpperCase() === 'FGTS' ? ratesFgts : ratesClt;
         return { sale: s, diag: diagnose(s, rates) };
