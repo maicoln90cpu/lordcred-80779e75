@@ -571,6 +571,9 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
               <DropdownMenuItem onClick={() => openFilePicker('document')}>
                 <FileText className="w-4 h-4 mr-2" />Documento
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openFilePicker('sticker')}>
+                <Image className="w-4 h-4 mr-2" />Sticker (.webp)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
