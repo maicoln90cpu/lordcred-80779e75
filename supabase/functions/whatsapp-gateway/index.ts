@@ -26,6 +26,15 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'delete-chat',
 ])
 
+// Parity / feature-comparison actions — telemetria leve para acompanhar
+// taxa de erro e motivos por provider (Meta x UazAPI).
+// send-chat-message e send-media só geram log quando há quoted, unsupported
+// ou erro, para não inflar audit_logs em alto volume.
+const PARITY_AUDIT_ACTIONS = new Set([
+  'send-sticker',
+  'forward-message',
+])
+
 function jsonResponse(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -1282,12 +1291,23 @@ Deno.serve(async (req) => {
 
     console.log(`whatsapp-gateway: action=${action}, chipId=${chipId}, provider=${provider}, shared=${isSharedChip}, user=${userId}`)
 
-    const shouldAudit = ADMIN_AUDIT_ACTIONS.has(action)
+    const isAdminAction = ADMIN_AUDIT_ACTIONS.has(action)
+    const isParityAction = PARITY_AUDIT_ACTIONS.has(action)
+    const isSendAction = action === 'send-chat-message' || action === 'send-media'
     const startedAt = Date.now()
 
-    // Helper to log admin actions only.
+    // Helper to log admin/parity/send actions.
+    // - Admin actions: always logged
+    // - Parity actions (sticker/forward): always logged
+    // - Send actions: logged only on error, unsupported, or when quoted (to track parity)
     const logAdmin = async (success: boolean, statusCode: number, extra?: Record<string, unknown>) => {
-      if (!shouldAudit) return
+      const hasQuoted = !!body?.quotedMessageId
+      const isUnsupported = !!extra?.unsupported
+      const shouldLog =
+        isAdminAction ||
+        isParityAction ||
+        (isSendAction && (!success || isUnsupported || hasQuoted))
+      if (!shouldLog) return
       try {
         const userEmail = (claimsData.claims as any)?.email as string | undefined
         await writeAuditLog(adminClient, {
@@ -1304,6 +1324,7 @@ Deno.serve(async (req) => {
             instance_name: chip?.instance_name ?? body.instanceName ?? null,
             status_code: statusCode,
             duration_ms: Date.now() - startedAt,
+            quoted: hasQuoted,
             ...(extra || {}),
           },
         })
@@ -1334,7 +1355,11 @@ Deno.serve(async (req) => {
       // Read body to capture success flag without consuming the response
       let parsedBody: any = {}
       try { parsedBody = await metaResp.clone().json() } catch { /* ignore */ }
-      await logAdmin(parsedBody?.success !== false && metaResp.ok, metaResp.status, parsedBody?.error ? { error_message: parsedBody.error } : undefined)
+      const extra: Record<string, unknown> = {}
+      if (parsedBody?.error) extra.error_message = parsedBody.error
+      if (parsedBody?.unsupported) extra.unsupported = true
+      if (parsedBody?.fallback) extra.fallback = true
+      await logAdmin(parsedBody?.success !== false && metaResp.ok, metaResp.status, extra)
       return metaResp
     }
 
