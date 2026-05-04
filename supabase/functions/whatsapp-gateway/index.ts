@@ -334,6 +334,7 @@ async function handleMetaAction(
             status: 'sent',
             sender_name: '',
             sent_by_user_id: userId || null,
+            quoted_message_id: body.quotedMessageId || null,
           })
           // Update conversation last_message
           await adminClient.from('conversations').upsert({
