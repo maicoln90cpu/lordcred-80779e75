@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import EmojiPicker from './EmojiPicker';
 import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
+import { pickAudioMime } from '@/lib/audioMime';
 
 interface QuickReply {
   id: string;
