@@ -295,18 +295,23 @@ async function handleMetaAction(
         })
       }
 
+      const textPayload: any = {
+        messaging_product: 'whatsapp',
+        to: normalizedPhone,
+        type: 'text',
+        text: { body: message },
+      }
+      // Etapa 3: paridade com UazAPI — propaga quoted reply
+      if (body.quotedMessageId) {
+        textPayload.context = { message_id: body.quotedMessageId }
+      }
       const resp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${metaAccessToken}`,
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: normalizedPhone,
-          type: 'text',
-          text: { body: message },
-        }),
+        body: JSON.stringify(textPayload),
         timeout: 15000,
       })
       const data = await safeJson(resp)
