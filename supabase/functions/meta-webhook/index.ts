@@ -219,6 +219,9 @@ async function handleMetaMessage(adminClient: any, chip: any, msg: any, contacts
   // Get media ID for later download
   const mediaId = msg[msg.type]?.id || null
 
+  // Etapa 3: capturar quoted reply (Meta envia em msg.context.id)
+  const quotedMessageId = msg.context?.id || null
+
   // Insert message into history
   await adminClient.from('message_history').insert({
     chip_id: chip.id,
@@ -231,6 +234,7 @@ async function handleMetaMessage(adminClient: any, chip: any, msg: any, contacts
     sender_name: getContactName(contacts, from),
     media_type: mediaType || null,
     media_url: mediaId || null, // Store Meta media ID for later download
+    quoted_message_id: quotedMessageId,
     created_at: timestamp,
   })
 
