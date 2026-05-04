@@ -202,17 +202,19 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       return;
     }
     if (!message.trim() || disabled) return;
-    onSend(message.trim());
+    onSend(message.trim(), replyTo?.messageId);
     setMessage('');
+    onCancelReply?.();
   };
 
   const handleSendMedia = async () => {
     if (!mediaPreview) return;
     setIsSendingMedia(true);
     try {
-      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType);
+      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType, replyTo?.messageId);
       setMediaPreview(null);
       setMessage('');
+      onCancelReply?.();
     } finally {
       setIsSendingMedia(false);
     }
