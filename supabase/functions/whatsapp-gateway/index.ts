@@ -448,6 +448,10 @@ async function handleMetaAction(
       if (metaType === 'document') {
         msgBody[metaType].filename = safeFileName
       }
+      // Etapa 3: paridade com UazAPI — propaga quoted reply
+      if (body.quotedMessageId) {
+        msgBody.context = { message_id: body.quotedMessageId }
+      }
 
       const sendResp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
