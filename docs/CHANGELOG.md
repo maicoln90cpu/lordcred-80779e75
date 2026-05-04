@@ -5,6 +5,27 @@
 
 ---
 
+## [2.4.0] — 2026-05-04 — Paridade Meta WhatsApp Cloud API
+
+### Added
+- **Stickers (`.webp`)** via Meta com upload prévio (`/media`) e validação 500KB.
+- **Quoted Replies (responder citando)** em `send-message`, `send-media` e `send-sticker` (campo `context.message_id`).
+- **Recepção de quoted** no `meta-webhook` (persiste `quoted_message_id` em `message_history`).
+- **Forward de mensagens** via Meta com reuso de `media_id` original (sem re-upload) e guarda da janela 24h.
+- **Tabela de paridade UazAPI vs Meta** em `docs/META-WHATSAPP-SETUP.md`.
+- **Testes Deno** de contrato (`whatsapp-gateway/meta_contract_test.ts`) cobrindo unsupported, sticker, quoted, forward e limite 500KB.
+
+### Changed
+- `delete-message` e `edit-message` retornam `{ success:false, unsupported:true }` no provider Meta — frontend exibe toast "Função indisponível na Meta" em vez de erro genérico.
+- `useChatMessages.handleSend` e `handleSendMedia` passam a aceitar `quotedMessageId`.
+- `ChatInput` ganha opção "Sticker (.webp)" no menu de anexos e propaga `replyTo.messageId`.
+- `ForwardDialog` agora roteia via `whatsapp-gateway` unificado (compatível UazAPI + Meta).
+
+### Fixed
+- Badges de não lidas no chat WhatsApp não revertem mais para o valor antigo após alguns segundos.
+
+---
+
 ## [2.3.0] — 2026-04-23
 
 ### Added
