@@ -209,7 +209,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     if (!mediaPreview) return;
     setIsSendingMedia(true);
     try {
-      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name);
+      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType);
       setMediaPreview(null);
       setMessage('');
     } finally {
