@@ -12,7 +12,7 @@
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { writeAuditLog } from "../_shared/auditLog.ts";
 import { packPayloadForAudit } from "../_shared/v8AuditPayload.ts";
 
