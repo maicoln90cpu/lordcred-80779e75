@@ -731,6 +731,149 @@ async function handleMetaAction(
       return jsonResponse({ success: true, badgeCleared: true })
     }
 
+    case 'forward-message': {
+      // Etapa 4: Meta Cloud API NÃO tem endpoint nativo de "forward".
+      // Estratégia: buscar a mensagem original em message_history e reenviar
+      // (texto: novo type:text; mídia: reusar media_url=media_id da Meta).
+      const { sourceMessageId, chatId: targetChatId, phoneNumber: targetPhone } = body
+      if (!sourceMessageId) {
+        return jsonResponse({ error: 'sourceMessageId é obrigatório' }, 400)
+      }
+      const rawTo = targetPhone || (typeof targetChatId === 'string' ? targetChatId.split('@')[0] : '')
+      if (!rawTo) {
+        return jsonResponse({ error: 'phoneNumber ou chatId destino é obrigatório' }, 400)
+      }
+      let toPhone = rawTo.replace(/\D/g, '')
+      if (toPhone.length === 10 || toPhone.length === 11) toPhone = '55' + toPhone
+
+      // Buscar mensagem original no histórico (qualquer chip — usuário pode encaminhar
+      // mensagem recebida de outro número).
+      const { data: original } = await adminClient
+        .from('message_history')
+        .select('message_content, media_type, media_url')
+        .eq('message_id', sourceMessageId)
+        .limit(1)
+        .maybeSingle()
+
+      if (!original) {
+        return jsonResponse({
+          success: false,
+          error: 'Mensagem original não encontrada no histórico — não é possível encaminhar.',
+        })
+      }
+
+      // Janela 24h: mesma regra do send-message — exige conversa aberta no destino.
+      const [{ data: lastIn }, { data: lastTpl }] = await Promise.all([
+        adminClient.from('message_history').select('created_at').eq('chip_id', chip.id).eq('direction', 'incoming').or(`remote_jid.ilike.%${toPhone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        adminClient.from('message_history').select('created_at').eq('chip_id', chip.id).eq('direction', 'outgoing').ilike('message_content', '📋%').or(`remote_jid.ilike.%${toPhone}%`).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ])
+      const lastTs = Math.max(
+        lastIn?.created_at ? new Date(lastIn.created_at).getTime() : 0,
+        lastTpl?.created_at ? new Date(lastTpl.created_at).getTime() : 0,
+      )
+      if (lastTs === 0 || (Date.now() - lastTs) / 36e5 >= 24) {
+        return jsonResponse({
+          success: false,
+          windowClosed: true,
+          error: 'Janela de 24h fechada com este destino. Envie um Template aprovado antes de encaminhar.',
+        })
+      }
+
+      const isMedia = original.media_type && !['text', 'chat', 'url'].includes(original.media_type)
+      let payload: any
+      let logContent = ''
+      let logMediaType = 'text'
+      let logMediaUrl: string | null = null
+
+      if (isMedia && original.media_url) {
+        const mt = original.media_type === 'ptt' ? 'audio' : original.media_type
+        payload = {
+          messaging_product: 'whatsapp',
+          to: toPhone,
+          type: mt,
+          [mt]: { id: original.media_url },
+        }
+        logContent = original.message_content || `📎 ${mt}`
+        logMediaType = original.media_type
+        logMediaUrl = original.media_url
+      } else {
+        const txt = original.message_content || ''
+        if (!txt) {
+          return jsonResponse({
+            success: false,
+            error: 'Mensagem original sem conteúdo encaminhável.',
+          })
+        }
+        payload = {
+          messaging_product: 'whatsapp',
+          to: toPhone,
+          type: 'text',
+          text: { body: txt },
+        }
+        logContent = txt
+      }
+
+      const r = await metaFetch(`/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${metaAccessToken}` },
+        body: JSON.stringify(payload),
+        timeout: 15000,
+      })
+      const d = await safeJson(r)
+      if (d.error) {
+        return jsonResponse({ success: false, error: humanizeMetaError(d.error, phoneNumberId), errorCode: d.error.code })
+      }
+
+      const fwdMsgId = d.messages?.[0]?.id
+      const fwdJid = `${toPhone}@s.whatsapp.net`
+      try {
+        if (fwdMsgId) {
+          await adminClient.from('message_history').insert({
+            chip_id: chip.id,
+            remote_jid: fwdJid,
+            message_id: fwdMsgId,
+            direction: 'outgoing',
+            message_content: logContent,
+            media_type: logMediaType,
+            media_url: logMediaUrl,
+            status: 'sent',
+            sender_name: '',
+            sent_by_user_id: userId || null,
+          })
+          await adminClient.from('conversations').upsert({
+            chip_id: chip.id,
+            remote_jid: fwdJid,
+            last_message_text: logContent,
+            last_message_at: new Date().toISOString(),
+            contact_phone: toPhone,
+            is_group: false,
+          }, { onConflict: 'chip_id,remote_jid' })
+        }
+      } catch (e) { console.error('Failed to persist forwarded message:', e) }
+
+      return jsonResponse({ success: true, data: { messageId: fwdMsgId } })
+    }
+
+    case 'delete-message': {
+      // Etapa 5: Meta Cloud API NÃO suporta deletar mensagem própria (limitação inerente).
+      // Retorna unsupported para o frontend exibir aviso amigável.
+      return jsonResponse({
+        success: false,
+        unsupported: true,
+        error: 'A Meta Cloud API não permite apagar mensagens já enviadas. Recurso disponível apenas em chips UazAPI.',
+      })
+    }
+
+    case 'edit-message': {
+      // Etapa 5: Meta Cloud API NÃO expõe endpoint de edição via Graph (até v21).
+      // Mesmo no app oficial a edição é client-side. Retorna unsupported.
+      return jsonResponse({
+        success: false,
+        unsupported: true,
+        error: 'A Meta Cloud API não permite editar mensagens já enviadas. Recurso disponível apenas em chips UazAPI.',
+      })
+    }
+
     case 'react-message': {
       const { messageId, emoji } = body
       if (!messageId || !emoji) {
