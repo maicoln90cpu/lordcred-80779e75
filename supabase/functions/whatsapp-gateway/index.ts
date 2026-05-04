@@ -356,11 +356,12 @@ async function handleMetaAction(
     }
 
     case 'send-media': {
-      const { phoneNumber, mediaType, mediaBase64, mediaCaption, mediaFileName, mimeType: clientMime } = body
-      if (!phoneNumber) {
-        return jsonResponse({ error: 'Phone number is required' }, 400)
+      const { phoneNumber, mediaType, mediaBase64, mediaCaption, mediaFileName, mimeType: clientMime, chatId } = body
+      const rawPhone = phoneNumber || (typeof chatId === 'string' ? chatId.split('@')[0] : '')
+      if (!rawPhone) {
+        return jsonResponse({ error: 'Phone number (or chatId) is required' }, 400)
       }
-      let normalizedPhone = phoneNumber.replace(/\D/g, '')
+      let normalizedPhone = rawPhone.replace(/\D/g, '')
       if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
         normalizedPhone = '55' + normalizedPhone
       }
