@@ -291,6 +291,9 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
           setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
           toast({ title: 'Erro ao enviar mídia', description: response.data?.error || '', variant: 'destructive' }); return;
         }
+        if ((response.data as any)?.data?.degradedToDocument) {
+          toast({ title: 'Áudio enviado como anexo', description: 'Seu navegador grava em formato webm; usamos Firefox/Safari para enviar como áudio nativo.' });
+        }
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       } catch {
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
