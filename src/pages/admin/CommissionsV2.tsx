@@ -63,6 +63,7 @@ export default function CommissionsV2() {
             {isAdmin && <TabsTrigger value="metas"><Target className="w-3.5 h-3.5 mr-1" />Metas</TabsTrigger>}
             {isAdmin && <TabsTrigger value="hist-importacoes"><ClipboardList className="w-3.5 h-3.5 mr-1" />Hist. Importações</TabsTrigger>}
             {isAdmin && <TabsTrigger value="compare-v1"><GitCompare className="w-3.5 h-3.5 mr-1" />V1 × V2</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="none-audit"><AlertTriangle className="w-3.5 h-3.5 mr-1" />Sem taxa</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
