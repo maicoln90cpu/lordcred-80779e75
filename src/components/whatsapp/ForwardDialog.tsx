@@ -50,20 +50,32 @@ export default function ForwardDialog({ open, onClose, message, chipId }: Forwar
     if (!message || !chipId || selected.size === 0) return;
     setSending(true);
     try {
+      // Etapa 6: roteia pelo gateway unificado (UazAPI ou Meta).
+      // Backend Meta espera sourceMessageId; UazAPI aceita ambos.
       const promises = Array.from(selected).map(jid =>
-        supabase.functions.invoke('uazapi-api', {
+        supabase.functions.invoke('whatsapp-gateway', {
           body: {
             action: 'forward-message',
             chipId,
             chatId: jid,
-            messageId: message.messageId,
+            sourceMessageId: message.messageId,
+            messageId: message.messageId, // compat UazAPI
             text: message.text,
             mediaType: message.mediaType || '',
             hasMedia: !!message.hasMedia,
           },
         })
       );
-      await Promise.allSettled(promises);
+      const results = await Promise.allSettled(promises);
+      const unsupported = results.find(
+        (r) => r.status === 'fulfilled' && (r.value as any)?.data?.unsupported
+      );
+      if (unsupported) {
+        const msg = (unsupported as any).value?.data?.error || 'Função indisponível na Meta';
+        // toast lazy import to avoid hook in this file
+        const { toast } = await import('sonner');
+        toast(msg);
+      }
       onClose();
     } catch (e) {
       console.error('Forward error:', e);
