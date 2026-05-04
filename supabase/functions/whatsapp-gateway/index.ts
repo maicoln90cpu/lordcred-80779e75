@@ -26,6 +26,15 @@ const ADMIN_AUDIT_ACTIONS = new Set([
   'delete-chat',
 ])
 
+// Parity / feature-comparison actions — telemetria leve para acompanhar
+// taxa de erro e motivos por provider (Meta x UazAPI).
+// send-chat-message e send-media só geram log quando há quoted, unsupported
+// ou erro, para não inflar audit_logs em alto volume.
+const PARITY_AUDIT_ACTIONS = new Set([
+  'send-sticker',
+  'forward-message',
+])
+
 function jsonResponse(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
