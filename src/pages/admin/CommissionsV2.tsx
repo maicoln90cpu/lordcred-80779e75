@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { DollarSign, Lightbulb, ClipboardList, Target, GitCompare } from 'lucide-react';
+import { DollarSign, Lightbulb, ClipboardList, Target, GitCompare, AlertTriangle } from 'lucide-react';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 import CommMetas from '@/components/commission-reports/CommMetas';
 import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
