@@ -128,6 +128,11 @@ export default function CommissionsV2() {
               <V1V2CompareReport />
             </TabsContent>
           )}
+          {isAdmin && (
+            <TabsContent value="none-audit">
+              <NoneAuditTab getSellerName={getSellerName} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
