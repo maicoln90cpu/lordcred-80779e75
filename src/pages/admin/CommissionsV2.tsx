@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { DollarSign, Lightbulb, ClipboardList, Target, GitCompare } from 'lucide-react';
+import { DollarSign, Lightbulb, ClipboardList, Target, GitCompare, AlertTriangle } from 'lucide-react';
 import CommIndicadores from '@/components/commission-reports/CommIndicadores';
 import CommMetas from '@/components/commission-reports/CommMetas';
 import { HelpButton, HELP_PARCEIROS } from '@/components/commission-reports/HelpModal';
@@ -18,6 +18,7 @@ import ConfigTab from '@/components/commissions-v2/ConfigTab';
 import HistImportTab from '@/components/commissions-v2/HistImportTab';
 import V2BetaBanner from '@/components/commissions-v2/V2BetaBanner';
 import V1V2CompareReport from '@/components/commissions-v2/V1V2CompareReport';
+import NoneAuditTab from '@/components/commissions-v2/NoneAuditTab';
 import type { Profile } from '@/components/commissions-v2/commissionUtils';
 
 export default function CommissionsV2() {
@@ -62,6 +63,7 @@ export default function CommissionsV2() {
             {isAdmin && <TabsTrigger value="metas"><Target className="w-3.5 h-3.5 mr-1" />Metas</TabsTrigger>}
             {isAdmin && <TabsTrigger value="hist-importacoes"><ClipboardList className="w-3.5 h-3.5 mr-1" />Hist. Importações</TabsTrigger>}
             {isAdmin && <TabsTrigger value="compare-v1"><GitCompare className="w-3.5 h-3.5 mr-1" />V1 × V2</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="none-audit"><AlertTriangle className="w-3.5 h-3.5 mr-1" />Sem taxa</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="base">
@@ -124,6 +126,11 @@ export default function CommissionsV2() {
           {isAdmin && (
             <TabsContent value="compare-v1">
               <V1V2CompareReport />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="none-audit">
+              <NoneAuditTab getSellerName={getSellerName} />
             </TabsContent>
           )}
         </Tabs>
