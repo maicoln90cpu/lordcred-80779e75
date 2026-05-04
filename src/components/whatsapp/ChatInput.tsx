@@ -56,7 +56,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const fileTypeRef = useRef<string>('image');
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastMatchedTextRef = useRef<string>('');
 
   // Fetch quick replies from local DB (user-based, not chip-based)
