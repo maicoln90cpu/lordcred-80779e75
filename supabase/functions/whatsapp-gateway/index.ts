@@ -295,18 +295,23 @@ async function handleMetaAction(
         })
       }
 
+      const textPayload: any = {
+        messaging_product: 'whatsapp',
+        to: normalizedPhone,
+        type: 'text',
+        text: { body: message },
+      }
+      // Etapa 3: paridade com UazAPI — propaga quoted reply
+      if (body.quotedMessageId) {
+        textPayload.context = { message_id: body.quotedMessageId }
+      }
       const resp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${metaAccessToken}`,
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: normalizedPhone,
-          type: 'text',
-          text: { body: message },
-        }),
+        body: JSON.stringify(textPayload),
         timeout: 15000,
       })
       const data = await safeJson(resp)
@@ -329,6 +334,7 @@ async function handleMetaAction(
             status: 'sent',
             sender_name: '',
             sent_by_user_id: userId || null,
+            quoted_message_id: body.quotedMessageId || null,
           })
           // Update conversation last_message
           await adminClient.from('conversations').upsert({
@@ -443,6 +449,10 @@ async function handleMetaAction(
       if (metaType === 'document') {
         msgBody[metaType].filename = safeFileName
       }
+      // Etapa 3: paridade com UazAPI — propaga quoted reply
+      if (body.quotedMessageId) {
+        msgBody.context = { message_id: body.quotedMessageId }
+      }
 
       const sendResp = await metaFetch(`/${phoneNumberId}/messages`, {
         method: 'POST',
@@ -474,6 +484,7 @@ async function handleMetaAction(
             status: 'sent',
             sender_name: '',
             sent_by_user_id: userId || null,
+            quoted_message_id: body.quotedMessageId || null,
           })
           await adminClient.from('conversations').upsert({
             chip_id: chip.id,
@@ -487,6 +498,119 @@ async function handleMetaAction(
       } catch (e) { console.error('Failed to persist outgoing media:', e) }
 
       return jsonResponse({ success: true, data: { messageId: mediaMsgId, degradedToDocument } })
+    }
+
+    case 'send-sticker': {
+      // Etapa 2: enviar sticker via Meta Cloud API.
+      // Aceita stickerUrl (link público .webp) OU stickerBase64 (será feito upload em /media).
+      // Limites Meta: estático ≤100KB, animado ≤500KB; formato OBRIGATÓRIO image/webp.
+      const { phoneNumber, chatId, stickerUrl, stickerBase64 } = body
+      const rawPhone = phoneNumber || (typeof chatId === 'string' ? chatId.split('@')[0] : '')
+      if (!rawPhone) {
+        return jsonResponse({ error: 'Phone number (or chatId) is required' }, 400)
+      }
+      if (!stickerUrl && !stickerBase64) {
+        return jsonResponse({ error: 'stickerUrl ou stickerBase64 são obrigatórios' }, 400)
+      }
+      let normalizedPhone = rawPhone.replace(/\D/g, '')
+      if (normalizedPhone.length === 10 || normalizedPhone.length === 11) {
+        normalizedPhone = '55' + normalizedPhone
+      }
+
+      // Resolver sticker payload — link OU upload
+      let stickerRef: { id?: string; link?: string }
+      if (stickerUrl) {
+        stickerRef = { link: stickerUrl }
+      } else {
+        // Upload base64 .webp
+        const data = stickerBase64.includes(',') ? stickerBase64.split(',')[1] : stickerBase64
+        const bin = Uint8Array.from(atob(data), c => c.charCodeAt(0))
+        // Validação amigável de tamanho
+        if (bin.length > 500 * 1024) {
+          return jsonResponse({
+            success: false,
+            error: 'Sticker maior que 500KB. Meta exige ≤100KB (estático) ou ≤500KB (animado).',
+          })
+        }
+        const fd = new FormData()
+        fd.append('messaging_product', 'whatsapp')
+        fd.append('file', new Blob([bin], { type: 'image/webp' }), 'sticker.webp')
+        fd.append('type', 'image/webp')
+        const up = await metaFetch(`/${phoneNumberId}/media`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+          body: fd,
+          timeout: 30000,
+        })
+        const upData = await safeJson(up)
+        if (upData.error || !upData.id) {
+          return jsonResponse({
+            success: false,
+            error: upData.error
+              ? humanizeMetaError(upData.error, phoneNumberId)
+              : 'Falha no upload do sticker para a Meta. Verifique se o arquivo é .webp.',
+          })
+        }
+        stickerRef = { id: upData.id }
+      }
+
+      const msgBody: any = {
+        messaging_product: 'whatsapp',
+        to: normalizedPhone,
+        type: 'sticker',
+        sticker: stickerRef,
+      }
+      if (body.quotedMessageId) {
+        msgBody.context = { message_id: body.quotedMessageId }
+      }
+
+      const sendResp = await metaFetch(`/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${metaAccessToken}`,
+        },
+        body: JSON.stringify(msgBody),
+        timeout: 15000,
+      })
+      const sendData = await safeJson(sendResp)
+      if (sendData.error) {
+        return jsonResponse({
+          success: false,
+          error: humanizeMetaError(sendData.error, phoneNumberId),
+          errorCode: sendData.error.code,
+        })
+      }
+
+      const stickerMsgId = sendData.messages?.[0]?.id
+      const stickerJid = `${normalizedPhone}@s.whatsapp.net`
+      try {
+        if (stickerMsgId) {
+          await adminClient.from('message_history').insert({
+            chip_id: chip.id,
+            remote_jid: stickerJid,
+            message_id: stickerMsgId,
+            direction: 'outgoing',
+            message_content: '🎨 Sticker',
+            media_type: 'sticker',
+            media_url: stickerRef.id || stickerRef.link || null,
+            status: 'sent',
+            sender_name: '',
+            sent_by_user_id: userId || null,
+            quoted_message_id: body.quotedMessageId || null,
+          })
+          await adminClient.from('conversations').upsert({
+            chip_id: chip.id,
+            remote_jid: stickerJid,
+            last_message_text: '🎨 Sticker',
+            last_message_at: new Date().toISOString(),
+            contact_phone: normalizedPhone,
+            is_group: false,
+          }, { onConflict: 'chip_id,remote_jid' })
+        }
+      } catch (e) { console.error('Failed to persist outgoing sticker:', e) }
+
+      return jsonResponse({ success: true, data: { messageId: stickerMsgId } })
     }
 
     case 'send-template': {
