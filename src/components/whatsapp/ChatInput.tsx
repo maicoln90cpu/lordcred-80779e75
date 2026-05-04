@@ -30,7 +30,7 @@ const shortcutCache: Record<string, { trigger_word: string; response_text: strin
 
 interface ChatInputProps {
   onSend: (text: string) => void;
-  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => void;
+  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => void;
   disabled?: boolean;
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
