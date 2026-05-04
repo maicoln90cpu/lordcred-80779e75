@@ -139,7 +139,7 @@ const MEDIA_KEYWORDS = ['ptt', 'audio', 'image', 'video', 'sticker', 'document',
   'audiomessage', 'pttmessage', 'imagemessage', 'videomessage', 'documentmessage', 'stickermessage'];
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
-  { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, senderName, isGroup,
+  { text, time, fromMe, messageType, mediaType, hasMedia, messageId, chipId, chipProvider, senderName, isGroup,
     onReply, onReact, onForward, onDownload, onPin, onFavorite, onStartChat, status,
     quotedText, quotedSender, quotedFromMe, onQuotedClick, sentByUserName }, ref
 ) {
