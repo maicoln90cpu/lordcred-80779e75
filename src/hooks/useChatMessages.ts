@@ -266,7 +266,7 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     }
   }, [chipId, chat, checkChipConnected, toast, reconcileMessage]);
 
-  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => {
+  const handleSendMedia = useCallback(async (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => {
     if (!chipId || !chat) return;
     const sentAt = new Date().toISOString();
     const tempMsg: ChatMessage = { id: `temp-media-${Date.now()}`, text: caption || `📎 Enviando ${mediaType}...`, fromMe: true, timestamp: sentAt, senderName: '', messageType: mediaType };
@@ -275,7 +275,7 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
     (async () => {
       try {
         const response = await invokeUazapiWithRetry<{ success?: boolean; error?: string }>(
-          { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined },
+          { action: 'send-media', chipId, chatId: chat.remoteJid, mediaBase64, mediaType, mediaCaption: caption || undefined, mediaFileName: fileName || undefined, mimeType },
           { retries: 2, retryDelayMs: 500 }
         );
         if (response.isTransportError) {
