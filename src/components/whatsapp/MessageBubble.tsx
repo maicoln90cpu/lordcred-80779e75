@@ -1,5 +1,5 @@
 import React, { forwardRef, useMemo, useState } from 'react';
-import { Check, CheckCheck } from 'lucide-react';
+import { Check, CheckCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import MediaRenderer from './MediaRenderer';
@@ -241,11 +241,13 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function Me
             <span className="text-[10px] text-muted-foreground">{time}</span>
             {fromMe && (
               status === 'read' ? (
-                <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+                <CheckCheck className="w-3.5 h-3.5 text-blue-500" aria-label="Lida" />
               ) : status === 'delivered' ? (
-                <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                <CheckCheck className="w-3.5 h-3.5 text-muted-foreground" aria-label="Entregue" />
+              ) : status === 'pending' ? (
+                <Clock className="w-3 h-3 text-muted-foreground/70" aria-label="Pendente" />
               ) : (
-                <Check className="w-3.5 h-3.5 text-muted-foreground" />
+                <Check className="w-3.5 h-3.5 text-muted-foreground" aria-label="Enviada" />
               )
             )}
           </div>

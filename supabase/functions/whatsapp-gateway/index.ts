@@ -356,7 +356,7 @@ async function handleMetaAction(
     }
 
     case 'send-media': {
-      const { phoneNumber, mediaType, mediaBase64, mediaCaption, mediaFileName } = body
+      const { phoneNumber, mediaType, mediaBase64, mediaCaption, mediaFileName, mimeType: clientMime } = body
       if (!phoneNumber) {
         return jsonResponse({ error: 'Phone number is required' }, 400)
       }
@@ -365,24 +365,44 @@ async function handleMetaAction(
         normalizedPhone = '55' + normalizedPhone
       }
 
-      // For Meta, we need to upload media first, then send
-      // Determine MIME type
-      const mimeMap: Record<string, string> = {
+      // Allowed audio MIMEs by Meta. webm is NOT supported.
+      const metaAudioAllow = new Set(['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg'])
+      const defaultMime: Record<string, string> = {
         image: 'image/jpeg',
         video: 'video/mp4',
         audio: 'audio/ogg',
         ptt: 'audio/ogg',
         document: 'application/pdf',
       }
-      const mime = mimeMap[mediaType] || 'application/octet-stream'
 
-      // Upload media
+      // Decide mime: prefer client-supplied, else default.
+      let mime = clientMime || defaultMime[mediaType] || 'application/octet-stream'
+      let metaType = mediaType === 'ptt' ? 'audio' : mediaType
+      let degradedToDocument = false
+
+      // For audio: if client sent webm (Chrome/Edge default), Meta will reject it.
+      // Fallback strategy: send as document so at least the audio reaches the user.
+      if (metaType === 'audio') {
+        const baseMime = mime.split(';')[0].trim().toLowerCase()
+        if (!metaAudioAllow.has(baseMime)) {
+          // unsupported codec — degrade to document
+          metaType = 'document'
+          degradedToDocument = true
+          mime = baseMime || 'application/octet-stream'
+        } else {
+          mime = baseMime
+        }
+      }
+
+      // Decode media
       const mediaData = mediaBase64.includes(',') ? mediaBase64.split(',')[1] : mediaBase64
       const binaryData = Uint8Array.from(atob(mediaData), c => c.charCodeAt(0))
 
+      const safeFileName = mediaFileName || `file.${(mime.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '')}`
+
       const formData = new FormData()
       formData.append('messaging_product', 'whatsapp')
-      formData.append('file', new Blob([binaryData], { type: mime }), mediaFileName || 'file')
+      formData.append('file', new Blob([binaryData], { type: mime }), safeFileName)
       formData.append('type', mime)
 
       const uploadResp = await metaFetch(`/${phoneNumberId}/media`, {
@@ -397,7 +417,6 @@ async function handleMetaAction(
       }
 
       // Send message with media
-      const metaType = mediaType === 'ptt' ? 'audio' : mediaType
       const msgBody: any = {
         messaging_product: 'whatsapp',
         to: normalizedPhone,
@@ -407,8 +426,8 @@ async function handleMetaAction(
       if (mediaCaption && ['image', 'video', 'document'].includes(metaType)) {
         msgBody[metaType].caption = mediaCaption
       }
-      if (metaType === 'document' && mediaFileName) {
-        msgBody[metaType].filename = mediaFileName
+      if (metaType === 'document') {
+        msgBody[metaType].filename = safeFileName
       }
 
       const sendResp = await metaFetch(`/${phoneNumberId}/messages`, {
@@ -452,7 +471,7 @@ async function handleMetaAction(
         }
       } catch (e) { console.error('Failed to persist outgoing media:', e) }
 
-      return jsonResponse({ success: true, data: { messageId: mediaMsgId } })
+      return jsonResponse({ success: true, data: { messageId: mediaMsgId, degradedToDocument } })
     }
 
     case 'send-template': {

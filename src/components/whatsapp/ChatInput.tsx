@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Plus, Mic, Trash2, Pause, Play, Image, Video, FileText, X, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import EmojiPicker from './EmojiPicker';
 import TemplatePicker from './TemplatePicker';
 import type { MessageData } from './MessageContextMenu';
+import { pickAudioMime } from '@/lib/audioMime';
 
 interface QuickReply {
   id: string;
@@ -30,7 +31,7 @@ const shortcutCache: Record<string, { trigger_word: string; response_text: strin
 
 interface ChatInputProps {
   onSend: (text: string) => void;
-  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string) => void;
+  onSendMedia: (mediaBase64: string, mediaType: string, caption: string, fileName?: string, mimeType?: string) => void;
   disabled?: boolean;
   replyTo?: MessageData | null;
   onCancelReply?: () => void;
@@ -42,7 +43,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string } | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<{ type: string; name: string; base64: string; previewUrl?: string; mimeType?: string } | null>(null);
   const [isSendingMedia, setIsSendingMedia] = useState(false);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(30).fill(4));
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
@@ -56,7 +57,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const fileTypeRef = useRef<string>('image');
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastMatchedTextRef = useRef<string>('');
 
   // Fetch quick replies from local DB (user-based, not chip-based)
@@ -209,7 +210,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
     if (!mediaPreview) return;
     setIsSendingMedia(true);
     try {
-      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name);
+      await onSendMedia(mediaPreview.base64, mediaPreview.type, message.trim(), mediaPreview.name, mediaPreview.mimeType);
       setMediaPreview(null);
       setMessage('');
     } finally {
@@ -286,7 +287,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Set up analyser for waveform
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
@@ -295,7 +296,8 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const { mime, ext } = pickAudioMime();
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -308,11 +310,11 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
         audioCtx.close();
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         analyserRef.current = null;
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: mime });
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
-          setMediaPreview({ type: 'ptt', name: 'audio.webm', base64 });
+          setMediaPreview({ type: 'ptt', name: `audio.${ext}`, base64, mimeType: mime });
         };
         reader.readAsDataURL(blob);
       };
@@ -599,16 +601,22 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 ))}
               </div>
             )}
-            <Input
+            <Textarea
               ref={inputRef}
-              placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas..."}
+              rows={1}
+              placeholder={mediaPreview ? "Adicione uma legenda..." : "Digite / para respostas rápidas... (Shift+Enter = nova linha)"}
               value={message}
               onChange={(e) => handleMessageChange(e.target.value)}
               onPaste={handlePaste}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
                   if (showQuickReplies && filteredQuickReplies.length > 0) {
-                    e.preventDefault();
                     selectQuickReply(filteredQuickReplies[0]);
                   } else {
                     handleSend();
@@ -617,7 +625,7 @@ export default function ChatInput({ onSend, onSendMedia, disabled, replyTo, onCa
                 if (e.key === 'Escape') setShowQuickReplies(false);
               }}
               onBlur={() => setTimeout(() => setShowQuickReplies(false), 200)}
-              className="bg-secondary/30 border border-border/20 h-10 rounded-xl focus-visible:ring-primary/30 transition-colors"
+              className="bg-secondary/30 border border-border/20 min-h-10 max-h-32 rounded-xl focus-visible:ring-primary/30 transition-colors resize-none py-2"
               disabled={disabled}
             />
           </div>
