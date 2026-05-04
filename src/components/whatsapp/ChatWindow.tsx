@@ -223,7 +223,7 @@ export default function ChatWindow({ chat, chipId, chipStatus, chipProvider, onR
               return (
                 <MessageBubble key={msg.id} text={msg.text} time={formatTime(msg.timestamp)} fromMe={msg.fromMe}
                   messageType={msg.messageType} mediaType={msg.mediaType} hasMedia={msg.hasMedia}
-                  messageId={msg.messageId} chipId={chipId || undefined} senderName={msg.senderName}
+                  messageId={msg.messageId} chipId={chipId || undefined} chipProvider={chipProvider} senderName={msg.senderName}
                   isGroup={chat?.isGroup} status={msg.status} onReply={handleReply} onReact={handleReact}
                   onForward={handleForward} onDownload={handleDownload} onPin={handlePin} onFavorite={handleFavorite}
                   onStartChat={onStartNewChat} quotedText={quotedText} quotedSender={quotedSender}
