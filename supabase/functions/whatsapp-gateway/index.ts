@@ -613,7 +613,7 @@ async function handleMetaAction(
       return jsonResponse({ success: true, data: { messageId: stickerMsgId } })
     }
 
-
+    case 'send-template': {
       const { phoneNumber, templateName, templateLanguage, templateComponents, filledTemplateText } = body
       if (!phoneNumber || !templateName) {
         return jsonResponse({ error: 'Phone number and template name are required' }, 400)
