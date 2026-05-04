@@ -1,89 +1,113 @@
-## Objetivo
-Trazer 3 melhorias ao chat em `/whatsapp` (vale para chips Meta e UazAPI):
 
-1. **Shift+Enter** quebra linha; **Enter** envia (igual chat interno).
-2. **Ticks de status** (✓ enviada, ✓✓ entregue, ✓✓ azul lida) visíveis nas mensagens.
-3. **Corrigir erro "Instabilidade ao enviar mídia"** ao mandar áudio em chip Meta.
+# Plano — Chat Meta (/whatsapp): áudio nativo, ticks azuis e mídia visível
+
+Foco em 4 correções funcionais (1, 2, 3, 4) e 2 já implementadas (5, 6 — apenas validação).
 
 ---
 
-## Diagnóstico
+## 1) Transcodificar webm → ogg/opus no edge (PTT nativo na Meta)
 
-### 1) Shift+Enter
-Hoje `ChatInput.tsx` (linha 602) usa `<Input>` (single-line), que não suporta quebra de linha. O `onKeyDown` já trata `Enter` sem shift como envio, mas com `<Input>` o Shift+Enter não gera `\n`.
+**Antes**: Chrome/Edge gravam em `audio/webm;codecs=opus`. A Meta rejeita esse container, então hoje o gateway degrada para "documento". O destinatário recebe um anexo `.webm` (não toca como mensagem de voz no app oficial).
 
-### 2) Ticks de status
-Já existe lógica em `MessageBubble.tsx` (linhas 240-250):
-- `sent` → ✓ cinza
-- `delivered` → ✓✓ cinza
-- `read` → ✓✓ azul
+**Depois**: O `whatsapp-gateway` (`send-media`) detecta entrada webm/opus e remuxa para um container OGG/Opus aceito pela Meta, mantendo o mesmo stream Opus (sem reencode). PTT chega como mensagem de voz nativa na Meta.
 
-E o `meta-webhook` (linhas 274-313) atualiza status corretamente. **Porém** o status não está aparecendo claramente na imagem enviada pelo usuário — provavelmente porque:
-- Mensagens recém-enviadas ficam em `pending/sent` e o webhook de status do Meta às vezes só dispara quando o chip está com webhook configurado direito.
-- Falta um indicador de "pending" (relógio) para feedback imediato antes do `sent`.
+**Como (técnico)**:
+- Implementar remux WebM→OGG manual em Deno puro (parse EBML mínimo + escrita Ogg/Opus). Isso evita FFmpeg WASM (pesado para edge function, ~25MB). Já existem ports JS leves (~30KB) que faremos inline no diretório `supabase/functions/whatsapp-gateway/lib/webmToOgg.ts`.
+- Fallback de segurança: se o remux falhar, mantém a degradação atual para documento (com toast).
+- Atualizar `metaAudioAllow` para incluir `audio/ogg;codecs=opus` após remux.
+- Telemetria: log `audio_remux_success|fallback_document` em `webhook_logs`.
 
-### 3) Erro de áudio na Meta
-`ChatInput.tsx` grava com `audio/webm;codecs=opus` (linha 298), mas o `whatsapp-gateway` (linhas 373-374) força MIME `audio/ogg` no upload para Meta. **A Meta valida o container real do arquivo** — webm enviado como ogg é rejeitado, gerando o "Instabilidade ao enviar mídia".
-
-Meta aceita áudio em: `audio/aac`, `audio/mp4`, `audio/mpeg`, `audio/amr`, `audio/ogg` (apenas codec opus, mono). O navegador raramente grava ogg/opus puro — só Firefox.
+**Alternativa rejeitada**: forçar Chrome a gravar `audio/mp4` — não é suportado nativamente em Chrome/Edge desktop (só Safari/iOS).
 
 ---
 
-## Plano
+## 2) Tooltip Radix nos ticks de status
 
-### Frontend — `src/components/whatsapp/ChatInput.tsx`
+**Antes**: `MessageBubble.tsx` usa apenas `aria-label`. Alguns navegadores não exibem tooltip nativo.
 
-**A. Shift+Enter (item 1)**
-- Trocar `<Input>` por `<Textarea>` (shadcn) com `rows={1}` e auto-resize via `onInput` ajustando `style.height`.
-- `onKeyDown`: `Enter` sem shift = `handleSend()` + `preventDefault`; `Shift+Enter` deixa o comportamento padrão (quebra linha).
-- Manter aparência atual (mesma altura inicial, mesmo border/rounded). Limitar a `max-h-32` com `overflow-auto` para não quebrar layout.
+**Depois**: Envolver cada ícone (`Check`, `CheckCheck`, `Clock`) em `<Tooltip>`/`<TooltipTrigger>`/`<TooltipContent>` do shadcn (Radix). Textos: "Pendente", "Enviada", "Entregue", "Lida".
 
-**B. Gravação de áudio (item 3)**
-- Detectar suporte e escolher melhor MIME, em ordem:
-  1. `audio/ogg;codecs=opus` (Firefox)
-  2. `audio/mp4;codecs=mp4a.40.2` (Safari, alguns Chromium)
-  3. `audio/webm;codecs=opus` (fallback Chrome/Edge — só usado para chips UazAPI; para Meta convertemos)
-- Anexar o MIME real no `mediaPreview` (novo campo `mimeType`) e propagar via `onSendMedia`.
-
-### Frontend — `src/components/whatsapp/ChatWindow.tsx` e `src/hooks/useChatActions.ts`
-- Estender assinatura de `sendMedia` para aceitar `mimeType?: string` opcional, repassando ao edge `whatsapp-gateway`.
-
-### Backend — `supabase/functions/whatsapp-gateway/index.ts` (case `send-media`)
-- Para `mediaType === 'ptt' | 'audio'`:
-  - Se vier `mimeType` do client e for um dos suportados pela Meta (`audio/ogg`, `audio/mp4`, `audio/aac`, `audio/mpeg`, `audio/amr`) → usar esse MIME no upload.
-  - Se vier `audio/webm` (não suportado pela Meta) → **transcodar no Deno** usando `ffmpeg.wasm` é pesado; alternativa pragmática: rejeitar com mensagem clara "Seu navegador grava em formato webm; use Firefox ou Safari para enviar áudio para chips Meta" **OU** subir para Storage e enviar como `document` (.webm) — não é PTT mas chega.
-  - **Decisão recomendada**: tentar upload com `audio/ogg` quando for `webm` (alguns chips aceitam pelo conteúdo opus puro); se a Meta retornar erro, fazer fallback automático para enviar como **documento** (`.ogg`) para que o áudio chegue ao destinatário com aviso amigável no toast ("Áudio enviado como anexo").
-- Mensagem de erro humanizada (não mais "Instabilidade ao enviar mídia" genérico) — incluir motivo da Meta no toast quando vier `error.message`.
-
-### Frontend — `src/components/whatsapp/MessageBubble.tsx` (item 2 — feedback visual)
-- Adicionar caso `status === 'pending'` → ícone de relógio (Clock) cinza claro, para o vendedor saber que a mensagem está sendo entregue.
-- Manter ✓ / ✓✓ / ✓✓ azul. Garantir que o estado inicial pós-envio é `sent` (já é no `useChatMessages` linha 231 — está como `pending`, ótimo).
-- Adicionar `title` (tooltip) em cada ícone: "Pendente", "Enviada", "Entregue", "Lida".
-
-### Documentação / Memória
-- Atualizar `docs/META-WHATSAPP-SETUP.md` com a limitação de codec de áudio do navegador.
-- Adicionar memória `mem://features/whatsapp-audio-meta-codec` documentando a regra de fallback.
+**Técnico**: garantir `<TooltipProvider>` no layout do chat (ou local com `delayDuration={300}`) para evitar custo global.
 
 ---
 
-## Detalhes técnicos
-- `Textarea` precisa de `ref` tipado como `HTMLTextAreaElement` — atualizar `inputRef`.
-- `auto-resize`: `e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'`.
-- `MediaRecorder.isTypeSupported(mime)` para escolha de codec.
-- No edge function, tipo do upload: usar `mime` recebido em vez de mapa fixo.
+## 3) Status "lida" (VV azul) não está atualizando
 
-## Pendências / fora do escopo
-- Transcodificação real webm→ogg/opus no servidor (exigiria worker FFmpeg dedicado; pode entrar em etapa 2 se o fallback "documento" não for suficiente).
-- Retransmissão automática quando webhook de status atrasa.
+**Diagnóstico provável** (sem evidência no banco ainda — confirmaremos com logs):
+- A lógica em `meta-webhook` (`handleMetaStatus`) já trata `read` e a regra de downgrade está correta (atualiza de `sent`/`delivered` para `read`).
+- Causas possíveis a verificar:
+  1. **Subscrição do webhook**: o app Meta precisa estar inscrito no campo `messages` da WABA (já está) **e** o número precisa ter `read receipts` habilitado pelo destinatário (configuração do usuário final). Se ele desabilitou "Confirmações de leitura" no WhatsApp dele, a Meta nunca envia o evento `read`.
+  2. **Realtime UI**: mesmo quando o banco atualiza `status='read'`, o React pode estar usando cache otimista que sobrescreve o valor recebido. Verificar `useChatMessages` ao receber update de `message_history`.
+  3. **Match por `message_id`**: se a `messages.[0].id` (wamid) salva no envio difere do `status.id` recebido pela Meta (sufixos), o update silenciosamente não casa.
 
-## Checklist manual após implementar
-1. Em `/whatsapp`, abrir conversa Meta, digitar e pressionar Shift+Enter — deve quebrar linha; Enter envia.
-2. Enviar mensagem de texto — deve aparecer ✓ imediatamente, ✓✓ ao chegar, ✓✓ azul ao ser lida.
-3. Gravar áudio em chip Meta:
-   - Chrome/Edge: deve enviar como áudio se Meta aceitar; se cair fallback, vem como anexo .ogg + toast informativo.
-   - Firefox/Safari: deve enviar como áudio normal (PTT).
-4. Mesmos passos em chip UazAPI — não pode haver regressão (continua mandando webm).
+**Ações**:
+- Adicionar log no `meta-webhook` antes do `update`: `console.log('Meta read for', messageId, 'rows updated:', count)` usando `.select('id', { count: 'exact' })`.
+- Inspecionar `message_history` por `status='read'` em chips Meta para confirmar se o webhook está chegando.
+- Garantir que `useChatMessages` não está sobrescrevendo `status` ao mesclar realtime updates (manter sempre o valor com `statusRank` mais alto no client também).
+
+---
+
+## 4) Áudios enviados aparecem como "Mídia indisponível"
+
+**Causa raiz**: `MediaRenderer.downloadMedia` chama **sempre** `uazapi-api` (`action: download-media`), independentemente do provider do chip. Mensagens enviadas/recebidas via Meta não têm registro na UazAPI → retorna vazio → cai no estado `error` → mostra "Mídia indisponível — conteúdo anterior à integração".
+
+**Correção**:
+- `MediaRenderer` precisa receber/descobrir o `provider` do chip (já existe `chips.provider`).
+- Roteamento:
+  - `provider='meta'` → invocar `whatsapp-gateway` com `action: 'download-media'` e o `mediaId` (que é a `media_url` salva no `message_history` — atualmente armazenamos o `media_id` da Meta nessa coluna).
+  - `provider='uazapi'` (ou ausente) → mantém chamada atual.
+- A resposta do `whatsapp-gateway/download-media` já vem em `data.base64` (data URL pronta para `<audio src>`/`<img src>`). Adaptar parser:
+  ```ts
+  const url = response.data?.fileURL || response.data?.base64;
+  ```
+- Texto de erro: trocar "conteúdo anterior à integração" por "Mídia indisponível — clique para tentar novamente" (mais honesto).
+
+**Técnico extra**: passar `provider` via prop em `MessageBubble` → `MediaRenderer`. Como já temos `chipId`, podemos resolver via cache leve (`useChips` já em memória) sem nova prop, mas a prop é mais previsível.
+
+---
+
+## 5) Testes `audioMime.test.ts` (já implementado)
+
+Validar que os 4 casos rodam:
+```
+bunx vitest run src/lib/__tests__/audioMime.test.ts
+```
+Sem alteração planejada.
+
+---
+
+## 6) Toast `degradedToDocument` (já implementado)
+
+Já em `useChatMessages`. Sem alteração — apenas confirmar que segue funcionando após a transcodificação (item 1) reduzir muito a frequência desse toast.
+
+---
+
+## Arquivos afetados
+
+- `supabase/functions/whatsapp-gateway/index.ts` — remux webm→ogg + log de download-media
+- `supabase/functions/whatsapp-gateway/lib/webmToOgg.ts` (novo)
+- `supabase/functions/meta-webhook/index.ts` — log de rows updated em read
+- `src/components/whatsapp/MessageBubble.tsx` — Tooltip Radix nos ticks
+- `src/components/whatsapp/MediaRenderer.tsx` — roteamento por provider
+- `src/hooks/useChatMessages.ts` — preservar maior `statusRank` em merge realtime
+
+---
+
+## Checklist manual após implementação
+
+1. Gravar áudio no Chrome em chip Meta → destinatário deve receber **mensagem de voz** (não anexo).
+2. Passar mouse sobre o tick de uma mensagem → tooltip "Enviada"/"Entregue"/"Lida".
+3. Enviar mensagem Meta para um número com leitura confirmada habilitada → ver VV azul aparecer.
+4. Áudios já enviados na conversa carregam e tocam (sem "Mídia indisponível").
+5. `bunx vitest run src/lib/__tests__/audioMime.test.ts` → 4 testes passando.
+
+## Pendências futuras
+
+- Cache de mídia da Meta no Supabase Storage (hoje cada visualização re-baixa via Graph API — gera custo).
+- Suporte a stickers Meta no `MediaRenderer`.
 
 ## Prevenção de regressão
-- Teste Vitest novo para `pickAudioMime()` (helper extraído) garantindo prioridade ogg > mp4 > webm.
-- Teste de integração leve para `whatsapp-gateway send-media` validando que MIME do cliente é respeitado.
+
+- Teste Deno em `whatsapp-gateway/webmToOgg_test.ts` com fixture webm pequena.
+- Console log explícito no `meta-webhook` ao receber `read` (facilita auditoria).
+- Prop `provider` obrigatória em `MediaRenderer` (TypeScript impede chamar UazAPI em chip Meta).

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4"
 import { writeAuditLog } from '../_shared/auditLog.ts'
+import { webmOpusToOgg } from './lib/webmToOgg.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -381,12 +382,28 @@ async function handleMetaAction(
       let metaType = mediaType === 'ptt' ? 'audio' : mediaType
       let degradedToDocument = false
 
-      // For audio: if client sent webm (Chrome/Edge default), Meta will reject it.
-      // Fallback strategy: send as document so at least the audio reaches the user.
+      // Decode media first (we may need to inspect/transcode)
+      const mediaData = mediaBase64.includes(',') ? mediaBase64.split(',')[1] : mediaBase64
+      let binaryData = Uint8Array.from(atob(mediaData), c => c.charCodeAt(0))
+
+      // For audio: if client sent webm/opus (Chrome/Edge default), Meta rejects the container.
+      // Strategy: remux WebM -> Ogg/Opus (no re-encode) so PTT arrives as native voice message.
+      // Fallback: if remux fails, degrade to document so at least the file reaches the user.
       if (metaType === 'audio') {
         const baseMime = mime.split(';')[0].trim().toLowerCase()
-        if (!metaAudioAllow.has(baseMime)) {
-          // unsupported codec — degrade to document
+        if (baseMime === 'audio/webm' || baseMime === 'video/webm' || mime.toLowerCase().includes('webm')) {
+          try {
+            const ogg = webmOpusToOgg(binaryData)
+            binaryData = ogg
+            mime = 'audio/ogg'
+            console.log(`[whatsapp-gateway] remux webm->ogg ok, in=${mediaBase64.length}b out=${ogg.length}b`)
+          } catch (e) {
+            console.error('[whatsapp-gateway] remux failed, degrading to document:', (e as any)?.message)
+            metaType = 'document'
+            degradedToDocument = true
+            mime = baseMime
+          }
+        } else if (!metaAudioAllow.has(baseMime)) {
           metaType = 'document'
           degradedToDocument = true
           mime = baseMime || 'application/octet-stream'
@@ -394,10 +411,6 @@ async function handleMetaAction(
           mime = baseMime
         }
       }
-
-      // Decode media
-      const mediaData = mediaBase64.includes(',') ? mediaBase64.split(',')[1] : mediaBase64
-      const binaryData = Uint8Array.from(atob(mediaData), c => c.charCodeAt(0))
 
       const safeFileName = mediaFileName || `file.${(mime.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '')}`
 
@@ -456,7 +469,8 @@ async function handleMetaAction(
             message_id: mediaMsgId,
             direction: 'outgoing',
             message_content: mediaCaption || `📎 ${mediaType}`,
-            media_type: mediaType || 'document',
+            media_type: degradedToDocument ? 'document' : (mediaType || 'document'),
+            media_url: uploadData.id, // Meta media_id for later download
             status: 'sent',
             sender_name: '',
             sent_by_user_id: userId || null,
@@ -609,8 +623,19 @@ async function handleMetaAction(
     }
 
     case 'download-media': {
-      const { messageId: mediaId } = body
-      if (!mediaId) return jsonResponse({ error: 'mediaId required' }, 400)
+      // Accept either a Meta media_id directly, or a wamid (message_id) — lookup media_url from DB
+      let mediaId: string | null = body.mediaId || null
+      const wamid = body.messageId
+      if (!mediaId && wamid) {
+        const { data: row } = await adminClient
+          .from('message_history')
+          .select('media_url')
+          .eq('chip_id', chip.id)
+          .eq('message_id', wamid)
+          .maybeSingle()
+        mediaId = row?.media_url || null
+      }
+      if (!mediaId) return jsonResponse({ success: false, error: 'mediaId not found for this message' })
 
       // Step 1: get media URL
       const urlResp = await metaFetch(`/${mediaId}`, {
@@ -631,7 +656,14 @@ async function handleMetaAction(
       }
 
       const arrayBuffer = await mediaResp.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      // Use chunked btoa to avoid call-stack overflow on large files
+      const bytes = new Uint8Array(arrayBuffer)
+      let binary = ''
+      const CHUNK = 0x8000
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as any)
+      }
+      const base64 = btoa(binary)
       const mimeType = urlData.mime_type || mediaResp.headers.get('content-type') || 'application/octet-stream'
 
       return jsonResponse({

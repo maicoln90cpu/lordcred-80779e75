@@ -196,10 +196,16 @@ export function useChatMessages({ chipId, chat }: UseChatMessagesOptions) {
           setMessages(prev => prev.filter(m => m.id !== record.id && m.messageId !== record.message_id));
           return;
         }
-        setMessages(prev => prev.map(m =>
-          (m.id === record.id || (m.messageId && m.messageId === record.message_id))
-            ? { ...m, status: record.status || m.status, text: record.message_content || m.text } : m
-        ));
+        const statusRank: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
+        setMessages(prev => prev.map(m => {
+          if (!(m.id === record.id || (m.messageId && m.messageId === record.message_id))) return m;
+          const incoming = record.status as string | undefined;
+          // Don't downgrade (e.g. don't overwrite 'read' with 'delivered')
+          const nextStatus = incoming && (statusRank[incoming] ?? 0) >= (statusRank[m.status || 'sent'] ?? 0)
+            ? incoming
+            : m.status;
+          return { ...m, status: nextStatus, text: record.message_content || m.text };
+        }));
       })
       .subscribe();
 
