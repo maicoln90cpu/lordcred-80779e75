@@ -461,6 +461,32 @@ export default function Permissions() {
                                   sem rota
                                 </Badge>
                               )}
+                              {(() => {
+                                const scopes = ROLE_OPTIONS.map((r) => feature.role_scopes[r.value] || "none");
+                                const fullCount = scopes.filter((s) => s === "full").length;
+                                const menuCount = scopes.filter((s) => s === "menu_only").length;
+                                const noneCount = scopes.filter((s) => s === "none").length;
+                                return (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-flex items-center gap-1 text-[10px]">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                                          <Unlock className="w-2.5 h-2.5" />{fullCount}
+                                        </span>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                          <Menu className="w-2.5 h-2.5" />{menuCount}
+                                        </span>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+                                          <EyeOff className="w-2.5 h-2.5" />{noneCount}
+                                        </span>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs">
+                                      Resumo entre Vendedor/Suporte/Gerente: {fullCount} total · {menuCount} só menu · {noneCount} sem acesso
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })()}
                               {isSensitive && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
