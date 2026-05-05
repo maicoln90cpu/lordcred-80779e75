@@ -125,6 +125,8 @@ export default function QueueManagement() {
     if (searchTerm && !item.recipient_phone.includes(searchTerm) && !item.message_content.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+  useEffect(() => { setPage(0); }, [filterStatus, filterChip, searchTerm]);
+  const { paged: pagedItems, totalPages, total: totalFiltered } = table.apply(filteredItems);
 
   const stats = {
     pending: items.filter(i => i.status === 'pending').length,
