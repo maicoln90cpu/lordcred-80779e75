@@ -200,7 +200,7 @@ export default function HRCalendarWeekView({
             const nowTop = (nowMin / 60) * HOUR_PX;
 
             return (
-              <div key={dayKey} className="relative border-l border-border/40">
+              <div key={dayKey} className="relative border-l border-border/40 overflow-hidden">
                 {/* Slots clicáveis (1h cada) */}
                 {HOURS.map((h) => (
                   <div
