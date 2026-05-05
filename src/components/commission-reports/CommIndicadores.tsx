@@ -101,12 +101,8 @@ export default function CommIndicadores({
 
   // ==================== KPIs Executivos ====================
   const kpis = useMemo(() => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const monthSales = sales.filter(s => {
-      const d = new Date(s.sale_date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
+    const targetMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+    const monthSales = sales.filter(s => String(s.sale_date || '').slice(0, 7) === targetMonth);
     const totalVendasMes = monthSales.length;
     const totalComissaoMes = monthSales.reduce((a, s) => a + (s.commission_value || 0), 0);
     const totalLiberadoMes = monthSales.reduce((a, s) => a + (s.released_value || 0), 0);
@@ -128,7 +124,7 @@ export default function CommIndicadores({
     })();
 
     return { totalVendasMes, totalComissaoMes, totalLiberadoMes, ticketMedio, vendedoresAtivos, topSeller, bancoTop };
-  }, [sales, getSellerName]);
+  }, [sales, getSellerName, selectedMonth]);
 
   // ==================== Alertas de Taxa 0% ====================
   const zeroRateAlerts = useMemo(() => {
