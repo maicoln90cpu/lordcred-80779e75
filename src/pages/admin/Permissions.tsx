@@ -87,6 +87,7 @@ interface FeaturePermission {
   feature_group: string;
   allowed_user_ids: string[];
   allowed_roles: string[];
+  role_scopes: Record<string, RoleScope>;
 }
 
 interface Profile {
