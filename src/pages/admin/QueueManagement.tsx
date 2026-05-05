@@ -154,6 +154,8 @@ export default function QueueManagement() {
           <p className="text-muted-foreground text-sm">Gerencie filas de mensagens e atendimento compartilhado</p>
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Fila" />}
+
         <Tabs defaultValue="queue">
           <TabsList>
             <TabsTrigger value="queue">Fila de Mensagens</TabsTrigger>

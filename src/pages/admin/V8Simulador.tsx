@@ -46,6 +46,8 @@ export default function V8Simulador() {
           </div>
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Simulador V8" />}
+
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
           🧪 <strong>Integração em validação</strong> — confira valores antes de fechar com o cliente.
         </div>
