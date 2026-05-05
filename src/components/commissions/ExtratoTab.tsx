@@ -292,19 +292,27 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               </tr>
             </TableHeader>
             <TableBody>
-              {applySortToData(filtered, sort, (s, k) => {
-                if (k === 'seller_id') return getSellerName(s.seller_id);
-                return (s as any)[k];
-              }).map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>{formatDateBR(s.sale_date)}</TableCell>
-                  <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
-                  <TableCell>{s.bank}</TableCell>
-                  {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
-                  <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">{fmt(s.commission_value)}</TableCell>
-                </TableRow>
-              ))}
+              {(() => {
+                const { paged, totalPages, total } = table.apply(filtered, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  return (s as any)[k];
+                });
+                return <>
+                  {paged.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell>{formatDateBR(s.sale_date)}</TableCell>
+                      <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
+                      <TableCell>{s.bank}</TableCell>
+                      {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
+                      <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
+                      <TableCell className="text-right font-bold text-primary">{fmt(s.commission_value)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <tr><td colSpan={isAdmin ? 6 : 5}>
+                    <TablePagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+                  </td></tr>
+                </>;
+              })()}
             </TableBody>
           </Table>
         )}
