@@ -75,6 +75,23 @@ export function CorbanOverviewTab() {
       valorTotal += p.valor_liberado || 0;
     });
     setStats({ totalPropostas: propostas.length, valorTotal, porStatus, porBanco, ultimaAtualizacao: new Date() });
+
+    // Persistir snapshot agregado para histórico (RLS permite só privileged).
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: insErr } = await (supabase as any).from('corban_overview_metrics').insert({
+        period_days: 7,
+        total_propostas: propostas.length,
+        valor_total: valorTotal,
+        por_status: porStatus,
+        por_banco: porBanco,
+        captured_by: user?.id ?? null,
+      });
+      if (insErr) console.warn('[overview-metrics] persist failed:', insErr.message);
+    } catch (e) {
+      console.warn('[overview-metrics] persist exception:', e);
+    }
+
     toast.success(`${propostas.length} propostas carregadas (últimos 7 dias)`);
   }, []);
 
