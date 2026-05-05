@@ -600,27 +600,95 @@ serve(async (req) => {
         if (updErr) processError = updErr.message;
         else { processed = true; action = canPromoteFromLimit && wantsSuccess ? "consult_promoted_from_limit" : "consult_upsert"; }
       } else {
-        // Sem linha local → cria "órfã" para o operador ver via tela de consultas/replay.
-        // CRÍTICO: marcar is_orphan=true para satisfazer o check constraint
-        // v8_sim_owner_or_orphan (is_orphan OR (batch_id IS NOT NULL AND created_by IS NOT NULL)).
-        // Sem essa flag o INSERT é rejeitado e o evento é perdido (regressão histórica).
-        const insertRow: Record<string, unknown> = {
-          consult_id: consultId,
-          v8_simulation_id: v8SimulationId,
-          status: internalStatus ?? "pending",
-          webhook_status: v8Status,
-          last_webhook_at: new Date().toISOString(),
-          processed_at: new Date().toISOString(),
-          raw_response: payload,
-          name: "(via webhook V8)",
-          cpf: "",
-          installments: 0,
-          is_orphan: true,
-        };
-        applyConsultExtras(insertRow, extras);
-        const { error: insErr } = await supabase.from("v8_simulations").insert(insertRow);
-        if (insErr) processError = insErr.message;
-        else { processed = true; action = "consult_insert_orphan"; }
+        // FIX RACE WEBHOOK: tenta casar por (cpf + batch_id pendente recente) antes de criar órfã.
+        const docCpf = String(
+          (payload as any)?.data?.document
+            ?? (payload as any)?.document
+            ?? (payload as any)?.workerData?.document
+            ?? (payload as any)?.data?.workerData?.document
+            ?? "",
+        ).replace(/\D/g, "");
+
+        let matched = false;
+        if (docCpf && docCpf.length === 11) {
+          const cutoffIso = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+          const { data: pendingMatch } = await supabase
+            .from("v8_simulations")
+            .select("id, batch_id, installments")
+            .eq("cpf", docCpf)
+            .eq("status", "pending")
+            .is("consult_id", null)
+            .not("batch_id", "is", null)
+            .gte("created_at", cutoffIso)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (pendingMatch) {
+            const safeUpdates: Record<string, unknown> = {
+              consult_id: consultId,
+              raw_response: payload,
+              last_webhook_at: new Date().toISOString(),
+              webhook_status: v8Status,
+              last_step: "webhook_matched_by_cpf",
+            };
+            applyConsultExtras(safeUpdates, extras);
+            if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
+
+            const wantsSuccess = internalStatus === "success";
+            const valueMax = extras.simValueMax;
+            const instMax = extras.simInstallmentsMax;
+            if (wantsSuccess && valueMax != null && instMax != null) {
+              const instMin = (extras as any).simInstallmentsMin ?? 1;
+              const lotePref = Number((pendingMatch as any).installments ?? 0);
+              const useInst = (Number.isInteger(lotePref) && lotePref >= instMin && lotePref <= instMax)
+                ? lotePref : instMax;
+              safeUpdates.released_value = valueMax;
+              safeUpdates.installments = useInst;
+              safeUpdates.installment_value = Number((valueMax / useInst).toFixed(2));
+              safeUpdates.total_value = valueMax;
+              safeUpdates.status = "success";
+              safeUpdates.processed_at = new Date().toISOString();
+              safeUpdates.simulate_status = "not_started";
+              safeUpdates.error_kind = null;
+              safeUpdates.error_message = null;
+            } else if (internalStatus === "failed") {
+              const rejectionReason = (payload as any)?.data?.description
+                ?? (payload as any)?.description ?? null;
+              safeUpdates.status = "failed";
+              safeUpdates.error_kind = "rejected_by_v8";
+              safeUpdates.error_message = rejectionReason ?? "Consulta rejeitada pela V8";
+              safeUpdates.processed_at = new Date().toISOString();
+            }
+
+            const { error: matchErr } = await supabase
+              .from("v8_simulations")
+              .update(safeUpdates)
+              .eq("id", (pendingMatch as any).id);
+            if (matchErr) processError = matchErr.message;
+            else { processed = true; action = "consult_upsert" as any; matched = true; }
+          }
+        }
+
+        if (!matched) {
+          const insertRow: Record<string, unknown> = {
+            consult_id: consultId,
+            v8_simulation_id: v8SimulationId,
+            status: internalStatus ?? "pending",
+            webhook_status: v8Status,
+            last_webhook_at: new Date().toISOString(),
+            processed_at: new Date().toISOString(),
+            raw_response: payload,
+            name: "(via webhook V8)",
+            cpf: docCpf || "",
+            installments: 0,
+            is_orphan: true,
+          };
+          applyConsultExtras(insertRow, extras);
+          const { error: insErr } = await supabase.from("v8_simulations").insert(insertRow);
+          if (insErr) processError = insErr.message;
+          else { processed = true; action = "consult_insert_orphan"; }
+        }
       }
     }
     // --- 4. Eventos de operação (proposta) — vocabulário oficial:
