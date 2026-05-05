@@ -95,12 +95,15 @@ export default function WebhookDiagnostics() {
     return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Diagnóstico de Webhooks" /></DashboardLayout>;
   }
 
   return (
