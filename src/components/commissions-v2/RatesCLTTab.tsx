@@ -115,9 +115,11 @@ export default function RatesCLTTab() {
       const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
       const rate = parseFloat((r['Taxa (%)'] || r['taxa'] || r['rate'] || '0').toString().replace(',', '.')) || 0;
       const obs = (r['Obs'] || r['obs'] || '').toString();
-      const dataVigRaw = (r['Data Vigência (AAAA-MM-DD, opcional)'] || r['Data Vigência'] || r['data_vigencia'] || r['effective_date'] || '').toString().trim();
-      const effectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(dataVigRaw) ? dataVigRaw : today;
-      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
+      const dataVigRaw = r['Data Vigência (AAAA-MM-DD, opcional)'] ?? r['Data Vigência'] ?? r['data_vigencia'] ?? r['effective_date'] ?? '';
+      const parsedDate = parseEffectiveDate(dataVigRaw);
+      const effectiveDate = parsedDate || today;
+      const _vigencia_origem: 'sheet' | 'default' = parsedDate ? 'sheet' : 'default';
+      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null, _vigencia_origem };
     }).filter(r => r.bank);
   };
 
