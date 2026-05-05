@@ -97,14 +97,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 3. Fecha lotes zumbis (processing há > 2h sem atualização) — destrava a fila.
+    // 3. Fecha lotes zumbis (processing há > 10 min sem atualização) — destrava a fila.
     try {
-      const cutoff2h = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const cutoff10m = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { data: zombies } = await admin
         .from("v8_batches")
         .select("id, name, updated_at")
         .eq("status", "processing")
-        .lt("updated_at", cutoff2h)
+        .lt("updated_at", cutoff10m)
         .limit(50);
       for (const z of (zombies ?? []) as any[]) {
         const { error: zErr } = await admin

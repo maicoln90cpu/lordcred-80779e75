@@ -59,8 +59,8 @@ export function V8RealtimeStatusBar() {
       (b: any) => b.status !== 'completed' && b.status !== 'cancelled',
     );
 
-    // Detectar lotes zumbi: processing há >30 min sem update
-    const zombieCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // Detectar lotes zumbi: processing há >10 min sem update
+    const zombieCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: { user } } = await supabase.auth.getUser();
     const zombies = (batches || []).filter(
       (b: any) => b.status === 'processing' && b.updated_at < zombieCutoff && b.created_by === user?.id,
@@ -308,7 +308,7 @@ export function V8RealtimeStatusBar() {
             {agg.zombie_batches.length} lote(s) zumbi bloqueando sua fila
           </div>
           <p className="text-xs text-red-300/80">
-            Esses lotes estão em "processing" há mais de 30 min sem atualização. Eles impedem que novos lotes da fila comecem. Clique em "Forçar encerramento" para desbloqueá-los.
+            Esses lotes estão em "processing" há mais de 10 min sem atualização. Eles impedem que novos lotes da fila comecem. Clique em "Forçar encerramento" para desbloqueá-los.
           </p>
           <div className="space-y-1">
             {agg.zombie_batches.map(z => (

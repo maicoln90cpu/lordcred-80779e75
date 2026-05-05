@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
       ownersSeen.add(owner);
 
       // Verifica se o dono já tem outro lote ATIVO (não zumbi).
-      // IMPORTANTE: ignora lotes parados há > 30 min — eles são zumbis e não devem
+      // IMPORTANTE: ignora lotes parados há > 10 min — eles são zumbis e não devem
       // bloquear a fila. Watchdog separado (orphan-reconciler) os fecha.
-      const activityCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const activityCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { data: activeRows } = await supabase
         .from("v8_batches")
         .select("id, status, updated_at, name")
