@@ -250,6 +250,7 @@ export function HRCalendarTab() {
           candidateNameById={candidateNameById}
           onEdit={openEdit}
           onCreateAt={openCreateAt}
+          onUpdateEvent={(id, patch) => updateEvent(id, patch)}
         />
       )}
 
