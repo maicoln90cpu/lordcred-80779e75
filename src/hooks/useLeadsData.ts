@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 
 export interface StatusOption {
   value: string;
@@ -101,16 +102,20 @@ export const extractHex = (colorClass: string): string | null => {
 };
 
 export function useLeadsData() {
+  const { isMenuOnly, userId } = useFeatureAccess('leads');
+
   const { data: allLeads = [] } = useQuery({
-    queryKey: ['admin-leads-metrics'],
+    queryKey: ['admin-leads-metrics', isMenuOnly ? userId : 'all'],
     queryFn: async () => {
       const allData: any[] = [];
       let from = 0;
       const batchSize = 1000;
       while (true) {
-        const { data, error } = await supabase.from('client_leads')
+        let q = supabase.from('client_leads')
           .select('status, batch_name, assigned_to, created_at, contacted_at, perfil, banco_simulado')
           .range(from, from + batchSize - 1);
+        if (isMenuOnly && userId) q = q.eq('assigned_to', userId);
+        const { data, error } = await q;
         if (error) throw error;
         if (!data || data.length === 0) break;
         allData.push(...data);

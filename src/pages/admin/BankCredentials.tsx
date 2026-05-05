@@ -134,6 +134,8 @@ export default function BankCredentials() {
           </Button>
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Bancos" />}
+
         <Card>
           <CardHeader>
             <CardTitle>Credenciais Cadastradas</CardTitle>

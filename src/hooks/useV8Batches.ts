@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 
 export interface V8Batch {
   id: string;
@@ -23,19 +24,22 @@ export interface V8Batch {
 }
 
 export function useV8Batches() {
+  const { isMenuOnly, userId } = useFeatureAccess('v8_simulador');
   const [batches, setBatches] = useState<V8Batch[]>([]);
   const [loading, setLoading] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let q = supabase
       .from('v8_batches')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50);
+    if (isMenuOnly && userId) q = q.eq('created_by', userId);
+    const { data, error } = await q;
     if (!error && data) setBatches(data as unknown as V8Batch[]);
     setLoading(false);
-  }, []);
+  }, [isMenuOnly, userId]);
 
   useEffect(() => {
     reload();

@@ -57,6 +57,8 @@ export default function CommissionsV2() {
           <HelpButton title="Como funciona Comissões Parceiros" sections={HELP_PARCEIROS} />
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Comissões" />}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <V2BetaBanner />
           <TabsList className="flex-wrap h-auto">
