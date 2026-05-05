@@ -58,6 +58,7 @@ interface HealthRow {
 
 export default function V8DatabaseHealthCard() {
   const [data, setData] = useState<HealthRow | null>(null);
+  const [crons, setCrons] = useState<CronJobStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [cleaningWebhooks, setCleaningWebhooks] = useState(false);
   const [cleaningAudit, setCleaningAudit] = useState(false);
@@ -65,10 +66,16 @@ export default function V8DatabaseHealthCard() {
   async function load() {
     setLoading(true);
     try {
-      const { data: rpcData, error } = await supabase.rpc('get_v8_database_health' as any);
-      if (error) throw error;
-      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      const [healthRes, cronRes] = await Promise.all([
+        supabase.rpc('get_v8_database_health' as any),
+        supabase.rpc('get_v8_cron_jobs_status' as any),
+      ]);
+      if (healthRes.error) throw healthRes.error;
+      const row = Array.isArray(healthRes.data) ? healthRes.data[0] : healthRes.data;
       setData(row as HealthRow);
+      if (!cronRes.error && Array.isArray(cronRes.data)) {
+        setCrons(cronRes.data as CronJobStatus[]);
+      }
     } catch (err: any) {
       toast.error(`Erro ao consultar saúde do banco: ${err?.message || err}`);
     } finally {
