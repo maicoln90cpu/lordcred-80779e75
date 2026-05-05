@@ -375,7 +375,7 @@ export default function V8NovaSimulacaoTab() {
       body: {
         action: 'schedule_batch',
         params: {
-          name: batchName.trim(),
+          name: finalName,
           config_id: configId,
           config_label: cfgLabel,
           parcelas,
@@ -408,7 +408,7 @@ export default function V8NovaSimulacaoTab() {
     if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
     if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de enfileirar`); return; }
     if (!configId) { toast.error('Escolha uma tabela'); return; }
-    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+    const finalName = ensureBatchName();
 
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
     const numericValue = simulationMode !== 'none' && simulationValue.trim()
@@ -419,7 +419,7 @@ export default function V8NovaSimulacaoTab() {
       body: {
         action: 'queue_batch',
         params: {
-          name: batchName.trim(),
+          name: finalName,
           config_id: configId,
           config_label: cfgLabel,
           parcelas,
