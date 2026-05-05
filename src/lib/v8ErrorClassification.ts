@@ -17,6 +17,7 @@ export type V8ErrorKind =
   | 'analysis_pending'
   | 'existing_proposal'
   | 'temporary_v8'
+  | 'dispatch_failed'
   | 'invalid_data'
   | 'rejected_by_v8'
   | 'duplicate_recent'
@@ -83,6 +84,9 @@ export function detectV8ErrorKind(input: V8ErrorInput = {}): V8ErrorKind {
  *
  *  - temporary_v8     → instabilidade/rate limit, retentar com backoff resolve
  *  - analysis_pending → V8 ainda processando, basta esperar e retentar
+ *  - dispatch_failed  → falha de rede/timeout no POST inicial (não chegou na V8),
+ *                      é seguro retentar — não cria consulta paralela porque
+ *                      o request original nunca completou.
  *
  * NÃO inclui:
  *  - active_consult    → o cliente já tem consulta ativa, retentar gera mais erro
@@ -92,6 +96,7 @@ export function detectV8ErrorKind(input: V8ErrorInput = {}): V8ErrorKind {
 export const RETRIABLE_ERROR_KINDS: ReadonlySet<V8ErrorKind> = new Set([
   'temporary_v8',
   'analysis_pending',
+  'dispatch_failed',
 ]);
 
 export function isRetriableErrorKind(kind: string | null | undefined): boolean {
