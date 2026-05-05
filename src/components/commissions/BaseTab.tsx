@@ -66,6 +66,11 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [visibleCols, setVisibleCols] = useState<string[]>(getDefaultVisibleCols);
+  const table = useTableState<CommissionSale>({
+    pageSize: 50,
+    resetPageOn: [search, weekFilters],
+  });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const toggleCol = (key: string) => {
     setVisibleCols(prev => {
