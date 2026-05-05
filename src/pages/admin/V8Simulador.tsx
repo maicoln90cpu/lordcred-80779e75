@@ -13,6 +13,9 @@ import V8ContactPoolTab from '@/components/v8/pool/V8ContactPoolTab';
 import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 import V8KpisBar from '@/components/v8/V8KpisBar';
 import { Badge } from '@/components/ui/badge';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { Loader2 } from 'lucide-react';
 
 export default function V8Simulador() {
   // Etapa 11: abas legacy (Consultas, Histórico) ocultas por padrão.
@@ -20,6 +23,14 @@ export default function V8Simulador() {
   // por 30 dias antes da remoção definitiva.
   const [searchParams] = useSearchParams();
   const showLegacy = searchParams.get('legacy') === '1';
+  const { canSee, loading } = useFeatureAccess('v8_simulador');
+
+  if (loading) {
+    return <DashboardLayout><div className="flex items-center justify-center py-20 text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mr-2" />Carregando...</div></DashboardLayout>;
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Simulador V8" /></DashboardLayout>;
+  }
 
   return (
     <DashboardLayout>
