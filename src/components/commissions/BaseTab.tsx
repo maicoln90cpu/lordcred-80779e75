@@ -334,7 +334,13 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
           <p className="text-muted-foreground text-center py-8">Carregando...</p>
         ) : filteredSales.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">Nenhuma venda encontrada</p>
-        ) : (
+        ) : (() => {
+          const { paged, totalPages, total } = table.apply(filteredSales, (s, k) => {
+            if (k === 'seller_id') return getSellerName(s.seller_id);
+            if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
+            return (s as any)[k];
+          });
+          return (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -347,11 +353,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {applySortToData(filteredSales, sort, (s, k) => {
-                  if (k === 'seller_id') return getSellerName(s.seller_id);
-                  if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
-                  return (s as any)[k];
-                }).map(sale => (
+                {paged.map(sale => (
                   <TableRow key={sale.id}>
                     {BASE_COLUMNS.filter(c => visibleCols.includes(c.key)).map(col => {
                       const key = col.key;
@@ -385,8 +387,11 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                 ))}
               </TableBody>
             </Table>
+            <TablePagination page={page} totalPages={totalPages} total={total} label="vendas" onChange={setPage} />
           </div>
-        )}
+          );
+        })()}
+
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
