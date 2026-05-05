@@ -262,7 +262,7 @@ export default function QueueManagement() {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {applySortToData(filteredItems, sort).map(item => {
+                  {pagedItems.map(item => {
                     const st = statusConfig[item.status] || statusConfig.pending;
                     const StIcon = st.icon;
                     return (
