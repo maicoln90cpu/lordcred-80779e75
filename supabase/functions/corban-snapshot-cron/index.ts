@@ -46,7 +46,7 @@ function normalizePropostas(rawData: any): any[] {
 function extractField(item: any, ...paths: string[]): any {
   for (const path of paths) {
     const parts = path.split('.');
-    let val = item;
+    let val: any = item;
     for (const p of parts) {
       val = val?.[p];
       if (val === undefined || val === null) break;
@@ -54,6 +54,19 @@ function extractField(item: any, ...paths: string[]): any {
     if (val !== undefined && val !== null && val !== '') return val;
   }
   return null;
+}
+
+// Normaliza CPF (aceita string ou número em notação científica). Retorna 11 dígitos.
+function normalizeCpf(raw: any): string | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  let str = typeof raw === 'number' ? raw.toLocaleString('fullwide', { useGrouping: false }) : String(raw);
+  if (/e[+-]?\d+/i.test(str)) {
+    const n = Number(str);
+    if (Number.isFinite(n)) str = n.toLocaleString('fullwide', { useGrouping: false });
+  }
+  const digits = str.replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.length < 11 ? digits.padStart(11, '0') : digits;
 }
 
 Deno.serve(async (req) => {
