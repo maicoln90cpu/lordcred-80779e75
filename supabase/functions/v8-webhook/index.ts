@@ -620,6 +620,28 @@ serve(async (req) => {
     });
   }
 
+  // Etapa 2 (mai/2026) — Fast-path: ao processar um webhook de consult/operation,
+  // pinga o launcher para promover qualquer lote em fila imediatamente
+  // (em vez de esperar o cron de 1 min). Fire-and-forget, não bloqueia a resposta.
+  if (processed && (action === "consult.updated" || action.startsWith("operation."))) {
+    try {
+      const launcherUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-scheduled-launcher`;
+      // EdgeRuntime.waitUntil garante a execução mesmo após a resposta, sem bloquear.
+      // @ts-ignore — EdgeRuntime existe no runtime Deno do Supabase.
+      EdgeRuntime.waitUntil(
+        fetch(launcherUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "x-trigger": "v8-webhook-fastpath",
+          },
+          body: JSON.stringify({ trigger: "webhook_fastpath" }),
+        }).then(() => undefined).catch(() => undefined),
+      );
+    } catch { /* ignore */ }
+  }
+
   // --- Sempre 200 (V8 não deve reentregar)
   return new Response(
     JSON.stringify({ ok: true, processed, action, log_id: logId }),

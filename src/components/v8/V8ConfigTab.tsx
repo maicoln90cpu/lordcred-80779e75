@@ -225,6 +225,7 @@ export default function V8ConfigTab() {
       <CpfDedupeSettingsCard />
 
       <AutoBestAlwaysOnCard />
+      <ParallelBatchesCard />
 
       <V8DatabaseHealthCard />
     </div>
@@ -317,7 +318,44 @@ function AutoBestAlwaysOnCard() {
   );
 }
 
-/** Etapa 5 — toggle "exigir documentos no envio do POST /operation". */
+/** Etapa 2 (mai/2026) — Paralelismo de lotes V8 por operador (1 a 3). */
+function ParallelBatchesCard() {
+  const { settings, saving, save } = useV8Settings();
+  if (!settings) return null;
+  const value = settings.max_concurrent_batches_per_owner ?? 2;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Paralelismo de lotes (Nova Simulação)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Quantos lotes o mesmo operador pode rodar <strong>ao mesmo tempo</strong>. Enquanto o lote 1 aguarda
+          resposta da V8 (via webhook), o próximo já começa a disparar — ganha agilidade sem sobrecarregar a V8
+          (throttle global de {settings.consult_throttle_ms}ms entre consultas continua ativo).
+        </p>
+        <div className="flex gap-2">
+          {[1, 2, 3].map((n) => (
+            <button
+              key={n}
+              type="button"
+              disabled={saving}
+              onClick={() => void save({ max_concurrent_batches_per_owner: n })}
+              className={`px-4 py-2 rounded-md border text-sm font-medium transition ${
+                value === n ? 'bg-primary text-primary-foreground border-primary' : 'bg-card hover:bg-muted'
+              }`}
+            >
+              {n}x {n === 1 ? '(sequencial)' : 'em paralelo'}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Padrão: <strong>2x</strong>. Recomendado para a maioria dos casos. Use 3x apenas se a equipe operar lotes pequenos (&lt; 50 CPFs).
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 function CreateOperationSettingsCard() {
   const { settings, saving, save } = useV8Settings();
   if (!settings) return null;

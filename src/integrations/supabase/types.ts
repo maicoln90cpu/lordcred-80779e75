@@ -4702,6 +4702,7 @@ export type Database = {
           created_at: string
           id: string
           max_auto_retry_attempts: number
+          max_concurrent_batches_per_owner: number
           max_retries_authorize: number
           max_retries_consult: number
           max_retries_simulate: number
@@ -4727,6 +4728,7 @@ export type Database = {
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
+          max_concurrent_batches_per_owner?: number
           max_retries_authorize?: number
           max_retries_consult?: number
           max_retries_simulate?: number
@@ -4752,6 +4754,7 @@ export type Database = {
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
+          max_concurrent_batches_per_owner?: number
           max_retries_authorize?: number
           max_retries_consult?: number
           max_retries_simulate?: number

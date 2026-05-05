@@ -26,6 +26,8 @@ export interface V8Settings {
   cpf_dedupe_window_days: number;
   /** Etapa 2 (mai/2026) — Auto-melhor sempre ligado para qualquer simulação com margem. */
   auto_best_always_on: boolean;
+  /** Etapa 2 (mai/2026) — Quantos lotes V8 o mesmo operador roda em paralelo (1-3). */
+  max_concurrent_batches_per_owner: number;
   updated_at: string;
 }
 
@@ -48,6 +50,7 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   cpf_dedupe_enabled: true,
   cpf_dedupe_window_days: 7,
   auto_best_always_on: true,
+  max_concurrent_batches_per_owner: 2,
 };
 
 export function useV8Settings() {
