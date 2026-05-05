@@ -46,8 +46,6 @@ const PERIOD_OPTIONS = [
   { value: 'all', label: 'Todos' },
 ];
 
-const PAGE_SIZE = 50;
-
 export function CorbanReportTab() {
   const [rows, setRows] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +54,12 @@ export function CorbanReportTab() {
   const [vendedorFilter, setVendedorFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('30');
   const [searchText, setSearchText] = useState('');
-  const [page, setPage] = useState(0);
   const [cachedStatus, setCachedStatus] = useState<CachedAsset[]>([]);
-  const { sort, toggle: toggleSort } = useSortState();
+  const table = useTableState<SnapshotRow>({
+    pageSize: 50,
+    resetPageOn: [statusFilter, bancoFilter, vendedorFilter, searchText, periodFilter],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
