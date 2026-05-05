@@ -840,6 +840,7 @@ export default function V8NovaSimulacaoTab() {
           onCheckStatus={(cpf, simId) =>
             ops.handleCheckStatus(cpf, simId, setStatusDialogData, () => setStatusDialogOpen(true))
           }
+          onForceDispatchRow={ops.handleForceDispatchRow}
           actionsSlot={
             <BatchActionsBar
               running={ops.running}
@@ -853,6 +854,8 @@ export default function V8NovaSimulacaoTab() {
               exportDisabled={simulations.length === 0}
               isPaused={activeBatchPaused}
               onTogglePause={togglePause}
+              onForceDispatchBatch={ops.handleForceDispatchBatch}
+              stuckCount={simulations.filter((s: any) => s.status === 'pending' && (Number(s.attempt_count ?? 0) === 0 || (s.last_attempt_at && Date.now() - new Date(s.last_attempt_at).getTime() > 5 * 60 * 1000))).length}
             />
           }
         />

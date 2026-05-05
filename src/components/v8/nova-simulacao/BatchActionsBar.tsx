@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X, Download, Pause, Ban } from 'lucide-react';
+import { Play, RefreshCw, X, Download, Pause, Ban, Zap } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -19,6 +19,9 @@ interface Props {
   /** Etapa 2 (item 6): pause/resume do lote — bloqueia cron e poller. */
   isPaused?: boolean;
   onTogglePause?: () => void;
+  /** Etapa 4 (mai/2026): força dispatch de linhas presas (pending sem attempt). */
+  onForceDispatchBatch?: () => void;
+  stuckCount?: number;
 }
 
 /**
@@ -31,6 +34,7 @@ export default function BatchActionsBar({
   onSimulateSelected, onReplayPending, onCancelBatch, onCancelBatchHard,
   onExportCsv, exportDisabled,
   isPaused, onTogglePause,
+  onForceDispatchBatch, stuckCount = 0,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -70,6 +74,18 @@ export default function BatchActionsBar({
             <strong>Quando usar:</strong> apenas se você suspeitar que algum resultado ficou perdido. Se o contador "ok=0" e "total=0", está tudo certo (não tem nada pendente).
           </TooltipContent>
         </Tooltip>
+        {onForceDispatchBatch && stuckCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={onForceDispatchBatch} disabled={running} className="border-amber-500 text-amber-700">
+                <Zap className="w-3 h-3 mr-1" /> Forçar dispatch ({stuckCount})
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Re-dispara para a V8 as linhas presas em "aguardando" (sem tentativa registrada ou paradas há &gt; 5 min). Ignora deduplicação.
+            </TooltipContent>
+          </Tooltip>
+        )}
         {onExportCsv && (
           <Tooltip>
             <TooltipTrigger asChild>

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, AlertTriangle, Eye } from 'lucide-react';
+import { Loader2, Search, AlertTriangle, Eye, Zap } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RealtimeFreshness, AutoRetryIndicator } from './BatchAnimations';
 import PayloadInspectorDialog from './PayloadInspectorDialog';
@@ -55,6 +55,8 @@ interface Props {
   showManualWarning: boolean;
   actionsSlot: ReactNode;
   onCheckStatus: (cpf: string, simulationId?: string) => void;
+  /** Etapa 4 (mai/2026): forçar dispatch de uma linha específica. */
+  onForceDispatchRow?: (sim: any) => void;
   /** Etapa 1 (mai/2026): meta do lote para renderizar linhas-fantasma quando v8_simulations ainda está vazio. */
   batch?: {
     id: string;
@@ -72,6 +74,7 @@ interface Props {
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
+  onForceDispatchRow,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
 
@@ -298,15 +301,28 @@ export default function BatchProgressTable({
                       })()}
                     </td>
                     <td className="px-2 py-1 text-center align-top">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        title="Ver payload completo"
-                        onClick={() => setPayloadSim(s)}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="inline-flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Ver payload completo"
+                          onClick={() => setPayloadSim(s)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        {onForceDispatchRow && s.status === 'pending' && (Number(s.attempt_count ?? 0) === 0 || (s.last_attempt_at && Date.now() - new Date(s.last_attempt_at).getTime() > 5 * 60 * 1000)) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-amber-600 hover:text-amber-700"
+                            title="Forçar dispatch — re-disparar consulta na V8 (ignora dedupe)"
+                            onClick={() => onForceDispatchRow(s)}
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
