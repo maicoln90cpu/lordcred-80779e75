@@ -209,6 +209,18 @@ export function useV8BatchSimulations(batchId: string | null) {
           if (!cancelled) reload();
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'v8_batches',
+          filter: `id=eq.${batchId}`,
+        },
+        () => {
+          if (!cancelled) reload();
+        },
+      )
       .subscribe((status) => {
         if (cancelled) return;
         if (status === 'SUBSCRIBED') {
@@ -233,5 +245,5 @@ export function useV8BatchSimulations(batchId: string | null) {
     };
   }, [batchId, reload]);
 
-  return { simulations, loading, reload, lastUpdateAt };
+  return { simulations, batch, loading, reload, lastUpdateAt };
 }
