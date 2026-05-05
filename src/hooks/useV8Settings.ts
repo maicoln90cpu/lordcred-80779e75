@@ -21,6 +21,9 @@ export interface V8Settings {
   max_retries_consult: number;
   max_retries_authorize: number;
   max_retries_simulate: number;
+  /** Etapa C — bloqueio de duplicidade de CPF dentro de uma janela recente. */
+  cpf_dedupe_enabled: boolean;
+  cpf_dedupe_window_days: number;
   updated_at: string;
 }
 
