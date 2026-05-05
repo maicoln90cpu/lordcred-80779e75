@@ -59,8 +59,8 @@ export function V8RealtimeStatusBar() {
       (b: any) => b.status !== 'completed' && b.status !== 'cancelled',
     );
 
-    // Detectar lotes zumbi: processing há >30 min sem update
-    const zombieCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // Detectar lotes zumbi: processing há >10 min sem update
+    const zombieCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: { user } } = await supabase.auth.getUser();
     const zombies = (batches || []).filter(
       (b: any) => b.status === 'processing' && b.updated_at < zombieCutoff && b.created_by === user?.id,
