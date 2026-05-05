@@ -50,6 +50,7 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   cpf_dedupe_enabled: true,
   cpf_dedupe_window_days: 7,
   auto_best_always_on: true,
+  max_concurrent_batches_per_owner: 2,
 };
 
 export function useV8Settings() {
