@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Plus, List, LayoutGrid, CalendarClock, Filter } from 'lucide-react';
+import { CalendarDays, Plus, List, LayoutGrid, CalendarClock, CalendarRange, Filter } from 'lucide-react';
 import {
   useHRCalendarEvents, EVENT_TYPE_LABEL,
   type HRCalendarEvent, type HRCalendarEventType,
@@ -25,6 +25,7 @@ import { useHREmployees } from '@/hooks/useHREmployees';
 import HRCalendarEventCard from './HRCalendarEventCard';
 import HRCalendarListView from './HRCalendarListView';
 import HRCalendarAgendaView from './HRCalendarAgendaView';
+import HRCalendarWeekView from './HRCalendarWeekView';
 
 function toLocalInput(iso: string | null) {
   if (!iso) return '';
@@ -55,7 +56,7 @@ const EMPTY_FORM: EventFormState = {
   starts_at: '', ends_at: '', location: '',
 };
 
-type CalendarView = 'month' | 'list' | 'agenda';
+type CalendarView = 'month' | 'week' | 'list' | 'agenda';
 type EntityFilter = 'all' | 'candidate' | 'employee';
 
 export function HRCalendarTab() {
@@ -103,11 +104,15 @@ export function HRCalendarTab() {
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   }, [events, selectedDay]);
 
+  const openCreateAt = (date: Date) => {
+    setForm({ ...EMPTY_FORM, starts_at: toLocalInput(date.toISOString()) });
+    setDialogOpen(true);
+  };
+
   const openCreate = () => {
     const base = new Date(selectedDay);
     base.setHours(9, 0, 0, 0);
-    setForm({ ...EMPTY_FORM, starts_at: toLocalInput(base.toISOString()) });
-    setDialogOpen(true);
+    openCreateAt(base);
   };
 
   const openEdit = (ev: HRCalendarEvent) => {
@@ -147,6 +152,9 @@ export function HRCalendarTab() {
           <TabsList>
             <TabsTrigger value="month" className="gap-1.5">
               <LayoutGrid className="w-4 h-4" /> Mês
+            </TabsTrigger>
+            <TabsTrigger value="week" className="gap-1.5">
+              <CalendarRange className="w-4 h-4" /> Semana
             </TabsTrigger>
             <TabsTrigger value="list" className="gap-1.5">
               <List className="w-4 h-4" /> Lista
@@ -231,6 +239,17 @@ export function HRCalendarTab() {
       )}
 
       {/* === View Lista: todos os eventos cronológicos com paginação === */}
+      {/* === View Semana: grade estilo Google Calendar === */}
+      {view === 'week' && (
+        <HRCalendarWeekView
+          events={events}
+          loading={loading}
+          candidateNameById={candidateNameById}
+          onEdit={openEdit}
+          onCreateAt={openCreateAt}
+        />
+      )}
+
       {view === 'list' && (
         <HRCalendarListView
           events={events}
