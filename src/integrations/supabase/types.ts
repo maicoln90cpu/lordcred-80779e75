@@ -2136,6 +2136,7 @@ export type Database = {
       }
       hr_calendar_events: {
         Row: {
+          all_day: boolean
           candidate_id: string | null
           color: string | null
           created_at: string
@@ -2153,6 +2154,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          all_day?: boolean
           candidate_id?: string | null
           color?: string | null
           created_at?: string
@@ -2170,6 +2172,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          all_day?: boolean
           candidate_id?: string | null
           color?: string | null
           created_at?: string
