@@ -290,23 +290,7 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         </div>
 
-        {/* Etapa 2 (abr/2026): Auto-melhor — descobre a melhor proposta sozinho.
-            Item 7 (abr/2026): toggle "Simular automaticamente após consulta" REMOVIDO.
-            Auto-melhor é estritamente superior (testa até 6 combinações até a V8 aceitar). */}
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-3">
-          <div className="space-y-0.5">
-            <Label className="text-sm font-medium flex items-center gap-1.5">
-              🤖 Auto-melhor (encontra a melhor proposta sozinha) · <span className="text-[10px] uppercase tracking-wide bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 rounded">recomendado</span>
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Quando ligado: para cada CPF com margem confirmada, o sistema tenta automaticamente as melhores combinações <strong>valor × prazo</strong> (do maior para o menor) até a V8 aceitar uma. Equivalente a clicar 🔍 "Encontrar proposta viável" em cada CPF — só que em lote. <strong>Ignora os campos "Modo de simulação" e "Valor"</strong> (decide tudo sozinho).
-            </p>
-          </div>
-          <Switch
-            checked={autoBest}
-            onCheckedChange={onToggleAutoBest}
-          />
-        </div>
+        {/* Bloco "Auto-melhor" foi movido para "Opções avançadas" (Etapa 1, mai/2026). */}
 
         {/* Etapa 3 (item 7): bloco de agendamento. Operador escolhe data/hora futura
             e o lote só inicia quando o launcher (pg_cron) chegar a esse horário. */}
