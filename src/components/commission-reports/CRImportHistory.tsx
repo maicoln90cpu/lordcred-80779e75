@@ -134,12 +134,10 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
     }
   };
 
-  const sorted = applySortToData(batches, sort, (b, k) => {
+  const { paged: paginated, totalPages, total: sortedTotal } = table.apply(batches, (b, k) => {
     if (k === 'imported_by') return getName(b.imported_by);
     return (b as any)[k];
   });
-  const paginated = sorted.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(sorted.length / pageSize);
   const deletedCount = batches.filter(b => b.deleted_at).length;
 
   return (
