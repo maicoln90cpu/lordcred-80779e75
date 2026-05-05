@@ -172,30 +172,37 @@ export default function Permissions() {
     setLoading(false);
   };
 
-  // === Role-based toggles ===
-  const applyRoleToggle = (featureId: string, role: string) => {
+  // === Role-based scope (none/menu_only/full) ===
+  const applyRoleScope = (featureId: string, role: string, scope: RoleScope) => {
     setFeatures((prev) =>
       prev.map((f) => {
         if (f.id !== featureId) return f;
-        const roles = f.allowed_roles.includes(role)
+        const next = { ...f.role_scopes };
+        if (scope === "none") {
+          delete next[role];
+        } else {
+          next[role] = scope;
+        }
+        // Manter allowed_roles em sincronia (legado): role está em allowed_roles se scope != none
+        const allowed_roles = scope === "none"
           ? f.allowed_roles.filter((r) => r !== role)
-          : [...f.allowed_roles, role];
-        return { ...f, allowed_roles: roles };
+          : Array.from(new Set([...f.allowed_roles, role]));
+        return { ...f, role_scopes: next, allowed_roles };
       }),
     );
     setDirty((prev) => new Set(prev).add(featureId));
   };
 
-  const toggleRole = (featureId: string, role: string) => {
+  const setRoleScope = (featureId: string, role: string, scope: RoleScope) => {
     const feature = features.find((f) => f.id === featureId);
     if (!feature) return;
-    const isEnabling = !feature.allowed_roles.includes(role);
-    // Confirmação obrigatória ao liberar Vendedor em features sensíveis
-    if (role === "seller" && isEnabling && SENSITIVE_FEATURES.has(feature.feature_key)) {
+    const isElevating = scope === "full" && feature.role_scopes[role] !== "full";
+    // Confirmação obrigatória ao liberar Vendedor (full) em features sensíveis
+    if (role === "seller" && isElevating && SENSITIVE_FEATURES.has(feature.feature_key)) {
       setPendingSellerConfirm({ featureId, featureLabel: feature.feature_label });
       return;
     }
-    applyRoleToggle(featureId, role);
+    applyRoleScope(featureId, role, scope);
   };
 
   // === Master toggle (global) ===
