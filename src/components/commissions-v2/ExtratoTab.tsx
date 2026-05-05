@@ -33,7 +33,11 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const [monthFilters, setMonthFilters] = useState<string[]>([]);
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
-  const { sort, toggle } = useSortState();
+  const table = useTableState<CommissionSale>({
+    pageSize: 50,
+    resetPageOn: [sellerFilter, productFilter, weekFilters, monthFilters],
+  });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
   const [annualRewards, setAnnualRewards] = useState<AnnualReward[]>([]);
 
