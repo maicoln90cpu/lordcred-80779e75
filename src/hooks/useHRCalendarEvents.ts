@@ -27,17 +27,16 @@ export interface HRCalendarEvent {
 }
 
 /**
- * Etapa 4C (abr/2026): hook de eventos manuais do RH.
- * Integração Google Calendar fica reservada para o futuro
- * (campo google_event_id já existe no schema).
+ * Hook de eventos manuais do RH com estado local imediato + realtime granular.
+ * Garante que criar/editar/excluir/arrastar reflitam na hora, sem F5.
  */
 export function useHRCalendarEvents() {
   const { toast } = useToast();
   const [events, setEvents] = useState<HRCalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
+  const fetchEvents = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const { data, error } = await (supabase as any)
         .from('hr_calendar_events')
@@ -48,26 +47,46 @@ export function useHRCalendarEvents() {
     } catch (err: any) {
       toast({ title: 'Erro ao carregar agenda', description: err.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    fetchEvents();
+    fetchEvents(true);
   }, [fetchEvents]);
 
-  // Realtime
+  // Realtime granular: aplica payload localmente sem refetch global.
   useEffect(() => {
     const channel = supabase
       .channel(`hr_calendar_events_${Math.random().toString(36).slice(2, 9)}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'hr_calendar_events' },
-        () => fetchEvents(),
+        { event: 'INSERT', schema: 'public', table: 'hr_calendar_events' },
+        (payload) => {
+          const row = payload.new as HRCalendarEvent;
+          setEvents((prev) => (prev.some((e) => e.id === row.id) ? prev : [...prev, row]
+            .sort((a, b) => a.starts_at.localeCompare(b.starts_at))));
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'hr_calendar_events' },
+        (payload) => {
+          const row = payload.new as HRCalendarEvent;
+          setEvents((prev) => prev.map((e) => (e.id === row.id ? { ...e, ...row } : e)));
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'hr_calendar_events' },
+        (payload) => {
+          const row = payload.old as { id: string };
+          setEvents((prev) => prev.filter((e) => e.id !== row.id));
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchEvents]);
+  }, []);
 
   const createEvent = useCallback(async (input: Partial<HRCalendarEvent>) => {
     const { data: u } = await supabase.auth.getUser();
@@ -91,18 +110,28 @@ export function useHRCalendarEvents() {
       toast({ title: 'Erro ao criar evento', description: error.message, variant: 'destructive' });
       throw error;
     }
+    // atualização imediata sem esperar realtime
+    const row = data as HRCalendarEvent;
+    setEvents((prev) => (prev.some((e) => e.id === row.id) ? prev : [...prev, row]
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))));
     toast({ title: 'Evento criado' });
-    return data as HRCalendarEvent;
+    return row;
   }, [toast]);
 
   const updateEvent = useCallback(async (id: string, patch: Partial<HRCalendarEvent>) => {
-    const { error } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('hr_calendar_events')
       .update(patch)
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
     if (error) {
       toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
       throw error;
+    }
+    if (data) {
+      const row = data as HRCalendarEvent;
+      setEvents((prev) => prev.map((e) => (e.id === row.id ? { ...e, ...row } : e)));
     }
   }, [toast]);
 
@@ -115,6 +144,7 @@ export function useHRCalendarEvents() {
       toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
       throw error;
     }
+    setEvents((prev) => prev.filter((e) => e.id !== id));
     toast({ title: 'Evento removido' });
   }, [toast]);
 
