@@ -292,6 +292,7 @@ export default function QueueManagement() {
                 </TableBody>
               </Table>
             </ScrollArea>
+            <TablePagination page={page} totalPages={totalPages} total={totalFiltered} label="itens" onChange={setPage} />
           </CardContent>
         </Card>
           </TabsContent>
