@@ -5443,6 +5443,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      has_feature_access: {
+        Args: { _feature_key: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
