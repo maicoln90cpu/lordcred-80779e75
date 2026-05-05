@@ -18,9 +18,15 @@ const STATUS_ALL = '__all__';
  * Os filtros aplicam ILIKE no name e EQ no status. A paginação usa range()
  * + count exact para mostrar "Página X de Y".
  */
+type SortCol = 'name' | 'config_name' | 'total_count' | 'success_count' | 'failure_count' | 'status' | 'created_at';
+
 export default function BatchHistoryPanel() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(STATUS_ALL);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [orderBy, setOrderBy] = useState<SortCol>('created_at');
+  const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -29,8 +35,22 @@ export default function BatchHistoryPanel() {
     pageSize: PAGE_SIZE,
     search,
     status: statusFilter === STATUS_ALL ? '' : statusFilter,
+    dateFrom, dateTo, orderBy, orderDir,
   });
   const { simulations, batch: selectedBatchMeta, lastUpdateAt } = useV8BatchSimulations(selectedId);
+
+  const toggleSort = (col: SortCol) => {
+    if (orderBy === col) {
+      setOrderDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrderBy(col);
+      setOrderDir(col === 'created_at' || col === 'name' || col === 'config_name' || col === 'status' ? 'desc' : 'desc');
+    }
+    setPage(0);
+  };
+  const sortIcon = (col: SortCol) => orderBy !== col ? null : (orderDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />);
+  const clearFilters = () => { setSearch(''); setStatusFilter(STATUS_ALL); setDateFrom(''); setDateTo(''); setPage(0); };
+  const hasFilters = !!search || statusFilter !== STATUS_ALL || dateFrom || dateTo;
 
   const selected = useMemo(
     () => batches.find((b) => b.id === selectedId) ?? null,
