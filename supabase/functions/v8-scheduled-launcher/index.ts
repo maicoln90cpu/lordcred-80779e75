@@ -52,18 +52,16 @@ Deno.serve(async (req) => {
   const MAX_BATCHES_PER_RUN = 5;
 
   try {
-    // Etapa 2 (mai/2026): paralelismo configurável por operador.
-    // Lê v8_settings.max_concurrent_batches_per_owner (default 2).
+    // Etapa 2 + 3C (mai/2026): paralelismo configurável + cache 60s.
     let maxConcurrent = 2;
+    let throttleMs = 1200;
     try {
-      const { data: stg } = await supabase
-        .from("v8_settings")
-        .select("max_concurrent_batches_per_owner")
-        .eq("singleton", true)
-        .maybeSingle();
+      const stg = await getCachedSettings(supabase);
       const v = Number((stg as any)?.max_concurrent_batches_per_owner);
       if (Number.isFinite(v) && v >= 1 && v <= 3) maxConcurrent = v;
-    } catch (_) { /* mantém default */ }
+      const t = Number((stg as any)?.consult_throttle_ms);
+      if (Number.isFinite(t) && t >= 200 && t <= 10000) throttleMs = t;
+    } catch (_) { /* mantém defaults */ }
 
     // 0) Etapa 4 (item 10): promove lotes da fila (queued) quando o operador
     //    tem menos de `maxConcurrent` lotes ativos.
