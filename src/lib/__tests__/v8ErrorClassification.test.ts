@@ -107,8 +107,8 @@ describe('isRetriableErrorKind / RETRIABLE_ERROR_KINDS', () => {
     expect(isRetriableErrorKind('')).toBe(false);
   });
 
-  it('Set imutável tem exatamente 2 entradas', () => {
-    expect(RETRIABLE_ERROR_KINDS.size).toBe(2);
+  it('Set imutável tem exatamente 3 entradas', () => {
+    expect(RETRIABLE_ERROR_KINDS.size).toBe(3);
   });
 });
 
