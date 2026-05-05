@@ -144,8 +144,9 @@ export default function Permissions() {
         ...f,
         allowed_user_ids: (f as any).allowed_user_ids || [],
         allowed_roles: (f as any).allowed_roles || [],
+        role_scopes: ((f as any).role_scopes || {}) as Record<string, RoleScope>,
       }));
-      setFeatures(mapped);
+      setFeatures(mapped as FeaturePermission[]);
 
       // Validador dev: alerta se houver feature_key em FEATURE_ROUTE_MAP sem registro em feature_permissions
       if (import.meta.env.DEV) {
