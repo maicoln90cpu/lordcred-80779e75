@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Trash2, Search, Users, Loader2, Download, ChevronLeft, ChevronRight, Copy, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import CreateOperationButton from '@/components/v8/CreateOperationButton';
 import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TablePagination } from '@/components/common/TablePagination';
 import { useToast } from '@/hooks/use-toast';
 import { loadXLSX } from '@/lib/xlsx-lazy';
 import { DEFAULT_ALIASES, type ColumnAlias } from './LeadImporter';
