@@ -301,15 +301,28 @@ export default function BatchProgressTable({
                       })()}
                     </td>
                     <td className="px-2 py-1 text-center align-top">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        title="Ver payload completo"
-                        onClick={() => setPayloadSim(s)}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="inline-flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Ver payload completo"
+                          onClick={() => setPayloadSim(s)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        {onForceDispatchRow && s.status === 'pending' && (Number(s.attempt_count ?? 0) === 0 || (s.last_attempt_at && Date.now() - new Date(s.last_attempt_at).getTime() > 5 * 60 * 1000)) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-amber-600 hover:text-amber-700"
+                            title="Forçar dispatch — re-disparar consulta na V8 (ignora dedupe)"
+                            onClick={() => onForceDispatchRow(s)}
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
