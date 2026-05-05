@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
         }
 
         launchedCount += 1;
-        perBatch.push({ batch_id: batchId, dispatched, total: sims.length });
+        perBatch.push({ batch_id: batchId, dispatched, dispatch_failed: dispatchFailed, total: sims.length });
       } catch (e: any) {
         console.error("[v8-scheduled-launcher] batch error", batchId, e);
         perBatch.push({ batch_id: batchId, error: String(e?.message || e) });
