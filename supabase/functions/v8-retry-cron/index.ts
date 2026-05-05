@@ -95,7 +95,7 @@ serve(async (req) => {
     const cutoffIso = new Date(Date.now() - minBackoffSec * 1000).toISOString();
     let q = supabase
       .from("v8_simulations")
-      .select("id, batch_id, cpf, name, birth_date, config_id, config_name, installments, attempt_count, raw_response, error_kind, last_attempt_at, created_by, created_at, status, v8_batches!inner(id, config_id, config_name, installments, status, is_paused)")
+      .select("id, batch_id, cpf, name, birth_date, config_id, config_name, installments, attempt_count, raw_response, error_kind, last_attempt_at, consult_id, created_by, created_at, status, v8_batches!inner(id, config_id, config_name, installments, status, is_paused)")
       .in("status", ["failed", "pending"])
       .neq("v8_batches.status", "canceled")
       .eq("v8_batches.is_paused", false)
