@@ -100,15 +100,23 @@ const ROLE_OPTIONS = [
   { value: "manager", label: "Gerente" },
 ];
 
+interface MasterToggle {
+  id: string;
+  feature_key: string;
+  is_enabled: boolean;
+}
+
 export default function Permissions() {
   const { toast } = useToast();
   const { isMaster } = useAuth();
   const [features, setFeatures] = useState<FeaturePermission[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [masterToggles, setMasterToggles] = useState<Record<string, MasterToggle>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [searchUser, setSearchUser] = useState("");
+  const [pendingSellerConfirm, setPendingSellerConfirm] = useState<{ featureId: string; featureLabel: string } | null>(null);
 
   useEffect(() => {
     loadData();
