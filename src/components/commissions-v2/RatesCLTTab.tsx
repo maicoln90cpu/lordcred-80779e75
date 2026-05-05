@@ -299,20 +299,8 @@ export default function RatesCLTTab() {
               </div>
               {importPreview.length > 0 && (
                 <div className="border rounded-md p-3 bg-muted/30">
-                  <p className="text-sm font-medium mb-2">
+                  <p className="text-sm font-medium mb-1">
                     Preview: {importPreview.length} taxa(s)
-                  </p>
-                  {(() => {
-                    const { fromSheet, fromDefault } = countDateSources(importPreview as any);
-                    return (
-                      <p className="text-[11px] text-muted-foreground">
-                        📅 <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fromSheet}</span> com vigência da planilha
-                        {' · '}
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">{fromDefault}</span> usando hoje
-                      </p>
-                    );
-                  })()}
-                  <p className="hidden">Linha removida
                     {importStats && (
                       <span className="ml-2 text-xs font-normal">
                         — <span className="text-emerald-500">{importStats.newCount} nova(s)</span>
@@ -321,6 +309,16 @@ export default function RatesCLTTab() {
                       </span>
                     )}
                   </p>
+                  {(() => {
+                    const { fromSheet, fromDefault } = countDateSources(importPreview as any);
+                    return (
+                      <p className="text-[11px] text-muted-foreground mb-2">
+                        📅 <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fromSheet}</span> com vigência da planilha
+                        {' · '}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">{fromDefault}</span> usando hoje
+                      </p>
+                    );
+                  })()}
                   <div className="max-h-40 overflow-auto text-xs">
                     <Table>
                       <TableHeader><TableRow>
