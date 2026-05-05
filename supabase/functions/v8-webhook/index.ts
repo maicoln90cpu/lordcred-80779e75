@@ -581,11 +581,26 @@ serve(async (req) => {
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && isActiveConsultRecovery) {
+          // ETAPA 1 (FIX): captura motivo real da V8 (description/detail) — antes era mensagem fixa.
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
-          safeUpdates.error_message = "Consulta antiga rejeitada na V8";
+          safeUpdates.error_kind = "rejected_by_v8";
+          safeUpdates.error_message = rejectionReason ?? "Consulta antiga rejeitada na V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
+          // ETAPA 1 (FIX): grava error_kind+motivo do REJECTED — antes ficava sem detalhe na UI.
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
+          safeUpdates.error_kind = "rejected_by_v8";
+          safeUpdates.error_message = rejectionReason ?? "Consulta rejeitada pela V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (wantsPending && currentRow.status === "pending") {
           // mantém pending
