@@ -1,113 +1,86 @@
+## Objetivo
+Adicionar uma 4ª aba **Semana** no calendário do RH (`/admin/hr` → Calendário), no mesmo molde do Google Agenda da imagem: 7 colunas (Dom–Sáb) × eixo Y de horários, com eventos posicionados por horário e duração.
 
-# Plano — Chat Meta (/whatsapp): áudio nativo, ticks azuis e mídia visível
+## Antes vs Depois
+- **Antes**: 3 views — Mês, Lista, Agenda (30 dias).
+- **Depois**: 4 views — Mês, **Semana** (nova), Lista, Agenda. A view Semana exibe a grade semanal estilo Google Calendar com navegação de semana (← Hoje →), mantendo os mesmos filtros (Candidatos/Colaboradores) e o botão "Novo evento".
 
-Foco em 4 correções funcionais (1, 2, 3, 4) e 2 já implementadas (5, 6 — apenas validação).
+## Escopo da nova view (Semana)
 
----
-
-## 1) Transcodificar webm → ogg/opus no edge (PTT nativo na Meta)
-
-**Antes**: Chrome/Edge gravam em `audio/webm;codecs=opus`. A Meta rejeita esse container, então hoje o gateway degrada para "documento". O destinatário recebe um anexo `.webm` (não toca como mensagem de voz no app oficial).
-
-**Depois**: O `whatsapp-gateway` (`send-media`) detecta entrada webm/opus e remuxa para um container OGG/Opus aceito pela Meta, mantendo o mesmo stream Opus (sem reencode). PTT chega como mensagem de voz nativa na Meta.
-
-**Como (técnico)**:
-- Implementar remux WebM→OGG manual em Deno puro (parse EBML mínimo + escrita Ogg/Opus). Isso evita FFmpeg WASM (pesado para edge function, ~25MB). Já existem ports JS leves (~30KB) que faremos inline no diretório `supabase/functions/whatsapp-gateway/lib/webmToOgg.ts`.
-- Fallback de segurança: se o remux falhar, mantém a degradação atual para documento (com toast).
-- Atualizar `metaAudioAllow` para incluir `audio/ogg;codecs=opus` após remux.
-- Telemetria: log `audio_remux_success|fallback_document` em `webhook_logs`.
-
-**Alternativa rejeitada**: forçar Chrome a gravar `audio/mp4` — não é suportado nativamente em Chrome/Edge desktop (só Safari/iOS).
-
----
-
-## 2) Tooltip Radix nos ticks de status
-
-**Antes**: `MessageBubble.tsx` usa apenas `aria-label`. Alguns navegadores não exibem tooltip nativo.
-
-**Depois**: Envolver cada ícone (`Check`, `CheckCheck`, `Clock`) em `<Tooltip>`/`<TooltipTrigger>`/`<TooltipContent>` do shadcn (Radix). Textos: "Pendente", "Enviada", "Entregue", "Lida".
-
-**Técnico**: garantir `<TooltipProvider>` no layout do chat (ou local com `delayDuration={300}`) para evitar custo global.
-
----
-
-## 3) Status "lida" (VV azul) não está atualizando
-
-**Diagnóstico provável** (sem evidência no banco ainda — confirmaremos com logs):
-- A lógica em `meta-webhook` (`handleMetaStatus`) já trata `read` e a regra de downgrade está correta (atualiza de `sent`/`delivered` para `read`).
-- Causas possíveis a verificar:
-  1. **Subscrição do webhook**: o app Meta precisa estar inscrito no campo `messages` da WABA (já está) **e** o número precisa ter `read receipts` habilitado pelo destinatário (configuração do usuário final). Se ele desabilitou "Confirmações de leitura" no WhatsApp dele, a Meta nunca envia o evento `read`.
-  2. **Realtime UI**: mesmo quando o banco atualiza `status='read'`, o React pode estar usando cache otimista que sobrescreve o valor recebido. Verificar `useChatMessages` ao receber update de `message_history`.
-  3. **Match por `message_id`**: se a `messages.[0].id` (wamid) salva no envio difere do `status.id` recebido pela Meta (sufixos), o update silenciosamente não casa.
-
-**Ações**:
-- Adicionar log no `meta-webhook` antes do `update`: `console.log('Meta read for', messageId, 'rows updated:', count)` usando `.select('id', { count: 'exact' })`.
-- Inspecionar `message_history` por `status='read'` em chips Meta para confirmar se o webhook está chegando.
-- Garantir que `useChatMessages` não está sobrescrevendo `status` ao mesclar realtime updates (manter sempre o valor com `statusRank` mais alto no client também).
-
----
-
-## 4) Áudios enviados aparecem como "Mídia indisponível"
-
-**Causa raiz**: `MediaRenderer.downloadMedia` chama **sempre** `uazapi-api` (`action: download-media`), independentemente do provider do chip. Mensagens enviadas/recebidas via Meta não têm registro na UazAPI → retorna vazio → cai no estado `error` → mostra "Mídia indisponível — conteúdo anterior à integração".
-
-**Correção**:
-- `MediaRenderer` precisa receber/descobrir o `provider` do chip (já existe `chips.provider`).
-- Roteamento:
-  - `provider='meta'` → invocar `whatsapp-gateway` com `action: 'download-media'` e o `mediaId` (que é a `media_url` salva no `message_history` — atualmente armazenamos o `media_id` da Meta nessa coluna).
-  - `provider='uazapi'` (ou ausente) → mantém chamada atual.
-- A resposta do `whatsapp-gateway/download-media` já vem em `data.base64` (data URL pronta para `<audio src>`/`<img src>`). Adaptar parser:
-  ```ts
-  const url = response.data?.fileURL || response.data?.base64;
-  ```
-- Texto de erro: trocar "conteúdo anterior à integração" por "Mídia indisponível — clique para tentar novamente" (mais honesto).
-
-**Técnico extra**: passar `provider` via prop em `MessageBubble` → `MediaRenderer`. Como já temos `chipId`, podemos resolver via cache leve (`useChips` já em memória) sem nova prop, mas a prop é mais previsível.
-
----
-
-## 5) Testes `audioMime.test.ts` (já implementado)
-
-Validar que os 4 casos rodam:
+### Layout
 ```
-bunx vitest run src/lib/__tests__/audioMime.test.ts
+              DOM 3  SEG 4  TER 5  QUA 6  QUI 7  SEX 8  SAB 9
+GMT-03   ┌─────────────────────────────────────────────────────┐
+ 7 AM    │                                                      │
+ 8 AM    │                                                      │
+ 9 AM    │                                                      │
+10 AM    │                          [SISTEMA PONTO 10:30-11:30] │
+11 AM    │                                                      │
+...      │ [Apresentação 14:00] (segunda)                       │
+└─────────────────────────────────────────────────────────────┘
 ```
-Sem alteração planejada.
+- Cabeçalho sticky com dias da semana + número do dia (dia atual destacado em círculo azul, igual Google).
+- Coluna fixa esquerda com horários (00:00 → 23:00, slots de 1h, altura 48px cada).
+- Linha vermelha "now indicator" no dia/hora atual.
+- Eventos renderizados como blocos absolutamente posicionados:
+  - `top` = (hora_inicio em minutos / 60) × 48px
+  - `height` = duração em minutos × (48/60), mínimo 24px
+  - cor da borda esquerda + fundo translúcido pelo `EVENT_TYPE_TOKEN` (já existente)
+  - eventos sobrepostos no mesmo dia dividem largura (algoritmo simples de "lanes")
+- Click em evento → abre o mesmo dialog de edição já existente.
+- Click em slot vazio → abre dialog de criação pré-preenchendo data/hora.
 
----
+### Toolbar da view Semana
+- Botões `← Hoje →` para navegar semana (`addWeeks/subWeeks`).
+- Label "Semana de DD/MM – DD/MM/YYYY" (locale ptBR).
+- Filtro Candidatos/Colaboradores e badge total — herdados do toolbar pai (já existente).
 
-## 6) Toast `degradedToDocument` (já implementado)
+## Arquivos
 
-Já em `useChatMessages`. Sem alteração — apenas confirmar que segue funcionando após a transcodificação (item 1) reduzir muito a frequência desse toast.
+### Novo: `src/components/hr/HRCalendarWeekView.tsx` (~220 linhas)
+Componente da view semana. Props iguais às outras views (`events`, `loading`, `candidateNameById`, `onEdit`, `onDelete`) + `onCreateAt(date: Date)` para criar evento por click em slot vazio. Internamente:
+- estado `weekStart` (segunda como início pode ficar Domingo p/ paridade Google → uso `startOfWeek(date, { weekStartsOn: 0 })`).
+- `useMemo` para mapear eventos por dia e calcular lanes.
+- usa tokens HSL semânticos (`--primary`, `--border`, `--muted-foreground`, `EVENT_TYPE_TOKEN`).
+- timezone: parse com `parseISO` (já vem ISO em -03:00, regra do projeto mantida).
 
----
+### Editado: `src/components/hr/HRCalendarTab.tsx`
+- Adicionar tipo `'week'` em `CalendarView`.
+- Novo `<TabsTrigger value="week">` com ícone `CalendarRange` entre **Mês** e **Lista**.
+- Novo bloco `{view === 'week' && <HRCalendarWeekView ... />}` passando `onCreateAt` que reaproveita `openCreate` adaptado.
+- Pequeno refactor: extrair `openCreateAt(date: Date)` para aceitar data específica.
 
-## Arquivos afetados
+## Detalhes técnicos
+- **Sem nova dependência**: usa apenas `date-fns` (já no projeto: `startOfWeek`, `addDays`, `addWeeks`, `subWeeks`, `isSameDay`, `differenceInMinutes`).
+- **Performance**: grid renderizado com CSS grid 8 colunas (1 horários + 7 dias); eventos absolutos dentro de cada coluna.
+- **Acessibilidade**: cada evento é `<button>` com aria-label "título às HH:mm".
+- **Responsivo**: scroll horizontal abaixo de 900px (a tela do RH é admin/desktop-first, igual Mês).
+- **Cores**: nada hardcoded — apenas tokens HSL.
 
-- `supabase/functions/whatsapp-gateway/index.ts` — remux webm→ogg + log de download-media
-- `supabase/functions/whatsapp-gateway/lib/webmToOgg.ts` (novo)
-- `supabase/functions/meta-webhook/index.ts` — log de rows updated em read
-- `src/components/whatsapp/MessageBubble.tsx` — Tooltip Radix nos ticks
-- `src/components/whatsapp/MediaRenderer.tsx` — roteamento por provider
-- `src/hooks/useChatMessages.ts` — preservar maior `statusRank` em merge realtime
+## Vantagens
+- Visualização por horário no estilo familiar Google Calendar.
+- Navegação semana-a-semana sem perder filtros.
+- Reutiliza dialog de edição/criação existente — zero duplicação.
 
----
+## Desvantagens / Trade-offs
+- Algoritmo de sobreposição é simples (lanes lado-a-lado); 5+ eventos no mesmo horário ficam estreitos. Aceitável para volume real do RH.
+- Eventos all-day não existem hoje no schema; ficam fora desta view (mesmo comportamento das outras 3).
 
-## Checklist manual após implementação
+## Checklist manual (validar após implementação)
+1. Abrir `/admin/hr` → aba **Calendário**.
+2. Clicar na nova aba **Semana** → grade aparece com a semana atual, dia de hoje destacado.
+3. Eventos existentes aparecem no slot correto (verificar com um evento de teste 14:00–15:00).
+4. Click em evento → dialog de edição abre.
+5. Click em slot vazio (ex.: terça 10h) → dialog de criação abre com data/hora pré-preenchidas.
+6. Botões `←` `Hoje` `→` navegam semanas mantendo filtro Candidato/Colaborador.
+7. Tema dark: cores legíveis, linha "now" visível.
 
-1. Gravar áudio no Chrome em chip Meta → destinatário deve receber **mensagem de voz** (não anexo).
-2. Passar mouse sobre o tick de uma mensagem → tooltip "Enviada"/"Entregue"/"Lida".
-3. Enviar mensagem Meta para um número com leitura confirmada habilitada → ver VV azul aparecer.
-4. Áudios já enviados na conversa carregam e tocam (sem "Mídia indisponível").
-5. `bunx vitest run src/lib/__tests__/audioMime.test.ts` → 4 testes passando.
-
-## Pendências futuras
-
-- Cache de mídia da Meta no Supabase Storage (hoje cada visualização re-baixa via Graph API — gera custo).
-- Suporte a stickers Meta no `MediaRenderer`.
+## Pendências / Futuro (apenas do que será implementado)
+- Drag-to-resize / drag-to-move de eventos (futuro).
+- Suporte a eventos multi-dia (futuro — exige campo `all_day` no schema).
+- Sincronização Google Calendar (já mencionado no rodapé da view Mês como roadmap).
 
 ## Prevenção de regressão
-
-- Teste Deno em `whatsapp-gateway/webmToOgg_test.ts` com fixture webm pequena.
-- Console log explícito no `meta-webhook` ao receber `read` (facilita auditoria).
-- Prop `provider` obrigatória em `MediaRenderer` (TypeScript impede chamar UazAPI em chip Meta).
+- Testes Vitest opcionais para a função pura `computeEventLanes(events, day)` (algoritmo de overlap) em `src/lib/__tests__/hrWeekViewLanes.test.ts`.
+- Não altera schema, não toca `types.ts` (read-only respeitado).
+- Não altera as views existentes (Mês/Lista/Agenda) — apenas adiciona aba.
