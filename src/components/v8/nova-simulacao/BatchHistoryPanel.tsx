@@ -66,6 +66,7 @@ export default function BatchHistoryPanel() {
         </div>
         <BatchProgressTable
           simulations={simulations}
+          batch={selectedBatchMeta}
           parcelas={selected.installments ?? 0}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={3}
