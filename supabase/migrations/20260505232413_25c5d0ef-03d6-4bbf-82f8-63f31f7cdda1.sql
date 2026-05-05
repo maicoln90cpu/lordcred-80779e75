@@ -1,0 +1,1 @@
+UPDATE public.v8_simulations SET simulate_status = 'success' WHERE simulate_status = 'done';

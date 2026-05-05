@@ -1,86 +1,46 @@
-## Diagnóstico — por que diverge?
+# Plano — 2 correções na aba Nova Simulação
 
-Não há bug na V8 nem na margem. O sistema usa **duas estratégias diferentes** de envio:
+## Problema 1 — Motivo ainda diz "clique em Simular selecionados" depois do Auto-melhor
 
-### Aba Operações (botão "Encontrar proposta viável") — funciona
-Em `src/components/v8/FindBestProposalButton.tsx` + `src/lib/v8FindBestProposal.ts`:
-- Lê `margem_valor` daquele CPF específico
-- Aplica **fator de segurança 0,95** → parcela = margem × 0,95
-- Envia em `installment_face_value` no **maior prazo permitido**
-- Resultado: parcela fica abaixo da margem → V8 aceita
+### Causa
+A edge `v8-clt-api` (action `simulate_only_for_consult`) grava `simulate_status = "done"` em sucesso. Mas o front (`BatchProgressTable.tsx:376` e `useV8BatchOperations.ts:243`) compara contra `"success"`. Então:
 
-### Aba Nova Simulação (botão "Simular selecionados") — falha
-Em `src/hooks/useV8BatchOperations.ts` linhas 239–274:
-- Envia o `simulation_mode` e `simulation_value` **globais do formulário** (mesmos para todos os CPFs)
-- Quando o operador deixa "Sem valor" (`simulation_mode='none'`), a V8 devolve um cenário default cuja **parcela bate igual ou acima da margem** do CPF de baixa margem
-- V8 recusa: "Valor da parcela acima da margem disponível"
-- É exatamente o que mostram seus prints (Rogerio: margem R$ 1.105,63 / parcela devolvida R$ 1.105,63 = no limite → rejeitada)
+- Edge grava `"done"` → front lê como ≠ `"success"` e ≠ `"failed"` → cai no `else` final (linha 408) e mostra **"Margem aprovada — clique em Simular selecionados…"**, mesmo o lote já tendo rodado.
+- O Auto-melhor (`src/lib/v8AutoBest.ts`) **não grava** `simulate_status='success'` no caminho de sucesso (só grava `'failed'` quando esgota). O sucesso depende inteiramente do que a edge gravou — que é `"done"`, valor que o resto do app não reconhece.
 
-### Por que "Auto-melhor" não cobre tudo
-O `runAutoBestForSim` (mesma lógica do botão de Operações, com 0,95) só roda no `useEffect` quando o toggle **autoBest=ON**. Se estiver OFF, ninguém aplica fator de segurança em lote → todos batem no limite.
+Existem 3 valores soltos hoje: `"success"` (esperado), `"done"` (gravado pela edge), `"not_started" | "failed"`. Inconsistência clara.
 
----
+### Correção
+1. **`supabase/functions/v8-clt-api/index.ts` (linha 3305)**: trocar `"done"` por `"success"` — alinha com o resto do código (`v8BatchExport.ts`, `BatchProgressTable.tsx`, `V8NovaSimulacaoTab.tsx`, `useV8BatchOperations.ts` que filtra candidatos por `!== 'done'` mas exibe por `=== 'success'`).
+2. **`src/lib/v8AutoBest.ts`**: no retorno `success`, gravar explicitamente `simulate_status='success'` + `simulate_attempted_at` antes do return — defesa em profundidade caso a edge falhe em atualizar.
+3. **`src/hooks/useV8BatchOperations.ts:243`**: mudar filtro de `!== 'done'` para `!== 'success'` (mantém comportamento, alinha com novo padrão).
+4. **Migração SQL one-shot**: `UPDATE v8_simulations SET simulate_status='success' WHERE simulate_status='done'` para corrigir linhas históricas (lotes já rodados continuam com motivo errado até o backfill).
 
-## Plano (3 etapas pequenas e seguras)
+Resultado: linhas que tiveram proposta calculada passam a mostrar **"Proposta calculada"** em verde.
 
-### Etapa 1 — Unificar `handleSimulateSelected` com a lógica do botão "🔍"
-Em `src/hooks/useV8BatchOperations.ts` (`handleSimulateSelected`):
-- Quando `simulation_mode === 'none'` (ou valor não informado pelo operador), **não cair no default da V8**.
-- Em vez disso, para cada CPF chamar `runAutoBestForSim` (mesmo fluxo do botão Operações: 6 candidatos com fator 0,95 → 0,65, maior prazo primeiro, throttled).
-- Quando o operador informar valor manual, manter o comportamento atual (envia o valor que ele digitou).
-- Toast final mantém contagem `ok / fail` somando os candidatos aceitos.
+## Problema 2 — THAYNA com `active_consult` parou em 1 tentativa
 
-### Etapa 2 — Ligar Auto-melhor por padrão em lotes novos
-Em `src/components/v8/V8NovaSimulacaoTab.tsx`:
-- `autoBest` passa a ser `true` por default ao criar/abrir um lote.
-- Tooltip do toggle: "Procura a melhor combinação valor × prazo automaticamente — mesma lógica do botão 🔍 da aba Operações."
-- Mantém o usuário podendo desligar.
+### Causa
+`src/lib/v8ErrorClassification.ts:92` — `RETRIABLE_ERROR_KINDS` inclui apenas `temporary_v8` e `analysis_pending`. O kind `active_consult` está **explicitamente excluído** (comentário linhas 87-88: "o cliente já tem consulta ativa, retentar gera mais erro").
 
-### Etapa 3 — Mensagem honesta no card quando V8 recusa
-Em `BatchProgressTable.tsx`:
-- Quando `simulate_status='failed'` E o motivo for "parcela acima da margem", incluir uma linha curta: "Tente desligar valor manual ou ative Auto-melhor — as duas abas usam a mesma V8."
-- Apenas texto. Não muda lógica.
+Mas no print da THAYNA o erro real foi **"Falha ao disparar a consulta para a V8 (timeout/erro de rede)"** — ou seja, `dispatch_failed` no front (`useV8BatchOperations.ts:183`), que **não é retentável** pelo cron nem pelo Auto-retry. E mesmo que a V8 tenha retornado depois `active_consult`, o classificador também não retenta.
 
----
+Resultado: linha trava em 1 tentativa final, mesmo com slot de retry disponível (max=15).
 
-## Detalhes técnicos
+### Correção
+1. **`src/lib/v8ErrorClassification.ts`**: adicionar `dispatch_failed` ao enum `V8ErrorKind` e ao `RETRIABLE_ERROR_KINDS` — falha de rede/timeout no dispatch é tipicamente transitória e merece backoff.
+2. **`active_consult` continua não-retentável** (correto — abriria nova consulta paralela na V8). Em vez disso, **melhorar a UI**: na coluna Tentativas, mostrar `1` sem o sufixo `(final)` para `active_consult`, e adicionar tooltip explicando "Não retenta: cliente já tem consulta ativa na V8 — aguarde o resultado da consulta original ou cancele-a no painel V8."
+3. **`supabase/functions/v8-clt-api/index.ts` (`detectV8ErrorKind`)**: espelhar a mesma adição de `dispatch_failed` (regra "se mudar aqui, mude lá" do header do arquivo).
+4. **Backfill opcional**: linhas atuais com `error_kind='dispatch_failed'` e `attempt_count < max` ficam elegíveis automaticamente para o próximo cron (`v8-retry-cron` lê o classificador).
 
-| Arquivo | O que muda |
-|---|---|
-| `src/hooks/useV8BatchOperations.ts` | `handleSimulateSelected`: ramificar entre "valor manual digitado" e "auto-melhor por linha" |
-| `src/components/v8/V8NovaSimulacaoTab.tsx` | `autoBest` default `true`; texto do toggle |
-| `src/components/v8/nova-simulacao/BatchProgressTable.tsx` | Texto auxiliar quando motivo = "parcela acima da margem" |
-| `src/lib/__tests__/v8FindBestProposal.test.ts` | Já cobre os candidatos. Adicionar 1 teste do caso Rogerio (margem 1105,63 → fator 0,95 produz parcela ≤ margem) |
+## Arquivos tocados
+- `supabase/functions/v8-clt-api/index.ts` (2 trocas: `"done"`→`"success"` + `detectV8ErrorKind`)
+- `src/lib/v8AutoBest.ts` (gravação explícita de sucesso)
+- `src/lib/v8ErrorClassification.ts` (novo kind retentável)
+- `src/hooks/useV8BatchOperations.ts` (filtro `!== 'success'`)
+- `src/components/v8/nova-simulacao/BatchProgressTable.tsx` (tooltip `active_consult`)
+- Nova migração: backfill `simulate_status`
 
-Sem mudanças em edge function nem em banco. Sem migração.
-
----
-
-## Antes vs Depois
-
-- **Antes:** "Simular selecionados" usa valor global → CPFs de margem baixa batem no teto e a V8 recusa.
-- **Depois:** "Simular selecionados" sem valor manual usa auto-melhor por CPF (parcela = margem × 0,95) → mesma taxa de aceitação do botão da aba Operações.
-
-## Vantagens / Desvantagens
-
-- **+** Paridade total entre as duas abas.
-- **+** Não precisa o operador saber que existe um toggle Auto-melhor.
-- **−** "Simular selecionados" fica um pouco mais lento (vários candidatos por CPF). Mitigação: throttle igual ao atual + para no primeiro aceito.
-
-## Checklist manual após implementar
-
-1. Abrir lote com CPFs que falharam com "parcela acima da margem".
-2. Clicar "Simular selecionados" sem digitar valor.
-3. Conferir que a maioria vira `success` com parcela < margem.
-4. Conferir que CPFs sem margem continuam `rejected`.
-5. Comparar com o botão "🔍" da aba Operações no mesmo CPF — deve aceitar o mesmo prazo/parcela.
-
-## Pendências (futuro, não agora)
-
-- Permitir o operador escolher o fator de segurança (0,95 / 0,85) na UI do lote.
-- Mostrar no card qual candidato foi aceito (prazo + fator).
-
-## Prevenção de regressão
-
-- Teste novo: caso Rogerio (margem 1105,63) → primeiro candidato com 0,95 deve gerar parcela ≤ margem.
-- Teste existente (Paulo / Gabriele) já garante que o fator de segurança seja aplicado.
+## Testes
+- `src/lib/__tests__/v8ErrorClassification.test.ts` — adicionar caso `dispatch_failed` retentável.
+- Manual: rodar lote, clicar Simular selecionados, verificar coluna Motivo virar "Proposta calculada".
