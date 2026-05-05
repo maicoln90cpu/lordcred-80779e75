@@ -21,6 +21,8 @@ import BatchProgressTable from './nova-simulacao/BatchProgressTable';
 import BatchActionsBar from './nova-simulacao/BatchActionsBar';
 import ScheduledBatchesPanel from './nova-simulacao/ScheduledBatchesPanel';
 import QueuedBatchesPanel from './nova-simulacao/QueuedBatchesPanel';
+import BatchHistoryPanel from './nova-simulacao/BatchHistoryPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { Input } from '@/components/ui/input';
 import { loadDrafts, saveDrafts, emptyDraft, loadDraftBatchMap, addDraftBatchEntry, removeDraftBatchByBatchId, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
@@ -642,7 +644,17 @@ export default function V8NovaSimulacaoTab() {
   }, [parallelActiveStatuses, parallelBatchIds]);
 
   return (
-    <div className="space-y-4">
+    <Tabs defaultValue="criar" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="criar">Criar lote</TabsTrigger>
+        <TabsTrigger value="historico">Histórico de lotes</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="historico" className="mt-2">
+        <BatchHistoryPanel />
+      </TabsContent>
+
+      <TabsContent value="criar" className="space-y-4 mt-2">
       <div className="rounded-md border border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
         ℹ️ <strong>Como funciona:</strong> esta aba envia simulações <em>com os parâmetros que você definiu</em> (tabela, prazo, valor). Se a margem do CPF for menor do que o pedido, a V8 retorna <strong>falha</strong> — é o comportamento esperado. Para encontrar automaticamente a melhor combinação valor × prazo dentro da margem disponível, use o botão <strong>"Encontrar proposta viável"</strong> dentro de <strong>Operações</strong> (após uma consulta com sucesso).
       </div>
@@ -911,6 +923,7 @@ export default function V8NovaSimulacaoTab() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
