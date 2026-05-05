@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface AuditLog {
   id: string;
@@ -365,6 +366,7 @@ export default function AuditLogs() {
             <p className="text-muted-foreground text-sm">Histórico de ações do sistema registradas automaticamente</p>
           </div>
         </div>
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Logs" />}
 
         <Tabs defaultValue="logs">
           <TabsList>
