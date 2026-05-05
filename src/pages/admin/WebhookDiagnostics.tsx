@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Webhook, RefreshCw, Clock, Flame, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
