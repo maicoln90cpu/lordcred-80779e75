@@ -55,6 +55,14 @@ interface Props {
   showManualWarning: boolean;
   actionsSlot: ReactNode;
   onCheckStatus: (cpf: string, simulationId?: string) => void;
+  /** Etapa 1 (mai/2026): meta do lote para renderizar linhas-fantasma quando v8_simulations ainda está vazio. */
+  batch?: {
+    id: string;
+    status: string;
+    scheduled_payload: any;
+    queue_position: number | null;
+    name: string;
+  } | null;
 }
 
 /**
