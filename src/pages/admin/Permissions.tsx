@@ -381,8 +381,12 @@ export default function Permissions() {
                     </AccordionTrigger>
                     <AccordionContent className="p-0">
                       {/* Column header with toggle-all per role */}
-                      <div className="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-4 py-2 bg-muted/50 border-b text-xs font-semibold text-muted-foreground">
+                      <div className="grid grid-cols-[1fr_110px_100px_100px_100px] gap-2 px-4 py-2 bg-muted/50 border-b text-xs font-semibold text-muted-foreground">
                         <span>Funcionalidade</span>
+                        <span className="text-center">
+                          Master
+                          <span className="block text-[10px] text-muted-foreground font-normal">(visível no menu)</span>
+                        </span>
                         {ROLE_OPTIONS.map((role) => {
                           const allChecked = groupFeatures.every((f) => f.allowed_roles.includes(role.value));
                           return (
@@ -399,39 +403,80 @@ export default function Permissions() {
                           );
                         })}
                       </div>
-                      {groupFeatures.map((feature) => (
-                        <div
-                          key={feature.id}
-                          className="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-4 py-2.5 border-t items-center"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{feature.feature_label}</span>
-                            {FEATURE_DESCRIPTIONS[feature.feature_key] && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="max-w-xs text-xs">
-                                  {FEATURE_DESCRIPTIONS[feature.feature_key]}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {dirty.has(feature.id) && (
-                              <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                                alterado
-                              </Badge>
-                            )}
-                          </div>
-                          {ROLE_OPTIONS.map((role) => (
-                            <div key={role.value} className="flex justify-center">
-                              <Switch
-                                checked={feature.allowed_roles.includes(role.value)}
-                                onCheckedChange={() => toggleRole(feature.id, role.value)}
-                              />
+                      {groupFeatures.map((feature) => {
+                        const masterToggle = masterToggles[feature.feature_key];
+                        const masterEnabled = masterToggle ? masterToggle.is_enabled : true;
+                        const isSensitive = SENSITIVE_FEATURES.has(feature.feature_key);
+                        return (
+                          <div
+                            key={feature.id}
+                            className={`grid grid-cols-[1fr_110px_100px_100px_100px] gap-2 px-4 py-2.5 border-t items-center ${!masterEnabled ? "opacity-60" : ""}`}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium">{feature.feature_label}</span>
+                              {isSensitive && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] px-1.5 py-0 border-destructive/50 text-destructive gap-1"
+                                    >
+                                      <AlertTriangle className="w-3 h-3" />
+                                      Sensível
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs text-xs">
+                                    Funcionalidade sensível. Liberar para Vendedor exige confirmação.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              {FEATURE_DESCRIPTIONS[feature.feature_key] && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs text-xs">
+                                    {FEATURE_DESCRIPTIONS[feature.feature_key]}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              {dirty.has(feature.id) && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  alterado
+                                </Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      ))}
+                            <div className="flex flex-col items-center gap-0.5">
+                              {masterToggle ? (
+                                <>
+                                  <Switch
+                                    checked={masterEnabled}
+                                    onCheckedChange={(c) => toggleMasterFeature(feature.feature_key, c)}
+                                  />
+                                  <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
+                                    {masterEnabled ? (
+                                      <><Power className="w-2.5 h-2.5 text-green-500" />ativo</>
+                                    ) : (
+                                      <><PowerOff className="w-2.5 h-2.5" />oculto</>
+                                    )}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
+                            </div>
+                            {ROLE_OPTIONS.map((role) => (
+                              <div key={role.value} className="flex justify-center">
+                                <Switch
+                                  checked={feature.allowed_roles.includes(role.value)}
+                                  onCheckedChange={() => toggleRole(feature.id, role.value)}
+                                  disabled={!masterEnabled}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </AccordionContent>
                   </AccordionItem>
                 ))}
