@@ -246,28 +246,68 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
     setRunning(true);
     const throttleMs = v8Settings?.simulate_throttle_ms ?? 1200;
     const normalized = normalizedValue();
-    const toastId = toast.loading(`Simulando ${candidates.length} CPF(s)...`);
+    // PARIDADE com aba Operações: sem valor manual digitado, usamos a mesma
+    // lógica do botão 🔍 ("Encontrar proposta viável") — testa candidatos com
+    // fator de segurança 0,95 → 0,65, parando no primeiro aceito pela V8.
+    // Evita o erro "Valor da parcela acima da margem disponível" que acontecia
+    // ao deixar a V8 escolher o cenário default no limite da margem.
+    const useAutoBest = simulationMode === 'none' || !Number.isFinite(normalized) || normalized <= 0;
+    const toastId = toast.loading(
+      useAutoBest
+        ? `🤖 Auto-melhor: testando ${candidates.length} CPF(s) — mesma lógica do botão 🔍...`
+        : `Simulando ${candidates.length} CPF(s)...`,
+    );
     let okCount = 0; let failCount = 0;
     try {
+      const { runAutoBestForSim } = useAutoBest
+        ? await import('@/lib/v8AutoBest')
+        : { runAutoBestForSim: null as any };
+
       for (let i = 0; i < candidates.length; i++) {
         const sim: any = candidates[i];
         try {
-          const { data } = await supabase.functions.invoke('v8-clt-api', {
-            body: {
-              action: 'simulate_only_for_consult',
-              params: {
-                simulation_id: sim.id, consult_id: sim.consult_id,
-                config_id: sim.config_id || configId, parcelas: parcelas || sim.installments,
-                simulation_mode: simulationMode === 'none' ? undefined : simulationMode,
-                simulation_value: simulationMode === 'none' ? undefined : normalized,
+          if (useAutoBest && runAutoBestForSim) {
+            const r = await runAutoBestForSim({
+              id: sim.id,
+              cpf: sim.cpf,
+              consult_id: sim.consult_id,
+              config_id: sim.config_id || configId,
+              margem_valor: sim.margem_valor,
+              sim_value_min: sim.sim_value_min,
+              sim_value_max: sim.sim_value_max,
+              sim_installments_min: sim.sim_installments_min,
+              sim_installments_max: sim.sim_installments_max,
+            });
+            if (r.status === 'success') okCount += 1; else failCount += 1;
+          } else {
+            const { data } = await supabase.functions.invoke('v8-clt-api', {
+              body: {
+                action: 'simulate_only_for_consult',
+                params: {
+                  simulation_id: sim.id, consult_id: sim.consult_id,
+                  config_id: sim.config_id || configId, parcelas: parcelas || sim.installments,
+                  simulation_mode: simulationMode,
+                  simulation_value: normalized,
+                },
               },
-            },
-          });
-          if (data?.success) okCount += 1; else failCount += 1;
+            });
+            if (data?.success) okCount += 1; else failCount += 1;
+          }
         } catch { failCount += 1; }
         if (i < candidates.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
       }
-      toast.success(`Simulação concluída: ${okCount} ok · ${failCount} erro`, { id: toastId });
+      toast.success(
+        useAutoBest
+          ? `🤖 Auto-melhor concluído: ${okCount} aceita(s) · ${failCount} sem proposta`
+          : `Simulação concluída: ${okCount} ok · ${failCount} erro`,
+        {
+          id: toastId,
+          description: useAutoBest
+            ? 'Cada CPF testou até 6 combinações valor × prazo. Veja os motivos na coluna "Por que falhou".'
+            : undefined,
+          duration: 7000,
+        },
+      );
     } catch (err: any) {
       toast.error(`Erro: ${err?.message || err}`, { id: toastId });
     } finally { setRunning(false); }
