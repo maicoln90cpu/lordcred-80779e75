@@ -40,10 +40,19 @@ export type RateUpsertResult = {
  * Também alinha com `calculate_commission_v2()` que faz UPPER(NEW.bank) na leitura.
  */
 function normalizeRow(r: RateRow): RateRow {
+  // Whitelist explícita: descarta campos auxiliares (ex: _vigencia_origem do preview)
+  // que não existem no banco e quebrariam o INSERT.
   return {
-    ...r,
+    effective_date: r.effective_date,
     bank: (r.bank || '').trim().toUpperCase(),
     table_key: r.table_key ? r.table_key.trim().toUpperCase() : null,
+    term_min: r.term_min,
+    term_max: r.term_max,
+    min_value: r.min_value,
+    max_value: r.max_value,
+    has_insurance: r.has_insurance,
+    rate: r.rate,
+    obs: r.obs,
   };
 }
 
