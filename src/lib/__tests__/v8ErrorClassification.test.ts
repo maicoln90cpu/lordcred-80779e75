@@ -148,4 +148,16 @@ describe('shouldAutoRetry / MAX_AUTO_RETRY_ATTEMPTS', () => {
     expect(shouldAutoRetry(undefined, null)).toBe(false);
     expect(shouldAutoRetry('temporary_v8', null)).toBe(true); // 0 tentativas
   });
+
+  it('retenta dispatch_failed (timeout/erro de rede no POST inicial)', () => {
+    expect(isRetriableErrorKind('dispatch_failed')).toBe(true);
+    expect(RETRIABLE_ERROR_KINDS.has('dispatch_failed')).toBe(true);
+    expect(shouldAutoRetry('dispatch_failed', 1, 15)).toBe(true);
+    expect(shouldAutoRetry('dispatch_failed', 15, 15)).toBe(false); // esgotou
+  });
+
+  it('NUNCA retenta active_consult (criaria consulta paralela na V8)', () => {
+    expect(isRetriableErrorKind('active_consult')).toBe(false);
+    expect(shouldAutoRetry('active_consult', 0)).toBe(false);
+  });
 });
