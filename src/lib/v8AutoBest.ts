@@ -113,6 +113,15 @@ export async function runAutoBestForSim(sim: AutoBestSimRow): Promise<AutoBestRe
         },
       });
       if (result?.success) {
+        // Defesa em profundidade: garante simulate_status='success' mesmo se a edge
+        // não tiver atualizado (ex: race condition, erro silencioso no update).
+        try {
+          await supabase.from('v8_simulations').update({
+            simulate_status: 'success',
+            simulate_attempted_at: new Date().toISOString(),
+            simulate_error_message: null,
+          }).eq('id', sim.id);
+        } catch { /* ignore */ }
         return { cpf: sim.cpf, status: 'success', acceptedCandidate: c, attempts: i + 1 };
       }
       lastError = String(

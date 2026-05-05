@@ -274,9 +274,11 @@ export default function BatchProgressTable({
                           '',
                           `Estado atual: ${n} chamada(s) completa(s) usada(s) de até ${maxAutoRetry}.`,
                         ];
-                        if (k && !isRetriableErrorKind(k)) {
+                        if (k === 'active_consult') {
+                          linhas.push('Motivo "active_consult" não retenta automaticamente: o cliente já tem uma consulta ativa na V8. Aguarde a V8 finalizar a consulta original ou cancele-a no painel V8 antes de tentar de novo.');
+                        } else if (k && !isRetriableErrorKind(k)) {
                           linhas.push(`Motivo "${k}" é FINAL — não vai subir mais. Casos como rejected_by_v8, invalid_data e existing_proposal exigem ação humana (cancelar consulta antiga, corrigir cadastro).`);
-                        } else if (k === 'temporary_v8' || k === 'analysis_pending') {
+                        } else if (isRetriableErrorKind(k)) {
                           linhas.push(`Motivo "${k}" é instabilidade temporária — auto-retry continua até ${maxAutoRetry}.`);
                         }
                         return linhas.join('\n');
@@ -286,8 +288,12 @@ export default function BatchProgressTable({
                       {(() => {
                         const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                         const n = s.attempt_count ?? 0;
-                        const isFinal = k && !isRetriableErrorKind(k);
-                        const isRetriable = k === 'temporary_v8' || k === 'analysis_pending';
+                        const isActiveConsult = k === 'active_consult';
+                        const isFinal = k && !isRetriableErrorKind(k) && !isActiveConsult;
+                        const isRetriable = isRetriableErrorKind(k);
+                        if (isActiveConsult && n > 0) {
+                          return <span className="text-[10px] block text-amber-600">(aguarde V8)</span>;
+                        }
                         if (isFinal && n > 0) {
                           return <span className="text-[10px] block text-muted-foreground">(final)</span>;
                         }

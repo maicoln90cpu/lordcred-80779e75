@@ -240,7 +240,7 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
     if (!activeBatchId) return;
     if (!configId) { toast.error('Escolha a tabela usada no lote'); return; }
     const candidates = simulations.filter((s: any) =>
-      s.status === 'success' && s.consult_id && (s.simulate_status ?? 'not_started') !== 'done'
+      s.status === 'success' && s.consult_id && (s.simulate_status ?? 'not_started') !== 'success'
     );
     if (candidates.length === 0) { toast.info('Nenhum CPF pronto para simular (precisa ter consulta SUCCESS).'); return; }
     setRunning(true);

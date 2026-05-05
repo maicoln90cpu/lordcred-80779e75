@@ -3302,7 +3302,7 @@ const handler = async (req: Request) => {
             : null;
           await supabase.from("v8_simulations").update({
             simulate_attempted_at: new Date().toISOString(),
-            simulate_status: (result as any)?.success ? "done" : "failed",
+            simulate_status: (result as any)?.success ? "success" : "failed",
             simulate_error_message: simErrorMsg,
           }).eq("id", params.simulation_id);
           if ((result as any)?.success) {

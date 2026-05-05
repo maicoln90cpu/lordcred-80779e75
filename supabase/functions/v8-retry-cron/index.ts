@@ -21,7 +21,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const RETRIABLE_KINDS = new Set(["temporary_v8", "analysis_pending"]);
+const RETRIABLE_KINDS = new Set(["temporary_v8", "analysis_pending", "dispatch_failed"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
