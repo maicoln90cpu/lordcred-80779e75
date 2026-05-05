@@ -154,12 +154,10 @@ export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdm
               </TableHeader>
               <TableBody>
                 {(() => {
-                  const sorted = applySortToData(users, sort, (item, key) => {
+                  const { sorted, paged, totalPages } = table.apply(users, (item, key) => {
                     if (key === 'name') return item.name || item.email;
                     return (item as any)[key];
                   });
-                  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-                  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
                   return (
                     <>
                       {paged.map((user) => (
