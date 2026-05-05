@@ -11,7 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Trash2, ClipboardList, AlertTriangle, Download, RotateCcw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TSHead, useSortState, applySortToData } from './CRSortUtils';
+import { TSHead, applySortToData } from './CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { getSpreadsheetUrl } from '@/lib/storageUpload';
 
 interface ImportBatch {
