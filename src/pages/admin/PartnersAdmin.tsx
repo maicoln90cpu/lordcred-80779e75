@@ -119,7 +119,6 @@ export default function PartnersAdmin() {
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const table = useTableState<any>({ pageSize: 50, resetPageOn: [] });
   const { sort, toggleSort, page, setPage } = table;
-  const toggle = toggleSort;
   const PAGE_SIZE = 50;
 
   const [form, setForm] = useState({
