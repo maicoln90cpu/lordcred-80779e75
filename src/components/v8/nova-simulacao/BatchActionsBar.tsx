@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Play, RefreshCw, X, Download, Pause, Ban } from 'lucide-react';
+import { Play, RefreshCw, X, Download, Pause, Ban, Zap } from 'lucide-react';
 
 interface Props {
   running: boolean;
@@ -19,6 +19,9 @@ interface Props {
   /** Etapa 2 (item 6): pause/resume do lote — bloqueia cron e poller. */
   isPaused?: boolean;
   onTogglePause?: () => void;
+  /** Etapa 4 (mai/2026): força dispatch de linhas presas (pending sem attempt). */
+  onForceDispatchBatch?: () => void;
+  stuckCount?: number;
 }
 
 /**
@@ -31,6 +34,7 @@ export default function BatchActionsBar({
   onSimulateSelected, onReplayPending, onCancelBatch, onCancelBatchHard,
   onExportCsv, exportDisabled,
   isPaused, onTogglePause,
+  onForceDispatchBatch, stuckCount = 0,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
