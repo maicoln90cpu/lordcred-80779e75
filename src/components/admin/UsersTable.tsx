@@ -9,7 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface UserProfile {
   id: string;
