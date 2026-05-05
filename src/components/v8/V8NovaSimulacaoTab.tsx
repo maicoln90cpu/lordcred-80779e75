@@ -661,9 +661,6 @@ export default function V8NovaSimulacaoTab() {
       </TabsContent>
 
       <TabsContent value="criar" className="space-y-4 mt-2">
-      <div className="rounded-md border border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
-        ℹ️ <strong>Como funciona:</strong> esta aba envia simulações <em>com os parâmetros que você definiu</em> (tabela, prazo, valor). Se a margem do CPF for menor do que o pedido, a V8 retorna <strong>falha</strong> — é o comportamento esperado. Para encontrar automaticamente a melhor combinação valor × prazo dentro da margem disponível, use o botão <strong>"Encontrar proposta viável"</strong> dentro de <strong>Operações</strong> (após uma consulta com sucesso).
-      </div>
       {/* Etapa 4 (item 10): tabs de rascunhos — cada slot mantém formulário e lote ativo independentes. */}
       <div className="flex items-center gap-1 flex-wrap border-b border-border pb-2">
         {drafts.map((d) => {
