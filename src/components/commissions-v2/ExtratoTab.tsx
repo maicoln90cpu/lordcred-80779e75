@@ -152,7 +152,14 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
     }
   }, [availableSellerIds, sellerFilter, isAdmin]);
 
+  const matchesMonth = (s: CommissionSale) => {
+    if (monthFilters.length === 0) return true;
+    const ym = String(s.sale_date || '').slice(0, 7);
+    return monthFilters.includes(ym);
+  };
+
   const filtered = sales.filter(s => {
+    if (!matchesMonth(s)) return false;
     if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
     if (productFilter !== 'all' && s.product !== productFilter) return false;
