@@ -14,7 +14,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
