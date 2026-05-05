@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Medal, PieChart, Ticket, AlertTriangle, DollarSign, TrendingUp, Users, History } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Medal, PieChart, Ticket, AlertTriangle, DollarSign, TrendingUp, Users, History, CalendarRange } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from './CRSortUtils';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -45,6 +46,7 @@ export default function CommIndicadores({
   fgtsRatesTable?: 'commission_rates_fgts' | 'commission_rates_fgts_v2';
 }) {
   const { sort, toggle } = useSortState();
+  const [selectedMonth, setSelectedMonth] = useState<string>(''); // YYYY-MM ('' = mês atual ainda não resolvido)
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['comm-sales-indicadores', salesTable],
@@ -53,6 +55,28 @@ export default function CommIndicadores({
       return (data || []) as Sale[];
     },
   });
+
+  // Opções de mês = todos YYYY-MM com vendas, ordenado desc
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach(s => { if (s.sale_date) set.add(String(s.sale_date).slice(0, 7)); });
+    const arr = [...set].sort().reverse();
+    const NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return arr.map(ym => {
+      const [y, m] = ym.split('-');
+      return { value: ym, label: `${NAMES[parseInt(m, 10) - 1]}/${y}` };
+    });
+  }, [sales]);
+
+  // Default automático = mês mais recente com vendas (uma única vez)
+  const autoDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (autoDefaultedRef.current) return;
+    if (monthOptions.length === 0) return;
+    setSelectedMonth(monthOptions[0].value);
+    autoDefaultedRef.current = true;
+  }, [monthOptions]);
+
 
   // Fetch CLT rate history
   const { data: cltRates = [] } = useQuery({
@@ -77,12 +101,8 @@ export default function CommIndicadores({
 
   // ==================== KPIs Executivos ====================
   const kpis = useMemo(() => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const monthSales = sales.filter(s => {
-      const d = new Date(s.sale_date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
+    const targetMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+    const monthSales = sales.filter(s => String(s.sale_date || '').slice(0, 7) === targetMonth);
     const totalVendasMes = monthSales.length;
     const totalComissaoMes = monthSales.reduce((a, s) => a + (s.commission_value || 0), 0);
     const totalLiberadoMes = monthSales.reduce((a, s) => a + (s.released_value || 0), 0);
@@ -104,7 +124,7 @@ export default function CommIndicadores({
     })();
 
     return { totalVendasMes, totalComissaoMes, totalLiberadoMes, ticketMedio, vendedoresAtivos, topSeller, bancoTop };
-  }, [sales, getSellerName]);
+  }, [sales, getSellerName, selectedMonth]);
 
   // ==================== Alertas de Taxa 0% ====================
   const zeroRateAlerts = useMemo(() => {
@@ -215,10 +235,32 @@ export default function CommIndicadores({
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (sales.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Nenhuma venda registrada ainda.</p>;
 
-  const mesAtual = new Date().toLocaleString('pt-BR', { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+  const mesAtual = (() => {
+    const ym = selectedMonth || new Date().toISOString().slice(0, 7);
+    const found = monthOptions.find(m => m.value === ym);
+    return found?.label || ym;
+  })();
 
   return (
     <div className="space-y-6">
+      {/* ==================== Seletor de Mês ==================== */}
+      {monthOptions.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarRange className="w-4 h-4" />
+            <span>Mês de referência para os KPIs</span>
+          </div>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Selecionar mês" /></SelectTrigger>
+            <SelectContent>
+              {monthOptions.map(m => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* ==================== KPIs Executivos ==================== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-5 pb-4">

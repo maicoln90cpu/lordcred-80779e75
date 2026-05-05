@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import WeekMultiSelect from './WeekMultiSelect';
+import MonthMultiSelect, { buildMonthOptions } from './MonthMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
 import KpiDelta from './KpiDelta';
@@ -27,6 +28,7 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
+  const [monthFilters, setMonthFilters] = useState<string[]>([]);
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortState();
@@ -93,7 +95,39 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
     return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', currentReward: currentReward?.reward_description || null, remaining, pct };
   }, [sales, sellerFilter, isAdmin, userId, annualRewards]);
 
-  const weeks = useMemo(() => [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse(), [sales]);
+  const monthOptions = useMemo(() => buildMonthOptions(sales.map(s => s.sale_date)), [sales]);
+
+  // Mapa week_label -> set de meses YYYY-MM (uma semana pode atravessar 2 meses)
+  const weekToMonths = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    sales.forEach(s => {
+      if (!s.week_label || !s.sale_date) return;
+      const ym = String(s.sale_date).slice(0, 7);
+      if (!map.has(s.week_label)) map.set(s.week_label, new Set());
+      map.get(s.week_label)!.add(ym);
+    });
+    return map;
+  }, [sales]);
+
+  const allWeeks = useMemo(() => [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse(), [sales]);
+
+  // Cascata mês → semanas: se há meses selecionados, mostra só semanas que têm vendas nesses meses
+  const weeks = useMemo(() => {
+    if (monthFilters.length === 0) return allWeeks;
+    return allWeeks.filter(w => {
+      const months = weekToMonths.get(w as string);
+      if (!months) return false;
+      return [...months].some(m => monthFilters.includes(m));
+    });
+  }, [allWeeks, monthFilters, weekToMonths]);
+
+  // Limpa semanas que ficaram fora do filtro de mês
+  useEffect(() => {
+    if (weekFilters.length === 0) return;
+    const valid = new Set(weeks as string[]);
+    const filtered = weekFilters.filter(w => valid.has(w));
+    if (filtered.length !== weekFilters.length) setWeekFilters(filtered);
+  }, [weeks, weekFilters]);
 
   // Cascata: se há semanas selecionadas, vendedores disponíveis são apenas os que venderam nessas semanas
   const availableSellerIds = useMemo(() => {
@@ -118,7 +152,14 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
     }
   }, [availableSellerIds, sellerFilter, isAdmin]);
 
+  const matchesMonth = (s: CommissionSale) => {
+    if (monthFilters.length === 0) return true;
+    const ym = String(s.sale_date || '').slice(0, 7);
+    return monthFilters.includes(ym);
+  };
+
   const filtered = sales.filter(s => {
+    if (!matchesMonth(s)) return false;
     if (weekFilters.length > 0 && !weekFilters.includes(s.week_label || '')) return false;
     if (sellerFilter !== 'all' && s.seller_id !== sellerFilter) return false;
     if (productFilter !== 'all' && s.product !== productFilter) return false;
@@ -191,6 +232,7 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               <SelectItem value="Crédito do Trabalhador">CLT</SelectItem>
             </SelectContent>
           </Select>
+          <MonthMultiSelect months={monthOptions} selected={monthFilters} onChange={setMonthFilters} />
           <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
         </div>
       </CardHeader>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -114,6 +114,27 @@ export default function CommMetas({
     const ids = new Set(sales.map(s => s.seller_id));
     return Array.from(ids);
   }, [sales]);
+
+  // Auto-default: mês mais recente que tem vendas no ano corrente.
+  // Evita "tudo zerado" quando estamos em maio mas a última venda é de abril.
+  const autoDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (autoDefaultedRef.current) return;
+    if (sales.length === 0) return;
+    const monthsWithSales = new Set<number>();
+    sales.forEach(s => {
+      const d = new Date(s.sale_date);
+      if (d.getFullYear() === currentYear) monthsWithSales.add(d.getMonth());
+    });
+    if (monthsWithSales.size === 0) return;
+    if (monthsWithSales.has(currentMonth)) {
+      autoDefaultedRef.current = true;
+      return; // mantém mês atual se ele tem dados
+    }
+    const latest = Math.max(...Array.from(monthsWithSales));
+    setSelectedMonth(String(latest));
+    autoDefaultedRef.current = true;
+  }, [sales, currentYear, currentMonth]);
 
   const monthIdx = parseInt(selectedMonth);
 
