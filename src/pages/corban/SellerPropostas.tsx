@@ -91,8 +91,7 @@ export default function SellerPropostas() {
     await executeSearch(buildPayload());
   };
 
-  const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
-  const pagedPropostas = propostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const { paged: pagedPropostas, totalPages } = table.apply(propostas);
 
   const renderCellValue = (value: unknown): string => {
     if (value === null || value === undefined) return '—';
