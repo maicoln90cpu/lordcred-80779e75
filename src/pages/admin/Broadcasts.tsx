@@ -183,6 +183,8 @@ export default function Broadcasts() {
           </div>
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Disparos" />}
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
