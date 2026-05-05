@@ -383,6 +383,11 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
       const simReason = (typeof s.simulate_error_message === 'string' && s.simulate_error_message.trim())
         ? s.simulate_error_message.trim()
         : null;
+      // Detecta o erro mais comum: V8 recusou porque a parcela default
+      // bateu no teto da margem disponível. Nesse caso o operador precisa
+      // saber que basta deixar o "valor" em branco (auto-melhor aplica 0,95).
+      const isMarginCap = simReason
+        && /parcela.*acima.*margem|valor.*parcela.*margem/i.test(simReason);
       return (
         <div className="space-y-0.5">
           <div className="text-amber-600">
@@ -392,6 +397,11 @@ function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string,
           <div className="text-[11px] text-muted-foreground italic">
             Tente "Encontrar proposta viável" para escolher outro prazo/valor.
           </div>
+          {isMarginCap && (
+            <div className="text-[11px] text-emerald-600">
+              💡 Dica: deixe o campo "Valor" em branco e clique em "Simular selecionados" — o sistema aplica fator de segurança 0,95 igual ao botão 🔍 da aba Operações.
+            </div>
+          )}
         </div>
       );
     }
