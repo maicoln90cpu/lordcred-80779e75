@@ -232,6 +232,7 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               <SelectItem value="Crédito do Trabalhador">CLT</SelectItem>
             </SelectContent>
           </Select>
+          <MonthMultiSelect months={monthOptions} selected={monthFilters} onChange={setMonthFilters} />
           <WeekMultiSelect weeks={weeks as string[]} selected={weekFilters} onChange={setWeekFilters} />
         </div>
       </CardHeader>
