@@ -10,7 +10,8 @@ import { Loader2, FileText, Download, Search } from 'lucide-react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface SnapshotRow {
   id: string;
@@ -45,8 +46,6 @@ const PERIOD_OPTIONS = [
   { value: 'all', label: 'Todos' },
 ];
 
-const PAGE_SIZE = 50;
-
 export function CorbanReportTab() {
   const [rows, setRows] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,9 +54,12 @@ export function CorbanReportTab() {
   const [vendedorFilter, setVendedorFilter] = useState('');
   const [periodFilter, setPeriodFilter] = useState('30');
   const [searchText, setSearchText] = useState('');
-  const [page, setPage] = useState(0);
   const [cachedStatus, setCachedStatus] = useState<CachedAsset[]>([]);
-  const { sort, toggle: toggleSort } = useSortState();
+  const table = useTableState<SnapshotRow>({
+    pageSize: 50,
+    resetPageOn: [statusFilter, bancoFilter, vendedorFilter, searchText, periodFilter],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -127,12 +129,7 @@ export function CorbanReportTab() {
     return result;
   }, [rows, statusFilter, bancoFilter, vendedorFilter, searchText]);
 
-  const sorted = useMemo(() => applySortToData(filtered, sort), [filtered, sort]);
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  // Reset page on filter change
-  useEffect(() => { setPage(0); }, [statusFilter, bancoFilter, vendedorFilter, searchText, periodFilter]);
+  const { sorted, paged, totalPages } = table.apply(filtered);
 
   const handleExportXlsx = async () => {
     try {
@@ -351,13 +348,8 @@ export function CorbanReportTab() {
                 </Table>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 py-3 border-t">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({filtered.length} registros)</span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              )}
+              <TablePagination page={page} totalPages={totalPages} total={filtered.length} onChange={setPage} />
+
             </>
           )}
         </CardContent>

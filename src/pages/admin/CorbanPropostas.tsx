@@ -14,7 +14,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { normalizeCorbanPropostasInput, type NormalizedCorbanProposta } from '@/lib/corbanPropostas';
@@ -196,7 +197,6 @@ export default function CorbanPropostas() {
   const [loading, setLoading] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
-  const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d;
@@ -209,7 +209,11 @@ export default function CorbanPropostas() {
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_VISIBLE));
   const [selectedProposta, setSelectedProposta] = useState<NormalizedCorbanProposta | null>(null);
-  const { sort, toggle: toggleSort } = useSortState();
+  const table = useTableState<NormalizedCorbanProposta>({
+    pageSize: PAGE_SIZE,
+    resetPageOn: [statusFilter, bancoFilter, searchCpf, dateFrom?.toISOString(), dateTo?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   useEffect(() => {
     (async () => {
@@ -359,9 +363,7 @@ export default function CorbanPropostas() {
     return String(value);
   };
 
-  const sortedPropostas = useMemo(() => applySortToData(propostas, sort), [propostas, sort]);
-  const totalPages = Math.ceil(sortedPropostas.length / PAGE_SIZE);
-  const pagedPropostas = sortedPropostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const { paged: pagedPropostas, totalPages } = table.apply(propostas);
 
   return (
     <DashboardLayout>
@@ -606,13 +608,8 @@ export default function CorbanPropostas() {
                   </Table>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 py-3 border-t">
-                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                    <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
-                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                  </div>
-                )}
+                <TablePagination page={page} totalPages={totalPages} total={propostas.length} onChange={setPage} />
+
               </CardContent>
             </Card>
           </>

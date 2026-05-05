@@ -18,6 +18,9 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function SellerPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
@@ -29,9 +32,13 @@ export default function SellerPropostas() {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<any>(null);
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
-  const [page, setPage] = useState(0);
   const [totalFetched, setTotalFetched] = useState(0);
   const PAGE_SIZE = 30;
+  const table = useTableState<NormalizedCorbanProposta>({
+    pageSize: PAGE_SIZE,
+    resetPageOn: [searchCpf, dateFrom?.toISOString(), dateTo?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const allColumns = useMemo(() => {
     const keys = new Set<string>();
@@ -84,8 +91,7 @@ export default function SellerPropostas() {
     await executeSearch(buildPayload());
   };
 
-  const totalPages = Math.ceil(propostas.length / PAGE_SIZE);
-  const pagedPropostas = propostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const { paged: pagedPropostas, totalPages } = table.apply(propostas);
 
   const renderCellValue = (value: unknown): string => {
     if (value === null || value === undefined) return '—';
@@ -189,9 +195,21 @@ export default function SellerPropostas() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {visibleColumns.map(col => (
-                        <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
-                      ))}
+                      {visibleColumns.map(col => {
+                        const Icon = sort.key === col ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                        return (
+                          <TableHead
+                            key={col}
+                            className="text-xs whitespace-nowrap cursor-pointer select-none hover:bg-muted/50"
+                            onClick={() => toggleSort(col)}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {col}
+                              <Icon className={`w-3 h-3 ${sort.key === col ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                            </span>
+                          </TableHead>
+                        );
+                      })}
                       <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
@@ -211,13 +229,8 @@ export default function SellerPropostas() {
                   </TableBody>
                 </Table>
               </div>
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 py-3 border-t">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({propostas.length} registros)</span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              )}
+              <TablePagination page={page} totalPages={totalPages} total={propostas.length} onChange={setPage} />
+
             </CardContent>
           </Card>
         )}
