@@ -14,6 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 interface Ticket {
   id: string;
@@ -72,6 +74,7 @@ export default function Tickets() {
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { canSee, loading: accessLoading } = useFeatureAccess('tickets');
 
   useEffect(() => {
     loadProfiles();
@@ -220,7 +223,7 @@ export default function Tickets() {
     return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -228,6 +231,9 @@ export default function Tickets() {
         </div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Tickets de Suporte" /></DashboardLayout>;
   }
 
   return (

@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, Radio, Image, FileText, CalendarIcon, Ban, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
 const BlacklistManager = lazy(() => import('@/components/broadcasts/BlacklistManager'));
@@ -62,6 +64,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function Broadcasts() {
   const { toast } = useToast();
+  const { canSee, loading: accessLoading } = useFeatureAccess('broadcasts');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [chips, setChips] = useState<ChipInfo[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileInfo>>({});
@@ -148,12 +151,15 @@ export default function Broadcasts() {
     totalSent: campaigns.reduce((s, c) => s + c.sent_count, 0),
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Disparos em Massa" /></DashboardLayout>;
   }
 
   return (

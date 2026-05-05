@@ -11,6 +11,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 interface BankCredential {
   id: string;
@@ -32,6 +34,8 @@ export default function BankCredentials() {
   const [form, setForm] = useState(emptyForm);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const { sort, toggle } = useSortState();
+
+  const { canSee, loading: accessLoading } = useFeatureAccess('bank_credentials');
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['bank-credentials'],
@@ -110,6 +114,9 @@ export default function BankCredentials() {
     }
     saveMutation.mutate(editingId ? { ...form, id: editingId } : form);
   };
+
+  if (accessLoading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
+  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Bancos" /></DashboardLayout>;
 
   return (
     <DashboardLayout>

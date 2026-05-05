@@ -15,6 +15,8 @@ import { Loader2, Search, Pause, Play, Trash2, RefreshCw, Clock, CheckCircle2, X
 import { cn } from '@/lib/utils';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import SharedChipManager from '@/components/admin/SharedChipManager';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 interface QueueItem {
   id: string;
@@ -52,6 +54,7 @@ export default function QueueManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<{ action: string; ids: string[] } | null>(null);
+  const { canSee, loading: accessLoading } = useFeatureAccess('queue');
 
   useEffect(() => {
     loadData();
@@ -131,12 +134,15 @@ export default function QueueManagement() {
 
   const uniqueChipIds = [...new Set(items.map(i => i.chip_id))];
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Fila de Mensagens" /></DashboardLayout>;
   }
 
   return (

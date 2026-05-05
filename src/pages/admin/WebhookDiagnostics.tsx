@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Webhook, RefreshCw, Clock, Flame, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 interface WebhookLog {
   id: string;
@@ -44,6 +46,7 @@ export default function WebhookDiagnostics() {
   const [filterChip, setFilterChip] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null);
+  const { canSee, loading: accessLoading } = useFeatureAccess('webhooks');
 
   useEffect(() => {
     loadData();
@@ -92,12 +95,15 @@ export default function WebhookDiagnostics() {
     return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Diagnóstico de Webhooks" /></DashboardLayout>;
   }
 
   return (
