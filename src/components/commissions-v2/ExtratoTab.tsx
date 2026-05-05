@@ -95,7 +95,39 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
     return { count, nextReward: nextReward?.reward_description || '🎉 Todas atingidas!', currentReward: currentReward?.reward_description || null, remaining, pct };
   }, [sales, sellerFilter, isAdmin, userId, annualRewards]);
 
-  const weeks = useMemo(() => [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse(), [sales]);
+  const monthOptions = useMemo(() => buildMonthOptions(sales.map(s => s.sale_date)), [sales]);
+
+  // Mapa week_label -> set de meses YYYY-MM (uma semana pode atravessar 2 meses)
+  const weekToMonths = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    sales.forEach(s => {
+      if (!s.week_label || !s.sale_date) return;
+      const ym = String(s.sale_date).slice(0, 7);
+      if (!map.has(s.week_label)) map.set(s.week_label, new Set());
+      map.get(s.week_label)!.add(ym);
+    });
+    return map;
+  }, [sales]);
+
+  const allWeeks = useMemo(() => [...new Set(sales.map(s => s.week_label).filter(Boolean))].sort().reverse(), [sales]);
+
+  // Cascata mês → semanas: se há meses selecionados, mostra só semanas que têm vendas nesses meses
+  const weeks = useMemo(() => {
+    if (monthFilters.length === 0) return allWeeks;
+    return allWeeks.filter(w => {
+      const months = weekToMonths.get(w as string);
+      if (!months) return false;
+      return [...months].some(m => monthFilters.includes(m));
+    });
+  }, [allWeeks, monthFilters, weekToMonths]);
+
+  // Limpa semanas que ficaram fora do filtro de mês
+  useEffect(() => {
+    if (weekFilters.length === 0) return;
+    const valid = new Set(weeks as string[]);
+    const filtered = weekFilters.filter(w => valid.has(w));
+    if (filtered.length !== weekFilters.length) setWeekFilters(filtered);
+  }, [weeks, weekFilters]);
 
   // Cascata: se há semanas selecionadas, vendedores disponíveis são apenas os que venderam nessas semanas
   const availableSellerIds = useMemo(() => {
