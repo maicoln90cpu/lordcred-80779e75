@@ -229,13 +229,8 @@ export default function SellerPropostas() {
                   </TableBody>
                 </Table>
               </div>
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 py-3 border-t">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({propostas.length} registros)</span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              )}
+              <TablePagination page={page} totalPages={totalPages} total={propostas.length} onChange={setPage} />
+
             </CardContent>
           </Card>
         )}
