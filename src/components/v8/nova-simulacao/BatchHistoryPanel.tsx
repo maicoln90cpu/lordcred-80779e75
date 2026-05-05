@@ -179,13 +179,13 @@ export default function BatchHistoryPanel() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Lote</TableHead>
-                    <TableHead>Tabela</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Sucesso</TableHead>
-                    <TableHead className="text-right">Falha</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Criado em</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('name')}>Lote{sortIcon('name')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('config_name')}>Tabela{sortIcon('config_name')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('total_count')}>Total{sortIcon('total_count')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('success_count')}>Sucesso{sortIcon('success_count')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('failure_count')}>Falha{sortIcon('failure_count')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('status')}>Status{sortIcon('status')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('created_at')}>Criado em{sortIcon('created_at')}</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
