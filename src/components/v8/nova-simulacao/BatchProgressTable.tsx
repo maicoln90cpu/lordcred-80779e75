@@ -74,6 +74,7 @@ interface Props {
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
+  onForceDispatchRow,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
 
