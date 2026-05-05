@@ -34,7 +34,9 @@ export function emptyDraft(label = 'Rascunho 1'): V8DraftSlot {
     simulationValue: '',
     pasteText: '',
     activeBatchId: null,
-    autoBest: false,
+    // Etapa 1 (mai/2026): Auto-melhor agora é o padrão sempre ligado.
+    // Decide sozinho a melhor combinação valor × prazo dentro da margem.
+    autoBest: true,
   };
 }
 
