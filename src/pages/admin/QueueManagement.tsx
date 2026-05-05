@@ -13,7 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, Pause, Play, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import SharedChipManager from '@/components/admin/SharedChipManager';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
@@ -47,7 +49,8 @@ const statusConfig: Record<string, { label: string; className: string; icon: typ
 export default function QueueManagement() {
   const { toast } = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
-  const { sort, toggle } = useSortState();
+  const table = useTableState<QueueItem>({ pageSize: 50 });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [chips, setChips] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -122,6 +125,8 @@ export default function QueueManagement() {
     if (searchTerm && !item.recipient_phone.includes(searchTerm) && !item.message_content.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+  useEffect(() => { setPage(0); }, [filterStatus, filterChip, searchTerm]);
+  const { paged: pagedItems, totalPages, total: totalFiltered } = table.apply(filteredItems);
 
   const stats = {
     pending: items.filter(i => i.status === 'pending').length,
@@ -257,7 +262,7 @@ export default function QueueManagement() {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {applySortToData(filteredItems, sort).map(item => {
+                  {pagedItems.map(item => {
                     const st = statusConfig[item.status] || statusConfig.pending;
                     const StIcon = st.icon;
                     return (
@@ -287,6 +292,7 @@ export default function QueueManagement() {
                 </TableBody>
               </Table>
             </ScrollArea>
+            <TablePagination page={page} totalPages={totalPages} total={totalFiltered} label="itens" onChange={setPage} />
           </CardContent>
         </Card>
           </TabsContent>

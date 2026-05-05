@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Search, Eye, Webhook, RefreshCw, Clock, Flame, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
@@ -37,7 +39,8 @@ const eventColors: Record<string, string> = {
 
 export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
-  const { sort, toggle } = useSortState();
+  const table = useTableState<WebhookLog>({ pageSize: 50 });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
   const [connectedChips, setConnectedChips] = useState<number>(0);
   const [totalChips, setTotalChips] = useState<number>(0);
@@ -87,6 +90,8 @@ export default function WebhookDiagnostics() {
     if (searchTerm && !log.instance_name?.toLowerCase().includes(searchTerm.toLowerCase()) && !log.processing_result?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+  useEffect(() => { setPage(0); }, [filterEvent, filterChip, filterSource, searchTerm]);
+  const { paged: pagedLogs, totalPages, total: totalFiltered } = table.apply(filteredLogs);
 
   const uniqueEvents = [...new Set(logs.map(l => l.event_type))];
   const uniqueChipIds = [...new Set(logs.filter(l => l.chip_id).map(l => l.chip_id!))];
@@ -171,7 +176,7 @@ export default function WebhookDiagnostics() {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {applySortToData(filteredLogs, sort).map(log => {
+                  {pagedLogs.map(log => {
                     const source = getSource(log.chip_id);
                     return (
                       <TableRow key={log.id}>
@@ -240,6 +245,7 @@ export default function WebhookDiagnostics() {
                 </TableBody>
               </Table>
             </ScrollArea>
+            <TablePagination page={page} totalPages={totalPages} total={totalFiltered} label="logs" onChange={setPage} />
           </CardContent>
         </Card>
       </div>
