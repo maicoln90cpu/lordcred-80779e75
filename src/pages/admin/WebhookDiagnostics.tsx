@@ -39,7 +39,7 @@ const eventColors: Record<string, string> = {
 
 export default function WebhookDiagnostics() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
-  const table = useTableState<WebhookLog>({ pageSize: 50, resetPageOn: [] });
+  const table = useTableState<WebhookLog>({ pageSize: 50 });
   const { sort, toggleSort: toggle, page, setPage } = table;
   const [chipsMap, setChipsMap] = useState<Record<string, { name: string; chipType: string }>>({});
   const [connectedChips, setConnectedChips] = useState<number>(0);
