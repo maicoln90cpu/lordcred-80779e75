@@ -33,7 +33,6 @@ interface CRRelatorioProps { divergenciasOnly?: boolean; }
 
 export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioProps) {
   const [search, setSearch] = useState('');
-  const { sort, toggle: toggleSort } = useSortState();
   const [filterBanco, setFilterBanco] = useState('');
   const [filterProduto, setFilterProduto] = useState('');
   const [filterDifTipo, setFilterDifTipo] = useState<'all' | 'positive' | 'negative'>('all');
