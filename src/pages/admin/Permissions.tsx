@@ -11,7 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { FEATURE_ROUTE_MAP } from "@/lib/featureRouteMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff } from "lucide-react";
+import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff, Lock, Link2 } from "lucide-react";
+import { RoleScopeSelector, type RoleScope } from "@/components/admin/permissions/RoleScopeSelector";
+import { InconsistenciesCard } from "@/components/admin/permissions/InconsistenciesCard";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
