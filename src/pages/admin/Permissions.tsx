@@ -11,9 +11,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { FEATURE_ROUTE_MAP } from "@/lib/featureRouteMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle } from "lucide-react";
+import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+// Features marcadas como sensíveis — exibem badge ⚠️ e exigem confirmação ao liberar para Vendedor
+const SENSITIVE_FEATURES = new Set([
+  "bank_credentials",
+  "commission_reports",
+  "audit_logs",
+  "commissions",
+  "commissions_v2",
+  "permissions",
+  "master_admin",
+]);
 
 const FEATURE_DESCRIPTIONS: Record<string, string> = {
   dashboard: "Painel de aquecimento com métricas de chips",
