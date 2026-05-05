@@ -55,9 +55,8 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
-  const [page, setPage] = useState(0);
-  const pageSize = 15;
-  const { sort, toggle } = useSortState();
+  const table = useTableState<ImportBatch>({ pageSize: 15, resetPageOn: [moduleFilter, showDeleted] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-for-batches'],
