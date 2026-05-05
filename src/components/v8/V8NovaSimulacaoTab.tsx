@@ -500,7 +500,7 @@ export default function V8NovaSimulacaoTab() {
         `⚡ MODO PARALELO\n\n` +
         `Vou disparar ${eligible.length} lote(s) AO MESMO TEMPO. Todos começam a consultar a V8 imediatamente.\n\n` +
         `⚠️ ATENÇÃO: a V8 tem rate-limit. Se você disparar muitos lotes grandes em paralelo, algumas consultas podem falhar com timeout/429 e precisarão de retry.\n\n` +
-        `As abas vão alternar sozinhas a cada ~8s para você acompanhar.\n\nConfirmar?`;
+        `As abas vão alternar sozinhas a cada ~30s para você acompanhar.\n\nConfirmar?`;
     } else {
       let hasActive = false;
       let activeName = '';
