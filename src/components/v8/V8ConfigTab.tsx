@@ -228,6 +228,7 @@ export default function V8ConfigTab() {
       <AutoBestAlwaysOnCard />
       <ParallelBatchesCard />
 
+      <V8HealthOrphansCard />
       <V8DatabaseHealthCard />
     </div>
   );
