@@ -10,9 +10,20 @@ interface RoleScopeSelectorProps {
   disabled?: boolean;
 }
 
+// Cores semânticas por scope — visual claro de relance.
+// none = cinza (apagado), menu_only = âmbar (parcial), full = verde (liberado)
+const SCOPE_STYLES: Record<RoleScope, string> = {
+  none:
+    "data-[state=on]:bg-muted data-[state=on]:text-muted-foreground data-[state=on]:border data-[state=on]:border-border",
+  menu_only:
+    "data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border data-[state=on]:border-amber-500/60",
+  full:
+    "data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-600 dark:data-[state=on]:text-emerald-400 data-[state=on]:border data-[state=on]:border-emerald-500/60",
+};
+
 const OPTIONS: { value: RoleScope; label: string; tip: string; Icon: typeof EyeOff }[] = [
   { value: "none", label: "Sem", tip: "Sem acesso (não vê o menu nem a página)", Icon: EyeOff },
-  { value: "menu_only", label: "Menu", tip: "Só vê o menu e os próprios dados (não vê dados cadastrados por outros)", Icon: Menu },
+  { value: "menu_only", label: "Menu", tip: "Só vê o menu e os próprios dados (não vê dados de outros)", Icon: Menu },
   { value: "full", label: "Total", tip: "Acesso total: vê e edita dados de todos", Icon: Unlock },
 ];
 
@@ -22,7 +33,7 @@ export function RoleScopeSelector({ value, onChange, disabled }: RoleScopeSelect
       type="single"
       value={value}
       onValueChange={(v) => {
-        if (!v) return; // não permite desselecionar tudo
+        if (!v) return;
         onChange(v as RoleScope);
       }}
       disabled={disabled}
@@ -35,7 +46,7 @@ export function RoleScopeSelector({ value, onChange, disabled }: RoleScopeSelect
               value={v}
               size="sm"
               aria-label={tip}
-              className="h-7 w-7 p-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              className={`h-7 w-7 p-0 transition-colors ${SCOPE_STYLES[v]}`}
             >
               <Icon className="w-3.5 h-3.5" />
             </ToggleGroupItem>
