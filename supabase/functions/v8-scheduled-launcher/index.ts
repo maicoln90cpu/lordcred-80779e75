@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
         .eq("id", q.id)
         .eq("status", "queued"); // lock otimista
       if (promErr) console.warn("[v8-scheduled-launcher] promote fail", q.id, promErr.message);
+      else ownerPromoted.set(owner, (ownerPromoted.get(owner) ?? 0) + 1);
     }
 
     // 1) Encontra lotes prontos para começar.
