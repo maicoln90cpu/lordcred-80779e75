@@ -169,7 +169,7 @@ export default function Permissions() {
   };
 
   // === Role-based toggles ===
-  const toggleRole = (featureId: string, role: string) => {
+  const applyRoleToggle = (featureId: string, role: string) => {
     setFeatures((prev) =>
       prev.map((f) => {
         if (f.id !== featureId) return f;
@@ -180,6 +180,37 @@ export default function Permissions() {
       }),
     );
     setDirty((prev) => new Set(prev).add(featureId));
+  };
+
+  const toggleRole = (featureId: string, role: string) => {
+    const feature = features.find((f) => f.id === featureId);
+    if (!feature) return;
+    const isEnabling = !feature.allowed_roles.includes(role);
+    // Confirmação obrigatória ao liberar Vendedor em features sensíveis
+    if (role === "seller" && isEnabling && SENSITIVE_FEATURES.has(feature.feature_key)) {
+      setPendingSellerConfirm({ featureId, featureLabel: feature.feature_label });
+      return;
+    }
+    applyRoleToggle(featureId, role);
+  };
+
+  // === Master toggle (global) ===
+  const toggleMasterFeature = async (featureKey: string, enabled: boolean) => {
+    const toggle = masterToggles[featureKey];
+    if (!toggle) {
+      toast({ title: "Toggle Master não encontrado", description: featureKey, variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase
+      .from("master_feature_toggles")
+      .update({ is_enabled: enabled, updated_at: new Date().toISOString() })
+      .eq("id", toggle.id);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+    setMasterToggles((prev) => ({ ...prev, [featureKey]: { ...toggle, is_enabled: enabled } }));
+    toast({ title: enabled ? "Módulo ativado globalmente" : "Módulo ocultado globalmente" });
   };
 
   const toggleAllRolesForGroup = (groupFeatures: FeaturePermission[], role: string, checked: boolean) => {
