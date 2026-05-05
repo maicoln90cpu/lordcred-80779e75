@@ -226,15 +226,8 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
                 </TableBody>
               </Table>
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              </div>
-            )}
+            <TablePagination page={page} totalPages={totalPages} total={sortedTotal} label="lotes" onChange={setPage} />
+
           </>
         )}
       </CardContent>
