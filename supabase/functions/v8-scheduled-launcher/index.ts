@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
         const projectUrl = Deno.env.get("SUPABASE_URL")!;
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const cltUrl = `${projectUrl}/functions/v1/v8-clt-api`;
-        const throttleMs = 1200;
+        // throttle vem do cache de settings (3C); fallback 1200ms.
 
         let dispatched = 0;
         let dispatchFailed = 0;
