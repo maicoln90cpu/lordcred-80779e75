@@ -177,8 +177,8 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       } else {
         let idx = 0;
         const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
-          while (idx < sims.length) {
-            const myIdx = idx++; const sim = sims[myIdx];
+          while (idx < simsToProcess.length) {
+            const myIdx = idx++; const sim = simsToProcess[myIdx];
             try {
               const parsedRow = rows.find((r) => r.cpf === sim.cpf);
               await supabase.functions.invoke('v8-clt-api', {
