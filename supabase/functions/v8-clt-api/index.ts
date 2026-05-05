@@ -1507,33 +1507,59 @@ async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
     return { success: false, step: "consult", error: "consult_id não retornado pela V8", raw: consultJson };
   }
 
-  // FIX RACE WEBHOOK: grava consult_id na linha do lote ANTES de /authorize.
-  // O webhook V8 chega em ~1-2s após /authorize. Se a linha não tem consult_id,
-  // o webhook cria uma "órfã" e o lote nunca atualiza.
+  // ETAPA 2 — FIX RACE WEBHOOK: grava consult_id ANTES de /authorize.
+  // Se a gravação falhar, NÃO prosseguimos (evita órfã sem rastreio).
   if (earlySimulationId) {
-    await supabase
+    const { error: updErr } = await supabase
       .from("v8_simulations")
       .update({
         consult_id: consultId,
-        last_step: "consult_authorized_pending",
+        last_step: "consult_id_saved",
       })
       .eq("id", earlySimulationId);
+    if (updErr) {
+      console.error(`[simulate_consult_only] FALHA ao salvar consult_id=${consultId} sim=${earlySimulationId}`, updErr);
+      return {
+        success: false,
+        kind: "db_save_failed",
+        step: "consult_id_save",
+        error: `Falha ao gravar consult_id no banco: ${updErr.message}`,
+        consult_id: consultId,
+        raw: { consult: consultJson },
+      };
+    }
   }
 
-  // Authorize — opcional, mas a V8 só dispara webhook após termo aceito.
+  // Authorize — V8 só dispara webhook após termo aceito.
   const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
   }, MAX_RETRIES_AUTHORIZE, "authorize");
   const authJson = await authResp.json().catch(() => ({}));
   if (!authResp.ok) {
+    // ETAPA 2: mantém consult_id gravado e marca como falha retentável.
+    if (earlySimulationId) {
+      await supabase
+        .from("v8_simulations")
+        .update({ last_step: "authorize_failed" })
+        .eq("id", earlySimulationId);
+    }
     return buildV8ErrorResult('authorize', {
       title: authJson?.title ?? null,
       detail: authJson?.detail ?? null,
       message: authJson?.message ?? null,
       error: authJson?.error ?? null,
       status: authResp.status,
+      consult_id: consultId,
       raw: { consult: consultJson, authorize: authJson },
     });
+  }
+
+  // Sucesso do /authorize — marca aguardando webhook.
+  if (earlySimulationId) {
+    await supabase
+      .from("v8_simulations")
+      .update({ last_step: "awaiting_webhook" })
+      .eq("id", earlySimulationId);
   }
 
   // Sucesso parcial — agora a linha fica `pending` aguardando webhook V8.
