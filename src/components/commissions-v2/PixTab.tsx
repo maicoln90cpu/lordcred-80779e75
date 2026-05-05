@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Key } from 'lucide-react';
+import { Plus, Pencil, Trash2, Key, Download, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import type { SellerPix, Profile } from './commissionUtils';
+import { exportPixToXlsx, downloadPixTemplate, importPixFromFile } from '@/components/commissions/pixImportExport';
 
 interface PixTabProps {
   profiles: Profile[];
