@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FEATURE_ROUTE_MAP } from "@/lib/featureRouteMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff, Lock, Link2 } from "lucide-react";
+import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff, Lock, Link2, EyeOff, Menu, Unlock } from "lucide-react";
 import { RoleScopeSelector, type RoleScope } from "@/components/admin/permissions/RoleScopeSelector";
 import { InconsistenciesCard } from "@/components/admin/permissions/InconsistenciesCard";
 import { Input } from "@/components/ui/input";
@@ -361,9 +361,20 @@ export default function Permissions() {
           </Button>
         </div>
 
-        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-1">
+        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-2">
           <p><strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.</p>
-          <p className="text-xs"><strong>Sem acesso</strong> = oculta · <strong>Só menu</strong> = vê o item e a página com os próprios dados · <strong>Acesso total</strong> = vê dados cadastrados por todos.</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium">Legenda:</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+              <EyeOff className="w-3 h-3" /> Sem acesso (oculta)
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+              <Menu className="w-3 h-3" /> Só menu (próprios dados)
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+              <Unlock className="w-3 h-3" /> Acesso total (todos os dados)
+            </span>
+          </div>
         </div>
 
         <InconsistenciesCard
@@ -450,6 +461,32 @@ export default function Permissions() {
                                   sem rota
                                 </Badge>
                               )}
+                              {(() => {
+                                const scopes = ROLE_OPTIONS.map((r) => feature.role_scopes[r.value] || "none");
+                                const fullCount = scopes.filter((s) => s === "full").length;
+                                const menuCount = scopes.filter((s) => s === "menu_only").length;
+                                const noneCount = scopes.filter((s) => s === "none").length;
+                                return (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-flex items-center gap-1 text-[10px]">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                                          <Unlock className="w-2.5 h-2.5" />{fullCount}
+                                        </span>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                          <Menu className="w-2.5 h-2.5" />{menuCount}
+                                        </span>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+                                          <EyeOff className="w-2.5 h-2.5" />{noneCount}
+                                        </span>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs">
+                                      Resumo entre Vendedor/Suporte/Gerente: {fullCount} total · {menuCount} só menu · {noneCount} sem acesso
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })()}
                               {isSensitive && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
