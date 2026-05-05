@@ -168,7 +168,7 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
             });
             pendingCount += 1;
           } catch (err) { console.error('Sim err', sim.cpf, err); }
-          if (i < sims.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
+          if (i < simsToProcess.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
         }
         toast.success(
           `Lote disparado: ${pendingCount} consulta(s) aguardando webhook V8. Os valores aparecem em ~10–30s por CPF.`,
