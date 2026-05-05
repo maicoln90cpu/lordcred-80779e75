@@ -239,6 +239,17 @@ export function HRCalendarTab() {
       )}
 
       {/* === View Lista: todos os eventos cronológicos com paginação === */}
+      {/* === View Semana: grade estilo Google Calendar === */}
+      {view === 'week' && (
+        <HRCalendarWeekView
+          events={events}
+          loading={loading}
+          candidateNameById={candidateNameById}
+          onEdit={openEdit}
+          onCreateAt={openCreateAt}
+        />
+      )}
+
       {view === 'list' && (
         <HRCalendarListView
           events={events}
