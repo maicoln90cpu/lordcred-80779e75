@@ -19,6 +19,7 @@ export type V8ErrorKind =
   | 'temporary_v8'
   | 'invalid_data'
   | 'rejected_by_v8'
+  | 'duplicate_recent'
   | 'unknown';
 
 export interface V8ErrorInput {
