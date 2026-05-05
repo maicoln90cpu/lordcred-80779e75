@@ -228,22 +228,13 @@ export default function HRCalendarWeekView({
       });
       try {
         await onUpdateEvent(ev.id, patch);
-      } catch {
-        // rollback
+      } catch {/* hook já notifica */} finally {
+        // hook do calendário já reflete a nova posição via setEvents síncrono
         setOptimistic((prev) => {
           const next = new Map(prev);
           next.delete(ev.id);
           return next;
         });
-      } finally {
-        // limpa optimistic após o servidor confirmar (próximo refetch substitui)
-        setTimeout(() => {
-          setOptimistic((prev) => {
-            const next = new Map(prev);
-            next.delete(ev.id);
-            return next;
-          });
-        }, 1500);
       }
     };
     window.addEventListener('mousemove', onMove);
