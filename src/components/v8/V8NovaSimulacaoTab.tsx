@@ -451,9 +451,12 @@ export default function V8NovaSimulacaoTab() {
   // Etapa 4 (abr/2026): pré-check de lote ativo + diálogo de relatório claro.
   const [runAllBusy, setRunAllBusy] = useState(false);
   const [runAllReport, setRunAllReport] = useState<RunAllItemResult[] | null>(null);
-  async function handleRunAllDrafts() {
+  // Etapa 2 (mai/2026): IDs dos lotes disparados em paralelo, p/ auto-rotação de aba.
+  const [parallelBatchIds, setParallelBatchIds] = useState<string[]>([]);
+  const [parallelActiveStatuses, setParallelActiveStatuses] = useState<Record<string, string>>({});
+
+  async function handleRunAllDrafts(mode: RunAllMode = 'sequential') {
     if (runAllBusy) return;
-    // Etapa 1 (mai/2026): auto-gera nome para rascunhos sem nome (mesmo formato do Iniciar).
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -470,32 +473,40 @@ export default function V8NovaSimulacaoTab() {
       return;
     }
 
-    // Pré-check: existe lote ativo do operador? Texto do diálogo precisa ser honesto.
-    let hasActive = false;
-    let activeName = '';
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-        const { data: actives } = await supabase
-          .from('v8_batches')
-          .select('id, name')
-          .eq('created_by', user.id)
-          .in('status', ['processing', 'scheduled'])
-          .gte('updated_at', cutoff)
-          .limit(1);
-        if (actives && actives.length > 0) {
-          hasActive = true;
-          activeName = (actives[0] as any).name || '(sem nome)';
+    let confirmMsg = '';
+    if (mode === 'parallel_dispatch') {
+      confirmMsg =
+        `⚡ MODO PARALELO\n\n` +
+        `Vou disparar ${eligible.length} lote(s) AO MESMO TEMPO. Todos começam a consultar a V8 imediatamente.\n\n` +
+        `⚠️ ATENÇÃO: a V8 tem rate-limit. Se você disparar muitos lotes grandes em paralelo, algumas consultas podem falhar com timeout/429 e precisarão de retry.\n\n` +
+        `As abas vão alternar sozinhas a cada ~8s para você acompanhar.\n\nConfirmar?`;
+    } else {
+      let hasActive = false;
+      let activeName = '';
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const { data: actives } = await supabase
+            .from('v8_batches')
+            .select('id, name')
+            .eq('created_by', user.id)
+            .in('status', ['processing', 'scheduled'])
+            .gte('updated_at', cutoff)
+            .limit(1);
+          if (actives && actives.length > 0) {
+            hasActive = true;
+            activeName = (actives[0] as any).name || '(sem nome)';
+          }
         }
-      }
-    } catch { /* segue sem pré-check */ }
+      } catch { /* segue sem pré-check */ }
 
-    const confirmMsg = hasActive
-      ? `Você já tem 1 lote em andamento ("${activeName}").\n\n` +
-        `Vou enfileirar ${eligible.length} rascunho(s). Eles começam SOZINHOS quando o lote atual terminar (verificação a cada 1 min).\n\nConfirmar?`
-      : `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
-        `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar (verificação a cada 1 min).\n\nConfirmar?`;
+      confirmMsg = hasActive
+        ? `Você já tem 1 lote em andamento ("${activeName}").\n\n` +
+          `Vou enfileirar ${eligible.length} rascunho(s). Eles começam SOZINHOS quando o lote atual terminar.\n\nConfirmar?`
+        : `Vou enfileirar ${eligible.length} rascunho(s) em sequência.\n\n` +
+          `O 1º começa imediatamente; os demais começam sozinhos quando o anterior terminar.\n\nConfirmar?`;
+    }
     if (!window.confirm(confirmMsg)) return;
 
     setRunAllBusy(true);
@@ -504,14 +515,14 @@ export default function V8NovaSimulacaoTab() {
         drafts: draftsWithNames,
         configs,
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
+        mode,
       });
 
-      // Associar batchId aos drafts e persistir no mapa localStorage
-      const queuedResults = results.filter(r => r.status === 'queued' && r.batchId);
-      if (queuedResults.length > 0) {
+      const okResults = results.filter(r => (r.status === 'queued' || r.status === 'dispatched') && r.batchId);
+      if (okResults.length > 0) {
         setDrafts(prev => {
           const updated = [...prev];
-          for (const r of queuedResults) {
+          for (const r of okResults) {
             const idx = updated.findIndex(d => d.id === r.draftId);
             if (idx >= 0 && r.batchId) {
               updated[idx] = { ...updated[idx], activeBatchId: r.batchId };
@@ -520,11 +531,18 @@ export default function V8NovaSimulacaoTab() {
           }
           return updated;
         });
-        // Trocar para a aba do primeiro lote enfileirado
-        const firstQueued = queuedResults[0];
-        if (firstQueued) setActiveId(firstQueued.draftId);
-        // Disparar launcher imediatamente (não esperar cron de 1 min)
+        const firstOk = okResults[0];
+        if (firstOk) setActiveId(firstOk.draftId);
+        // Disparar launcher imediatamente (não esperar cron de 1 min).
         supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+
+        if (mode === 'parallel_dispatch') {
+          const ids = okResults.map(r => r.batchId!).filter(Boolean);
+          setParallelBatchIds(ids);
+          const initial: Record<string, string> = {};
+          ids.forEach(id => { initial[id] = 'scheduled'; });
+          setParallelActiveStatuses(initial);
+        }
       }
 
       const summary = summarizeRunAll(results);
@@ -532,8 +550,11 @@ export default function V8NovaSimulacaoTab() {
       if (hasIssue) {
         setRunAllReport(results);
       } else {
-        toast.success(`▶ Sequência iniciada: ${summary.text}`, {
-          description: 'O progresso aparece automaticamente em cada aba.',
+        const verb = mode === 'parallel_dispatch' ? '⚡ Disparo paralelo' : '▶ Sequência iniciada';
+        toast.success(`${verb}: ${summary.text}`, {
+          description: mode === 'parallel_dispatch'
+            ? 'Todos os lotes começam agora. As abas vão alternar sozinhas.'
+            : 'O progresso aparece automaticamente em cada aba.',
           duration: 8000,
         });
       }
@@ -541,6 +562,74 @@ export default function V8NovaSimulacaoTab() {
       setRunAllBusy(false);
     }
   }
+
+  // Etapa 2 (mai/2026): auto-rotação de aba durante disparo paralelo.
+  // Cicla a cada 8s entre as abas com lote ainda em processing/scheduled.
+  // Para quando todos terminam (completed/canceled/failed).
+  useEffect(() => {
+    if (parallelBatchIds.length === 0) return;
+    let cancelled = false;
+
+    const ch = supabase
+      .channel('v8-parallel-rotation')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'v8_batches' },
+        (payload: any) => {
+          if (cancelled) return;
+          const id = payload.new?.id;
+          const status = payload.new?.status;
+          if (id && parallelBatchIds.includes(id)) {
+            setParallelActiveStatuses(prev => ({ ...prev, [id]: status }));
+          }
+        },
+      )
+      .subscribe();
+
+    (async () => {
+      const { data } = await supabase
+        .from('v8_batches')
+        .select('id, status')
+        .in('id', parallelBatchIds);
+      if (cancelled || !data) return;
+      const map: Record<string, string> = {};
+      data.forEach((b: any) => { map[b.id] = b.status; });
+      setParallelActiveStatuses(prev => ({ ...prev, ...map }));
+    })();
+
+    const interval = setInterval(() => {
+      if (cancelled) return;
+      setActiveId(currentId => {
+        const draftIds = drafts
+          .filter(d => d.activeBatchId && parallelBatchIds.includes(d.activeBatchId))
+          .filter(d => {
+            const st = parallelActiveStatuses[d.activeBatchId!];
+            return st === 'processing' || st === 'scheduled' || !st;
+          })
+          .map(d => d.id);
+        if (draftIds.length === 0) return currentId;
+        const curIdx = draftIds.indexOf(currentId);
+        const next = draftIds[(curIdx + 1) % draftIds.length];
+        return next;
+      });
+    }, 8000);
+
+    return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parallelBatchIds.join(','), drafts.map(d => d.activeBatchId ?? '').join(',')]);
+
+  // Encerra rotação quando todos os lotes paralelos finalizaram.
+  useEffect(() => {
+    if (parallelBatchIds.length === 0) return;
+    const allDone = parallelBatchIds.every(id => {
+      const st = parallelActiveStatuses[id];
+      return st === 'completed' || st === 'canceled' || st === 'failed';
+    });
+    if (allDone) {
+      toast.success('⚡ Disparo paralelo concluído — todas as abas finalizadas.');
+      setParallelBatchIds([]);
+      setParallelActiveStatuses({});
+    }
+  }, [parallelActiveStatuses, parallelBatchIds]);
 
   return (
     <div className="space-y-4">
