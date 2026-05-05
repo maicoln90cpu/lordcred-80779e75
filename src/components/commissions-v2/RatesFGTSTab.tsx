@@ -20,6 +20,7 @@ import type { RateFGTS } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
 import { previewRateUpsert, upsertRates } from './rateUpsert';
+import { parseEffectiveDate, countDateSources } from './dateParseUtils';
 
 export default function RatesFGTSTab() {
   const { toast } = useToast();
@@ -112,9 +113,11 @@ export default function RatesFGTSTab() {
       const hasInsurance = seguroRaw === 'sim' || seguroRaw === 'true' || seguroRaw === '1';
       const rate = parseFloat((r['Taxa (%)'] || r['Taxa'] || r['taxa'] || '0').toString().replace(',', '.')) || 0;
       const obs = (r['Obs'] || r['obs'] || '').toString();
-      const dataVigRaw = (r['Data Vigência (AAAA-MM-DD, opcional)'] || r['Data Vigência'] || r['data_vigencia'] || r['effective_date'] || '').toString().trim();
-      const effectiveDate = /^\d{4}-\d{2}-\d{2}$/.test(dataVigRaw) ? dataVigRaw : today;
-      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null };
+      const dataVigRaw = r['Data Vigência (AAAA-MM-DD, opcional)'] ?? r['Data Vigência'] ?? r['data_vigencia'] ?? r['effective_date'] ?? '';
+      const parsedDate = parseEffectiveDate(dataVigRaw);
+      const effectiveDate = parsedDate || today;
+      const _vigencia_origem: 'sheet' | 'default' = parsedDate ? 'sheet' : 'default';
+      return { effective_date: effectiveDate, bank, table_key: tableKey || null, term_min: termMin, term_max: termMax, min_value: minValue, max_value: maxValue, has_insurance: hasInsurance, rate, obs: obs || null, _vigencia_origem };
     }).filter(r => r.bank);
   };
 
@@ -133,9 +136,11 @@ export default function RatesFGTSTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, { type: 'array' });
+    // cellDates:true para que datas formatadas no Excel cheguem como objeto Date
+    // (parseEffectiveDate aceita Date, número-serial, ISO e dd/mm/aaaa).
+    const wb = XLSX.read(data, { type: 'array', cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { raw: false, defval: '' });
     setImportPreview(parseImportData(rows));
     setImportDialogOpen(true);
     if (importFileRef.current) importFileRef.current.value = '';
@@ -287,6 +292,16 @@ export default function RatesFGTSTab() {
               {importPreview.length > 0 && (
                 <div className="border rounded-md p-3 bg-muted/30 space-y-1">
                   <p className="text-sm font-medium">Preview: {importPreview.length} taxa(s)</p>
+                  {(() => {
+                    const { fromSheet, fromDefault } = countDateSources(importPreview as any);
+                    return (
+                      <p className="text-[11px] text-muted-foreground">
+                        📅 <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fromSheet}</span> com vigência da planilha
+                        {' · '}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">{fromDefault}</span> usando hoje
+                      </p>
+                    );
+                  })()}
                   {importStats ? (
                     <p className="text-xs text-muted-foreground">
                       <span className="text-emerald-600 dark:text-emerald-400 font-medium">{importStats.newCount} nova(s)</span>

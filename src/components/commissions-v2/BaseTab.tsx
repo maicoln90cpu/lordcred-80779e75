@@ -305,12 +305,32 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
       if (all.length === 0) { toast({ title: 'Nada a copiar', description: 'V1 está vazia.' }); return; }
       // Remove campos que serão recalculados pela trigger V2
       const cleaned = all.map(({ id, week_label, commission_rate, commission_value, bonus_value, created_at, updated_at, batch_id, ...rest }) => ({ ...rest, created_by: rest.created_by || userId }));
+
+      // Cria batch para aparecer no Histórico de Importações da V2
+      const ts = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const { data: batchRecord, error: batchErr } = await supabase.from('import_batches' as any).insert({
+        file_name: `Cópia V1 → V2 (${ts})`,
+        module: 'parceiros_v2',
+        sheet_name: 'copy_v1',
+        row_count: cleaned.length,
+        imported_by: userId,
+        status: 'active',
+      } as any).select('id').single();
+      const batchId = batchErr ? null : (batchRecord as any)?.id;
+
+      // Anexa batch_id em cada linha (se a coluna existir; senão a trigger ignora silenciosamente)
+      const withBatch = cleaned.map(r => batchId ? { ...r, batch_id: batchId } : r);
+
       let inserted = 0; let errors = 0;
-      for (let i = 0; i < cleaned.length; i += 50) {
-        const batch = cleaned.slice(i, i + 50);
+      for (let i = 0; i < withBatch.length; i += 50) {
+        const batch = withBatch.slice(i, i + 50);
         const { error } = await supabase.from('commission_sales_v2').insert(batch as any);
         if (error) { errors += batch.length; console.error('[copy V1→V2]', error); }
         else inserted += batch.length;
+      }
+      // Atualiza row_count efetivo se houve erros
+      if (batchId && errors > 0) {
+        await supabase.from('import_batches' as any).update({ row_count: inserted } as any).eq('id', batchId);
       }
       toast({ title: '📋 Cópia concluída', description: `${inserted} venda(s) copiadas${errors > 0 ? `, ${errors} com erro` : ''}.` });
       loadSales();
