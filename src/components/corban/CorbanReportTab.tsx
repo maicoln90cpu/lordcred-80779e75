@@ -129,12 +129,7 @@ export function CorbanReportTab() {
     return result;
   }, [rows, statusFilter, bancoFilter, vendedorFilter, searchText]);
 
-  const sorted = useMemo(() => applySortToData(filtered, sort), [filtered, sort]);
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  // Reset page on filter change
-  useEffect(() => { setPage(0); }, [statusFilter, bancoFilter, vendedorFilter, searchText, periodFilter]);
+  const { sorted, paged, totalPages } = table.apply(filtered);
 
   const handleExportXlsx = async () => {
     try {
