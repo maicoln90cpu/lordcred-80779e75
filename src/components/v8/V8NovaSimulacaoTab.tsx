@@ -584,8 +584,8 @@ export default function V8NovaSimulacaoTab() {
     }
   }
 
-  // Etapa 2 (mai/2026): auto-rotação de aba durante disparo paralelo.
-  // Cicla a cada 8s entre as abas com lote ainda em processing/scheduled.
+  // Etapa 2 (mai/2026, ajuste): rotação a cada 30s (antes 8s) — mais tempo p/ ler cada aba.
+  // Cicla entre as abas com lote ainda em processing/scheduled.
   // Para quando todos terminam (completed/canceled/failed).
   useEffect(() => {
     if (parallelBatchIds.length === 0) return;
