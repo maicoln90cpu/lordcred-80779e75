@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, History, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, History, Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
