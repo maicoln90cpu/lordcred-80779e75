@@ -55,6 +55,8 @@ interface Props {
   showManualWarning: boolean;
   actionsSlot: ReactNode;
   onCheckStatus: (cpf: string, simulationId?: string) => void;
+  /** Etapa 4 (mai/2026): forçar dispatch de uma linha específica. */
+  onForceDispatchRow?: (sim: any) => void;
   /** Etapa 1 (mai/2026): meta do lote para renderizar linhas-fantasma quando v8_simulations ainda está vazio. */
   batch?: {
     id: string;
