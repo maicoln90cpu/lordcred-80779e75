@@ -53,9 +53,8 @@ interface UsersTableProps {
 
 export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdmin, canManageUsers, statusFilter, onStatusFilterChange, onEditUser, onRefresh }: UsersTableProps) {
   const { toast } = useToast();
-  const { sort, toggle } = useSortState();
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 50;
+  const table = useTableState<UserProfile>({ pageSize: 50, resetPageOn: [statusFilter] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
