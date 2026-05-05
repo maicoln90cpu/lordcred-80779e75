@@ -54,17 +54,20 @@ export interface BatchExportRow {
 }
 
 export function buildCsvFromSimulations(simulations: any[]): string {
+  // Etapa 3 (mai/2026): ordem do CSV alinhada à BatchProgressTable
+  // (NOME, CPF, STATUS, MOTIVO, VALOR LIBERADO, PARCELAS, VALOR PARCELA, TENTATIVAS).
+  // "Margem disponível" fica como coluna extra ao final (não está na tabela mas é útil).
   const header = [
     'Ordem',
     'Nome',
     'CPF',
     'Status',
-    'Parcelas',
-    'Valor liberado',
-    'Valor parcela',
-    'Margem disponível',
-    'Tentativas',
     'Motivo',
+    'Valor liberado',
+    'Parcelas',
+    'Valor parcela',
+    'Tentativas',
+    'Margem disponível',
   ];
   const lines: string[] = [header.join(';')];
   simulations.forEach((s, idx) => {
@@ -74,12 +77,12 @@ export function buildCsvFromSimulations(simulations: any[]): string {
       escapeCsv(s?.name ?? ''),
       escapeCsv(s?.cpf ?? ''),
       escapeCsv(statusLabel(s)),
-      escapeCsv(s?.installments ?? ''),
-      escapeCsv(fmtMoney(s?.released_value)),
-      escapeCsv(fmtMoney(s?.installment_value)),
-      escapeCsv(fmtMoney(s?.margem_valor)),
-      escapeCsv(s?.attempt_count ?? 0),
       escapeCsv(reasonText(s)),
+      escapeCsv(fmtMoney(s?.released_value)),
+      escapeCsv(s?.installments ?? ''),
+      escapeCsv(fmtMoney(s?.installment_value)),
+      escapeCsv(s?.attempt_count ?? 0),
+      escapeCsv(fmtMoney(s?.margem_valor)),
     ].join(';'));
   });
   return lines.join('\r\n');

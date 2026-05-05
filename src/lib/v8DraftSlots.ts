@@ -29,7 +29,9 @@ export function emptyDraft(label = 'Rascunho 1'): V8DraftSlot {
     label,
     batchName: '',
     configId: '',
-    parcelas: 24,
+    // Etapa 3 (mai/2026): default 48x (era 24x). Se a tabela escolhida não suportar,
+    // o useEffect em V8NovaSimulacaoTab corrige para o máximo permitido.
+    parcelas: 48,
     simulationMode: 'none',
     simulationValue: '',
     pasteText: '',
