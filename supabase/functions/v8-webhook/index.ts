@@ -776,10 +776,20 @@ serve(async (req) => {
     });
   }
 
-  // Etapa 3A (mai/2026) — Pré-promoção otimista: se este webhook foi o último
-  // CPF pendente de um lote, fecha o lote (status=completed, completed_at=now())
-  // imediatamente, em vez de esperar o orphan-reconciler (15 min).
-  if (processed && action === "consult.updated" && consultId) {
+  // ETAPA 1 (FIX BUG CRÍTICO): a condição antiga procurava action === "consult.updated"
+  // que NUNCA é gravada (o código grava "consult_upsert", "consult_matched_by_cpf", etc).
+  // Resultado: fechamento rápido e fast-path do launcher NUNCA rodavam.
+  // Agora consideramos qualquer ação processada de consulta ou operação.
+  const isConsultAction = processed && (
+    action === "consult_upsert"
+    || (action as string) === "consult_matched_by_cpf"
+    || action === "consult_insert_orphan"
+  );
+  const isOperationAction = processed && action === "operation_upsert";
+
+  // Pré-promoção otimista: se este webhook foi o último CPF pendente de um lote,
+  // fecha o lote (status=completed, completed_at=now()) imediatamente.
+  if (isConsultAction && consultId) {
     try {
       const { data: simRow } = await supabase
         .from("v8_simulations")
@@ -803,7 +813,7 @@ serve(async (req) => {
             })
             .eq("id", batchId)
             .in("status", ["processing", "scheduled"]);
-          console.log(`[v8-webhook] fast-close batch ${batchId} (no pending sims left)`);
+          console.log(`[v8-webhook] fast-close batch ${batchId} (no pending sims left) action=${action}`);
         }
       }
     } catch (err) {
@@ -811,10 +821,8 @@ serve(async (req) => {
     }
   }
 
-  // Etapa 2 (mai/2026) — Fast-path: pinga o launcher para promover qualquer
-  // lote em fila imediatamente (em vez de esperar o cron de 1 min).
-  // Fire-and-forget; não bloqueia a resposta.
-  if (processed && (action === "consult.updated" || action.startsWith("operation."))) {
+  // Fast-path: pinga o launcher para promover qualquer lote em fila imediatamente.
+  if (isConsultAction || isOperationAction) {
     try {
       const launcherUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-scheduled-launcher`;
       // @ts-ignore — EdgeRuntime existe no runtime Deno do Supabase.
