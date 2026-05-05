@@ -1,6 +1,6 @@
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EyeOff, Menu, Unlock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type RoleScope = "none" | "menu_only" | "full";
 
@@ -10,58 +10,60 @@ interface RoleScopeSelectorProps {
   disabled?: boolean;
 }
 
-// Cores semânticas por scope — visual claro de relance.
-// Inativo: ícone cinza fraco. Ativo: cor sólida vibrante específica do scope.
-// none = cinza escuro, menu_only = AZUL (parcial), full = VERDE (liberado total)
-// Usamos `!` (important) para vencer os estilos base de toggleVariants
-// (`hover:bg-muted` e `data-[state=on]:bg-accent`) que sobrescrevem nossas cores.
-const SCOPE_STYLES: Record<RoleScope, string> = {
-  none:
-    "text-muted-foreground/40 hover:!text-muted-foreground " +
-    "data-[state=on]:!bg-slate-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-slate-600 data-[state=on]:shadow-sm",
-  menu_only:
-    "text-muted-foreground/40 hover:!text-blue-500 " +
-    "data-[state=on]:!bg-blue-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-blue-600 data-[state=on]:shadow-sm dark:data-[state=on]:!bg-blue-600",
-  full:
-    "text-muted-foreground/40 hover:!text-emerald-500 " +
-    "data-[state=on]:!bg-emerald-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-emerald-600 data-[state=on]:shadow-sm dark:data-[state=on]:!bg-emerald-600",
+// Estilos sólidos por scope quando ATIVO; cinza fraco quando inativo.
+// Usamos <button> puro para evitar herdar `hover:bg-muted` e
+// `data-[state=on]:bg-accent` do `toggleVariants` do shadcn — esse era o
+// motivo das cores aparecerem só no hover anteriormente.
+const ACTIVE_STYLES: Record<RoleScope, string> = {
+  none: "bg-slate-500 text-white border-slate-600 shadow-sm dark:bg-slate-600",
+  menu_only: "bg-blue-500 text-white border-blue-600 shadow-sm dark:bg-blue-600",
+  full: "bg-emerald-500 text-white border-emerald-600 shadow-sm dark:bg-emerald-600",
 };
 
-const OPTIONS: { value: RoleScope; label: string; tip: string; Icon: typeof EyeOff }[] = [
-  { value: "none", label: "Sem", tip: "Sem acesso (não vê o menu nem a página)", Icon: EyeOff },
-  { value: "menu_only", label: "Menu", tip: "Só vê o menu e os próprios dados (não vê dados de outros)", Icon: Menu },
-  { value: "full", label: "Total", tip: "Acesso total: vê e edita dados de todos", Icon: Unlock },
+const HOVER_HINT: Record<RoleScope, string> = {
+  none: "hover:text-slate-500",
+  menu_only: "hover:text-blue-500",
+  full: "hover:text-emerald-500",
+};
+
+const OPTIONS: { value: RoleScope; tip: string; Icon: typeof EyeOff }[] = [
+  { value: "none", tip: "Sem acesso (não vê o menu nem a página)", Icon: EyeOff },
+  { value: "menu_only", tip: "Só vê o menu e os próprios dados (não vê dados de outros)", Icon: Menu },
+  { value: "full", tip: "Acesso total: vê e edita dados de todos", Icon: Unlock },
 ];
 
 export function RoleScopeSelector({ value, onChange, disabled }: RoleScopeSelectorProps) {
   return (
-    <ToggleGroup
-      type="single"
-      value={value}
-      onValueChange={(v) => {
-        if (!v) return;
-        onChange(v as RoleScope);
-      }}
-      disabled={disabled}
-      className="gap-0.5"
-    >
-      {OPTIONS.map(({ value: v, tip, Icon }) => (
-        <Tooltip key={v}>
-          <TooltipTrigger asChild>
-            <ToggleGroupItem
-              value={v}
-              size="sm"
-              aria-label={tip}
-              className={`h-7 w-7 p-0 transition-colors ${SCOPE_STYLES[v]}`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-            </ToggleGroupItem>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs max-w-[200px]">
-            {tip}
-          </TooltipContent>
-        </Tooltip>
-      ))}
-    </ToggleGroup>
+    <div role="group" className="inline-flex items-center gap-0.5">
+      {OPTIONS.map(({ value: v, tip, Icon }) => {
+        const active = value === v;
+        return (
+          <Tooltip key={v}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-pressed={active}
+                aria-label={tip}
+                onClick={() => !disabled && onChange(v)}
+                className={cn(
+                  "inline-flex items-center justify-center h-7 w-7 p-0 rounded-md border border-transparent transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  "disabled:pointer-events-none disabled:opacity-50",
+                  active
+                    ? ACTIVE_STYLES[v]
+                    : cn("text-muted-foreground/40 bg-transparent", HOVER_HINT[v]),
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs max-w-[200px]">
+              {tip}
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }
