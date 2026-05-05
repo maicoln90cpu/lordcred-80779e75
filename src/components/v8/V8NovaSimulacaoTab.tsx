@@ -49,7 +49,29 @@ export default function V8NovaSimulacaoTab() {
       }
       return d;
     });
-    return { drafts: restoredDrafts, activeId: loaded.activeId };
+    // Etapa 1 (mai/2026): one-shot — força defaults novos (48x, sem valor, auto-melhor ON)
+    // em rascunhos existentes que NÃO têm lote ativo. configId "CLT Acelera" é preenchido
+    // pelo useEffect de configs abaixo (precisa esperar a lista carregar).
+    const MIGRATION_FLAG = 'v8:drafts-defaults-migrated-v1';
+    let migratedDrafts = restoredDrafts;
+    try {
+      if (typeof window !== 'undefined' && !window.localStorage.getItem(MIGRATION_FLAG)) {
+        migratedDrafts = restoredDrafts.map(d => {
+          if (d.activeBatchId) return d; // não mexe em rascunho rodando
+          return {
+            ...d,
+            parcelas: 48,
+            simulationMode: 'none' as const,
+            simulationValue: '',
+            autoBest: true,
+            // limpa configId só se não estiver vazio E não for CLT acelera — o effect refila
+            configId: '',
+          };
+        });
+        window.localStorage.setItem(MIGRATION_FLAG, new Date().toISOString());
+      }
+    } catch { /* ignore */ }
+    return { drafts: migratedDrafts, activeId: loaded.activeId };
   }, []);
   const [drafts, setDrafts] = useState<V8DraftSlot[]>(_initial.drafts);
   const [activeId, setActiveId] = useState<string>(_initial.activeId);
