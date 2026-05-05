@@ -249,6 +249,16 @@ export default function V8NovaSimulacaoTab() {
     }
   }, [parcelOptions, parcelas]);
 
+  // Etapa 3 (mai/2026): pré-seleciona a tabela "Acelera" quando o rascunho está vazio.
+  // Não sobrescreve escolha manual — só age se configId estiver vazio.
+  useEffect(() => {
+    if (configId) return;
+    if (configs.length === 0) return;
+    const acelera = configs.find((c) => /acelera/i.test(c.name || ''));
+    if (acelera) setConfigId(acelera.config_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configs, configId, activeId]);
+
   const ops = useV8BatchOperations({
     configId, parcelas, simulationMode, simulationValue, batchName,
     pasteAnalysis, blockingIssues, configs, v8Settings, simulations,
