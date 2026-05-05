@@ -1468,6 +1468,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
  *  - Webhook traz dados mais ricos (faixa de parcelas/valor) do que /simulation rápido
  */
 async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
+  const earlySimulationId = (input as any)?.simulation_id ? String((input as any).simulation_id) : null;
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) {
     return { success: false, kind: "invalid_data", step: "consult", error: "CPF inválido" };
