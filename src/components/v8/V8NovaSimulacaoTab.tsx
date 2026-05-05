@@ -21,6 +21,8 @@ import BatchProgressTable from './nova-simulacao/BatchProgressTable';
 import BatchActionsBar from './nova-simulacao/BatchActionsBar';
 import ScheduledBatchesPanel from './nova-simulacao/ScheduledBatchesPanel';
 import QueuedBatchesPanel from './nova-simulacao/QueuedBatchesPanel';
+import BatchHistoryPanel from './nova-simulacao/BatchHistoryPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { Input } from '@/components/ui/input';
 import { loadDrafts, saveDrafts, emptyDraft, loadDraftBatchMap, addDraftBatchEntry, removeDraftBatchByBatchId, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
