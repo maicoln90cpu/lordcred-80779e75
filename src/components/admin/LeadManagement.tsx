@@ -494,7 +494,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
+                  {pagedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
