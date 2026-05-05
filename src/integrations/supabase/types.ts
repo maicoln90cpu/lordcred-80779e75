@@ -5355,6 +5355,11 @@ export type Database = {
       cleanup_old_v8_operation_drafts: { Args: never; Returns: number }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
       corban_classify_status: { Args: { _status: string }; Returns: string }
+      corban_extract_field: {
+        Args: { paths: string[]; raw: Json }
+        Returns: string
+      }
+      corban_normalize_cpf: { Args: { raw: string }; Returns: string }
       create_direct_channel: {
         Args: { _channel_name: string; _target_user_id: string }
         Returns: string

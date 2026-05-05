@@ -46,7 +46,7 @@ function normalizePropostas(rawData: any): any[] {
 function extractField(item: any, ...paths: string[]): any {
   for (const path of paths) {
     const parts = path.split('.');
-    let val = item;
+    let val: any = item;
     for (const p of parts) {
       val = val?.[p];
       if (val === undefined || val === null) break;
@@ -54,6 +54,19 @@ function extractField(item: any, ...paths: string[]): any {
     if (val !== undefined && val !== null && val !== '') return val;
   }
   return null;
+}
+
+// Normaliza CPF (aceita string ou número em notação científica). Retorna 11 dígitos.
+function normalizeCpf(raw: any): string | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  let str = typeof raw === 'number' ? raw.toLocaleString('fullwide', { useGrouping: false }) : String(raw);
+  if (/e[+-]?\d+/i.test(str)) {
+    const n = Number(str);
+    if (Number.isFinite(n)) str = n.toLocaleString('fullwide', { useGrouping: false });
+  }
+  const digits = str.replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.length < 11 ? digits.padStart(11, '0') : digits;
 }
 
 Deno.serve(async (req) => {
@@ -133,18 +146,18 @@ Deno.serve(async (req) => {
 
     // Map to snapshot rows
     const rows = items.map((item: any) => ({
-      proposta_id: extractField(item, 'id', 'proposta_id', 'propostaId') as string | null,
-      cpf: extractField(item, 'cpf', 'cliente.cpf', 'pessoais.cpf') as string | null,
-      nome: extractField(item, 'nome', 'cliente.nome', 'pessoais.nome', 'cliente_nome') as string | null,
-      banco: extractField(item, 'banco', 'banco_nome', 'instituicao') as string | null,
-      produto: extractField(item, 'produto', 'produto_nome') as string | null,
-      status: extractField(item, 'status', 'status_id') as string | null,
-      valor_liberado: parseFloat(extractField(item, 'valor_liberado', 'valorLiberado', 'vlr_liberado') || '0') || null,
-      valor_parcela: parseFloat(extractField(item, 'valor_parcela', 'valorParcela', 'vlr_parcela') || '0') || null,
-      prazo: String(extractField(item, 'prazo', 'prazos') || ''),
-      vendedor_nome: extractField(item, 'vendedor', 'vendedor_nome', 'equipe.vendedor') as string | null,
-      data_cadastro: extractField(item, 'data_cadastro', 'dataCadastro', 'created_at') as string | null,
-      convenio: extractField(item, 'convenio', 'convenio_nome') as string | null,
+      proposta_id: extractField(item, 'proposta_id', 'id', 'propostaId', 'proposta.proposta_id') as string | null,
+      cpf: normalizeCpf(extractField(item, 'cpf', 'cliente.cliente_cpf', 'cliente.cpf', 'pessoais.cpf')),
+      nome: extractField(item, 'nome', 'cliente.cliente_nome', 'cliente.nome', 'pessoais.nome', 'cliente_nome') as string | null,
+      banco: extractField(item, 'banco', 'proposta.banco_nome', 'banco_nome', 'instituicao') as string | null,
+      produto: extractField(item, 'produto', 'proposta.produto_nome', 'produto_nome') as string | null,
+      status: extractField(item, 'status_nome', 'status', 'api.status_api', 'status_id') as string | null,
+      valor_liberado: parseFloat(String(extractField(item, 'valor_liberado', 'proposta.valor_liberado', 'valorLiberado', 'vlr_liberado') ?? '0')) || null,
+      valor_parcela: parseFloat(String(extractField(item, 'valor_parcela', 'proposta.valor_parcela', 'valorParcela', 'vlr_parcela') ?? '0')) || null,
+      prazo: String(extractField(item, 'prazo', 'proposta.prazo', 'prazos') ?? ''),
+      vendedor_nome: extractField(item, 'vendedor_nome', 'vendedor', 'equipe.vendedor', 'digitador_nome') as string | null,
+      data_cadastro: extractField(item, 'data_cadastro', 'datas.cadastro', 'dataCadastro', 'created_at') as string | null,
+      convenio: extractField(item, 'convenio', 'proposta.convenio_nome', 'convenio_nome') as string | null,
       raw_data: item,
       created_by: null,
       updated_at: new Date().toISOString(),
