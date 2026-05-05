@@ -54,7 +54,16 @@ export default function BankCredentials() {
     },
   });
 
-  const sorted = useMemo(() => applySortToData(banks, sort), [banks, sort]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return banks;
+    return banks.filter(b =>
+      b.bank_name?.toLowerCase().includes(q) ||
+      b.username?.toLowerCase().includes(q) ||
+      b.link?.toLowerCase().includes(q)
+    );
+  }, [banks, search]);
+  const { sorted, paged, totalPages, total } = table.apply(filtered);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: typeof emptyForm & { id?: string }) => {
