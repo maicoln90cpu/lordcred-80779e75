@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import V8RetrySettingsCard from './V8RetrySettingsCard';
 import V8DatabaseHealthCard from './V8DatabaseHealthCard';
+import V8HealthOrphansCard from './V8HealthOrphansCard';
 import { useV8Settings } from '@/hooks/useV8Settings';
 
 interface WebhookRegistration {
