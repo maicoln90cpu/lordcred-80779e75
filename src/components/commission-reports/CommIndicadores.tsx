@@ -46,6 +46,7 @@ export default function CommIndicadores({
   fgtsRatesTable?: 'commission_rates_fgts' | 'commission_rates_fgts_v2';
 }) {
   const { sort, toggle } = useSortState();
+  const [selectedMonth, setSelectedMonth] = useState<string>(''); // YYYY-MM ('' = mês atual ainda não resolvido)
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['comm-sales-indicadores', salesTable],
@@ -54,6 +55,28 @@ export default function CommIndicadores({
       return (data || []) as Sale[];
     },
   });
+
+  // Opções de mês = todos YYYY-MM com vendas, ordenado desc
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach(s => { if (s.sale_date) set.add(String(s.sale_date).slice(0, 7)); });
+    const arr = [...set].sort().reverse();
+    const NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return arr.map(ym => {
+      const [y, m] = ym.split('-');
+      return { value: ym, label: `${NAMES[parseInt(m, 10) - 1]}/${y}` };
+    });
+  }, [sales]);
+
+  // Default automático = mês mais recente com vendas (uma única vez)
+  const autoDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (autoDefaultedRef.current) return;
+    if (monthOptions.length === 0) return;
+    setSelectedMonth(monthOptions[0].value);
+    autoDefaultedRef.current = true;
+  }, [monthOptions]);
+
 
   // Fetch CLT rate history
   const { data: cltRates = [] } = useQuery({
