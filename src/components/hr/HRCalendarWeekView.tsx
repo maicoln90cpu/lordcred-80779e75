@@ -206,6 +206,11 @@ export default function HRCalendarWeekView({
       const d = drag;
       setDrag(null);
       if (!d) return;
+      const moved = d.deltaMin !== 0 || d.deltaDays !== 0 || (d.mode === 'resize' && d.newDuration !== differenceInMinutes(d.origEnd, d.origStart));
+      if (moved) {
+        justDraggedRef.current = true;
+        setTimeout(() => { justDraggedRef.current = false; }, 250);
+      }
       const ev = events.find((x) => x.id === d.id);
       if (!ev) return;
       let newStart: Date;
