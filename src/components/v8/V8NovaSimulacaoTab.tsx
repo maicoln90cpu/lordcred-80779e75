@@ -275,11 +275,17 @@ export default function V8NovaSimulacaoTab() {
   const [runningDraftId, setRunningDraftId] = useState<string | null>(null);
   const isThisDraftRunning = ops.running && runningDraftId === activeId;
 
-  // Etapa 1 (mai/2026): nome do lote auto-gerado quando o operador não digitar nada.
+  // Etapa 1 (mai/2026): nome do lote auto-gerado SEMPRE no momento do START.
   // Formato: "Lote DD/MM HH:mm — <Rascunho>". Mantém rastreabilidade nas listagens.
+  // Regex detecta nomes auto-gerados (mesmo padrão) e regenera com hora atual,
+  // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
+  const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
+  function isAutoName(name: string): boolean {
+    return !name.trim() || AUTO_NAME_RE.test(name.trim());
+  }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
-    if (current) return current;
+    if (current && !isAutoName(current)) return current;
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${active.label}`;
@@ -289,7 +295,7 @@ export default function V8NovaSimulacaoTab() {
 
   const wrappedStart = async () => {
     setRunningDraftId(activeId);
-    const needsAutoName = !active.batchName.trim();
+    const needsAutoName = isAutoName(active.batchName);
     if (needsAutoName) {
       ensureBatchName();
       // Aguarda 1 render para o hook receber a nova prop batchName.
@@ -473,8 +479,10 @@ export default function V8NovaSimulacaoTab() {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    // Etapa 1 (mai/2026): regenera nome auto sempre no momento do START
+    // (preserva nome personalizado pelo operador).
     const draftsWithNames: V8DraftSlot[] = drafts.map((d) =>
-      d.batchName.trim() ? d : { ...d, batchName: `Lote ${stamp} — ${d.label}` },
+      isAutoName(d.batchName) ? { ...d, batchName: `Lote ${stamp} — ${d.label}` } : d,
     );
     setDrafts(draftsWithNames);
     const eligible = draftsWithNames.filter((d) => d.pasteText.trim() && d.configId);
@@ -492,7 +500,7 @@ export default function V8NovaSimulacaoTab() {
         `⚡ MODO PARALELO\n\n` +
         `Vou disparar ${eligible.length} lote(s) AO MESMO TEMPO. Todos começam a consultar a V8 imediatamente.\n\n` +
         `⚠️ ATENÇÃO: a V8 tem rate-limit. Se você disparar muitos lotes grandes em paralelo, algumas consultas podem falhar com timeout/429 e precisarão de retry.\n\n` +
-        `As abas vão alternar sozinhas a cada ~8s para você acompanhar.\n\nConfirmar?`;
+        `As abas vão alternar sozinhas a cada ~30s para você acompanhar.\n\nConfirmar?`;
     } else {
       let hasActive = false;
       let activeName = '';
@@ -576,8 +584,8 @@ export default function V8NovaSimulacaoTab() {
     }
   }
 
-  // Etapa 2 (mai/2026): auto-rotação de aba durante disparo paralelo.
-  // Cicla a cada 8s entre as abas com lote ainda em processing/scheduled.
+  // Etapa 2 (mai/2026, ajuste): rotação a cada 30s (antes 8s) — mais tempo p/ ler cada aba.
+  // Cicla entre as abas com lote ainda em processing/scheduled.
   // Para quando todos terminam (completed/canceled/failed).
   useEffect(() => {
     if (parallelBatchIds.length === 0) return;
@@ -624,7 +632,7 @@ export default function V8NovaSimulacaoTab() {
         const next = draftIds[(curIdx + 1) % draftIds.length];
         return next;
       });
-    }, 8000);
+    }, 30000);
 
     return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -797,11 +805,8 @@ export default function V8NovaSimulacaoTab() {
         </div>
       )}
 
-      {activeBatchId && autoBest && !activeBatchPaused && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
-          🤖 <strong>Auto-melhor ativo (worker em background).</strong> O sistema testa propostas automaticamente a cada 1 min — você pode <strong>fechar a aba</strong> que continua processando.
-        </div>
-      )}
+      {/* Etapa 1 (mai/2026): banner "Auto-melhor ativo (worker em background)" removido por solicitação.
+          Worker continua funcionando igual; apenas a faixa amarela informativa foi ocultada. */}
 
       {activeBatchId && (
         <BatchProgressTable

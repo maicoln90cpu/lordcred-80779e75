@@ -296,14 +296,7 @@ export default function BatchCreatePanel(props: Props) {
             className="font-mono text-xs"
           />
           <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-            <p><strong>Formatos aceitos</strong> (1 cliente por linha):</p>
-            <p>• <strong>Com separadores</strong> (espaço, tab, vírgula ou ponto-e-vírgula): tokens em qualquer ordem.</p>
-            <p>• <strong>Concatenado</strong> (NOME+CPF+DATA sem separadores), comum em exports de ERP.</p>
-            <p className="pt-1">
-              Tokens reconhecidos: <strong>CPF</strong> (11 díg.), <strong>Data</strong> (dd/mm/aaaa ou yyyy-mm-dd),
-              {' '}<strong>Gênero</strong> (M/F), <strong>Telefone</strong> (10-11 díg.), <strong>Nome</strong>.
-            </p>
-            <p>⚠️ <strong>CPF e data de nascimento são obrigatórios</strong> — a V8 rejeita simulação sem data.</p>
+            <p>1 cliente por linha, separado por: espaço, tab, vírgula ou ponto-e-vírgula (NOME CPF DATA)</p>
             <p className="pt-1 font-medium text-foreground">{pasteAnalysis.rows.length} CPFs válidos detectados</p>
             {invalidDateIssue && (
               <p className="font-medium text-destructive">
@@ -313,11 +306,6 @@ export default function BatchCreatePanel(props: Props) {
             {!invalidDateIssue && blockingIssues.length > 0 && (
               <p className="font-medium text-destructive">
                 Existem {blockingIssues.length} linha(s) em formato não aceito. Corrija antes de iniciar o lote.
-              </p>
-            )}
-            {pasteText.trim().length > 0 && blockingIssues.length === 0 && (
-              <p>
-                Se alguma linha ficar como <strong>pending</strong>, isso significa que a consulta ainda está em análise na V8 e não deve ser tratada como falha definitiva.
               </p>
             )}
           </div>
