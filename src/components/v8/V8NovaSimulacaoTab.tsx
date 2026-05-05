@@ -545,8 +545,8 @@ export default function V8NovaSimulacaoTab() {
         });
         const firstOk = okResults[0];
         if (firstOk) setActiveId(firstOk.draftId);
-        // Disparar launcher imediatamente (não esperar cron de 1 min).
-        supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+        // Etapa 2 (mai/2026): short-loop (3x em 10s) reduz latência queued→processing.
+        triggerLauncherShortLoop({ reason: 'run-all-sequence' });
 
         if (mode === 'parallel_dispatch') {
           const ids = okResults.map(r => r.batchId!).filter(Boolean);
