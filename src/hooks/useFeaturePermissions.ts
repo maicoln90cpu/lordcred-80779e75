@@ -116,6 +116,17 @@ export function useFeaturePermissions() {
     );
   }, [user, isMaster, userRole, permissions, disabledFeatures]);
 
+  const getScope = useCallback((featureKey: string): FeatureScope => {
+    return checkScope(
+      featureKey,
+      user?.id || null,
+      userRole,
+      isMaster,
+      permissions,
+      disabledFeatures,
+    );
+  }, [user, isMaster, userRole, permissions, disabledFeatures]);
+
   const hasRoutePermission = useCallback((path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
     if (!featureKey) return true;
@@ -129,5 +140,5 @@ export function useFeaturePermissions() {
 
   const loading = isLoading || authLoading || togglesLoading;
 
-  return { permissions, toggles, loading, hasPermission, hasRoutePermission, isFeatureEnabled };
+  return { permissions, toggles, loading, hasPermission, getScope, hasRoutePermission, isFeatureEnabled };
 }
