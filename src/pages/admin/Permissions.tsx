@@ -648,7 +648,7 @@ export default function Permissions() {
               <AlertDialogAction
                 onClick={() => {
                   if (pendingSellerConfirm) {
-                    applyRoleToggle(pendingSellerConfirm.featureId, "seller");
+                    applyRoleScope(pendingSellerConfirm.featureId, "seller", "full");
                     setPendingSellerConfirm(null);
                   }
                 }}
