@@ -136,9 +136,9 @@ export default function RatesFGTSTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, { type: 'array' });
+    const wb = XLSX.read(data, { type: 'array', cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false });
+    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { raw: true, defval: '' });
     setImportPreview(parseImportData(rows));
     setImportDialogOpen(true);
     if (importFileRef.current) importFileRef.current.value = '';
