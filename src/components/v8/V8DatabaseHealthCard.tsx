@@ -21,9 +21,19 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Database, RefreshCw, Trash2, Loader2, AlertTriangle, Eye } from 'lucide-react';
+import { Database, RefreshCw, Trash2, Loader2, AlertTriangle, Eye, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface CronJobStatus {
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+}
 
 interface HealthRow {
   // V8
@@ -48,6 +58,7 @@ interface HealthRow {
 
 export default function V8DatabaseHealthCard() {
   const [data, setData] = useState<HealthRow | null>(null);
+  const [crons, setCrons] = useState<CronJobStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [cleaningWebhooks, setCleaningWebhooks] = useState(false);
   const [cleaningAudit, setCleaningAudit] = useState(false);
@@ -55,10 +66,16 @@ export default function V8DatabaseHealthCard() {
   async function load() {
     setLoading(true);
     try {
-      const { data: rpcData, error } = await supabase.rpc('get_v8_database_health' as any);
-      if (error) throw error;
-      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      const [healthRes, cronRes] = await Promise.all([
+        supabase.rpc('get_v8_database_health' as any),
+        supabase.rpc('get_v8_cron_jobs_status' as any),
+      ]);
+      if (healthRes.error) throw healthRes.error;
+      const row = Array.isArray(healthRes.data) ? healthRes.data[0] : healthRes.data;
       setData(row as HealthRow);
+      if (!cronRes.error && Array.isArray(cronRes.data)) {
+        setCrons(cronRes.data as CronJobStatus[]);
+      }
     } catch (err: any) {
       toast.error(`Erro ao consultar saúde do banco: ${err?.message || err}`);
     } finally {
@@ -185,6 +202,56 @@ export default function V8DatabaseHealthCard() {
                   Há linhas pendentes de limpeza acima do esperado. Verifique se os crons{' '}
                   <code>cleanup-audit-logs-daily</code> e <code>cleanup-webhook-logs</code> estão ativos,
                   ou clique nos botões "Limpar agora" abaixo.
+                </div>
+              </div>
+            )}
+
+            {/* GRUPO 3: Cron jobs status */}
+            {crons.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <h4 className="text-sm font-medium">Automações agendadas (pg_cron)</h4>
+                </div>
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="text-left px-2 py-1.5">Job</th>
+                        <th className="text-left px-2 py-1.5">Agenda</th>
+                        <th className="text-left px-2 py-1.5">Última execução</th>
+                        <th className="text-left px-2 py-1.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {crons.map((c) => {
+                        const ok = c.last_status === 'succeeded';
+                        const stale = c.last_run_at ? (Date.now() - new Date(c.last_run_at).getTime()) > 24 * 60 * 60 * 1000 : true;
+                        return (
+                          <tr key={c.jobname} className="border-t">
+                            <td className="px-2 py-1.5 font-mono">{c.jobname}</td>
+                            <td className="px-2 py-1.5 font-mono text-muted-foreground">{c.schedule}</td>
+                            <td className="px-2 py-1.5">
+                              {c.last_run_at
+                                ? <span className={stale ? 'text-amber-600 font-medium' : ''}>{formatDistanceToNow(new Date(c.last_run_at), { addSuffix: true, locale: ptBR })}</span>
+                                : <span className="text-muted-foreground">nunca</span>}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {!c.active ? (
+                                <span className="inline-flex items-center gap-1 text-muted-foreground"><XCircle className="w-3 h-3" />inativo</span>
+                              ) : ok ? (
+                                <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3 h-3" />ok</span>
+                              ) : c.last_status ? (
+                                <span className="inline-flex items-center gap-1 text-red-600"><XCircle className="w-3 h-3" />{c.last_status}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

@@ -5439,6 +5439,16 @@ export type Database = {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }
+      get_v8_cron_jobs_status: {
+        Args: never
+        Returns: {
+          active: boolean
+          jobname: string
+          last_run_at: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       get_v8_database_health: {
         Args: never
         Returns: {
