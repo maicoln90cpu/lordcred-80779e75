@@ -25,6 +25,7 @@ import { useHREmployees } from '@/hooks/useHREmployees';
 import HRCalendarEventCard from './HRCalendarEventCard';
 import HRCalendarListView from './HRCalendarListView';
 import HRCalendarAgendaView from './HRCalendarAgendaView';
+import HRCalendarWeekView from './HRCalendarWeekView';
 
 function toLocalInput(iso: string | null) {
   if (!iso) return '';
