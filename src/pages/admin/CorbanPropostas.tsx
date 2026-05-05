@@ -197,7 +197,6 @@ export default function CorbanPropostas() {
   const [loading, setLoading] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [propostas, setPropostas] = useState<NormalizedCorbanProposta[]>([]);
-  const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d;
@@ -210,7 +209,11 @@ export default function CorbanPropostas() {
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_VISIBLE));
   const [selectedProposta, setSelectedProposta] = useState<NormalizedCorbanProposta | null>(null);
-  const { sort, toggle: toggleSort } = useSortState();
+  const table = useTableState<NormalizedCorbanProposta>({
+    pageSize: PAGE_SIZE,
+    resetPageOn: [statusFilter, bancoFilter, searchCpf, dateFrom?.toISOString(), dateTo?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   useEffect(() => {
     (async () => {
