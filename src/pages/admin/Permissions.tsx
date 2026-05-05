@@ -361,9 +361,20 @@ export default function Permissions() {
           </Button>
         </div>
 
-        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-1">
+        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-2">
           <p><strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.</p>
-          <p className="text-xs"><strong>Sem acesso</strong> = oculta · <strong>Só menu</strong> = vê o item e a página com os próprios dados · <strong>Acesso total</strong> = vê dados cadastrados por todos.</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium">Legenda:</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+              <EyeOff className="w-3 h-3" /> Sem acesso (oculta)
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+              <Menu className="w-3 h-3" /> Só menu (próprios dados)
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+              <Unlock className="w-3 h-3" /> Acesso total (todos os dados)
+            </span>
+          </div>
         </div>
 
         <InconsistenciesCard
