@@ -21,9 +21,19 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Database, RefreshCw, Trash2, Loader2, AlertTriangle, Eye } from 'lucide-react';
+import { Database, RefreshCw, Trash2, Loader2, AlertTriangle, Eye, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface CronJobStatus {
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+}
 
 interface HealthRow {
   // V8
