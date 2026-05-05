@@ -133,6 +133,14 @@ export default function BatchCreatePanel(props: Props) {
           </button>
           {advancedOpen && (
             <div className="px-3 pb-3 pt-1 space-y-4">
+              {/* Etapa 3 (mai/2026): atualizar tabelas + glossário ficam aqui dentro. */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  Atualizar tabelas V8
+                </Button>
+                <V8StatusGlossary />
+              </div>
               <div>
                 <Label>Tabela V8</Label>
                 <Select value={configId} onValueChange={setConfigId}>
