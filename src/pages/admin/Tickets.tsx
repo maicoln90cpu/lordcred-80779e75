@@ -332,6 +332,8 @@ export default function Tickets() {
           </div>
         </div>
 
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Tickets" />}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-220px)]">
           {/* Ticket list */}
           <Card className="lg:col-span-1 flex flex-col">
