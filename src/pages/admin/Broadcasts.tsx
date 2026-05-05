@@ -14,6 +14,7 @@ import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, R
 import { cn } from '@/lib/utils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
 const BlacklistManager = lazy(() => import('@/components/broadcasts/BlacklistManager'));

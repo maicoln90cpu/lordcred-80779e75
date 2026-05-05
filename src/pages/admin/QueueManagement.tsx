@@ -17,6 +17,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import SharedChipManager from '@/components/admin/SharedChipManager';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface QueueItem {
   id: string;

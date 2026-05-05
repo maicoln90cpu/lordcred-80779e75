@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface WebhookLog {
   id: string;

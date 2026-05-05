@@ -16,6 +16,7 @@ import { Plus, Send, MessageCircle, Clock, CheckCircle2, AlertCircle, Loader2, P
 import { cn } from '@/lib/utils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface Ticket {
   id: string;

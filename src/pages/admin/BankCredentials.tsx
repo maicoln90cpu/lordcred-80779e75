@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2 } fr
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface BankCredential {
   id: string;

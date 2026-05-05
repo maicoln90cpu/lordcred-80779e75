@@ -15,6 +15,7 @@ import V8KpisBar from '@/components/v8/V8KpisBar';
 import { Badge } from '@/components/ui/badge';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 import { Loader2 } from 'lucide-react';
 
 export default function V8Simulador() {
