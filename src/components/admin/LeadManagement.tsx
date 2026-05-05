@@ -207,7 +207,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       });
   }, [allLeads, globalFiltered, activeSellerIds]);
 
-  const { sort, toggle } = useSortState();
+  const table = useTableState<any>({ pageSize: 25, resetPageOn: [globalProfiles, globalStatuses, globalBancos, globalBatches, globalTeam, dateFrom, dateTo] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const sortedSellerData = useMemo(() => {
     if (!sort.key || !sort.dir) {
@@ -218,6 +219,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       return (item as any)[key];
     });
   }, [sellerData, sort, sellers]);
+  const totalPages = Math.max(1, Math.ceil(sortedSellerData.length / 25));
+  const pagedSellerData = useMemo(() => sortedSellerData.slice(page * 25, (page + 1) * 25), [sortedSellerData, page]);
 
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
