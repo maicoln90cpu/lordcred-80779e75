@@ -12,6 +12,7 @@ import {
   EVENT_TYPE_LABEL, EVENT_TYPE_TOKEN,
   type HRCalendarEvent,
 } from '@/hooks/useHRCalendarEvents';
+import HRCalendarAllDayBand from './HRCalendarAllDayBand';
 
 interface Props {
   events: HRCalendarEvent[];
@@ -20,7 +21,7 @@ interface Props {
   onEdit: (ev: HRCalendarEvent) => void;
   onCreateAt: (date: Date) => void;
   /** Atualiza horário/dia ao soltar drag/resize. */
-  onUpdateEvent: (id: string, patch: { starts_at: string; ends_at: string | null }) => Promise<void>;
+  onUpdateEvent: (id: string, patch: Partial<HRCalendarEvent>) => Promise<void>;
 }
 
 const HOUR_PX = 48;
