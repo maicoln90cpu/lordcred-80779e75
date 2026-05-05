@@ -298,37 +298,13 @@ export default function HRCalendarWeekView({
         })}
       </div>
 
-      {/* Faixa all-day / multi-dia */}
-      {bands.length > 0 && (
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border/40 bg-muted/10">
-          <div className="text-[9px] text-muted-foreground text-right pr-1.5 py-1.5 self-center">Dia inteiro</div>
-          <div className="col-span-7 relative py-1.5 min-h-[28px]">
-            {bands.map((b, idx) => {
-              const color = `hsl(var(${EVENT_TYPE_TOKEN[b.ev.event_type]}))`;
-              const widthPct = ((b.endCol - b.startCol + 1) / 7) * 100;
-              const leftPct = (b.startCol / 7) * 100;
-              return (
-                <button
-                  key={b.ev.id}
-                  type="button"
-                  onClick={() => onEdit(b.ev)}
-                  className="absolute h-5 rounded px-2 text-[10px] font-medium text-left truncate hover:opacity-90 transition-opacity"
-                  style={{
-                    top: idx * 22 + 2,
-                    left: `calc(${leftPct}% + 2px)`,
-                    width: `calc(${widthPct}% - 4px)`,
-                    backgroundColor: `hsl(var(${EVENT_TYPE_TOKEN[b.ev.event_type]}) / 0.25)`,
-                    borderLeft: `3px solid ${color}`,
-                    color,
-                  }}
-                >
-                  {b.ev.title}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Faixa Dia inteiro / multi-dia (componente isolado) */}
+      <HRCalendarAllDayBand
+        days={days}
+        events={allDayEvents}
+        onEdit={onEdit}
+        onUpdateEvent={onUpdateEvent}
+      />
 
       {/* Grid scrollável */}
       <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: '70vh' }}>
