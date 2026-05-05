@@ -4,7 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import WeekMultiSelect from './WeekMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
@@ -29,7 +31,11 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
-  const { sort, toggle } = useSortState();
+  const table = useTableState<CommissionSale>({
+    pageSize: 50,
+    resetPageOn: [sellerFilter, productFilter, weekFilters],
+  });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [monthlyGoal, setMonthlyGoal] = useState<{ value: number; type: string }>({ value: 0, type: 'contratos' });
   const [annualRewards, setAnnualRewards] = useState<AnnualReward[]>([]);
 
@@ -286,19 +292,27 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               </tr>
             </TableHeader>
             <TableBody>
-              {applySortToData(filtered, sort, (s, k) => {
-                if (k === 'seller_id') return getSellerName(s.seller_id);
-                return (s as any)[k];
-              }).map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>{formatDateBR(s.sale_date)}</TableCell>
-                  <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
-                  <TableCell>{s.bank}</TableCell>
-                  {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
-                  <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">{fmt(s.commission_value)}</TableCell>
-                </TableRow>
-              ))}
+              {(() => {
+                const { paged, totalPages, total } = table.apply(filtered, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  return (s as any)[k];
+                });
+                return <>
+                  {paged.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell>{formatDateBR(s.sale_date)}</TableCell>
+                      <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
+                      <TableCell>{s.bank}</TableCell>
+                      {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
+                      <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
+                      <TableCell className="text-right font-bold text-primary">{fmt(s.commission_value)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <tr><td colSpan={isAdmin ? 6 : 5}>
+                    <TablePagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+                  </td></tr>
+                </>;
+              })()}
             </TableBody>
           </Table>
         )}
