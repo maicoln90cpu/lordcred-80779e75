@@ -13,9 +13,15 @@ import CRHistorico from '@/components/commission-reports/CRHistorico';
 import CRIndicadores from '@/components/commission-reports/CRIndicadores';
 import CRProductionDashboard from '@/components/commission-reports/CRProductionDashboard';
 import { HelpButton, HELP_RELATORIOS } from '@/components/commission-reports/HelpModal';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { Loader2 } from 'lucide-react';
 
 export default function CommissionReports() {
   const [activeTab, setActiveTab] = useState('geral');
+  const { canSee, loading } = useFeatureAccess('commission_reports');
+  if (loading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
+  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Auditoria de Comissões" /></DashboardLayout>;
 
   const tabs = [
     { value: 'geral', label: 'Geral', icon: FileSpreadsheet },
