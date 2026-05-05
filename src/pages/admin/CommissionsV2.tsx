@@ -20,11 +20,18 @@ import V2BetaBanner from '@/components/commissions-v2/V2BetaBanner';
 import V1V2CompareReport from '@/components/commissions-v2/V1V2CompareReport';
 import NoneAuditTab from '@/components/commissions-v2/NoneAuditTab';
 import type { Profile } from '@/components/commissions-v2/commissionUtils';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { Loader2 } from 'lucide-react';
 
 export default function CommissionsV2() {
   const { user, isAdmin } = useAuth();
+  const { canSee, loading: accessLoading } = useFeatureAccess('commissions_v2');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState('base');
+
+  if (accessLoading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
+  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Comissões Parceiros V2" /></DashboardLayout>;
 
   useEffect(() => {
     loadProfiles();
