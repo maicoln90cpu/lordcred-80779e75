@@ -117,8 +117,9 @@ export default function PartnersAdmin() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tabela' | 'kanban'>('tabela');
   const [duplicateWarning, setDuplicateWarning] = useState('');
-  const { sort, toggle: toggleSort } = useSortState();
-  const [page, setPage] = useState(0);
+  const table = useTableState<any>({ pageSize: 50, resetPageOn: [] });
+  const { sort, toggleSort, page, setPage } = table;
+  const toggle = toggleSort;
   const PAGE_SIZE = 50;
 
   const [form, setForm] = useState({
