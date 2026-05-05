@@ -110,17 +110,16 @@ export default function BatchProgressTable({
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
               <tr>
-                {/* Etapa 1 (item 5): nova ordem — Nome, CPF, Valor liberado, Parcelas,
-                    Valor parcela, Status, Tentativas, Motivo. Removidas:
-                    Margem Disp., Margem LordCred, A cobrar (visíveis em Operações). */}
+                {/* Etapa 1 (mai/2026): nova ordem solicitada — Nome, CPF, Status, Motivo,
+                    Valor liberado, Parcelas, Valor parcela, Tentativas, Payload. */}
                 <th className="px-2 py-1 text-left">Nome</th>
                 <th className="px-2 py-1 text-left">CPF</th>
+                <th className="px-2 py-1 text-left">Status</th>
+                <th className="px-2 py-1 text-left">Motivo</th>
                 <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Valor liberado</th>
                 <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote. ⚠️ = V8 ajustou para caber nos limites do CPF.">Parcelas</th>
                 <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Valor parcela</th>
-                <th className="px-2 py-1 text-left">Status</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
-                <th className="px-2 py-1 text-left">Motivo</th>
                 <th className="px-2 py-1 text-center w-10" title="Ver payload completo (JSON cru recebido da V8 e tentativas registradas)">Payload</th>
               </tr>
             </thead>
