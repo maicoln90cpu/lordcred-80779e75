@@ -361,13 +361,15 @@ export default function Permissions() {
           </Button>
         </div>
 
-        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-          <strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin
-          sempre têm acesso total. Gerente tem acesso total exceto esta página. Se nenhum cargo e nenhum usuário estiver
-          marcado, a funcionalidade fica aberta a todos.
+        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-1">
+          <p><strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.</p>
+          <p className="text-xs"><strong>Sem acesso</strong> = oculta · <strong>Só menu</strong> = vê o item e a página com os próprios dados · <strong>Acesso total</strong> = vê dados cadastrados por todos.</p>
         </div>
 
-        <TooltipProvider delayDuration={300}>
+        <InconsistenciesCard
+          registeredFeatureKeys={features.map((f) => f.feature_key)}
+          toggleKeys={Object.keys(masterToggles)}
+        />
           <Tabs defaultValue="by-role">
             <TabsList>
               <TabsTrigger value="by-role" className="gap-2">
