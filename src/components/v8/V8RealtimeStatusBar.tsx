@@ -6,6 +6,7 @@ import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClas
 import { playBatchCompleteSound } from '@/lib/v8Sound';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { triggerLauncherShortLoop } from '@/lib/v8LauncherTrigger';
 
 type ConnectionState = 'connecting' | 'live' | 'polling' | 'offline';
 
@@ -145,8 +146,8 @@ export function V8RealtimeStatusBar() {
         .eq('status', 'processing');
       if (error) throw error;
       toast.success('Lote zumbi encerrado. Fila desbloqueada.');
-      // Trigger launcher to promote next queued batch
-      supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+      // Trigger launcher to promote next queued batch (short-loop 3x).
+      triggerLauncherShortLoop({ reason: 'zombie-close' });
       await refresh();
     } catch (e: any) {
       toast.error('Falha ao encerrar lote: ' + (e?.message || e));

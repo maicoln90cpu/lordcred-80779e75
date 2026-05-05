@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { isRetriableErrorKind, shouldAutoRetry } from '@/lib/v8ErrorClassification';
 import type { analyzeV8Paste } from '@/lib/v8Parser';
+import { triggerLauncherShortLoop } from '@/lib/v8LauncherTrigger';
 
 const MAX_CONCURRENCY = 3;
 
@@ -336,7 +337,7 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
 
   /** Dispara o launcher imediatamente após cancelar para promover próximo da fila. */
   function triggerLauncherNow() {
-    supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+    triggerLauncherShortLoop({ reason: 'cancel-batch' });
   }
 
   async function handleCancelBatch() {

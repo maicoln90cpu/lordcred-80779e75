@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, History, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, History, Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,15 @@ const STATUS_ALL = '__all__';
  * Os filtros aplicam ILIKE no name e EQ no status. A paginação usa range()
  * + count exact para mostrar "Página X de Y".
  */
+type SortCol = 'name' | 'config_name' | 'total_count' | 'success_count' | 'failure_count' | 'status' | 'created_at';
+
 export default function BatchHistoryPanel() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(STATUS_ALL);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [orderBy, setOrderBy] = useState<SortCol>('created_at');
+  const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -29,8 +35,22 @@ export default function BatchHistoryPanel() {
     pageSize: PAGE_SIZE,
     search,
     status: statusFilter === STATUS_ALL ? '' : statusFilter,
+    dateFrom, dateTo, orderBy, orderDir,
   });
   const { simulations, batch: selectedBatchMeta, lastUpdateAt } = useV8BatchSimulations(selectedId);
+
+  const toggleSort = (col: SortCol) => {
+    if (orderBy === col) {
+      setOrderDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrderBy(col);
+      setOrderDir(col === 'created_at' || col === 'name' || col === 'config_name' || col === 'status' ? 'desc' : 'desc');
+    }
+    setPage(0);
+  };
+  const sortIcon = (col: SortCol) => orderBy !== col ? null : (orderDir === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />);
+  const clearFilters = () => { setSearch(''); setStatusFilter(STATUS_ALL); setDateFrom(''); setDateTo(''); setPage(0); };
+  const hasFilters = !!search || statusFilter !== STATUS_ALL || dateFrom || dateTo;
 
   const selected = useMemo(
     () => batches.find((b) => b.id === selectedId) ?? null,
@@ -129,6 +149,17 @@ export default function BatchHistoryPanel() {
               <SelectItem value="failed">Falhou</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">De:</span>
+            <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-9 w-[140px]" />
+            <span className="text-muted-foreground">Até:</span>
+            <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-9 w-[140px]" />
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-9">
+              <X className="w-3 h-3" /> Limpar
+            </Button>
+          )}
           <div className="text-xs text-muted-foreground ml-auto">
             {totalCount > 0 ? <>Mostrando <strong>{fromIdx}–{toIdx}</strong> de <strong>{totalCount}</strong></> : null}
           </div>
@@ -148,13 +179,13 @@ export default function BatchHistoryPanel() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Lote</TableHead>
-                    <TableHead>Tabela</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Sucesso</TableHead>
-                    <TableHead className="text-right">Falha</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Criado em</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('name')}>Lote{sortIcon('name')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('config_name')}>Tabela{sortIcon('config_name')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('total_count')}>Total{sortIcon('total_count')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('success_count')}>Sucesso{sortIcon('success_count')}</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('failure_count')}>Falha{sortIcon('failure_count')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('status')}>Status{sortIcon('status')}</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('created_at')}>Criado em{sortIcon('created_at')}</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>

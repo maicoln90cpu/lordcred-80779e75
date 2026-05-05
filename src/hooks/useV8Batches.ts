@@ -32,11 +32,21 @@ export interface UseV8BatchesOptions {
   search?: string;
   /** Filtro por status exato. Vazio/undefined = todos. */
   status?: string;
+  /** Etapa 2 (mai/2026): filtro por data de criação (ISO yyyy-mm-dd, inclusive). */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Etapa 2 (mai/2026): coluna para ordenação. Default created_at. */
+  orderBy?: 'name' | 'config_name' | 'total_count' | 'success_count' | 'failure_count' | 'status' | 'created_at';
+  orderDir?: 'asc' | 'desc';
 }
 
 export function useV8Batches(options: UseV8BatchesOptions = {}) {
   const { isMenuOnly, userId } = useFeatureAccess('v8_simulador');
-  const { pageSize = 50, page = 0, search = '', status = '' } = options;
+  const {
+    pageSize = 50, page = 0, search = '', status = '',
+    dateFrom = '', dateTo = '',
+    orderBy = 'created_at', orderDir = 'desc',
+  } = options;
   const [batches, setBatches] = useState<V8Batch[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -48,18 +58,20 @@ export function useV8Batches(options: UseV8BatchesOptions = {}) {
     let q = supabase
       .from('v8_batches')
       .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order(orderBy, { ascending: orderDir === 'asc' })
       .range(from, to);
     if (isMenuOnly && userId) q = q.eq('created_by', userId);
     if (search.trim()) q = q.ilike('name', `%${search.trim()}%`);
     if (status) q = q.eq('status', status);
+    if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00-03:00`);
+    if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59-03:00`);
     const { data, error, count } = await q;
     if (!error && data) {
       setBatches(data as unknown as V8Batch[]);
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [isMenuOnly, userId, page, pageSize, search, status]);
+  }, [isMenuOnly, userId, page, pageSize, search, status, dateFrom, dateTo, orderBy, orderDir]);
 
   useEffect(() => {
     reload();
