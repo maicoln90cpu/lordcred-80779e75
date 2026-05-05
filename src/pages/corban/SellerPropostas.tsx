@@ -195,9 +195,21 @@ export default function SellerPropostas() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {visibleColumns.map(col => (
-                        <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
-                      ))}
+                      {visibleColumns.map(col => {
+                        const Icon = sort.key === col ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                        return (
+                          <TableHead
+                            key={col}
+                            className="text-xs whitespace-nowrap cursor-pointer select-none hover:bg-muted/50"
+                            onClick={() => toggleSort(col)}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {col}
+                              <Icon className={`w-3 h-3 ${sort.key === col ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                            </span>
+                          </TableHead>
+                        );
+                      })}
                       <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
