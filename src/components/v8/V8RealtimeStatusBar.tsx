@@ -6,6 +6,7 @@ import { isRetriableErrorKind, MAX_AUTO_RETRY_ATTEMPTS } from '@/lib/v8ErrorClas
 import { playBatchCompleteSound } from '@/lib/v8Sound';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { triggerLauncherShortLoop } from '@/lib/v8LauncherTrigger';
 
 type ConnectionState = 'connecting' | 'live' | 'polling' | 'offline';
 
