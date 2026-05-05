@@ -122,6 +122,7 @@ export function HRCalendarTab() {
       event_type: ev.event_type, candidate_id: ev.candidate_id,
       starts_at: toLocalInput(ev.starts_at), ends_at: toLocalInput(ev.ends_at),
       location: ev.location ?? '',
+      all_day: ev.all_day ?? false,
     });
     setDialogOpen(true);
   };
@@ -138,6 +139,7 @@ export function HRCalendarTab() {
         starts_at: fromLocalInput(form.starts_at),
         ends_at: form.ends_at ? fromLocalInput(form.ends_at) : null,
         location: form.location.trim() || null,
+        all_day: form.all_day,
       };
       if (form.id) await updateEvent(form.id, payload);
       else await createEvent(payload);
