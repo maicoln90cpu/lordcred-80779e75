@@ -56,6 +56,11 @@ export default function CorbanFGTS() {
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<any>(null);
   const [insertMode, setInsertMode] = useState<'single' | 'batch'>('single');
+  const table = useTableState<any>({
+    pageSize: 30,
+    resetPageOn: [searchCpf, dateFrom?.toISOString(), dateTo?.toISOString(), instituicao],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const allColumns = useMemo(() => {
     const keys = new Set<string>();
