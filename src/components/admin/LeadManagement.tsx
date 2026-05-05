@@ -586,6 +586,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </TableBody>
               </Table>
               </TooltipProvider>
+              <TablePagination page={page} totalPages={totalPages} total={sortedSellerData.length} label="vendedores" onChange={setPage} />
             </div>
           )}
         </CardContent>
