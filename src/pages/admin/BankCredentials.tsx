@@ -35,8 +35,9 @@ export default function BankCredentials() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const { sort, toggle } = useSortState();
+  const [search, setSearch] = useState('');
+  const table = useTableState<BankCredential>({ pageSize: 25, resetPageOn: [search] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('bank_credentials');
 
