@@ -55,7 +55,7 @@ export default function QueueManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<{ action: string; ids: string[] } | null>(null);
-  const { canSee, loading: accessLoading } = useFeatureAccess('queue');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('queue');
 
   useEffect(() => {
     loadData();

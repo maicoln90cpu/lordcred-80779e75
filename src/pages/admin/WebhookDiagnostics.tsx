@@ -47,7 +47,7 @@ export default function WebhookDiagnostics() {
   const [filterChip, setFilterChip] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null);
-  const { canSee, loading: accessLoading } = useFeatureAccess('webhooks');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('webhooks');
 
   useEffect(() => {
     loadData();

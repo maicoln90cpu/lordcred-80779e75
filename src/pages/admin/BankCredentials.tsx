@@ -36,7 +36,7 @@ export default function BankCredentials() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const { sort, toggle } = useSortState();
 
-  const { canSee, loading: accessLoading } = useFeatureAccess('bank_credentials');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('bank_credentials');
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['bank-credentials'],

@@ -24,7 +24,7 @@ export default function V8Simulador() {
   // por 30 dias antes da remoção definitiva.
   const [searchParams] = useSearchParams();
   const showLegacy = searchParams.get('legacy') === '1';
-  const { canSee, loading } = useFeatureAccess('v8_simulador');
+  const { canSee, loading, isMenuOnly } = useFeatureAccess('v8_simulador');
 
   if (loading) {
     return <DashboardLayout><div className="flex items-center justify-center py-20 text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mr-2" />Carregando...</div></DashboardLayout>;

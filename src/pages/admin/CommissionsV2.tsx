@@ -27,7 +27,7 @@ import { Loader2 } from 'lucide-react';
 
 export default function CommissionsV2() {
   const { user, isAdmin } = useAuth();
-  const { canSee, loading: accessLoading } = useFeatureAccess('commissions_v2');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('commissions_v2');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState('base');
 
