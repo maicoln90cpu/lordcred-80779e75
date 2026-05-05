@@ -82,6 +82,7 @@ export function useHRCalendarEvents() {
         ends_at: input.ends_at ?? null,
         location: input.location ?? null,
         color: input.color ?? null,
+        all_day: input.all_day ?? false,
         created_by: u.user?.id ?? null,
       })
       .select()
