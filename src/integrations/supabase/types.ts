@@ -2074,6 +2074,7 @@ export type Database = {
           feature_key: string
           feature_label: string
           id: string
+          role_scopes: Json
           updated_at: string
         }
         Insert: {
@@ -2084,6 +2085,7 @@ export type Database = {
           feature_key: string
           feature_label: string
           id?: string
+          role_scopes?: Json
           updated_at?: string
         }
         Update: {
@@ -2094,6 +2096,7 @@ export type Database = {
           feature_key?: string
           feature_label?: string
           id?: string
+          role_scopes?: Json
           updated_at?: string
         }
         Relationships: []
@@ -5372,6 +5375,10 @@ export type Database = {
         Args: { _date_from?: string; _date_to?: string }
         Returns: Json
       }
+      get_feature_scope: {
+        Args: { _feature_key: string; _user_id: string }
+        Returns: string
+      }
       get_internal_chat_profiles: {
         Args: never
         Returns: {
@@ -5444,6 +5451,10 @@ export type Database = {
         }[]
       }
       has_feature_access: {
+        Args: { _feature_key: string; _user_id: string }
+        Returns: boolean
+      }
+      has_full_feature_access: {
         Args: { _feature_key: string; _user_id: string }
         Returns: boolean
       }
