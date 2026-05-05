@@ -76,7 +76,7 @@ export function useV8Batches(options: UseV8BatchesOptions = {}) {
     };
   }, [reload]);
 
-  return { batches, loading, reload };
+  return { batches, loading, reload, totalCount, page, pageSize };
 }
 
 export interface V8Simulation {
