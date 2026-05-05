@@ -211,17 +211,11 @@ export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdm
                           )}
                         </TableRow>
                       ))}
-                      {totalPages > 1 && (
-                        <TableRow>
-                          <TableCell colSpan={isSupport ? 4 : 5}>
-                            <div className="flex items-center justify-center gap-2 py-1">
-                              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                              <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({sorted.length} usuários)</span>
-                              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                      <TableRow>
+                        <TableCell colSpan={isSupport ? 4 : 5} className="p-0">
+                          <TablePagination page={page} totalPages={totalPages} total={sorted.length} label="usuários" onChange={setPage} />
+                        </TableCell>
+                      </TableRow>
                     </>
                   );
                 })()}
