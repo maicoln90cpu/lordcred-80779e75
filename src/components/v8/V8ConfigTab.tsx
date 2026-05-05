@@ -222,8 +222,59 @@ export default function V8ConfigTab() {
 
       <CreateOperationSettingsCard />
 
+      <CpfDedupeSettingsCard />
+
       <V8DatabaseHealthCard />
     </div>
+  );
+}
+
+/** Etapa C — bloqueio de CPFs duplicados em janela configurável. */
+function CpfDedupeSettingsCard() {
+  const { settings, saving, save } = useV8Settings();
+  if (!settings) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Duplicidade de CPF (janela configurável)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!settings.cpf_dedupe_enabled}
+            disabled={saving}
+            onChange={(e) => void save({ cpf_dedupe_enabled: e.target.checked })}
+            className="mt-1 h-4 w-4"
+          />
+          <div>
+            <div className="text-sm font-medium">Bloquear CPFs já consultados recentemente</div>
+            <p className="text-xs text-muted-foreground">
+              Quando ativo, CPFs com consulta em status <strong>SUCCESS</strong> ou <strong>PENDING</strong>
+              {' '}dentro da janela abaixo são marcados como "duplicate_recent" e <strong>não</strong> geram nova consulta na V8.
+              Evita abrir 2, 3, 5 propostas para a mesma pessoa por colagem repetida.
+            </p>
+          </div>
+        </label>
+        <div className="max-w-xs">
+          <Label>Janela (dias)</Label>
+          <Input
+            type="number"
+            min={1}
+            max={90}
+            value={settings.cpf_dedupe_window_days}
+            disabled={saving || !settings.cpf_dedupe_enabled}
+            onChange={(e) => {
+              const v = Math.max(1, Math.min(90, Number(e.target.value) || 7));
+              void save({ cpf_dedupe_window_days: v });
+            }}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Padrão: 7 dias. Aumente para janelas maiores (ex.: 30) ou diminua se quiser permitir reconsultas frequentes.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

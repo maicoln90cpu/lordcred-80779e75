@@ -325,13 +325,35 @@ export default function BatchProgressTable({
 }
 
 function ReasonCell({ s, onCheckStatus }: { s: any; onCheckStatus: (cpf: string, id?: string) => void }) {
-  const kind = s.raw_response?.kind || s.raw_response?.error_kind || null;
+  const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
   const isActiveConsult = kind === 'active_consult';
+  const isDuplicate = kind === 'duplicate_recent' || s.status === 'skipped';
   // Etapa 1 (item 2): strip defensivo removido. Backfill já limpou linhas antigas
   // com prefixo "Rejeitada pela V8: " e o webhook/poller não regrava mais esse texto.
   const message = getV8ErrorMessageDeduped(s.raw_response, s.error_message);
   const meta = getV8ErrorMeta(s.raw_response);
   const hasErrorInfo = !!(s.error_message || message || s.raw_response);
+
+  if (isDuplicate) {
+    const originalId = s.raw_response?.original_id ?? null;
+    const windowDays = s.raw_response?.window_days ?? 7;
+    return (
+      <div className="space-y-1">
+        <div className="font-medium text-amber-600">Duplicado recente</div>
+        <div className="text-[11px] text-muted-foreground">
+          CPF já consultado nos últimos {windowDays} dia(s). Nova consulta evitada para não abrir propostas paralelas na V8.
+        </div>
+        {originalId && (
+          <a
+            href={`/admin/v8-simulador?tab=historico&sim=${originalId}`}
+            className="text-[11px] underline text-primary"
+          >
+            Ver consulta original
+          </a>
+        )}
+      </div>
+    );
+  }
 
   // Sucesso — não é falha, então mostra o estado da etapa de simulação.
   if (s.status === 'success') {

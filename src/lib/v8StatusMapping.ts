@@ -55,7 +55,7 @@ interface BucketDef {
 /** Definição de cada bucket oficial. */
 const BUCKETS: Record<V8OfficialBucket, BucketDef> = {
   WAITING_CONSENT:   { bucket: 'WAITING_CONSENT',   tone: 'wait', description: 'Termo de consentimento criado, aguardando autorização do trabalhador.' },
-  CONSENT_APPROVED:  { bucket: 'CONSENT_APPROVED',  tone: 'wait', description: 'Trabalhador autorizou. V8 vai consultar margem na Dataprev.' },
+  CONSENT_APPROVED:  { bucket: 'CONSENT_APPROVED',  tone: 'wait', description: 'Trabalhador autorizou e a V8 já tem a margem mensal disponível (availableMarginValue). Falta apenas o cálculo de parcela/valor liberado — clique em "Simular selecionados" ou ative "Auto-melhor" para fechar a proposta.' },
   WAITING_ANALYSIS:  { bucket: 'WAITING_ANALYSIS',  tone: 'wait', description: 'Em análise (consulta de margem ou crédito).' },
   SUCCESS:           { bucket: 'SUCCESS',           tone: 'ok',   description: 'Consulta concluída com margem disponível.' },
   REJECTED:          { bucket: 'REJECTED',          tone: 'bad',  description: 'Sem margem ou recusada na análise de crédito.' },

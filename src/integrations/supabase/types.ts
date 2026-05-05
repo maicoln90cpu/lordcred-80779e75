@@ -4696,6 +4696,8 @@ export type Database = {
           auto_simulate_after_consult: boolean | null
           background_retry_enabled: boolean
           consult_throttle_ms: number | null
+          cpf_dedupe_enabled: boolean
+          cpf_dedupe_window_days: number
           created_at: string
           id: string
           max_auto_retry_attempts: number
@@ -4718,6 +4720,8 @@ export type Database = {
           auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
           consult_throttle_ms?: number | null
+          cpf_dedupe_enabled?: boolean
+          cpf_dedupe_window_days?: number
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number
@@ -4740,6 +4744,8 @@ export type Database = {
           auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
           consult_throttle_ms?: number | null
+          cpf_dedupe_enabled?: boolean
+          cpf_dedupe_window_days?: number
           created_at?: string
           id?: string
           max_auto_retry_attempts?: number

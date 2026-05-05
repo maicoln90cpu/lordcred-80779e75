@@ -1799,31 +1799,90 @@ async function actionCreateBatch(
     .single();
   if (batchErr) return { success: false, error: batchErr.message };
 
-  // Cinto + suspensório: marca toda nova simulação como `analysis_pending` desde
-  // o nascimento. Assim, mesmo que a 1ª chamada simulate_one nunca rode (timeout
-  // de browser, refresh de página, falha de rede), o cron `v8-retry-cron` já
-  // identifica como elegível para auto-retry — não fica "órfã" no banco.
-  const sims = validRows.map((r, idx) => ({
-    batch_id: batch.id,
-    created_by: userId,
-    cpf: r.cpf.replace(/\D/g, ""),
-    name: r.nome ?? null,
-    birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
-    status: "pending",
-    error_kind: "analysis_pending",
-    // Persistir tabela e parcelas no nascimento — auto-retry depende disso.
-    config_id: payload.config_id,
-    config_name: payload.config_label ?? null,
-    installments: payload.parcelas,
-    // Etapa 1 (item 8): preserva ordem em que CPFs foram colados pelo operador.
-    // A tabela "Progresso do Lote" passa a ordenar por paste_order ASC.
-    paste_order: idx,
-  }));
+  // Etapa C — Dedupe de CPF dentro de janela configurável.
+  // Lê config; se ligado, busca consultas recentes (success/pending) do mesmo CPF
+  // e marca essas linhas como "skipped_duplicate" (ainda inseridas no lote para
+  // visibilidade), em vez de criar uma nova consulta na V8.
+  let dedupeEnabled = true;
+  let dedupeWindowDays = 7;
+  try {
+    const { data: cfg } = await supabase
+      .from("v8_settings")
+      .select("cpf_dedupe_enabled, cpf_dedupe_window_days")
+      .eq("singleton", true)
+      .maybeSingle();
+    if (cfg) {
+      dedupeEnabled = cfg.cpf_dedupe_enabled !== false;
+      const w = Number(cfg.cpf_dedupe_window_days);
+      if (Number.isFinite(w) && w > 0) dedupeWindowDays = w;
+    }
+  } catch (_) { /* segue com defaults */ }
+
+  const cpfList = validRows.map((r) => r.cpf.replace(/\D/g, ""));
+  const duplicateMap = new Map<string, { id: string; status: string; created_at: string }>();
+  if (dedupeEnabled && cpfList.length > 0) {
+    const cutoffIso = new Date(Date.now() - dedupeWindowDays * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("v8_simulations")
+      .select("id, cpf, status, created_at")
+      .in("cpf", cpfList)
+      .in("status", ["success", "pending"])
+      .gte("created_at", cutoffIso)
+      .order("created_at", { ascending: false });
+    for (const row of recent ?? []) {
+      const cpf = String((row as any).cpf || "");
+      if (!duplicateMap.has(cpf)) duplicateMap.set(cpf, row as any);
+    }
+  }
+
+  const sims = validRows.map((r, idx) => {
+    const cpfDigits = r.cpf.replace(/\D/g, "");
+    const dup = duplicateMap.get(cpfDigits);
+    if (dup) {
+      return {
+        batch_id: batch.id,
+        created_by: userId,
+        cpf: cpfDigits,
+        name: r.nome ?? null,
+        birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
+        status: "skipped",
+        error_kind: "duplicate_recent",
+        error_message: `CPF já consultado há menos de ${dedupeWindowDays} dia(s) — ver simulação ${dup.id}.`,
+        raw_response: { kind: "duplicate_recent", original_id: dup.id, original_status: dup.status, original_created_at: dup.created_at, window_days: dedupeWindowDays },
+        config_id: payload.config_id,
+        config_name: payload.config_label ?? null,
+        installments: payload.parcelas,
+        paste_order: idx,
+      };
+    }
+    return {
+      batch_id: batch.id,
+      created_by: userId,
+      cpf: cpfDigits,
+      name: r.nome ?? null,
+      birth_date: r.data_nascimento ? normalizeBirthDate(r.data_nascimento) : null,
+      status: "pending",
+      error_kind: "analysis_pending",
+      config_id: payload.config_id,
+      config_name: payload.config_label ?? null,
+      installments: payload.parcelas,
+      paste_order: idx,
+    };
+  });
 
   const { error: simsErr } = await supabase.from("v8_simulations").insert(sims);
   if (simsErr) return { success: false, error: simsErr.message };
 
-  return { success: true, data: { batch_id: batch.id, total: validRows.length } };
+  const skippedCount = duplicateMap.size;
+  return {
+    success: true,
+    data: {
+      batch_id: batch.id,
+      total: validRows.length,
+      skipped_duplicates: skippedCount,
+      dedupe_window_days: dedupeWindowDays,
+    },
+  };
 }
 
 /**

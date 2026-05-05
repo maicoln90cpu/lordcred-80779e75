@@ -127,10 +127,18 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
 
       const batchId = data.data.batch_id as string;
       setActiveBatchId(batchId);
+      const skippedCount = Number((data?.data?.skipped_duplicates ?? 0)) || 0;
+      const dedupeWindow = Number((data?.data?.dedupe_window_days ?? 7)) || 7;
+      if (skippedCount > 0) {
+        toast.warning(
+          `${skippedCount} CPF(s) ignorado(s) — já consultados nos últimos ${dedupeWindow} dia(s). Veja-os marcados como "Duplicado recente".`,
+          { duration: 8000 },
+        );
+      }
       toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando (estratégia: ${strategy})...`);
 
       const { data: sims } = await supabase
-        .from('v8_simulations').select('id, cpf, name, birth_date, paste_order')
+        .from('v8_simulations').select('id, cpf, name, birth_date, paste_order, status, error_kind')
         .eq('batch_id', batchId)
         // Etapa 1 (correção de ordem): respeitar a ordem em que o operador colou.
         // Antes ordenávamos por created_at — todas as linhas têm o mesmo timestamp
@@ -139,9 +147,12 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
         .order('created_at', { ascending: true });
       if (!sims) throw new Error('Falha ao carregar simulações');
 
+      // Etapa C — não disparar consulta para CPFs deduplicados
+      const simsToProcess = sims.filter((s: any) => s.error_kind !== 'duplicate_recent' && s.status !== 'skipped');
+
       if (strategy === 'webhook_only') {
-        for (let i = 0; i < sims.length; i++) {
-          const sim = sims[i];
+        for (let i = 0; i < simsToProcess.length; i++) {
+          const sim = simsToProcess[i];
           try {
             const parsedRow = rows.find((r) => r.cpf === sim.cpf);
             await supabase.functions.invoke('v8-clt-api', {
@@ -157,7 +168,7 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
             });
             pendingCount += 1;
           } catch (err) { console.error('Sim err', sim.cpf, err); }
-          if (i < sims.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
+          if (i < simsToProcess.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
         }
         toast.success(
           `Lote disparado: ${pendingCount} consulta(s) aguardando webhook V8. Os valores aparecem em ~10–30s por CPF.`,
@@ -166,8 +177,8 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       } else {
         let idx = 0;
         const workers = Array.from({ length: MAX_CONCURRENCY }, async () => {
-          while (idx < sims.length) {
-            const myIdx = idx++; const sim = sims[myIdx];
+          while (idx < simsToProcess.length) {
+            const myIdx = idx++; const sim = simsToProcess[myIdx];
             try {
               const parsedRow = rows.find((r) => r.cpf === sim.cpf);
               await supabase.functions.invoke('v8-clt-api', {
