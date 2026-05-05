@@ -123,11 +123,18 @@ export default function Permissions() {
   }, []);
 
   const loadData = async () => {
-    const [featRes, profRes, rolesRes] = await Promise.all([
+    const [featRes, profRes, rolesRes, togglesRes] = await Promise.all([
       supabase.from("feature_permissions").select("*").order("feature_group").order("feature_label"),
       supabase.rpc("get_visible_profiles"),
       supabase.from("user_roles").select("user_id, role"),
+      supabase.from("master_feature_toggles").select("id, feature_key, is_enabled"),
     ]);
+
+    if (togglesRes.data) {
+      const map: Record<string, MasterToggle> = {};
+      (togglesRes.data as MasterToggle[]).forEach((t) => (map[t.feature_key] = t));
+      setMasterToggles(map);
+    }
 
     if (featRes.data) {
       const mapped = featRes.data.map((f) => ({
