@@ -173,7 +173,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {sorted.slice(0, 500).map((r, i) => (
+                  {paged.map((r, i) => (
                     <TableRow key={i} className={Math.abs(r.diferenca) > 0.01 ? 'bg-destructive/5' : ''}>
                       <TableCell className="text-xs font-mono">{r.num_contrato || '-'}</TableCell>
                       <TableCell className="text-xs font-mono whitespace-nowrap">{fmtDate(r.data_pago)}</TableCell>
