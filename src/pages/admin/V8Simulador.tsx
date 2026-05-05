@@ -61,8 +61,6 @@ export default function V8Simulador() {
             <TabsTrigger value="operacoes">Operações</TabsTrigger>
             <TabsTrigger value="nova">Nova Simulação</TabsTrigger>
             <TabsTrigger value="pool">Pool de Contatos</TabsTrigger>
-            <div className="mx-2 h-5 w-px bg-border self-center" aria-hidden />
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Avançado</span>
             <TabsTrigger value="propostas">Propostas</TabsTrigger>
             {showLegacy && (
               <>
@@ -74,8 +72,6 @@ export default function V8Simulador() {
                 </TabsTrigger>
               </>
             )}
-            <div className="mx-2 h-5 w-px bg-border self-center" aria-hidden />
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Diagnóstico</span>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
             <TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
