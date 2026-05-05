@@ -298,7 +298,9 @@ export default function CorbanFGTS() {
               </div>
             )}
 
-            {filaItems.length > 0 && (
+            {filaItems.length > 0 && (() => {
+              const { paged, totalPages } = table.apply(filaItems, (item, key) => item?.[key]);
+              return (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">{filaItems.length} item(ns) na fila</CardTitle>
@@ -308,14 +310,26 @@ export default function CorbanFGTS() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          {visibleColumns.map(col => (
-                            <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
-                          ))}
+                          {visibleColumns.map(col => {
+                            const Icon = sort.key === col ? (sort.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+                            return (
+                              <TableHead
+                                key={col}
+                                className="text-xs whitespace-nowrap cursor-pointer select-none hover:bg-muted/50"
+                                onClick={() => toggleSort(col)}
+                              >
+                                <span className="inline-flex items-center gap-1">
+                                  {col}
+                                  <Icon className={`w-3 h-3 ${sort.key === col ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+                                </span>
+                              </TableHead>
+                            );
+                          })}
                           <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filaItems.map((item: any, i: number) => (
+                        {paged.map((item: any, i: number) => (
                           <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(item)}>
                             {visibleColumns.map(col => (
                               <TableCell key={col} className="text-xs max-w-[200px] truncate">
@@ -330,9 +344,11 @@ export default function CorbanFGTS() {
                       </TableBody>
                     </Table>
                   </div>
+                  <TablePagination page={page} totalPages={totalPages} total={filaItems.length} onChange={setPage} />
                 </CardContent>
               </Card>
-            )}
+              );
+            })()}
           </TabsContent>
 
           <TabsContent value="incluir" className="space-y-4">
