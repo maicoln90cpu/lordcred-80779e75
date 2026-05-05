@@ -146,6 +146,19 @@ export default function BatchProgressTable({
           </div>
         </div>
         <Progress value={pct} />
+        {phantomRows.length > 0 && batch && (
+          <div className="rounded-md border border-blue-300/60 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
+            {batch.status === 'queued' && (
+              <>📋 <strong>Lote em fila</strong>{batch.queue_position ? <> — posição #{batch.queue_position}</> : null}. Começa quando o anterior terminar. Os {phantomRows.length} CPF(s) abaixo são uma prévia do que será disparado.</>
+            )}
+            {batch.status === 'scheduled' && (
+              <>⏰ <strong>Lote agendado</strong>. {phantomRows.length} CPF(s) aguardando início.</>
+            )}
+            {batch.status === 'processing' && (
+              <>▶ <strong>Lote iniciado</strong> — materializando {phantomRows.length} CPF(s) na V8. As linhas reais aparecerão em segundos.</>
+            )}
+          </div>
+        )}
         <div className="max-h-96 overflow-y-auto border rounded">
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
