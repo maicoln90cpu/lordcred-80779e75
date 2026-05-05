@@ -13,16 +13,18 @@ interface RoleScopeSelectorProps {
 // Cores semânticas por scope — visual claro de relance.
 // Inativo: ícone cinza fraco. Ativo: cor sólida vibrante específica do scope.
 // none = cinza escuro, menu_only = AZUL (parcial), full = VERDE (liberado total)
+// Usamos `!` (important) para vencer os estilos base de toggleVariants
+// (`hover:bg-muted` e `data-[state=on]:bg-accent`) que sobrescrevem nossas cores.
 const SCOPE_STYLES: Record<RoleScope, string> = {
   none:
-    "text-muted-foreground/40 hover:text-muted-foreground " +
-    "data-[state=on]:bg-slate-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-slate-600 data-[state=on]:shadow-sm",
+    "text-muted-foreground/40 hover:!text-muted-foreground " +
+    "data-[state=on]:!bg-slate-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-slate-600 data-[state=on]:shadow-sm",
   menu_only:
-    "text-muted-foreground/40 hover:text-blue-500 " +
-    "data-[state=on]:bg-blue-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-blue-600 data-[state=on]:shadow-sm dark:data-[state=on]:bg-blue-600",
+    "text-muted-foreground/40 hover:!text-blue-500 " +
+    "data-[state=on]:!bg-blue-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-blue-600 data-[state=on]:shadow-sm dark:data-[state=on]:!bg-blue-600",
   full:
-    "text-muted-foreground/40 hover:text-emerald-500 " +
-    "data-[state=on]:bg-emerald-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-emerald-600 data-[state=on]:shadow-sm dark:data-[state=on]:bg-emerald-600",
+    "text-muted-foreground/40 hover:!text-emerald-500 " +
+    "data-[state=on]:!bg-emerald-500 data-[state=on]:!text-white data-[state=on]:border data-[state=on]:border-emerald-600 data-[state=on]:shadow-sm dark:data-[state=on]:!bg-emerald-600",
 };
 
 const OPTIONS: { value: RoleScope; label: string; tip: string; Icon: typeof EyeOff }[] = [
