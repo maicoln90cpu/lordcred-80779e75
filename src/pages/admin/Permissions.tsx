@@ -229,7 +229,9 @@ export default function Permissions() {
       prev.map((f) => {
         if (!groupFeatures.find((gf) => gf.id === f.id)) return f;
         const roles = checked ? [...new Set([...f.allowed_roles, role])] : f.allowed_roles.filter((r) => r !== role);
-        return { ...f, allowed_roles: roles };
+        const next = { ...f.role_scopes };
+        if (checked) next[role] = "full"; else delete next[role];
+        return { ...f, allowed_roles: roles, role_scopes: next };
       }),
     );
     groupFeatures.forEach((f) => setDirty((prev) => new Set(prev).add(f.id)));
