@@ -43,6 +43,8 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   max_retries_consult: 3,
   max_retries_authorize: 15,
   max_retries_simulate: 15,
+  cpf_dedupe_enabled: true,
+  cpf_dedupe_window_days: 7,
 };
 
 export function useV8Settings() {
