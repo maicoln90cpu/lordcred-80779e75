@@ -236,11 +236,11 @@ Deno.serve(async (req) => {
       action: "v8_orphan_reconciler_run",
       category: "simulator",
       success: true,
-      details: { scanned, matched, promoted, zombies_closed: zombiesClosed, stuck_closed: stuckClosed, duration_ms: Date.now() - startedAt },
+      details: { scanned, matched, promoted, merged_orphans: mergedOrphans, zombies_closed: zombiesClosed, stuck_closed: stuckClosed, duration_ms: Date.now() - startedAt },
     });
 
     return new Response(
-      JSON.stringify({ success: true, scanned, matched, promoted, zombies_closed: zombiesClosed, stuck_closed: stuckClosed, duration_ms: Date.now() - startedAt }),
+      JSON.stringify({ success: true, scanned, matched, promoted, merged_orphans: mergedOrphans, zombies_closed: zombiesClosed, stuck_closed: stuckClosed, duration_ms: Date.now() - startedAt }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
