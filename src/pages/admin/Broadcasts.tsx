@@ -62,6 +62,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function Broadcasts() {
   const { toast } = useToast();
+  const { canSee, loading: accessLoading } = (require('@/hooks/useFeatureAccess') as typeof import('@/hooks/useFeatureAccess')).useFeatureAccess('broadcasts');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [chips, setChips] = useState<ChipInfo[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileInfo>>({});
