@@ -199,9 +199,27 @@ serve(async (req) => {
           },
           body: JSON.stringify(targetBody),
         });
-        const respJson = await resp.json().catch(() => ({}));
-        if (resp.ok) okCount += 1; else failCount += 1;
+        const respJson = await resp.json().catch(() => ({} as any));
+        // SMART RETRY: HTTP 200 com {success:false} é falha real (a edge function
+        // retorna 200 por convenção, mas o conteúdo indica erro). Antes contava
+        // como ok e mascarava problemas reais (rate-limit, payload inválido, etc).
+        const httpOk = resp.ok;
+        const jsonOk = respJson?.success !== false;
+        const realOk = httpOk && jsonOk;
+        if (realOk) okCount += 1; else failCount += 1;
         touchedBatchIds.add(sim.batch_id);
+        // Se o JSON marcou falha, persistimos error_kind/message na linha para
+        // reflexão correta na UI e nos contadores do lote.
+        if (!realOk && !isAnalysisPendingWithConsult) {
+          await supabase.from("v8_simulations").update({
+            attempt_count: Number(sim.attempt_count ?? 0) + 1,
+            last_attempt_at: new Date().toISOString(),
+            status: "failed",
+            error_kind: respJson?.kind || respJson?.error_kind || "retry_failed",
+            error_message: respJson?.user_message || respJson?.error || respJson?.message || `HTTP ${resp.status} success=false`,
+            last_step: respJson?.step || "retry_cron",
+          }).eq("id", sim.id);
+        }
         // Mesmo no divert, incrementa attempt_count para o teto não ficar parado
         if (isAnalysisPendingWithConsult) {
           await supabase.from("v8_simulations").update({
@@ -216,7 +234,9 @@ serve(async (req) => {
           attempt: Number(sim.attempt_count ?? 0) + 1,
           mode: isAnalysisPendingWithConsult ? "poll" : "redo",
           http_status: resp.status,
-          success: !!respJson?.success,
+          http_ok: httpOk,
+          json_ok: jsonOk,
+          real_ok: realOk,
           kind: respJson?.kind ?? null,
           step: respJson?.step ?? null,
           user_message: respJson?.user_message ?? null,
