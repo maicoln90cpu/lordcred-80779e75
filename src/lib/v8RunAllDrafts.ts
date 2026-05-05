@@ -1,22 +1,24 @@
 /**
  * Etapa 1 (abr/2026): "Executar todos em sequência".
+ * Etapa 2 (mai/2026): novo modo `parallel_dispatch` — dispara todos os rascunhos
+ * de uma vez (cada um vira um lote `scheduled` com scheduled_for=now()).
+ * O launcher (v8-scheduled-launcher) promove TODOS para `processing` na próxima
+ * execução, independente de fila. ATENÇÃO: cuidado com rate-limit da V8.
  *
- * Para cada rascunho preenchido (CPFs colados + tabela escolhida + nome),
- * cria um lote V8 com action='queue_batch'. O primeiro vira 'scheduled' (roda já),
- * os demais ficam em 'queued' e o launcher (pg_cron 1/min) promove um por vez
- * conforme o anterior termina.
- *
- * Não interrompe o fluxo normal: cada rascunho continua editável depois.
+ * Modo `sequential` (padrão / antigo): usa `queue_batch`, o launcher promove
+ * um por vez conforme o anterior termina.
  */
 
 import { supabase } from '@/integrations/supabase/client';
 import { analyzeV8Paste } from '@/lib/v8Parser';
 import type { V8DraftSlot } from '@/lib/v8DraftSlots';
 
+export type RunAllMode = 'sequential' | 'parallel_dispatch';
+
 export interface RunAllItemResult {
   draftId: string;
   label: string;
-  status: 'queued' | 'skipped' | 'error';
+  status: 'queued' | 'dispatched' | 'skipped' | 'error';
   reason?: string;
   queuePosition?: number;
   batchId?: string;
@@ -31,11 +33,12 @@ export async function queueAllDrafts(params: {
   drafts: V8DraftSlot[];
   configs: RunAllConfig[];
   strategy: string;
+  mode?: RunAllMode;
 }): Promise<RunAllItemResult[]> {
+  const mode: RunAllMode = params.mode ?? 'sequential';
   const results: RunAllItemResult[] = [];
 
   for (const d of params.drafts) {
-    // Validação leiga: pula em vez de quebrar o lote inteiro.
     if (!d.batchName.trim()) {
       results.push({ draftId: d.id, label: d.label, status: 'skipped', reason: 'Sem nome do lote' });
       continue;
@@ -65,10 +68,15 @@ export async function queueAllDrafts(params: {
       ? Number(d.simulationValue.replace(',', '.'))
       : null;
 
+    const action = mode === 'parallel_dispatch' ? 'schedule_batch' : 'queue_batch';
+    const extraParams: Record<string, unknown> = mode === 'parallel_dispatch'
+      ? { scheduled_for: new Date().toISOString() }
+      : {};
+
     try {
       const { data, error } = await supabase.functions.invoke('v8-clt-api', {
         body: {
-          action: 'queue_batch',
+          action,
           params: {
             name: d.batchName.trim(),
             config_id: d.configId,
@@ -78,6 +86,7 @@ export async function queueAllDrafts(params: {
             strategy: params.strategy,
             simulation_mode: d.simulationMode,
             simulation_value: numericValue,
+            ...extraParams,
           },
         },
       });
@@ -89,7 +98,8 @@ export async function queueAllDrafts(params: {
         continue;
       }
       results.push({
-        draftId: d.id, label: d.label, status: 'queued',
+        draftId: d.id, label: d.label,
+        status: mode === 'parallel_dispatch' ? 'dispatched' : 'queued',
         queuePosition: data?.data?.queue_position,
         batchId: data?.data?.batch_id,
       });
@@ -106,16 +116,19 @@ export async function queueAllDrafts(params: {
 
 export function summarizeRunAll(results: RunAllItemResult[]): {
   queued: number;
+  dispatched: number;
   skipped: number;
   errors: number;
   text: string;
 } {
   const queued = results.filter((r) => r.status === 'queued').length;
+  const dispatched = results.filter((r) => r.status === 'dispatched').length;
   const skipped = results.filter((r) => r.status === 'skipped').length;
   const errors = results.filter((r) => r.status === 'error').length;
   const parts: string[] = [];
   if (queued) parts.push(`${queued} enfileirado(s)`);
+  if (dispatched) parts.push(`${dispatched} disparado(s)`);
   if (skipped) parts.push(`${skipped} pulado(s)`);
   if (errors) parts.push(`${errors} erro(s)`);
-  return { queued, skipped, errors, text: parts.join(' · ') || 'Nada a fazer' };
+  return { queued, dispatched, skipped, errors, text: parts.join(' · ') || 'Nada a fazer' };
 }
