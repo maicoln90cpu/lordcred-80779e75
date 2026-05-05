@@ -30,7 +30,7 @@ export default function BatchHistoryPanel() {
     search,
     status: statusFilter === STATUS_ALL ? '' : statusFilter,
   });
-  const { simulations, lastUpdateAt } = useV8BatchSimulations(selectedId);
+  const { simulations, batch: selectedBatchMeta, lastUpdateAt } = useV8BatchSimulations(selectedId);
 
   const selected = useMemo(
     () => batches.find((b) => b.id === selectedId) ?? null,
