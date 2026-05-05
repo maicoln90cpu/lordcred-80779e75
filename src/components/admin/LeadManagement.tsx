@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface StatusOption {
   value: string;
@@ -205,7 +207,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       });
   }, [allLeads, globalFiltered, activeSellerIds]);
 
-  const { sort, toggle } = useSortState();
+  const table = useTableState<any>({ pageSize: 25, resetPageOn: [globalProfiles, globalStatuses, globalBancos, globalBatches, globalTeam, dateFrom, dateTo] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const sortedSellerData = useMemo(() => {
     if (!sort.key || !sort.dir) {
@@ -216,6 +219,8 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
       return (item as any)[key];
     });
   }, [sellerData, sort, sellers]);
+  const totalPages = Math.max(1, Math.ceil(sortedSellerData.length / 25));
+  const pagedSellerData = useMemo(() => sortedSellerData.slice(page * 25, (page + 1) * 25), [sortedSellerData, page]);
 
   const getAvailableCount = (sellerId: string) => {
     const row = getRowState(sellerId);
@@ -489,7 +494,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
+                  {pagedSellerData.map(({ sellerId, total, pctContacted, totalFiltrado, lastUpdate }) => {
                     const row = getRowState(sellerId);
                     const available = getAvailableCount(sellerId);
 
@@ -581,6 +586,7 @@ export default function LeadManagement({ statusOptions, profileOptions }: LeadMa
                 </TableBody>
               </Table>
               </TooltipProvider>
+              <TablePagination page={page} totalPages={totalPages} total={sortedSellerData.length} label="vendedores" onChange={setPage} />
             </div>
           )}
         </CardContent>

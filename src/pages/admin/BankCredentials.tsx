@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2 } from 'lucide-react';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2, Search } from 'lucide-react';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
@@ -34,7 +36,9 @@ export default function BankCredentials() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
-  const { sort, toggle } = useSortState();
+  const [search, setSearch] = useState('');
+  const table = useTableState<BankCredential>({ pageSize: 25, resetPageOn: [search] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('bank_credentials');
 
@@ -50,7 +54,16 @@ export default function BankCredentials() {
     },
   });
 
-  const sorted = useMemo(() => applySortToData(banks, sort), [banks, sort]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return banks;
+    return banks.filter(b =>
+      b.bank_name?.toLowerCase().includes(q) ||
+      b.username?.toLowerCase().includes(q) ||
+      b.link?.toLowerCase().includes(q)
+    );
+  }, [banks, search]);
+  const { sorted, paged, totalPages, total } = table.apply(filtered);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: typeof emptyForm & { id?: string }) => {
@@ -137,8 +150,12 @@ export default function BankCredentials() {
         {isMenuOnly && <MenuOnlyScopeBanner feature="Bancos" />}
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <CardTitle>Credenciais Cadastradas</CardTitle>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar banco, usuário ou link..." className="pl-9" />
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -146,54 +163,57 @@ export default function BankCredentials() {
             ) : sorted.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground"><Landmark className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>Nenhum banco cadastrado</p></div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <TSHead label="Banco" sortKey="bank_name" sort={sort} toggle={toggle} />
-                    <TSHead label="Usuário" sortKey="username" sort={sort} toggle={toggle} />
-                    <TSHead label="Senha" sortKey="password" sort={sort} toggle={toggle} />
-                    <TSHead label="Link" sortKey="link" sort={sort} toggle={toggle} />
-                    <th className="text-right px-4 py-2 text-sm font-medium">Ações</th>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {sorted.map(b => (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-medium">{b.bank_name}</TableCell>
-                      <TableCell>{b.username}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">
-                            {visiblePasswords.has(b.id) ? b.password : '••••••••'}
-                          </span>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => togglePassword(b.id)}>
-                            {visiblePasswords.has(b.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {b.link ? (
-                          <a href={b.link.startsWith('http') ? b.link : `https://${b.link}`} target="_blank" rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1 max-w-[200px] truncate">
-                            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{b.link}</span>
-                          </a>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(b)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(b.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <>
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <TSHead label="Banco" sortKey="bank_name" sort={sort} toggle={toggle} />
+                      <TSHead label="Usuário" sortKey="username" sort={sort} toggle={toggle} />
+                      <TSHead label="Senha" sortKey="password" sort={sort} toggle={toggle} />
+                      <TSHead label="Link" sortKey="link" sort={sort} toggle={toggle} />
+                      <th className="text-right px-4 py-2 text-sm font-medium">Ações</th>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {paged.map(b => (
+                      <TableRow key={b.id}>
+                        <TableCell className="font-medium">{b.bank_name}</TableCell>
+                        <TableCell>{b.username}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {visiblePasswords.has(b.id) ? b.password : '••••••••'}
+                            </span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => togglePassword(b.id)}>
+                              {visiblePasswords.has(b.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {b.link ? (
+                            <a href={b.link.startsWith('http') ? b.link : `https://${b.link}`} target="_blank" rel="noopener noreferrer"
+                              className="text-primary hover:underline flex items-center gap-1 max-w-[200px] truncate">
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{b.link}</span>
+                            </a>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(b)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(b.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <TablePagination page={page} totalPages={totalPages} total={total} label="bancos" onChange={setPage} />
+              </>
             )}
           </CardContent>
         </Card>
