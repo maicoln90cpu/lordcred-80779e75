@@ -49,7 +49,8 @@ const statusConfig: Record<string, { label: string; className: string; icon: typ
 export default function QueueManagement() {
   const { toast } = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
-  const { sort, toggle } = useSortState();
+  const table = useTableState<QueueItem>({ pageSize: 50 });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [chips, setChips] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
