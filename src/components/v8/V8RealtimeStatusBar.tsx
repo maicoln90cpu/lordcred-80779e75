@@ -134,6 +134,23 @@ export function V8RealtimeStatusBar() {
       last_cron_at: lastCronAt,
       zombie_batches: zombies,
     });
+
+    // Etapa 3: Watchdog do front. Se há lote queued há >2min do usuário atual
+    // e não há nenhum processing ativo, re-dispara o launcher (idempotente).
+    // Cobre o caso do cron atrasar ou a salva inicial ter falhado.
+    try {
+      const watchdogCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const myQueuedStuck = (batches || []).filter(
+        (b: any) =>
+          b.status === 'queued' &&
+          b.created_by === user?.id &&
+          b.created_at < watchdogCutoff,
+      );
+      const anyProcessing = (batches || []).some((b: any) => b.status === 'processing');
+      if (myQueuedStuck.length > 0 && !anyProcessing) {
+        triggerLauncherShortLoop({ reason: 'watchdog-queued-stuck' });
+      }
+    } catch {}
   };
 
   const forceCloseZombie = async (batchId: string) => {
