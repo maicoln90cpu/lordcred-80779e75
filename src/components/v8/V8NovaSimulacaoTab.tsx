@@ -479,8 +479,10 @@ export default function V8NovaSimulacaoTab() {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    // Etapa 1 (mai/2026): regenera nome auto sempre no momento do START
+    // (preserva nome personalizado pelo operador).
     const draftsWithNames: V8DraftSlot[] = drafts.map((d) =>
-      d.batchName.trim() ? d : { ...d, batchName: `Lote ${stamp} — ${d.label}` },
+      isAutoName(d.batchName) ? { ...d, batchName: `Lote ${stamp} — ${d.label}` } : d,
     );
     setDrafts(draftsWithNames);
     const eligible = draftsWithNames.filter((d) => d.pasteText.trim() && d.configId);
