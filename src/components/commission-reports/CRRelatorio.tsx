@@ -38,6 +38,11 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
   const [filterDifTipo, setFilterDifTipo] = useState<'all' | 'positive' | 'negative'>('all');
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
+  const table = useTableState<AuditRow>({
+    pageSize: 100,
+    resetPageOn: [search, filterBanco, filterProduto, filterDifTipo, divergenciasOnly, dataInicio?.toISOString(), dataFim?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const dateFromStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : null;
   const dateToStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : null;
