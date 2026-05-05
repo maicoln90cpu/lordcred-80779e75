@@ -587,6 +587,35 @@ export default function Permissions() {
             </TabsContent>
           </Tabs>
         </TooltipProvider>
+
+        <AlertDialog open={!!pendingSellerConfirm} onOpenChange={(o) => !o && setPendingSellerConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                Liberar funcionalidade sensível para Vendedor?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Você está prestes a liberar <strong>{pendingSellerConfirm?.featureLabel}</strong> para todos os
+                usuários com cargo <strong>Vendedor</strong>. Esta funcionalidade contém dados sensíveis (financeiros,
+                credenciais ou auditoria). Tem certeza?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (pendingSellerConfirm) {
+                    applyRoleToggle(pendingSellerConfirm.featureId, "seller");
+                    setPendingSellerConfirm(null);
+                  }
+                }}
+              >
+                Sim, liberar para Vendedor
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
