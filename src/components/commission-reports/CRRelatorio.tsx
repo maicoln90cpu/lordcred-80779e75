@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
 import { loadXLSX } from '@/lib/xlsx-lazy';
-import { TSHead, useSortState, applySortToData, TipWrap } from './CRSortUtils';
+import { TSHead, applySortToData, TipWrap } from './CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { batchFetchRpc } from '@/lib/batchFetchRpc';
 import CRDateFilter from './CRDateFilter';
@@ -31,12 +33,16 @@ interface CRRelatorioProps { divergenciasOnly?: boolean; }
 
 export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioProps) {
   const [search, setSearch] = useState('');
-  const { sort, toggle: toggleSort } = useSortState();
   const [filterBanco, setFilterBanco] = useState('');
   const [filterProduto, setFilterProduto] = useState('');
   const [filterDifTipo, setFilterDifTipo] = useState<'all' | 'positive' | 'negative'>('all');
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
+  const table = useTableState<AuditRow>({
+    pageSize: 100,
+    resetPageOn: [search, filterBanco, filterProduto, filterDifTipo, divergenciasOnly, dataInicio?.toISOString(), dataFim?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const dateFromStr = dataInicio ? format(dataInicio, 'yyyy-MM-dd') : null;
   const dateToStr = dataFim ? format(dataFim, 'yyyy-MM-dd') : null;
@@ -67,7 +73,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
     return rows;
   }, [reportRows, divergenciasOnly, filterBanco, filterProduto, filterDifTipo, search]);
 
-  const sorted = applySortToData(filtered, sort);
+  const { sorted, paged, totalPages } = table.apply(filtered);
   const bancos = useMemo(() => [...new Set(reportRows.map(r => r.banco.toUpperCase()))].sort(), [reportRows]);
   const totals = useMemo(() => ({
     recebida: filtered.reduce((s, r) => s + r.comissao_recebida, 0),
@@ -167,7 +173,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {sorted.slice(0, 500).map((r, i) => (
+                  {paged.map((r, i) => (
                     <TableRow key={i} className={Math.abs(r.diferenca) > 0.01 ? 'bg-destructive/5' : ''}>
                       <TableCell className="text-xs font-mono">{r.num_contrato || '-'}</TableCell>
                       <TableCell className="text-xs font-mono whitespace-nowrap">{fmtDate(r.data_pago)}</TableCell>
@@ -186,7 +192,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
                 </TableBody>
               </Table>
             </TooltipProvider>
-              {sorted.length > 500 && <p className="text-center text-xs text-muted-foreground py-2">Mostrando 500 de {sorted.length}...</p>}
+              <TablePagination page={page} totalPages={totalPages} total={sorted.length} label="contratos" onChange={setPage} />
             </div>
           )}
         </CardContent>

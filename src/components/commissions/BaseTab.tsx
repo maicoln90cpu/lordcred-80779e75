@@ -14,7 +14,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, FileSpreadsheet, Search, Upload, Download, Columns } from 'lucide-react';
 import { loadXLSX } from '@/lib/xlsx-lazy';
-import { TSHead, useSortState, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
+import { TSHead, applySortToData, TOOLTIPS_PARCEIROS_BASE } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import type { CommissionSale, Profile } from './commissionUtils';
 import { fmtBRL, exportToExcel, formatDateBR, toDatetimeLocalBR, toBrasiliaTimestamp, parseExcelDate, cleanCurrency } from './commissionUtils';
 import { resolveSellerByName } from '@/lib/sellerNameMatch';
@@ -56,7 +58,6 @@ interface BaseTabProps {
 export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: BaseTabProps) {
   const { toast } = useToast();
   const [sales, setSales] = useState<CommissionSale[]>([]);
-  const { sort, toggle } = useSortState();
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
@@ -65,6 +66,11 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [visibleCols, setVisibleCols] = useState<string[]>(getDefaultVisibleCols);
+  const table = useTableState<CommissionSale>({
+    pageSize: 50,
+    resetPageOn: [search, weekFilters],
+  });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const toggleCol = (key: string) => {
     setVisibleCols(prev => {
@@ -328,7 +334,13 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
           <p className="text-muted-foreground text-center py-8">Carregando...</p>
         ) : filteredSales.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">Nenhuma venda encontrada</p>
-        ) : (
+        ) : (() => {
+          const { paged, totalPages, total } = table.apply(filteredSales, (s, k) => {
+            if (k === 'seller_id') return getSellerName(s.seller_id);
+            if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
+            return (s as any)[k];
+          });
+          return (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -341,11 +353,7 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {applySortToData(filteredSales, sort, (s, k) => {
-                  if (k === 'seller_id') return getSellerName(s.seller_id);
-                  if (k === 'has_insurance') return s.has_insurance ? 'Sim' : 'Não';
-                  return (s as any)[k];
-                }).map(sale => (
+                {paged.map(sale => (
                   <TableRow key={sale.id}>
                     {BASE_COLUMNS.filter(c => visibleCols.includes(c.key)).map(col => {
                       const key = col.key;
@@ -379,8 +387,11 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
                 ))}
               </TableBody>
             </Table>
+            <TablePagination page={page} totalPages={totalPages} total={total} label="vendas" onChange={setPage} />
           </div>
-        )}
+          );
+        })()}
+
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

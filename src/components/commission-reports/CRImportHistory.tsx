@@ -11,7 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Trash2, ClipboardList, AlertTriangle, Download, RotateCcw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TSHead, useSortState, applySortToData } from './CRSortUtils';
+import { TSHead, applySortToData } from './CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { getSpreadsheetUrl } from '@/lib/storageUpload';
 
 interface ImportBatch {
@@ -53,9 +55,8 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
-  const [page, setPage] = useState(0);
-  const pageSize = 15;
-  const { sort, toggle } = useSortState();
+  const table = useTableState<ImportBatch>({ pageSize: 15, resetPageOn: [moduleFilter, showDeleted] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-for-batches'],
@@ -133,12 +134,10 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
     }
   };
 
-  const sorted = applySortToData(batches, sort, (b, k) => {
+  const { paged: paginated, totalPages, total: sortedTotal } = table.apply(batches, (b, k) => {
     if (k === 'imported_by') return getName(b.imported_by);
     return (b as any)[k];
   });
-  const paginated = sorted.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(sorted.length / pageSize);
   const deletedCount = batches.filter(b => b.deleted_at).length;
 
   return (
@@ -227,15 +226,8 @@ export default function CRImportHistory({ moduleFilter }: CRImportHistoryProps) 
                 </TableBody>
               </Table>
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages}</span>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              </div>
-            )}
+            <TablePagination page={page} totalPages={totalPages} total={sortedTotal} label="lotes" onChange={setPage} />
+
           </>
         )}
       </CardContent>
