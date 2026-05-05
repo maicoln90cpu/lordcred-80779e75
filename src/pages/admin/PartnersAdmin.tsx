@@ -241,12 +241,13 @@ export default function PartnersAdmin() {
       (p.telefone?.toLowerCase().includes(s)) ||
       (p.cnpj?.toLowerCase().includes(s));
   });
-  const filtered = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const pagedFiltered = useMemo(() => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [filtered, page]);
+  const applied = useMemo(() => table.apply(filteredBase), [filteredBase, sort, page]);
+  const filtered = applied.sorted;
+  const pagedFiltered = applied.paged;
+  const totalPages = applied.totalPages;
 
   // Reset page when filters change
-  useMemo(() => { setPage(0); }, [search, statusFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter]);
 
   const statusCounts = allPartners.reduce<Record<string, number>>((acc, p) => {
     acc[p.pipeline_status] = (acc[p.pipeline_status] || 0) + 1;
