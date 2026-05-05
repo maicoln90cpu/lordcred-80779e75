@@ -805,11 +805,8 @@ export default function V8NovaSimulacaoTab() {
         </div>
       )}
 
-      {activeBatchId && autoBest && !activeBatchPaused && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
-          🤖 <strong>Auto-melhor ativo (worker em background).</strong> O sistema testa propostas automaticamente a cada 1 min — você pode <strong>fechar a aba</strong> que continua processando.
-        </div>
-      )}
+      {/* Etapa 1 (mai/2026): banner "Auto-melhor ativo (worker em background)" removido por solicitação.
+          Worker continua funcionando igual; apenas a faixa amarela informativa foi ocultada. */}
 
       {activeBatchId && (
         <BatchProgressTable
