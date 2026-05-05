@@ -28,6 +28,7 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [sellerFilter, setSellerFilter] = useState(isAdmin ? 'all' : userId);
+  const [monthFilters, setMonthFilters] = useState<string[]>([]);
   const [weekFilters, setWeekFilters] = useState<string[]>([]);
   const [productFilter, setProductFilter] = useState('all');
   const { sort, toggle } = useSortState();
