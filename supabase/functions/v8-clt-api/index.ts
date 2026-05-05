@@ -1507,6 +1507,19 @@ async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
     return { success: false, step: "consult", error: "consult_id não retornado pela V8", raw: consultJson };
   }
 
+  // FIX RACE WEBHOOK: grava consult_id na linha do lote ANTES de /authorize.
+  // O webhook V8 chega em ~1-2s após /authorize. Se a linha não tem consult_id,
+  // o webhook cria uma "órfã" e o lote nunca atualiza.
+  if (earlySimulationId) {
+    await supabase
+      .from("v8_simulations")
+      .update({
+        consult_id: consultId,
+        last_step: "consult_authorized_pending",
+      })
+      .eq("id", earlySimulationId);
+  }
+
   // Authorize — opcional, mas a V8 só dispara webhook após termo aceito.
   const authResp = await v8FetchWithRetry(V8_PATHS.authorize(consultId), {
     method: "POST",
