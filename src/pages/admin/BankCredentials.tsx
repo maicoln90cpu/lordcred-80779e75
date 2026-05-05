@@ -35,6 +35,8 @@ export default function BankCredentials() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const { sort, toggle } = useSortState();
 
+  const { canSee, loading: accessLoading } = useFeatureAccess('bank_credentials');
+
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['bank-credentials'],
     queryFn: async () => {
@@ -112,6 +114,9 @@ export default function BankCredentials() {
     }
     saveMutation.mutate(editingId ? { ...form, id: editingId } : form);
   };
+
+  if (accessLoading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
+  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Bancos" /></DashboardLayout>;
 
   return (
     <DashboardLayout>
