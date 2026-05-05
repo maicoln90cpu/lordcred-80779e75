@@ -11,14 +11,18 @@ interface RoleScopeSelectorProps {
 }
 
 // Cores semânticas por scope — visual claro de relance.
-// none = cinza (apagado), menu_only = âmbar (parcial), full = verde (liberado)
+// Inativo: ícone cinza fraco. Ativo: cor sólida vibrante específica do scope.
+// none = cinza escuro, menu_only = AZUL (parcial), full = VERDE (liberado total)
 const SCOPE_STYLES: Record<RoleScope, string> = {
   none:
-    "data-[state=on]:bg-muted data-[state=on]:text-muted-foreground data-[state=on]:border data-[state=on]:border-border",
+    "text-muted-foreground/40 hover:text-muted-foreground " +
+    "data-[state=on]:bg-slate-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-slate-600 data-[state=on]:shadow-sm",
   menu_only:
-    "data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border data-[state=on]:border-amber-500/60",
+    "text-muted-foreground/40 hover:text-blue-500 " +
+    "data-[state=on]:bg-blue-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-blue-600 data-[state=on]:shadow-sm dark:data-[state=on]:bg-blue-600",
   full:
-    "data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-600 dark:data-[state=on]:text-emerald-400 data-[state=on]:border data-[state=on]:border-emerald-500/60",
+    "text-muted-foreground/40 hover:text-emerald-500 " +
+    "data-[state=on]:bg-emerald-500 data-[state=on]:text-white data-[state=on]:border data-[state=on]:border-emerald-600 data-[state=on]:shadow-sm dark:data-[state=on]:bg-emerald-600",
 };
 
 const OPTIONS: { value: RoleScope; label: string; tip: string; Icon: typeof EyeOff }[] = [
