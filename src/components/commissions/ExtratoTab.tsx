@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { TSHead } from '@/components/commission-reports/CRSortUtils';
 import { useTableState } from '@/hooks/useTableState';
-import TablePagination from '@/components/common/TablePagination';
+import { TablePagination } from '@/components/common/TablePagination';
 import WeekMultiSelect from './WeekMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
