@@ -40,18 +40,24 @@ interface PositionedEvent {
  */
 function layoutDay(events: HRCalendarEvent[], day: Date): PositionedEvent[] {
   const dayStart = startOfDay(day);
+  const DAY_END_MIN = 24 * 60;
   const items = events
     .map((ev) => {
       const s = parseISO(ev.starts_at);
-      const e = ev.ends_at ? parseISO(ev.ends_at) : new Date(s.getTime() + 30 * 60 * 1000);
-      const startMin = Math.max(0, differenceInMinutes(s, dayStart));
-      const endMin = Math.max(startMin + 15, differenceInMinutes(e, dayStart));
-      return { ev, startMin, endMin };
+      // default 60 min se não houver ends_at (padrão Google)
+      const e = ev.ends_at ? parseISO(ev.ends_at) : new Date(s.getTime() + 60 * 60 * 1000);
+      const rawStart = differenceInMinutes(s, dayStart);
+      const rawEnd = differenceInMinutes(e, dayStart);
+      // clamp ao dia visível — eventos multi-dia mostram só a fatia daquele dia
+      const startMin = Math.max(0, Math.min(DAY_END_MIN - 15, rawStart));
+      const endMin = Math.max(startMin + 15, Math.min(DAY_END_MIN, rawEnd));
+      return { ev, startMin, endMin, rawStart, rawEnd };
     })
+    // mantém apenas itens que intersectam o dia
+    .filter((it) => it.rawEnd > 0 && it.rawStart < DAY_END_MIN)
     .sort((a, b) => a.startMin - b.startMin);
 
-  // assign lanes
-  const lanesEnd: number[] = []; // for each lane, current end minute
+  const lanesEnd: number[] = [];
   const assigned: { lane: number; startMin: number; endMin: number; ev: HRCalendarEvent }[] = [];
   for (const it of items) {
     let lane = lanesEnd.findIndex((end) => end <= it.startMin);
@@ -61,19 +67,20 @@ function layoutDay(events: HRCalendarEvent[], day: Date): PositionedEvent[] {
     } else {
       lanesEnd[lane] = it.endMin;
     }
-    assigned.push({ lane, ...it });
+    assigned.push({ lane, startMin: it.startMin, endMin: it.endMin, ev: it.ev });
   }
 
-  // compute clusters to determine total lanes per overlap group
   const result: PositionedEvent[] = [];
   for (const a of assigned) {
-    // count overlap with others
     const overlap = assigned.filter((b) => !(b.endMin <= a.startMin || b.startMin >= a.endMin));
     const lanes = Math.max(...overlap.map((o) => o.lane)) + 1;
+    const top = (a.startMin / 60) * HOUR_PX;
+    const maxHeight = (DAY_END_MIN / 60) * HOUR_PX - top;
+    const rawHeight = ((a.endMin - a.startMin) / 60) * HOUR_PX - 2;
     result.push({
       ev: a.ev,
-      top: (a.startMin / 60) * HOUR_PX,
-      height: Math.max(20, ((a.endMin - a.startMin) / 60) * HOUR_PX - 2),
+      top,
+      height: Math.max(20, Math.min(rawHeight, maxHeight)),
       lane: a.lane,
       lanes,
       startMin: a.startMin,
@@ -193,7 +200,7 @@ export default function HRCalendarWeekView({
             const nowTop = (nowMin / 60) * HOUR_PX;
 
             return (
-              <div key={dayKey} className="relative border-l border-border/40">
+              <div key={dayKey} className="relative border-l border-border/40 overflow-hidden">
                 {/* Slots clicáveis (1h cada) */}
                 {HOURS.map((h) => (
                   <div
