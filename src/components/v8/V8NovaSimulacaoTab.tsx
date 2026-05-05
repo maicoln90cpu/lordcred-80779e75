@@ -112,13 +112,10 @@ export default function V8NovaSimulacaoTab() {
               setActiveId(match.id);
               return prev.map(d => d.id === match.id ? { ...d, activeBatchId: batchId } : d);
             });
-          } else if ((newStatus === 'completed' || newStatus === 'canceled') && batchId) {
-            // Limpa activeBatchId do rascunho cujo lote terminou + remove do mapa
-            removeDraftBatchByBatchId(batchId);
-            setDrafts(prev =>
-              prev.map(d => d.activeBatchId === batchId ? { ...d, activeBatchId: null } : d)
-            );
           }
+          // Etapa A (mai/2026): NÃO limpa mais activeBatchId quando o lote completa/cancela.
+          // O painel "Progresso do Lote" continua visível com banner verde + botão
+          // "Limpar visualização" para o operador consultar resultados sem trocar de aba.
         },
       )
       .subscribe();
