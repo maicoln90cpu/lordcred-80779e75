@@ -151,12 +151,15 @@ export default function Broadcasts() {
     totalSent: campaigns.reduce((s, c) => s + c.sent_count, 0),
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Disparos em Massa" /></DashboardLayout>;
   }
 
   return (
