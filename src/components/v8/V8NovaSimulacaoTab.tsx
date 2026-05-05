@@ -632,7 +632,7 @@ export default function V8NovaSimulacaoTab() {
         const next = draftIds[(curIdx + 1) % draftIds.length];
         return next;
       });
-    }, 8000);
+    }, 30000);
 
     return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
