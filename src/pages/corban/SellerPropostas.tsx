@@ -32,9 +32,13 @@ export default function SellerPropostas() {
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<any>(null);
   const [payloadEditorOpen, setPayloadEditorOpen] = useState(false);
-  const [page, setPage] = useState(0);
   const [totalFetched, setTotalFetched] = useState(0);
   const PAGE_SIZE = 30;
+  const table = useTableState<NormalizedCorbanProposta>({
+    pageSize: PAGE_SIZE,
+    resetPageOn: [searchCpf, dateFrom?.toISOString(), dateTo?.toISOString()],
+  });
+  const { sort, toggleSort, page, setPage } = table;
 
   const allColumns = useMemo(() => {
     const keys = new Set<string>();
