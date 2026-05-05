@@ -670,19 +670,7 @@ export default function LeadsTable({ filterSeller: extSeller, filterStatus: extS
           </Card>
         )}
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {leads.length} leads · Página {page + 1}/{totalPages}
-          </p>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
+        <TablePagination page={page} totalPages={totalPages} total={sortedLeads.length} label="leads" onChange={setPage} />
       </div>
 
       {/* Bulk Delete Dialog */}
