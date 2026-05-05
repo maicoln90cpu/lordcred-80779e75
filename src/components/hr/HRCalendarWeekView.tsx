@@ -118,6 +118,7 @@ export default function HRCalendarWeekView({
   const [now, setNow] = useState(new Date());
   const [optimistic, setOptimistic] = useState<Map<string, HRCalendarEvent>>(new Map());
   const [drag, setDrag] = useState<DragState | null>(null);
+  const justDraggedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const colWidthRef = useRef<number>(0);
