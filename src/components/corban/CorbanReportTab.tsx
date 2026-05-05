@@ -10,7 +10,8 @@ import { Loader2, FileText, Download, Search } from 'lucide-react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface SnapshotRow {
   id: string;
