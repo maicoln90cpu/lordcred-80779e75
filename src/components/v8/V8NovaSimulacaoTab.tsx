@@ -112,13 +112,10 @@ export default function V8NovaSimulacaoTab() {
               setActiveId(match.id);
               return prev.map(d => d.id === match.id ? { ...d, activeBatchId: batchId } : d);
             });
-          } else if ((newStatus === 'completed' || newStatus === 'canceled') && batchId) {
-            // Limpa activeBatchId do rascunho cujo lote terminou + remove do mapa
-            removeDraftBatchByBatchId(batchId);
-            setDrafts(prev =>
-              prev.map(d => d.activeBatchId === batchId ? { ...d, activeBatchId: null } : d)
-            );
           }
+          // Etapa A (mai/2026): NÃO limpa mais activeBatchId quando o lote completa/cancela.
+          // O painel "Progresso do Lote" continua visível com banner verde + botão
+          // "Limpar visualização" para o operador consultar resultados sem trocar de aba.
         },
       )
       .subscribe();
@@ -807,6 +804,32 @@ export default function V8NovaSimulacaoTab() {
 
       {/* Etapa 1 (mai/2026): banner "Auto-melhor ativo (worker em background)" removido por solicitação.
           Worker continua funcionando igual; apenas a faixa amarela informativa foi ocultada. */}
+
+      {/* Etapa A (mai/2026): banner verde quando o lote está concluído/cancelado.
+          O painel "Progresso do Lote" continua visível para consulta — só some quando
+          o operador clicar em "Limpar visualização" ou iniciar outro lote no mesmo rascunho. */}
+      {activeBatchId && activeBatchMeta && (activeBatchMeta.status === 'completed' || activeBatchMeta.status === 'canceled') && (
+        <div className={`rounded-lg border px-3 py-2 text-sm flex items-center justify-between gap-3 ${
+          activeBatchMeta.status === 'completed'
+            ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200'
+            : 'border-muted-foreground/30 bg-muted/40 text-muted-foreground'
+        }`}>
+          <span>
+            {activeBatchMeta.status === 'completed' ? '✅ ' : '⏹ '}
+            <strong>Lote {activeBatchMeta.status === 'completed' ? 'concluído' : 'cancelado'}.</strong>{' '}
+            {simulations.filter((s) => s.status === 'success').length} sucesso(s),{' '}
+            {simulations.filter((s) => s.status === 'failed').length} falha(s)
+            {' '}— você pode consultar os resultados aqui ou exportar.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveBatchId(null)}
+          >
+            Limpar visualização
+          </Button>
+        </div>
+      )}
 
       {activeBatchId && (
         <BatchProgressTable
