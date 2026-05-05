@@ -37,36 +37,45 @@ Deno.serve(async (req) => {
   const MAX_BATCHES_PER_RUN = 5;
 
   try {
+    // Etapa 2 (mai/2026): paralelismo configurável por operador.
+    // Lê v8_settings.max_concurrent_batches_per_owner (default 2).
+    let maxConcurrent = 2;
+    try {
+      const { data: stg } = await supabase
+        .from("v8_settings")
+        .select("max_concurrent_batches_per_owner")
+        .eq("singleton", true)
+        .maybeSingle();
+      const v = Number((stg as any)?.max_concurrent_batches_per_owner);
+      if (Number.isFinite(v) && v >= 1 && v <= 3) maxConcurrent = v;
+    } catch (_) { /* mantém default */ }
+
     // 0) Etapa 4 (item 10): promove lotes da fila (queued) quando o operador
-    //    não tem nenhum lote ativo (processing ou scheduled prestes a rodar).
-    //    Só promove o de menor queue_position por dono.
+    //    tem menos de `maxConcurrent` lotes ativos.
     const { data: queuedHeads } = await supabase
       .from("v8_batches")
       .select("id, queue_owner, queue_position, name")
       .eq("status", "queued")
       .order("queue_position", { ascending: true });
 
-    const ownersSeen = new Set<string>();
+    const ownerPromoted = new Map<string, number>(); // promoções nesta execução
     for (const q of (queuedHeads ?? []) as any[]) {
       const owner = q.queue_owner as string;
-      if (!owner || ownersSeen.has(owner)) continue;
-      ownersSeen.add(owner);
+      if (!owner) continue;
 
-      // Verifica se o dono já tem outro lote ATIVO (não zumbi).
-      // IMPORTANTE: ignora lotes parados há > 10 min — eles são zumbis e não devem
-      // bloquear a fila. Watchdog separado (orphan-reconciler) os fecha.
+      // Verifica se o dono já tem lotes ATIVOS (não zumbis).
       const activityCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { data: activeRows } = await supabase
         .from("v8_batches")
         .select("id, status, updated_at, name")
         .eq("created_by", owner)
         .in("status", ["processing", "scheduled"])
-        .gte("updated_at", activityCutoff)
-        .limit(1);
+        .gte("updated_at", activityCutoff);
 
-      if (activeRows && activeRows.length > 0) {
-        const blocker = activeRows[0] as any;
-        console.log(`[v8-scheduled-launcher] queue blocked owner=${owner} by batch=${blocker.id} name="${blocker.name}" status=${blocker.status} updated=${blocker.updated_at}`);
+      const activeCount = (activeRows?.length ?? 0) + (ownerPromoted.get(owner) ?? 0);
+      if (activeCount >= maxConcurrent) {
+        const blocker = activeRows?.[0] as any;
+        console.log(`[v8-scheduled-launcher] queue blocked owner=${owner} active=${activeCount}/${maxConcurrent} blocker=${blocker?.id} name="${blocker?.name}"`);
         continue;
       }
 
