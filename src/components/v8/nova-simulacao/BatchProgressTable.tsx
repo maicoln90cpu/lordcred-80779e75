@@ -177,7 +177,30 @@ export default function BatchProgressTable({
               </tr>
             </thead>
             <tbody>
-              {simulations.map((s) => {
+              {displaySims.map((s) => {
+                if ((s as any).__phantom) {
+                  return (
+                    <tr key={s.id} className="border-t bg-muted/30">
+                      <td className="px-2 py-1">{(s as any).name || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-2 py-1 font-mono">{s.cpf}</td>
+                      <td className="px-2 py-1">
+                        <Badge variant="outline" className="border-blue-400/50 text-blue-700 bg-blue-500/10">
+                          {(s as any).__phantomLabel}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-1 align-top text-muted-foreground italic text-[11px]">
+                        Aguardando o lote ser disparado na V8
+                      </td>
+                      <td className="px-2 py-1 text-right text-muted-foreground">—</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">
+                        {parcelas ? <span className="text-muted-foreground">({parcelas}x)</span> : '—'}
+                      </td>
+                      <td className="px-2 py-1 text-right text-muted-foreground">—</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">0</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">—</td>
+                    </tr>
+                  );
+                }
                 const ws = ((s as any).webhook_status || '').toUpperCase();
                 const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                 const isWaitingExternal = s.status === 'pending' && (k === 'active_consult' || ws === 'WAITING_EXTERNAL');
