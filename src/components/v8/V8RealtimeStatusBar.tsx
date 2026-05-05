@@ -260,6 +260,14 @@ export function V8RealtimeStatusBar() {
           <span className={`inline-block w-2 h-2 rounded-full ${dot} ${conn === 'live' ? 'animate-pulse' : ''}`} />
           <Icon className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="font-medium">{label}</span>
+          {settings?.max_concurrent_batches_per_owner && settings.max_concurrent_batches_per_owner > 1 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+              title={`Você pode rodar até ${settings.max_concurrent_batches_per_owner} lotes em paralelo (configurável em Configurações).`}
+            >
+              ⚡ Paralelismo {settings.max_concurrent_batches_per_owner}x
+            </span>
+          )}
           {isHealthy && forceExpanded && (
             <button
               type="button"
