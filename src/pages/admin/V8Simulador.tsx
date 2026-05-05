@@ -10,6 +10,7 @@ import V8PropostasTab from '@/components/v8/V8PropostasTab';
 import V8WebhooksTab from '@/components/v8/V8WebhooksTab';
 import V8OperacoesTab from '@/components/v8/V8OperacoesTab';
 import V8ContactPoolTab from '@/components/v8/pool/V8ContactPoolTab';
+import V8InstrucoesTab from '@/components/v8/V8InstrucoesTab';
 import { V8RealtimeStatusBar } from '@/components/v8/V8RealtimeStatusBar';
 import V8KpisBar from '@/components/v8/V8KpisBar';
 import { Badge } from '@/components/ui/badge';
@@ -74,6 +75,7 @@ export default function V8Simulador() {
             )}
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
             <TabsTrigger value="config">Configurações</TabsTrigger>
+            <TabsTrigger value="instrucoes">📖 Instruções</TabsTrigger>
           </TabsList>
           <TabsContent value="operacoes" className="mt-4">
             <V8OperacoesTab />
@@ -102,6 +104,9 @@ export default function V8Simulador() {
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <V8ConfigTab />
+          </TabsContent>
+          <TabsContent value="instrucoes" className="mt-4">
+            <V8InstrucoesTab />
           </TabsContent>
         </Tabs>
       </div>
