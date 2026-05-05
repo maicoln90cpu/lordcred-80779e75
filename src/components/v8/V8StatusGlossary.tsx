@@ -46,6 +46,7 @@ const INTERNAL_ROWS: Row[] = [
   { status: 'analysis_pending', meaning: 'V8 ainda processando do lado dela.', action: '"Buscar resultados pendentes".', tone: 'warn' },
   { status: 'active_consult', meaning: 'Já existe consulta ativa na V8 para este CPF (lote anterior ainda processando).', action: 'AGUARDAR — sistema promove sozinho assim que a antiga concluir. Não precisa retentar.', tone: 'warn' },
   { status: 'aguardando consulta antiga', meaning: 'Marca AMARELA — versão "esperando" do active_consult. Sistema vai promover automaticamente.', action: 'Não fazer nada. Em até alguns minutos vira success ou failed.', tone: 'warn' },
+  { status: 'duplicate_recent', meaning: 'CPF já consultado nos últimos N dias (configurável). Sistema reaproveita a consulta original em vez de gerar uma nova proposta na V8.', action: 'Abrir a simulação original em "Histórico" — link "Ver original" na linha. Para forçar nova consulta, ajustar a janela em Configurações.', tone: 'warn' },
   { status: 'cancelado', meaning: 'Lote foi cancelado manualmente pelo botão "Cancelar lote".', action: 'Disparar novamente em outro lote se quiser reprocessar.', tone: 'bad' },
 ];
 
