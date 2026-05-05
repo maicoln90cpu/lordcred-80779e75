@@ -153,6 +153,9 @@ export function HRCalendarTab() {
             <TabsTrigger value="month" className="gap-1.5">
               <LayoutGrid className="w-4 h-4" /> Mês
             </TabsTrigger>
+            <TabsTrigger value="week" className="gap-1.5">
+              <CalendarRange className="w-4 h-4" /> Semana
+            </TabsTrigger>
             <TabsTrigger value="list" className="gap-1.5">
               <List className="w-4 h-4" /> Lista
             </TabsTrigger>
