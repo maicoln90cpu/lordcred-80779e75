@@ -56,7 +56,7 @@ const EMPTY_FORM: EventFormState = {
   starts_at: '', ends_at: '', location: '',
 };
 
-type CalendarView = 'month' | 'list' | 'agenda';
+type CalendarView = 'month' | 'week' | 'list' | 'agenda';
 type EntityFilter = 'all' | 'candidate' | 'employee';
 
 export function HRCalendarTab() {
