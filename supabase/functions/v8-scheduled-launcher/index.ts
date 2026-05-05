@@ -173,11 +173,26 @@ Deno.serve(async (req) => {
         const throttleMs = 1200;
 
         let dispatched = 0;
+        let dispatchFailed = 0;
         for (let i = 0; i < (insertedSims ?? []).length; i++) {
           const sim = (insertedSims ?? [])[i] as any;
           const parsedRow = rows.find((r) => r.cpf === sim.cpf);
+
+          // Etapa 4 (b): heartbeat ANTES do POST — grava attempt_count++ e last_attempt_at.
+          // Assim o watchdog consegue distinguir "nunca disparou" (attempt_count=0) de
+          // "disparou e está aguardando webhook" (attempt_count>=1, last_attempt_at recente).
+          await supabase
+            .from("v8_simulations")
+            .update({
+              attempt_count: 1,
+              last_attempt_at: new Date().toISOString(),
+              last_step: "dispatch_started",
+            })
+            .eq("id", sim.id);
+
+          let dispatchOk = false;
           try {
-            await fetch(cltUrl, {
+            const resp = await fetch(cltUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -201,10 +216,33 @@ Deno.serve(async (req) => {
                 },
               }),
             });
-            dispatched += 1;
+            dispatchOk = resp.ok;
+            if (resp.ok) dispatched += 1;
+            else {
+              const txt = await resp.text().catch(() => "");
+              console.warn("[v8-scheduled-launcher] dispatch http_fail", sim.cpf, resp.status, txt.slice(0, 200));
+            }
           } catch (err) {
             console.warn("[v8-scheduled-launcher] dispatch fail", sim.cpf, err);
           }
+
+          // Etapa 4 (a): se o dispatch HTTP falhou, marca a linha como failed
+          // imediatamente. Sem isso ficava pending eterno e o lote "concluía" zumbi.
+          if (!dispatchOk) {
+            dispatchFailed += 1;
+            await supabase
+              .from("v8_simulations")
+              .update({
+                status: "failed",
+                error_kind: "dispatch_failed",
+                error_message: "Falha ao disparar a consulta para a V8 (timeout/erro de rede no launcher).",
+                last_step: "dispatch_failed",
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", sim.id);
+            await supabase.rpc("v8_increment_batch_failure", { _batch_id: batchId });
+          }
+
           if (i < (insertedSims?.length ?? 0) - 1) {
             await new Promise((r) => setTimeout(r, throttleMs));
           }
