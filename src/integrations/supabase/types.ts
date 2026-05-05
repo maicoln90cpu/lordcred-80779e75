@@ -5624,6 +5624,10 @@ export type Database = {
         Args: { _batch_id: string; _enabled: boolean }
         Returns: undefined
       }
+      v8_watchdog_stuck_simulations: {
+        Args: { p_age_minutes?: number }
+        Returns: Json
+      }
       v8_webhook_type_counts: {
         Args: never
         Returns: {
