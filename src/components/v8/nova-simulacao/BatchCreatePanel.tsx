@@ -107,15 +107,8 @@ export default function BatchCreatePanel(props: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex-row justify-between items-center">
+      <CardHeader>
         <CardTitle>Configurar Simulação</CardTitle>
-        <div className="flex items-center gap-2">
-          <V8StatusGlossary />
-          <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar tabelas V8
-          </Button>
-        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Etapa 1 (mai/2026): "Nome do lote" REMOVIDO da UI — nome é gerado automaticamente
@@ -140,6 +133,14 @@ export default function BatchCreatePanel(props: Props) {
           </button>
           {advancedOpen && (
             <div className="px-3 pb-3 pt-1 space-y-4">
+              {/* Etapa 3 (mai/2026): atualizar tabelas + glossário ficam aqui dentro. */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  Atualizar tabelas V8
+                </Button>
+                <V8StatusGlossary />
+              </div>
               <div>
                 <Label>Tabela V8</Label>
                 <Select value={configId} onValueChange={setConfigId}>
@@ -237,6 +238,38 @@ export default function BatchCreatePanel(props: Props) {
                   onCheckedChange={onToggleAutoBest}
                 />
               </div>
+
+              {/* Etapa 3 (mai/2026): Agendamento movido para dentro de Avançadas (uso raro). */}
+              {onSchedule && (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium flex items-center gap-1.5">
+                        <CalendarClock className="w-4 h-4" /> Agendar para horário futuro
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Quando ligado, o lote fica em "Agendado" e só dispara as consultas no horário escolhido. Use para iniciar lotes fora do horário comercial ou em janelas controladas.
+                      </p>
+                    </div>
+                    <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
+                  </div>
+                  {scheduleEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <Label className="text-xs">Data e hora (horário de Brasília)</Label>
+                        <Input
+                          type="datetime-local"
+                          value={scheduledLocal}
+                          onChange={(e) => setScheduledLocal(e.target.value)}
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          O sistema confere a cada minuto e dispara assim que chegar o horário.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -290,40 +323,7 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         </div>
 
-        {/* Bloco "Auto-melhor" foi movido para "Opções avançadas" (Etapa 1, mai/2026). */}
-
-        {/* Etapa 3 (item 7): bloco de agendamento. Operador escolhe data/hora futura
-            e o lote só inicia quando o launcher (pg_cron) chegar a esse horário. */}
-        {onSchedule && (
-          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <CalendarClock className="w-4 h-4" /> Agendar para horário futuro
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Quando ligado, o lote fica em "Agendado" e só dispara as consultas no horário escolhido. Use para iniciar lotes fora do horário comercial ou em janelas controladas.
-                </p>
-              </div>
-              <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
-            </div>
-            {scheduleEnabled && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <Label className="text-xs">Data e hora (horário de Brasília)</Label>
-                  <Input
-                    type="datetime-local"
-                    value={scheduledLocal}
-                    onChange={(e) => setScheduledLocal(e.target.value)}
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    O sistema confere a cada minuto e dispara assim que chegar o horário.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Bloco "Auto-melhor" e "Agendar" agora vivem em "Opções avançadas" (Etapa 3, mai/2026). */}
 
         {scheduleEnabled && onSchedule ? (
           <Button
