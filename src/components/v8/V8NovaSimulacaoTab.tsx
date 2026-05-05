@@ -271,15 +271,22 @@ export default function V8NovaSimulacaoTab() {
     }
   }, [parcelOptions, parcelas]);
 
-  // Etapa 3 (mai/2026): pré-seleciona a tabela "Acelera" quando o rascunho está vazio.
-  // Não sobrescreve escolha manual — só age se configId estiver vazio.
+  // Etapa 1 (mai/2026): pré-seleciona "CLT Acelera" em TODOS os rascunhos vazios
+  // (não só o ativo) sem sobrescrever escolha manual.
   useEffect(() => {
-    if (configId) return;
     if (configs.length === 0) return;
     const acelera = configs.find((c) => /acelera/i.test(c.name || ''));
-    if (acelera) setConfigId(acelera.config_id);
+    if (!acelera) return;
+    setDrafts((prev) => {
+      let changed = false;
+      const next = prev.map((d) => {
+        if (!d.configId && !d.activeBatchId) { changed = true; return { ...d, configId: acelera.config_id }; }
+        return d;
+      });
+      return changed ? next : prev;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configs, configId, activeId]);
+  }, [configs]);
 
   const ops = useV8BatchOperations({
     configId, parcelas, simulationMode, simulationValue, batchName,
