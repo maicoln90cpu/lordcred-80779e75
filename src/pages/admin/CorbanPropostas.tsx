@@ -363,9 +363,7 @@ export default function CorbanPropostas() {
     return String(value);
   };
 
-  const sortedPropostas = useMemo(() => applySortToData(propostas, sort), [propostas, sort]);
-  const totalPages = Math.ceil(sortedPropostas.length / PAGE_SIZE);
-  const pagedPropostas = sortedPropostas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const { paged: pagedPropostas, totalPages } = table.apply(propostas);
 
   return (
     <DashboardLayout>
