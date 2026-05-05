@@ -146,8 +146,8 @@ export function V8RealtimeStatusBar() {
         .eq('status', 'processing');
       if (error) throw error;
       toast.success('Lote zumbi encerrado. Fila desbloqueada.');
-      // Trigger launcher to promote next queued batch
-      supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+      // Trigger launcher to promote next queued batch (short-loop 3x).
+      triggerLauncherShortLoop({ reason: 'zombie-close' });
       await refresh();
     } catch (e: any) {
       toast.error('Falha ao encerrar lote: ' + (e?.message || e));
