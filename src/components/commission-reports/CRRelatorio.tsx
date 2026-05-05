@@ -73,7 +73,7 @@ export default function CRRelatorio({ divergenciasOnly = false }: CRRelatorioPro
     return rows;
   }, [reportRows, divergenciasOnly, filterBanco, filterProduto, filterDifTipo, search]);
 
-  const sorted = applySortToData(filtered, sort);
+  const { sorted, paged, totalPages } = table.apply(filtered);
   const bancos = useMemo(() => [...new Set(reportRows.map(r => r.banco.toUpperCase()))].sort(), [reportRows]);
   const totals = useMemo(() => ({
     recebida: filtered.reduce((s, r) => s + r.comissao_recebida, 0),
