@@ -60,7 +60,6 @@ export default function BaseTab({ profiles, getSellerName, isAdmin, userId }: Ba
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [sales, setSales] = useState<CommissionSale[]>([]);
-  const { sort, toggle } = useSortState();
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<CommissionSale | null>(null);
