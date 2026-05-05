@@ -71,10 +71,42 @@ interface Props {
  */
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
-  awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus,
+  awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
-  const total = simulations.length;
+
+  // Etapa 1 (mai/2026): linhas-fantasma. Quando o lote está enfileirado/agendado/processando
+  // mas v8_simulations ainda não foi materializado, mostramos os CPFs do scheduled_payload.rows
+  // com status visual "Aguardando início da fila" / "Materializando..." para o operador
+  // saber que o lote está vivo.
+  const phantomRows: any[] = (() => {
+    if (!batch || simulations.length > 0) return [];
+    const isPhantomState = ['queued', 'scheduled', 'processing'].includes(batch.status);
+    if (!isPhantomState) return [];
+    const rows = (batch.scheduled_payload?.rows as any[]) || [];
+    const phantomLabel =
+      batch.status === 'queued' ? '⏳ Aguardando início da fila' :
+      batch.status === 'scheduled' ? '⏳ Aguardando agendamento' :
+      '▶ Materializando...';
+    return rows.map((r, idx) => ({
+      id: `phantom-${batch.id}-${idx}`,
+      cpf: (r.cpf || '').replace(/\D/g, ''),
+      name: r.nome ?? null,
+      status: 'pending',
+      released_value: null,
+      installment_value: null,
+      installments: null,
+      attempt_count: 0,
+      raw_response: null,
+      error_message: null,
+      simulate_status: 'not_started',
+      __phantom: true,
+      __phantomLabel: phantomLabel,
+    }));
+  })();
+
+  const displaySims = phantomRows.length > 0 ? phantomRows : simulations;
+  const total = displaySims.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
   const success = simulations.filter((s) => s.status === 'success').length;
   const failed = simulations.filter((s) => s.status === 'failed').length;
