@@ -17,6 +17,8 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { useFeatureAccess } from '@/hooks/useFeatureAccess';
+import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
 
 interface AuditLog {
   id: string;
@@ -214,6 +216,8 @@ export default function AuditLogs() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
+  const { canSee, loading: accessLoading } = useFeatureAccess('audit_logs');
+
   // API Tester state
   const [apiUrl, setApiUrl] = useState('https://api.newcorban.com.br/api/propostas/');
   const [apiPayload, setApiPayload] = useState('');
@@ -335,7 +339,7 @@ export default function AuditLogs() {
     }
   };
 
-  if (loading) {
+  if (loading || accessLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -343,6 +347,9 @@ export default function AuditLogs() {
         </div>
       </DashboardLayout>
     );
+  }
+  if (!canSee) {
+    return <DashboardLayout><EmptyStateNoAccess feature="Logs de Auditoria" /></DashboardLayout>;
   }
 
   return (
