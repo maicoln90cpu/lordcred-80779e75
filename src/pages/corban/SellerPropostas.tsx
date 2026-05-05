@@ -18,6 +18,9 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PayloadEditorDialog } from '@/components/corban/PayloadEditorDialog';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function SellerPropostas() {
   const [searchCpf, setSearchCpf] = useState('');
