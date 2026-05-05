@@ -370,6 +370,8 @@ export default function Permissions() {
           registeredFeatureKeys={features.map((f) => f.feature_key)}
           toggleKeys={Object.keys(masterToggles)}
         />
+
+        <TooltipProvider delayDuration={300}>
           <Tabs defaultValue="by-role">
             <TabsList>
               <TabsTrigger value="by-role" className="gap-2">
