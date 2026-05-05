@@ -97,6 +97,69 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 2b. Merge de ÓRFÃS já criadas em v8_simulations (is_orphan=true).
+    let mergedOrphans = 0;
+    try {
+      const { data: simOrphans } = await admin
+        .from("v8_simulations")
+        .select("id, consult_id, raw_response, status, webhook_status, released_value, installments, installment_value, total_value, processed_at, last_webhook_at, sim_value_max, sim_installments_max")
+        .eq("is_orphan", true)
+        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      for (const orph of simOrphans ?? []) {
+        const raw = (orph as any).raw_response || {};
+        const docCpf = onlyDigits(
+          raw?.data?.document ?? raw?.document
+            ?? raw?.workerData?.document ?? raw?.data?.workerData?.document ?? "",
+        );
+        if (docCpf.length !== 11) continue;
+
+        const { data: target } = await admin
+          .from("v8_simulations")
+          .select("id, batch_id, installments")
+          .eq("cpf", docCpf)
+          .eq("status", "pending")
+          .is("consult_id", null)
+          .not("batch_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!target) continue;
+
+        const merged: Record<string, unknown> = {
+          consult_id: (orph as any).consult_id,
+          status: (orph as any).status,
+          webhook_status: (orph as any).webhook_status,
+          raw_response: raw,
+          last_webhook_at: (orph as any).last_webhook_at,
+          processed_at: (orph as any).processed_at ?? new Date().toISOString(),
+          released_value: (orph as any).released_value,
+          installments: (orph as any).installments ?? (target as any).installments,
+          installment_value: (orph as any).installment_value,
+          total_value: (orph as any).total_value,
+          sim_value_max: (orph as any).sim_value_max,
+          sim_installments_max: (orph as any).sim_installments_max,
+          last_step: "merged_from_orphan",
+          error_kind: null,
+          error_message: null,
+        };
+
+        const { error: mErr } = await admin
+          .from("v8_simulations")
+          .update(merged)
+          .eq("id", (target as any).id);
+        if (!mErr) {
+          await admin.from("v8_simulations").delete().eq("id", (orph as any).id);
+          mergedOrphans += 1;
+        }
+      }
+    } catch (mErr) {
+      console.warn("[v8-orphan-reconciler] orphan merge failed:", mErr);
+    }
+
     // 3. Watchdog inteligente — distingue:
     //    - 'completed': todas as simulações já foram processadas (success/failed/skipped)
     //                   e o pending_count zerou. Lote saudável.
