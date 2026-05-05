@@ -1,28 +1,43 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, History, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
 import BatchProgressTable from './BatchProgressTable';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 
+const PAGE_SIZE = 50;
+const STATUS_ALL = '__all__';
+
 /**
- * Histórico de Lotes — Onda B (mai/2026).
- * Lista os últimos 50 lotes na ORDEM em que foram criados (mais novos no topo)
- * e, ao clicar em um deles, renderiza a MESMA BatchProgressTable usada na
- * criação do lote, com realtime ligado pelo hook useV8BatchSimulations.
+ * Histórico de Lotes — com filtros (nome/status) e paginação server-side.
+ * Os filtros aplicam ILIKE no name e EQ no status. A paginação usa range()
+ * + count exact para mostrar "Página X de Y".
  */
 export default function BatchHistoryPanel() {
-  const { batches, loading } = useV8Batches();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>(STATUS_ALL);
+  const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const { batches, totalCount, loading } = useV8Batches({
+    page,
+    pageSize: PAGE_SIZE,
+    search,
+    status: statusFilter === STATUS_ALL ? '' : statusFilter,
+  });
   const { simulations, lastUpdateAt } = useV8BatchSimulations(selectedId);
 
   const selected = useMemo(
     () => batches.find((b) => b.id === selectedId) ?? null,
     [batches, selectedId],
   );
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const statusBadge = (status: string) => {
     const map: Record<string, { variant: 'default' | 'secondary' | 'outline' | 'destructive'; label: string }> = {
@@ -72,6 +87,9 @@ export default function BatchHistoryPanel() {
     );
   }
 
+  const fromIdx = totalCount === 0 ? 0 : page * PAGE_SIZE + 1;
+  const toIdx = Math.min((page + 1) * PAGE_SIZE, totalCount);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -79,53 +97,113 @@ export default function BatchHistoryPanel() {
           <History className="w-4 h-4 text-muted-foreground" /> Histórico de Lotes
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Últimos 50 lotes em ordem de criação. Clique em um lote para ver o progresso (com atualização em tempo real).
+          Lotes em ordem de criação. Use os filtros para localizar e clique para ver o progresso (com atualização em tempo real).
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome do lote..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+              className="pl-8 h-9"
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => { setStatusFilter(v); setPage(0); }}
+          >
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={STATUS_ALL}>Todos os status</SelectItem>
+              <SelectItem value="processing">Em execução</SelectItem>
+              <SelectItem value="scheduled">Agendado</SelectItem>
+              <SelectItem value="queued">Na fila</SelectItem>
+              <SelectItem value="completed">Concluído</SelectItem>
+              <SelectItem value="canceled">Cancelado</SelectItem>
+              <SelectItem value="failed">Falhou</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="text-xs text-muted-foreground ml-auto">
+            {totalCount > 0 ? <>Mostrando <strong>{fromIdx}–{toIdx}</strong> de <strong>{totalCount}</strong></> : null}
+          </div>
+        </div>
+
         {loading && batches.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
             <Loader2 className="w-4 h-4 animate-spin" /> Carregando lotes...
           </div>
         ) : batches.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-6 text-center">Nenhum lote ainda.</div>
-        ) : (
-          <div className="border rounded-md overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lote</TableHead>
-                  <TableHead>Tabela</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Sucesso</TableHead>
-                  <TableHead className="text-right">Falha</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Criado em</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {batches.map((b) => (
-                  <TableRow key={b.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setSelectedId(b.id)}>
-                    <TableCell className="font-medium">{b.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{b.config_name ?? '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{b.total_count}</TableCell>
-                    <TableCell className="text-right tabular-nums text-emerald-600">{b.success_count}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">{b.failure_count}</TableCell>
-                    <TableCell>{statusBadge(b.status)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {new Date(b.created_at).toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedId(b.id); }}>
-                        Ver progresso
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="text-sm text-muted-foreground py-6 text-center">
+            {search || statusFilter !== STATUS_ALL ? 'Nenhum lote para os filtros aplicados.' : 'Nenhum lote ainda.'}
           </div>
+        ) : (
+          <>
+            <div className="border rounded-md overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Lote</TableHead>
+                    <TableHead>Tabela</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Sucesso</TableHead>
+                    <TableHead className="text-right">Falha</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Criado em</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {batches.map((b) => (
+                    <TableRow key={b.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setSelectedId(b.id)}>
+                      <TableCell className="font-medium">{b.name}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{b.config_name ?? '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{b.total_count}</TableCell>
+                      <TableCell className="text-right tabular-nums text-emerald-600">{b.success_count}</TableCell>
+                      <TableCell className="text-right tabular-nums text-destructive">{b.failure_count}</TableCell>
+                      <TableCell>{statusBadge(b.status)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(b.created_at).toLocaleString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedId(b.id); }}>
+                          Ver progresso
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-xs text-muted-foreground">
+                Página <strong>{page + 1}</strong> de <strong>{totalPages}</strong>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page + 1 >= totalPages || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Próxima <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
