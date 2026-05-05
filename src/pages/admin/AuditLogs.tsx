@@ -216,7 +216,7 @@ export default function AuditLogs() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
-  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('audit_logs');
+  const { canSee, loading: accessLoading, isMenuOnly, userId } = useFeatureAccess('audit_logs');
 
   // API Tester state
   const [apiUrl, setApiUrl] = useState('https://api.newcorban.com.br/api/propostas/');
@@ -253,8 +253,8 @@ export default function AuditLogs() {
     if (filterCategory !== 'all') {
       query = query.eq('details->>category', filterCategory);
     }
-    if (isMenuOnly && (window as any).__authUserId) {
-      query = query.eq('user_id', (window as any).__authUserId);
+    if (isMenuOnly && userId) {
+      query = query.eq('user_id', userId);
     }
     const { data, error } = await query;
     if (error) {

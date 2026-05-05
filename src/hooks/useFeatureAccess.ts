@@ -10,18 +10,12 @@ import type { FeatureScope } from '@/lib/permissionLogic';
  * - canEdit: usuário pode editar dados (privileged ou scope='full')
  * - scope: 'none' | 'menu_only' | 'full' — granularidade fina
  * - isMenuOnly: atalho para `scope === 'menu_only'` (filtra dados pelos próprios)
+ * - userId: id do usuário logado (para filtros tipo `created_by = userId`)
  * - loading: carregando permissões/toggles/auth
- *
- * Uso típico em uma página de lista:
- *   const { canSee, scope, loading } = useFeatureAccess('bank_credentials');
- *   if (loading) return <Loader />;
- *   if (!canSee) return <EmptyStateNoAccess feature="Bancos" />;
- *   const query = supabase.from('bank_credentials').select('*');
- *   if (scope === 'menu_only') query.eq('created_by', user.id);
  */
 export function useFeatureAccess(featureKey: string) {
   const { hasPermission, isFeatureEnabled, getScope, loading } = useFeaturePermissions();
-  const { isMaster, userRole } = useAuth();
+  const { isMaster, userRole, user } = useAuth();
 
   const isPrivileged = isMaster || userRole === 'admin' || userRole === 'manager';
   const featureEnabled = isFeatureEnabled(featureKey);
@@ -32,5 +26,14 @@ export function useFeatureAccess(featureKey: string) {
   const canEdit = featureEnabled && (isPrivileged || hasRolePermission);
   const isMenuOnly = scope === 'menu_only';
 
-  return { canSee, canEdit, loading, isPrivileged, featureEnabled, scope, isMenuOnly };
+  return {
+    canSee,
+    canEdit,
+    loading,
+    isPrivileged,
+    featureEnabled,
+    scope,
+    isMenuOnly,
+    userId: user?.id || null,
+  };
 }
