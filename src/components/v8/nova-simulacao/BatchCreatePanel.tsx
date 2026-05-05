@@ -107,15 +107,8 @@ export default function BatchCreatePanel(props: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex-row justify-between items-center">
+      <CardHeader>
         <CardTitle>Configurar Simulação</CardTitle>
-        <div className="flex items-center gap-2">
-          <V8StatusGlossary />
-          <Button variant="outline" size="sm" onClick={refreshFromV8} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar tabelas V8
-          </Button>
-        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Etapa 1 (mai/2026): "Nome do lote" REMOVIDO da UI — nome é gerado automaticamente
