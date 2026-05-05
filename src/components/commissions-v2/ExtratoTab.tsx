@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import WeekMultiSelect from './WeekMultiSelect';
+import MonthMultiSelect, { buildMonthOptions } from './MonthMultiSelect';
 import { fmtBRL, formatDateBR } from './commissionUtils';
 import type { CommissionSale, Profile, AnnualReward } from './commissionUtils';
 import KpiDelta from './KpiDelta';
