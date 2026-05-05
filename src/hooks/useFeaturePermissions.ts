@@ -17,11 +17,12 @@ interface FeatureToggle {
 async function fetchPermissions(): Promise<PermissionEntry[]> {
   const { data } = await supabase
     .from('feature_permissions')
-    .select('feature_key, allowed_user_ids, allowed_roles');
+    .select('feature_key, allowed_user_ids, allowed_roles, role_scopes');
   return (data || []).map(d => ({
     feature_key: d.feature_key,
     allowed_user_ids: (d as any).allowed_user_ids || [],
     allowed_roles: (d as any).allowed_roles || [],
+    role_scopes: ((d as any).role_scopes || {}) as Record<string, FeatureScope>,
   }));
 }
 
