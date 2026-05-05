@@ -143,43 +143,20 @@ export default function HRCalendarWeekView({
   );
 
   // Separa all-day/multi-dia (faixa) dos eventos intra-dia (grade).
-  const { bands, byDay } = useMemo(() => {
-    const bands: AllDayBand[] = [];
+  const { allDayEvents, byDay } = useMemo(() => {
+    const allDayEvents: HRCalendarEvent[] = [];
     const intraDay: HRCalendarEvent[] = [];
-
     for (const ev of events) {
-      const isBand = ev.all_day || isMultiDay(ev);
-      if (isBand) {
-        const s = parseISO(ev.starts_at);
-        const e = ev.ends_at ? parseISO(ev.ends_at) : s;
-        const startCol = days.findIndex((d) => isSameDay(d, s) || (s < d && e >= d));
-        const endCol = days.findIndex((d) => isSameDay(d, e));
-        // intersecta semana?
-        if (e < days[0] || s > days[6]) continue;
-        bands.push({
-          ev,
-          startCol: Math.max(0, days.findIndex((d) => d > s) - 1),
-          endCol: endCol === -1 ? 6 : endCol,
-        });
-      } else {
-        intraDay.push(ev);
-      }
+      if (ev.all_day || isMultiDay(ev)) allDayEvents.push(ev);
+      else intraDay.push(ev);
     }
-    // recompute startCol corretamente
-    bands.forEach((b) => {
-      const s = parseISO(b.ev.starts_at);
-      let sc = days.findIndex((d) => isSameDay(d, s));
-      if (sc === -1) sc = s < days[0] ? 0 : 6;
-      b.startCol = sc;
-    });
-
     const map = new Map<string, PositionedEvent[]>();
     days.forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
       const dayEvents = intraDay.filter((ev) => isSameDay(parseISO(ev.starts_at), d));
       map.set(key, layoutDay(dayEvents, d));
     });
-    return { bands, byDay: map };
+    return { allDayEvents, byDay: map };
   }, [events, days]);
 
   const weekLabel = `${format(weekStart, "d 'de' MMM", { locale: ptBR })} – ${format(addDays(weekStart, 6), "d 'de' MMM yyyy", { locale: ptBR })}`;
