@@ -12,6 +12,7 @@ import {
   EVENT_TYPE_LABEL, EVENT_TYPE_TOKEN,
   type HRCalendarEvent,
 } from '@/hooks/useHRCalendarEvents';
+import HRCalendarAllDayBand from './HRCalendarAllDayBand';
 
 interface Props {
   events: HRCalendarEvent[];
@@ -20,7 +21,7 @@ interface Props {
   onEdit: (ev: HRCalendarEvent) => void;
   onCreateAt: (date: Date) => void;
   /** Atualiza horário/dia ao soltar drag/resize. */
-  onUpdateEvent: (id: string, patch: { starts_at: string; ends_at: string | null }) => Promise<void>;
+  onUpdateEvent: (id: string, patch: Partial<HRCalendarEvent>) => Promise<void>;
 }
 
 const HOUR_PX = 48;
@@ -39,11 +40,8 @@ interface PositionedEvent {
   endMin: number;
 }
 
-interface AllDayBand {
-  ev: HRCalendarEvent;
-  startCol: number; // 0..6
-  endCol: number;   // inclusive
-}
+// AllDayBand foi extraído para HRCalendarAllDayBand.tsx (faixa Dia inteiro
+// com agrupamento "+N mais", edição rápida via popover e drag/resize horizontal).
 
 /** Converte ISO em -03:00 (regra do projeto). */
 function toIsoSP(d: Date): string {
@@ -120,6 +118,7 @@ export default function HRCalendarWeekView({
   const [now, setNow] = useState(new Date());
   const [optimistic, setOptimistic] = useState<Map<string, HRCalendarEvent>>(new Map());
   const [drag, setDrag] = useState<DragState | null>(null);
+  const justDraggedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const colWidthRef = useRef<number>(0);
@@ -145,43 +144,20 @@ export default function HRCalendarWeekView({
   );
 
   // Separa all-day/multi-dia (faixa) dos eventos intra-dia (grade).
-  const { bands, byDay } = useMemo(() => {
-    const bands: AllDayBand[] = [];
+  const { allDayEvents, byDay } = useMemo(() => {
+    const allDayEvents: HRCalendarEvent[] = [];
     const intraDay: HRCalendarEvent[] = [];
-
     for (const ev of events) {
-      const isBand = ev.all_day || isMultiDay(ev);
-      if (isBand) {
-        const s = parseISO(ev.starts_at);
-        const e = ev.ends_at ? parseISO(ev.ends_at) : s;
-        const startCol = days.findIndex((d) => isSameDay(d, s) || (s < d && e >= d));
-        const endCol = days.findIndex((d) => isSameDay(d, e));
-        // intersecta semana?
-        if (e < days[0] || s > days[6]) continue;
-        bands.push({
-          ev,
-          startCol: Math.max(0, days.findIndex((d) => d > s) - 1),
-          endCol: endCol === -1 ? 6 : endCol,
-        });
-      } else {
-        intraDay.push(ev);
-      }
+      if (ev.all_day || isMultiDay(ev)) allDayEvents.push(ev);
+      else intraDay.push(ev);
     }
-    // recompute startCol corretamente
-    bands.forEach((b) => {
-      const s = parseISO(b.ev.starts_at);
-      let sc = days.findIndex((d) => isSameDay(d, s));
-      if (sc === -1) sc = s < days[0] ? 0 : 6;
-      b.startCol = sc;
-    });
-
     const map = new Map<string, PositionedEvent[]>();
     days.forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
       const dayEvents = intraDay.filter((ev) => isSameDay(parseISO(ev.starts_at), d));
       map.set(key, layoutDay(dayEvents, d));
     });
-    return { bands, byDay: map };
+    return { allDayEvents, byDay: map };
   }, [events, days]);
 
   const weekLabel = `${format(weekStart, "d 'de' MMM", { locale: ptBR })} – ${format(addDays(weekStart, 6), "d 'de' MMM yyyy", { locale: ptBR })}`;
@@ -230,6 +206,11 @@ export default function HRCalendarWeekView({
       const d = drag;
       setDrag(null);
       if (!d) return;
+      const moved = d.deltaMin !== 0 || d.deltaDays !== 0 || (d.mode === 'resize' && d.newDuration !== differenceInMinutes(d.origEnd, d.origStart));
+      if (moved) {
+        justDraggedRef.current = true;
+        setTimeout(() => { justDraggedRef.current = false; }, 250);
+      }
       const ev = events.find((x) => x.id === d.id);
       if (!ev) return;
       let newStart: Date;
@@ -253,22 +234,13 @@ export default function HRCalendarWeekView({
       });
       try {
         await onUpdateEvent(ev.id, patch);
-      } catch {
-        // rollback
+      } catch {/* hook já notifica */} finally {
+        // hook do calendário já reflete a nova posição via setEvents síncrono
         setOptimistic((prev) => {
           const next = new Map(prev);
           next.delete(ev.id);
           return next;
         });
-      } finally {
-        // limpa optimistic após o servidor confirmar (próximo refetch substitui)
-        setTimeout(() => {
-          setOptimistic((prev) => {
-            const next = new Map(prev);
-            next.delete(ev.id);
-            return next;
-          });
-        }, 1500);
       }
     };
     window.addEventListener('mousemove', onMove);
@@ -323,37 +295,13 @@ export default function HRCalendarWeekView({
         })}
       </div>
 
-      {/* Faixa all-day / multi-dia */}
-      {bands.length > 0 && (
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border/40 bg-muted/10">
-          <div className="text-[9px] text-muted-foreground text-right pr-1.5 py-1.5 self-center">Dia inteiro</div>
-          <div className="col-span-7 relative py-1.5 min-h-[28px]">
-            {bands.map((b, idx) => {
-              const color = `hsl(var(${EVENT_TYPE_TOKEN[b.ev.event_type]}))`;
-              const widthPct = ((b.endCol - b.startCol + 1) / 7) * 100;
-              const leftPct = (b.startCol / 7) * 100;
-              return (
-                <button
-                  key={b.ev.id}
-                  type="button"
-                  onClick={() => onEdit(b.ev)}
-                  className="absolute h-5 rounded px-2 text-[10px] font-medium text-left truncate hover:opacity-90 transition-opacity"
-                  style={{
-                    top: idx * 22 + 2,
-                    left: `calc(${leftPct}% + 2px)`,
-                    width: `calc(${widthPct}% - 4px)`,
-                    backgroundColor: `hsl(var(${EVENT_TYPE_TOKEN[b.ev.event_type]}) / 0.25)`,
-                    borderLeft: `3px solid ${color}`,
-                    color,
-                  }}
-                >
-                  {b.ev.title}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Faixa Dia inteiro / multi-dia (componente isolado) */}
+      <HRCalendarAllDayBand
+        days={days}
+        events={allDayEvents}
+        onEdit={onEdit}
+        onUpdateEvent={onUpdateEvent}
+      />
 
       {/* Grid scrollável */}
       <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: '70vh' }}>
@@ -431,7 +379,8 @@ export default function HRCalendarWeekView({
                       onMouseDown={(e) => beginDrag(ev, 'move', e)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!drag) onEdit(ev);
+                        if (drag || justDraggedRef.current) return;
+                        onEdit(ev);
                       }}
                     >
                       <div className="px-1.5 py-1">
