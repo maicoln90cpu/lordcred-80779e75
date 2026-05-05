@@ -19,6 +19,7 @@ export interface HRCalendarEvent {
   ends_at: string | null;
   location: string | null;
   color: string | null;
+  all_day: boolean;
   created_by: string | null;
   google_event_id: string | null;
   created_at: string;
@@ -81,6 +82,7 @@ export function useHRCalendarEvents() {
         ends_at: input.ends_at ?? null,
         location: input.location ?? null,
         color: input.color ?? null,
+        all_day: input.all_day ?? false,
         created_by: u.user?.id ?? null,
       })
       .select()
