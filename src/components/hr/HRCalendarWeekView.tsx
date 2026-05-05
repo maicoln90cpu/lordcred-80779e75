@@ -40,11 +40,8 @@ interface PositionedEvent {
   endMin: number;
 }
 
-interface AllDayBand {
-  ev: HRCalendarEvent;
-  startCol: number; // 0..6
-  endCol: number;   // inclusive
-}
+// AllDayBand foi extraído para HRCalendarAllDayBand.tsx (faixa Dia inteiro
+// com agrupamento "+N mais", edição rápida via popover e drag/resize horizontal).
 
 /** Converte ISO em -03:00 (regra do projeto). */
 function toIsoSP(d: Date): string {
