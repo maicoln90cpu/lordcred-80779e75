@@ -339,32 +339,40 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
               </tr>
             </TableHeader>
             <TableBody>
-              {applySortToData(filtered, sort, (s, k) => {
-                if (k === 'seller_id') return getSellerName(s.seller_id);
-                return (s as any)[k];
-              }).map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>{formatDateBR(s.sale_date)}</TableCell>
-                  <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
-                  <TableCell>{s.bank}</TableCell>
-                  {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
-                  <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {fmt(s.commission_value)}
-                      {(s as any).rate_match_level === 'fallback' && (
-                        <Badge variant="outline" className="border-amber-500 text-amber-600 text-[10px] px-1 py-0" title="Cálculo via fallback (banco+seguro+data) — taxa específica não encontrada">⚠ FB</Badge>
-                      )}
-                      {(s as any).rate_match_level === 'generic' && (
-                        <Badge variant="outline" className="border-blue-500 text-blue-600 text-[10px] px-1 py-0" title="Cálculo via taxa genérica (sem table_key)">GEN</Badge>
-                      )}
-                      {(s as any).rate_match_level === 'none' && (s.commission_value === 0) && (
-                        <Badge variant="outline" className="border-destructive text-destructive text-[10px] px-1 py-0" title="Nenhuma taxa encontrada">×</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(() => {
+                const { paged, totalPages, total } = table.apply(filtered, (s, k) => {
+                  if (k === 'seller_id') return getSellerName(s.seller_id);
+                  return (s as any)[k];
+                });
+                return <>
+                  {paged.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell>{formatDateBR(s.sale_date)}</TableCell>
+                      <TableCell><Badge variant={s.product === 'FGTS' ? 'default' : 'secondary'}>{s.product === 'Crédito do Trabalhador' ? 'CLT' : s.product}</Badge></TableCell>
+                      <TableCell>{s.bank}</TableCell>
+                      {isAdmin && <TableCell>{getSellerName(s.seller_id)}</TableCell>}
+                      <TableCell className="text-right">{fmt(s.released_value)}</TableCell>
+                      <TableCell className="text-right font-bold text-primary">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {fmt(s.commission_value)}
+                          {(s as any).rate_match_level === 'fallback' && (
+                            <Badge variant="outline" className="border-amber-500 text-amber-600 text-[10px] px-1 py-0" title="Cálculo via fallback (banco+seguro+data) — taxa específica não encontrada">⚠ FB</Badge>
+                          )}
+                          {(s as any).rate_match_level === 'generic' && (
+                            <Badge variant="outline" className="border-blue-500 text-blue-600 text-[10px] px-1 py-0" title="Cálculo via taxa genérica (sem table_key)">GEN</Badge>
+                          )}
+                          {(s as any).rate_match_level === 'none' && (s.commission_value === 0) && (
+                            <Badge variant="outline" className="border-destructive text-destructive text-[10px] px-1 py-0" title="Nenhuma taxa encontrada">×</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <tr><td colSpan={isAdmin ? 6 : 5}>
+                    <TablePagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+                  </td></tr>
+                </>;
+              })()}
             </TableBody>
           </Table>
         )}
