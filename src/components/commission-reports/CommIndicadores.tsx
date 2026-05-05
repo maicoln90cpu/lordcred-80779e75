@@ -235,10 +235,32 @@ export default function CommIndicadores({
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (sales.length === 0) return <p className="text-center text-muted-foreground py-8 text-sm">Nenhuma venda registrada ainda.</p>;
 
-  const mesAtual = new Date().toLocaleString('pt-BR', { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+  const mesAtual = (() => {
+    const ym = selectedMonth || new Date().toISOString().slice(0, 7);
+    const found = monthOptions.find(m => m.value === ym);
+    return found?.label || ym;
+  })();
 
   return (
     <div className="space-y-6">
+      {/* ==================== Seletor de Mês ==================== */}
+      {monthOptions.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarRange className="w-4 h-4" />
+            <span>Mês de referência para os KPIs</span>
+          </div>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Selecionar mês" /></SelectTrigger>
+            <SelectContent>
+              {monthOptions.map(m => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* ==================== KPIs Executivos ==================== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-5 pb-4">
