@@ -49,11 +49,12 @@ interface EventFormState {
   starts_at: string;
   ends_at: string;
   location: string;
+  all_day: boolean;
 }
 
 const EMPTY_FORM: EventFormState = {
   title: '', description: '', event_type: 'meeting', candidate_id: null,
-  starts_at: '', ends_at: '', location: '',
+  starts_at: '', ends_at: '', location: '', all_day: false,
 };
 
 type CalendarView = 'month' | 'week' | 'list' | 'agenda';
