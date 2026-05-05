@@ -206,6 +206,56 @@ export default function V8DatabaseHealthCard() {
               </div>
             )}
 
+            {/* GRUPO 3: Cron jobs status */}
+            {crons.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <h4 className="text-sm font-medium">Automações agendadas (pg_cron)</h4>
+                </div>
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="text-left px-2 py-1.5">Job</th>
+                        <th className="text-left px-2 py-1.5">Agenda</th>
+                        <th className="text-left px-2 py-1.5">Última execução</th>
+                        <th className="text-left px-2 py-1.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {crons.map((c) => {
+                        const ok = c.last_status === 'succeeded';
+                        const stale = c.last_run_at ? (Date.now() - new Date(c.last_run_at).getTime()) > 24 * 60 * 60 * 1000 : true;
+                        return (
+                          <tr key={c.jobname} className="border-t">
+                            <td className="px-2 py-1.5 font-mono">{c.jobname}</td>
+                            <td className="px-2 py-1.5 font-mono text-muted-foreground">{c.schedule}</td>
+                            <td className="px-2 py-1.5">
+                              {c.last_run_at
+                                ? <span className={stale ? 'text-amber-600 font-medium' : ''}>{formatDistanceToNow(new Date(c.last_run_at), { addSuffix: true, locale: ptBR })}</span>
+                                : <span className="text-muted-foreground">nunca</span>}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {!c.active ? (
+                                <span className="inline-flex items-center gap-1 text-muted-foreground"><XCircle className="w-3 h-3" />inativo</span>
+                              ) : ok ? (
+                                <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3 h-3" />ok</span>
+                              ) : c.last_status ? (
+                                <span className="inline-flex items-center gap-1 text-red-600"><XCircle className="w-3 h-3" />{c.last_status}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
               <div>
                 💡 <strong>Importante</strong>: a limpeza apaga linhas, mas o tamanho
