@@ -379,7 +379,8 @@ export default function HRCalendarWeekView({
                       onMouseDown={(e) => beginDrag(ev, 'move', e)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!drag) onEdit(ev);
+                        if (drag || justDraggedRef.current) return;
+                        onEdit(ev);
                       }}
                     >
                       <div className="px-1.5 py-1">
