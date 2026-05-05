@@ -273,11 +273,14 @@ export default function V8NovaSimulacaoTab() {
 
   const wrappedStart = async () => {
     setRunningDraftId(activeId);
-    ensureBatchName();
+    const needsAutoName = !active.batchName.trim();
+    if (needsAutoName) {
+      ensureBatchName();
+      // Aguarda 1 render para o hook receber a nova prop batchName.
+      await new Promise((r) => setTimeout(r, 0));
+    }
     try {
       await ops.handleStart();
-      // Onda 4: se o draft já tinha Auto-melhor ligado, propaga o flag pro batch recém-criado.
-      // Pequeno delay para garantir que `activeBatchId` foi setado pelo handleStart.
       if (autoBest) {
         setTimeout(async () => {
           try {
