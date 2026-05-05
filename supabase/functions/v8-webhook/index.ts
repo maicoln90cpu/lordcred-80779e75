@@ -581,11 +581,26 @@ serve(async (req) => {
           safeUpdates.status = "success";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && isActiveConsultRecovery) {
+          // ETAPA 1 (FIX): captura motivo real da V8 (description/detail) — antes era mensagem fixa.
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
-          safeUpdates.error_message = "Consulta antiga rejeitada na V8";
+          safeUpdates.error_kind = "rejected_by_v8";
+          safeUpdates.error_message = rejectionReason ?? "Consulta antiga rejeitada na V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (internalStatus === "failed" && currentRow.status !== "success") {
+          // ETAPA 1 (FIX): grava error_kind+motivo do REJECTED — antes ficava sem detalhe na UI.
+          const rejectionReason = (payload as any)?.data?.description
+            ?? (payload as any)?.description
+            ?? (payload as any)?.data?.detail
+            ?? null;
           safeUpdates.status = "failed";
+          safeUpdates.error_kind = "rejected_by_v8";
+          safeUpdates.error_message = rejectionReason ?? "Consulta rejeitada pela V8";
+          safeUpdates.last_step = "consult";
           safeUpdates.processed_at = new Date().toISOString();
         } else if (wantsPending && currentRow.status === "pending") {
           // mantém pending
@@ -761,10 +776,20 @@ serve(async (req) => {
     });
   }
 
-  // Etapa 3A (mai/2026) — Pré-promoção otimista: se este webhook foi o último
-  // CPF pendente de um lote, fecha o lote (status=completed, completed_at=now())
-  // imediatamente, em vez de esperar o orphan-reconciler (15 min).
-  if (processed && action === "consult.updated" && consultId) {
+  // ETAPA 1 (FIX BUG CRÍTICO): a condição antiga procurava action === "consult.updated"
+  // que NUNCA é gravada (o código grava "consult_upsert", "consult_matched_by_cpf", etc).
+  // Resultado: fechamento rápido e fast-path do launcher NUNCA rodavam.
+  // Agora consideramos qualquer ação processada de consulta ou operação.
+  const isConsultAction = processed && (
+    action === "consult_upsert"
+    || (action as string) === "consult_matched_by_cpf"
+    || action === "consult_insert_orphan"
+  );
+  const isOperationAction = processed && action === "operation_upsert";
+
+  // Pré-promoção otimista: se este webhook foi o último CPF pendente de um lote,
+  // fecha o lote (status=completed, completed_at=now()) imediatamente.
+  if (isConsultAction && consultId) {
     try {
       const { data: simRow } = await supabase
         .from("v8_simulations")
@@ -788,7 +813,7 @@ serve(async (req) => {
             })
             .eq("id", batchId)
             .in("status", ["processing", "scheduled"]);
-          console.log(`[v8-webhook] fast-close batch ${batchId} (no pending sims left)`);
+          console.log(`[v8-webhook] fast-close batch ${batchId} (no pending sims left) action=${action}`);
         }
       }
     } catch (err) {
@@ -796,10 +821,8 @@ serve(async (req) => {
     }
   }
 
-  // Etapa 2 (mai/2026) — Fast-path: pinga o launcher para promover qualquer
-  // lote em fila imediatamente (em vez de esperar o cron de 1 min).
-  // Fire-and-forget; não bloqueia a resposta.
-  if (processed && (action === "consult.updated" || action.startsWith("operation."))) {
+  // Fast-path: pinga o launcher para promover qualquer lote em fila imediatamente.
+  if (isConsultAction || isOperationAction) {
     try {
       const launcherUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-scheduled-launcher`;
       // @ts-ignore — EdgeRuntime existe no runtime Deno do Supabase.
