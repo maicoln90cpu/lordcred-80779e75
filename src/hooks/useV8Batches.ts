@@ -23,23 +23,43 @@ export interface V8Batch {
   paused_by?: string | null;
 }
 
-export function useV8Batches() {
+export interface UseV8BatchesOptions {
+  /** Tamanho da página (default 50). */
+  pageSize?: number;
+  /** Página 0-indexed (default 0). */
+  page?: number;
+  /** Filtro por nome do lote (ILIKE). */
+  search?: string;
+  /** Filtro por status exato. Vazio/undefined = todos. */
+  status?: string;
+}
+
+export function useV8Batches(options: UseV8BatchesOptions = {}) {
   const { isMenuOnly, userId } = useFeatureAccess('v8_simulador');
+  const { pageSize = 50, page = 0, search = '', status = '' } = options;
   const [batches, setBatches] = useState<V8Batch[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
     let q = supabase
       .from('v8_batches')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .limit(50);
+      .range(from, to);
     if (isMenuOnly && userId) q = q.eq('created_by', userId);
-    const { data, error } = await q;
-    if (!error && data) setBatches(data as unknown as V8Batch[]);
+    if (search.trim()) q = q.ilike('name', `%${search.trim()}%`);
+    if (status) q = q.eq('status', status);
+    const { data, error, count } = await q;
+    if (!error && data) {
+      setBatches(data as unknown as V8Batch[]);
+      setTotalCount(count ?? 0);
+    }
     setLoading(false);
-  }, [isMenuOnly, userId]);
+  }, [isMenuOnly, userId, page, pageSize, search, status]);
 
   useEffect(() => {
     reload();
