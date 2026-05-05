@@ -24,6 +24,8 @@ export interface V8Settings {
   /** Etapa C — bloqueio de duplicidade de CPF dentro de uma janela recente. */
   cpf_dedupe_enabled: boolean;
   cpf_dedupe_window_days: number;
+  /** Etapa 2 (mai/2026) — Auto-melhor sempre ligado para qualquer simulação com margem. */
+  auto_best_always_on: boolean;
   updated_at: string;
 }
 
@@ -45,6 +47,7 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   max_retries_simulate: 15,
   cpf_dedupe_enabled: true,
   cpf_dedupe_window_days: 7,
+  auto_best_always_on: true,
 };
 
 export function useV8Settings() {
