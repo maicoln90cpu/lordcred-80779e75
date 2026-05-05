@@ -18,11 +18,11 @@ BEGIN;
 
 DO $$
 DECLARE
-  u_master  uuid := '00000000-0000-0000-0000-00000000m001';
-  u_admin   uuid := '00000000-0000-0000-0000-00000000a001';
-  u_manager uuid := '00000000-0000-0000-0000-00000000g001';
-  u_support uuid := '00000000-0000-0000-0000-00000000s001';
-  u_seller  uuid := '00000000-0000-0000-0000-00000000v001';
+  u_master  uuid := '00000000-0000-0000-0000-000000000a01';
+  u_admin   uuid := '00000000-0000-0000-0000-000000000a02';
+  u_manager uuid := '00000000-0000-0000-0000-000000000a03';
+  u_support uuid := '00000000-0000-0000-0000-000000000a04';
+  u_seller  uuid := '00000000-0000-0000-0000-000000000a05';
   test_key  text := '__test_feature_access__';
 BEGIN
   -- Cleanup prévio (caso teste anterior tenha falhado sem rollback)
