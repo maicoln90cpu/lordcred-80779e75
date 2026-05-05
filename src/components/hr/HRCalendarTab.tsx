@@ -104,11 +104,15 @@ export function HRCalendarTab() {
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   }, [events, selectedDay]);
 
+  const openCreateAt = (date: Date) => {
+    setForm({ ...EMPTY_FORM, starts_at: toLocalInput(date.toISOString()) });
+    setDialogOpen(true);
+  };
+
   const openCreate = () => {
     const base = new Date(selectedDay);
     base.setHours(9, 0, 0, 0);
-    setForm({ ...EMPTY_FORM, starts_at: toLocalInput(base.toISOString()) });
-    setDialogOpen(true);
+    openCreateAt(base);
   };
 
   const openEdit = (ev: HRCalendarEvent) => {
