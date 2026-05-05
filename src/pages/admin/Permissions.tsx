@@ -11,7 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { FEATURE_ROUTE_MAP } from "@/lib/featureRouteMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff } from "lucide-react";
+import { Shield, Save, Loader2, Users, Search, UserCog, HelpCircle, AlertTriangle, Power, PowerOff, Lock, Link2 } from "lucide-react";
+import { RoleScopeSelector, type RoleScope } from "@/components/admin/permissions/RoleScopeSelector";
+import { InconsistenciesCard } from "@/components/admin/permissions/InconsistenciesCard";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -85,6 +87,7 @@ interface FeaturePermission {
   feature_group: string;
   allowed_user_ids: string[];
   allowed_roles: string[];
+  role_scopes: Record<string, RoleScope>;
 }
 
 interface Profile {
@@ -141,8 +144,9 @@ export default function Permissions() {
         ...f,
         allowed_user_ids: (f as any).allowed_user_ids || [],
         allowed_roles: (f as any).allowed_roles || [],
+        role_scopes: ((f as any).role_scopes || {}) as Record<string, RoleScope>,
       }));
-      setFeatures(mapped);
+      setFeatures(mapped as FeaturePermission[]);
 
       // Validador dev: alerta se houver feature_key em FEATURE_ROUTE_MAP sem registro em feature_permissions
       if (import.meta.env.DEV) {
@@ -168,30 +172,37 @@ export default function Permissions() {
     setLoading(false);
   };
 
-  // === Role-based toggles ===
-  const applyRoleToggle = (featureId: string, role: string) => {
+  // === Role-based scope (none/menu_only/full) ===
+  const applyRoleScope = (featureId: string, role: string, scope: RoleScope) => {
     setFeatures((prev) =>
       prev.map((f) => {
         if (f.id !== featureId) return f;
-        const roles = f.allowed_roles.includes(role)
+        const next = { ...f.role_scopes };
+        if (scope === "none") {
+          delete next[role];
+        } else {
+          next[role] = scope;
+        }
+        // Manter allowed_roles em sincronia (legado): role está em allowed_roles se scope != none
+        const allowed_roles = scope === "none"
           ? f.allowed_roles.filter((r) => r !== role)
-          : [...f.allowed_roles, role];
-        return { ...f, allowed_roles: roles };
+          : Array.from(new Set([...f.allowed_roles, role]));
+        return { ...f, role_scopes: next, allowed_roles };
       }),
     );
     setDirty((prev) => new Set(prev).add(featureId));
   };
 
-  const toggleRole = (featureId: string, role: string) => {
+  const setRoleScope = (featureId: string, role: string, scope: RoleScope) => {
     const feature = features.find((f) => f.id === featureId);
     if (!feature) return;
-    const isEnabling = !feature.allowed_roles.includes(role);
-    // Confirmação obrigatória ao liberar Vendedor em features sensíveis
-    if (role === "seller" && isEnabling && SENSITIVE_FEATURES.has(feature.feature_key)) {
+    const isElevating = scope === "full" && feature.role_scopes[role] !== "full";
+    // Confirmação obrigatória ao liberar Vendedor (full) em features sensíveis
+    if (role === "seller" && isElevating && SENSITIVE_FEATURES.has(feature.feature_key)) {
       setPendingSellerConfirm({ featureId, featureLabel: feature.feature_label });
       return;
     }
-    applyRoleToggle(featureId, role);
+    applyRoleScope(featureId, role, scope);
   };
 
   // === Master toggle (global) ===
@@ -218,7 +229,9 @@ export default function Permissions() {
       prev.map((f) => {
         if (!groupFeatures.find((gf) => gf.id === f.id)) return f;
         const roles = checked ? [...new Set([...f.allowed_roles, role])] : f.allowed_roles.filter((r) => r !== role);
-        return { ...f, allowed_roles: roles };
+        const next = { ...f.role_scopes };
+        if (checked) next[role] = "full"; else delete next[role];
+        return { ...f, allowed_roles: roles, role_scopes: next };
       }),
     );
     groupFeatures.forEach((f) => setDirty((prev) => new Set(prev).add(f.id)));
@@ -260,6 +273,7 @@ export default function Permissions() {
           .update({
             allowed_user_ids: f.allowed_user_ids,
             allowed_roles: f.allowed_roles,
+            role_scopes: f.role_scopes,
             updated_at: new Date().toISOString(),
           } as any)
           .eq("id", f.id);
@@ -347,11 +361,15 @@ export default function Permissions() {
           </Button>
         </div>
 
-        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-          <strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin
-          sempre têm acesso total. Gerente tem acesso total exceto esta página. Se nenhum cargo e nenhum usuário estiver
-          marcado, a funcionalidade fica aberta a todos.
+        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-1">
+          <p><strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.</p>
+          <p className="text-xs"><strong>Sem acesso</strong> = oculta · <strong>Só menu</strong> = vê o item e a página com os próprios dados · <strong>Acesso total</strong> = vê dados cadastrados por todos.</p>
         </div>
+
+        <InconsistenciesCard
+          registeredFeatureKeys={features.map((f) => f.feature_key)}
+          toggleKeys={Object.keys(masterToggles)}
+        />
 
         <TooltipProvider delayDuration={300}>
           <Tabs defaultValue="by-role">
@@ -381,23 +399,23 @@ export default function Permissions() {
                     </AccordionTrigger>
                     <AccordionContent className="p-0">
                       {/* Column header with toggle-all per role */}
-                      <div className="grid grid-cols-[1fr_110px_100px_100px_100px] gap-2 px-4 py-2 bg-muted/50 border-b text-xs font-semibold text-muted-foreground">
-                        <span>Funcionalidade</span>
-                        <span className="text-center">
-                          Master
-                          <span className="block text-[10px] text-muted-foreground font-normal">(visível no menu)</span>
+                      <div className="grid grid-cols-[1fr_130px_120px_120px_120px] gap-2 px-4 py-2 bg-muted/50 border-b text-xs font-semibold text-muted-foreground">
+                        <span>Funcionalidade · rota</span>
+                        <span className="text-center inline-flex items-center justify-center gap-1">
+                          Ativo no sistema
+                          {!isMaster && <Lock className="w-3 h-3 text-muted-foreground/60" />}
                         </span>
                         {ROLE_OPTIONS.map((role) => {
-                          const allChecked = groupFeatures.every((f) => f.allowed_roles.includes(role.value));
+                          const allFull = groupFeatures.every((f) => f.role_scopes[role.value] === "full");
                           return (
                             <button
                               key={role.value}
                               className="text-center hover:text-foreground transition-colors"
-                              onClick={() => toggleAllRolesForGroup(groupFeatures, role.value, !allChecked)}
+                              onClick={() => toggleAllRolesForGroup(groupFeatures, role.value, !allFull)}
                             >
                               {role.label}
                               <span className="block text-[10px] text-muted-foreground">
-                                {allChecked ? "(desmarcar)" : "(marcar)"}
+                                {allFull ? "(remover total)" : "(liberar total)"}
                               </span>
                             </button>
                           );
@@ -407,13 +425,31 @@ export default function Permissions() {
                         const masterToggle = masterToggles[feature.feature_key];
                         const masterEnabled = masterToggle ? masterToggle.is_enabled : true;
                         const isSensitive = SENSITIVE_FEATURES.has(feature.feature_key);
+                        const route = FEATURE_ROUTE_MAP[feature.feature_key]?.[0];
                         return (
                           <div
                             key={feature.id}
-                            className={`grid grid-cols-[1fr_110px_100px_100px_100px] gap-2 px-4 py-2.5 border-t items-center ${!masterEnabled ? "opacity-60" : ""}`}
+                            className={`grid grid-cols-[1fr_130px_120px_120px_120px] gap-2 px-4 py-2.5 border-t items-center ${!masterEnabled ? "opacity-60" : ""}`}
                           >
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium">{feature.feature_label}</span>
+                              {route ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-mono px-1.5 py-0.5 rounded bg-muted">
+                                      <Link2 className="w-2.5 h-2.5" />
+                                      {route}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Rota destino mapeada para esta funcionalidade
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  sem rota
+                                </Badge>
+                              )}
                               {isSensitive && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -448,28 +484,38 @@ export default function Permissions() {
                             </div>
                             <div className="flex flex-col items-center gap-0.5">
                               {masterToggle ? (
-                                <>
-                                  <Switch
-                                    checked={masterEnabled}
-                                    onCheckedChange={(c) => toggleMasterFeature(feature.feature_key, c)}
-                                  />
-                                  <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
-                                    {masterEnabled ? (
-                                      <><Power className="w-2.5 h-2.5 text-green-500" />ativo</>
-                                    ) : (
-                                      <><PowerOff className="w-2.5 h-2.5" />oculto</>
-                                    )}
-                                  </span>
-                                </>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <Switch
+                                        checked={masterEnabled}
+                                        onCheckedChange={(c) => toggleMasterFeature(feature.feature_key, c)}
+                                        disabled={!isMaster}
+                                      />
+                                      <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
+                                        {masterEnabled ? (
+                                          <><Power className="w-2.5 h-2.5 text-green-500" />ativo</>
+                                        ) : (
+                                          <><PowerOff className="w-2.5 h-2.5" />oculto</>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  {!isMaster && (
+                                    <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                      Controle exclusivo do usuário Master. Admin/Gerente não podem alterar.
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground">—</span>
                               )}
                             </div>
                             {ROLE_OPTIONS.map((role) => (
                               <div key={role.value} className="flex justify-center">
-                                <Switch
-                                  checked={feature.allowed_roles.includes(role.value)}
-                                  onCheckedChange={() => toggleRole(feature.id, role.value)}
+                                <RoleScopeSelector
+                                  value={feature.role_scopes[role.value] || "none"}
+                                  onChange={(scope) => setRoleScope(feature.id, role.value, scope)}
                                   disabled={!masterEnabled}
                                 />
                               </div>
@@ -606,7 +652,7 @@ export default function Permissions() {
               <AlertDialogAction
                 onClick={() => {
                   if (pendingSellerConfirm) {
-                    applyRoleToggle(pendingSellerConfirm.featureId, "seller");
+                    applyRoleScope(pendingSellerConfirm.featureId, "seller", "full");
                     setPendingSellerConfirm(null);
                   }
                 }}
