@@ -290,6 +290,16 @@ export default function RatesFGTSTab() {
               {importPreview.length > 0 && (
                 <div className="border rounded-md p-3 bg-muted/30 space-y-1">
                   <p className="text-sm font-medium">Preview: {importPreview.length} taxa(s)</p>
+                  {(() => {
+                    const { fromSheet, fromDefault } = countDateSources(importPreview as any);
+                    return (
+                      <p className="text-[11px] text-muted-foreground">
+                        📅 <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fromSheet}</span> com vigência da planilha
+                        {' · '}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">{fromDefault}</span> usando hoje
+                      </p>
+                    );
+                  })()}
                   {importStats ? (
                     <p className="text-xs text-muted-foreground">
                       <span className="text-emerald-600 dark:text-emerald-400 font-medium">{importStats.newCount} nova(s)</span>
