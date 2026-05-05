@@ -162,15 +162,17 @@ serve(async (req) => {
         continue;
       }
 
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/v8-clt-api`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${serviceRoleKey}`,
-            "x-cron-trigger": "v8-retry-cron",
-          },
-          body: JSON.stringify({
+      // ETAPA C: para analysis_pending COM consult_id, em vez de criar nova
+      // consulta na V8 (que gera órfãs duplicadas), aciona o poller que pergunta
+      // o status atual daquele consult_id direto na V8.
+      const isAnalysisPendingWithConsult = (sim.error_kind === "analysis_pending" || sim.status === "pending")
+        && !!(sim as any).consult_id;
+      const targetUrl = isAnalysisPendingWithConsult
+        ? `${supabaseUrl}/functions/v1/v8-active-consult-poller`
+        : `${supabaseUrl}/functions/v1/v8-clt-api`;
+      const targetBody = isAnalysisPendingWithConsult
+        ? { simulation_id: sim.id, manual: true, trigger: "retry_cron_divert" }
+        : {
             action: "simulate_one",
             params: {
               cpf: sim.cpf,
@@ -185,15 +187,34 @@ serve(async (req) => {
               triggered_by: "cron",
               cron_user_id: sim.created_by,
             },
-          }),
+          };
+
+      try {
+        const resp = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+            "x-cron-trigger": "v8-retry-cron",
+          },
+          body: JSON.stringify(targetBody),
         });
         const respJson = await resp.json().catch(() => ({}));
         if (resp.ok) okCount += 1; else failCount += 1;
         touchedBatchIds.add(sim.batch_id);
+        // Mesmo no divert, incrementa attempt_count para o teto não ficar parado
+        if (isAnalysisPendingWithConsult) {
+          await supabase.from("v8_simulations").update({
+            attempt_count: Number(sim.attempt_count ?? 0) + 1,
+            last_attempt_at: new Date().toISOString(),
+            last_step: "poll_via_retry_cron",
+          }).eq("id", sim.id);
+        }
         perSimResults.push({
           simulation_id: sim.id,
           cpf_masked: sim.cpf ? String(sim.cpf).replace(/\d(?=\d{4})/g, "*") : null,
           attempt: Number(sim.attempt_count ?? 0) + 1,
+          mode: isAnalysisPendingWithConsult ? "poll" : "redo",
           http_status: resp.status,
           success: !!respJson?.success,
           kind: respJson?.kind ?? null,
