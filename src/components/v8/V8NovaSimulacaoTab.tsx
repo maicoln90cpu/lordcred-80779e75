@@ -215,7 +215,7 @@ export default function V8NovaSimulacaoTab() {
   const maxBackoffMs = (v8Settings?.retry_max_backoff_seconds ?? 120) * 1000;
   const backgroundRetryEnabled = v8Settings?.background_retry_enabled ?? true;
 
-  const { simulations, lastUpdateAt } = useV8BatchSimulations(activeBatchId);
+  const { simulations, batch: activeBatchMeta, lastUpdateAt } = useV8BatchSimulations(activeBatchId);
   const pasteAnalysis = useMemo(() => analyzeV8Paste(pasteText), [pasteText]);
   const invalidDateIssue = pasteAnalysis.issues.find((i) => i.code === 'invalid_date');
   const blockingIssues = pasteAnalysis.issues.filter(
@@ -805,6 +805,7 @@ export default function V8NovaSimulacaoTab() {
       {activeBatchId && (
         <BatchProgressTable
           simulations={simulations}
+          batch={activeBatchMeta}
           parcelas={parcelas}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={maxAutoRetry}

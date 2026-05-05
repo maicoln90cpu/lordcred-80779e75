@@ -55,6 +55,14 @@ interface Props {
   showManualWarning: boolean;
   actionsSlot: ReactNode;
   onCheckStatus: (cpf: string, simulationId?: string) => void;
+  /** Etapa 1 (mai/2026): meta do lote para renderizar linhas-fantasma quando v8_simulations ainda está vazio. */
+  batch?: {
+    id: string;
+    status: string;
+    scheduled_payload: any;
+    queue_position: number | null;
+    name: string;
+  } | null;
 }
 
 /**
@@ -63,10 +71,42 @@ interface Props {
  */
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
-  awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus,
+  awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
-  const total = simulations.length;
+
+  // Etapa 1 (mai/2026): linhas-fantasma. Quando o lote está enfileirado/agendado/processando
+  // mas v8_simulations ainda não foi materializado, mostramos os CPFs do scheduled_payload.rows
+  // com status visual "Aguardando início da fila" / "Materializando..." para o operador
+  // saber que o lote está vivo.
+  const phantomRows: any[] = (() => {
+    if (!batch || simulations.length > 0) return [];
+    const isPhantomState = ['queued', 'scheduled', 'processing'].includes(batch.status);
+    if (!isPhantomState) return [];
+    const rows = (batch.scheduled_payload?.rows as any[]) || [];
+    const phantomLabel =
+      batch.status === 'queued' ? '⏳ Aguardando início da fila' :
+      batch.status === 'scheduled' ? '⏳ Aguardando agendamento' :
+      '▶ Materializando...';
+    return rows.map((r, idx) => ({
+      id: `phantom-${batch.id}-${idx}`,
+      cpf: (r.cpf || '').replace(/\D/g, ''),
+      name: r.nome ?? null,
+      status: 'pending',
+      released_value: null,
+      installment_value: null,
+      installments: null,
+      attempt_count: 0,
+      raw_response: null,
+      error_message: null,
+      simulate_status: 'not_started',
+      __phantom: true,
+      __phantomLabel: phantomLabel,
+    }));
+  })();
+
+  const displaySims = phantomRows.length > 0 ? phantomRows : simulations;
+  const total = displaySims.length;
   const done = simulations.filter((s) => s.status === 'success' || s.status === 'failed').length;
   const success = simulations.filter((s) => s.status === 'success').length;
   const failed = simulations.filter((s) => s.status === 'failed').length;
@@ -106,6 +146,19 @@ export default function BatchProgressTable({
           </div>
         </div>
         <Progress value={pct} />
+        {phantomRows.length > 0 && batch && (
+          <div className="rounded-md border border-blue-300/60 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200">
+            {batch.status === 'queued' && (
+              <>📋 <strong>Lote em fila</strong>{batch.queue_position ? <> — posição #{batch.queue_position}</> : null}. Começa quando o anterior terminar. Os {phantomRows.length} CPF(s) abaixo são uma prévia do que será disparado.</>
+            )}
+            {batch.status === 'scheduled' && (
+              <>⏰ <strong>Lote agendado</strong>. {phantomRows.length} CPF(s) aguardando início.</>
+            )}
+            {batch.status === 'processing' && (
+              <>▶ <strong>Lote iniciado</strong> — materializando {phantomRows.length} CPF(s) na V8. As linhas reais aparecerão em segundos.</>
+            )}
+          </div>
+        )}
         <div className="max-h-96 overflow-y-auto border rounded">
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
@@ -124,7 +177,30 @@ export default function BatchProgressTable({
               </tr>
             </thead>
             <tbody>
-              {simulations.map((s) => {
+              {displaySims.map((s) => {
+                if ((s as any).__phantom) {
+                  return (
+                    <tr key={s.id} className="border-t bg-muted/30">
+                      <td className="px-2 py-1">{(s as any).name || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-2 py-1 font-mono">{s.cpf}</td>
+                      <td className="px-2 py-1">
+                        <Badge variant="outline" className="border-blue-400/50 text-blue-700 bg-blue-500/10">
+                          {(s as any).__phantomLabel}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-1 align-top text-muted-foreground italic text-[11px]">
+                        Aguardando o lote ser disparado na V8
+                      </td>
+                      <td className="px-2 py-1 text-right text-muted-foreground">—</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">
+                        {parcelas ? <span className="text-muted-foreground">({parcelas}x)</span> : '—'}
+                      </td>
+                      <td className="px-2 py-1 text-right text-muted-foreground">—</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">0</td>
+                      <td className="px-2 py-1 text-center text-muted-foreground">—</td>
+                    </tr>
+                  );
+                }
                 const ws = ((s as any).webhook_status || '').toUpperCase();
                 const k = (s as any).error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
                 const isWaitingExternal = s.status === 'pending' && (k === 'active_consult' || ws === 'WAITING_EXTERNAL');

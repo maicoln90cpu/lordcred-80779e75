@@ -122,8 +122,19 @@ export interface V8Simulation {
  * Pré-requisito: tabela `v8_simulations` precisa estar na publicação
  * `supabase_realtime` com REPLICA IDENTITY FULL (migração 2026-04-28).
  */
+export interface V8BatchMeta {
+  id: string;
+  status: string;
+  scheduled_payload: any;
+  queue_position: number | null;
+  queue_owner: string | null;
+  installments: number | null;
+  name: string;
+}
+
 export function useV8BatchSimulations(batchId: string | null) {
   const [simulations, setSimulations] = useState<V8Simulation[]>([]);
+  const [batch, setBatch] = useState<V8BatchMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdateAt, setLastUpdateAt] = useState<Date | null>(null);
   const reloadingRef = useRef(false);
@@ -131,23 +142,30 @@ export function useV8BatchSimulations(batchId: string | null) {
   const reload = useCallback(async () => {
     if (!batchId) {
       setSimulations([]);
+      setBatch(null);
       return;
     }
     if (reloadingRef.current) return;
     reloadingRef.current = true;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('v8_simulations')
-      .select('*')
-      .eq('batch_id', batchId)
-      // Etapa 1 (item 8): ordem original do colado. Lotes antigos (sem paste_order)
-      // caem no fallback created_at — Postgres trata NULLS por último automaticamente.
-      .order('paste_order', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true });
+    const [{ data, error }, { data: batchData }] = await Promise.all([
+      supabase
+        .from('v8_simulations')
+        .select('*')
+        .eq('batch_id', batchId)
+        .order('paste_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('v8_batches')
+        .select('id, status, scheduled_payload, queue_position, queue_owner, installments, name')
+        .eq('id', batchId)
+        .maybeSingle(),
+    ]);
     if (!error && data) {
       setSimulations(data as unknown as V8Simulation[]);
       setLastUpdateAt(new Date());
     }
+    if (batchData) setBatch(batchData as unknown as V8BatchMeta);
     setLoading(false);
     reloadingRef.current = false;
   }, [batchId]);
@@ -191,6 +209,18 @@ export function useV8BatchSimulations(batchId: string | null) {
           if (!cancelled) reload();
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'v8_batches',
+          filter: `id=eq.${batchId}`,
+        },
+        () => {
+          if (!cancelled) reload();
+        },
+      )
       .subscribe((status) => {
         if (cancelled) return;
         if (status === 'SUBSCRIBED') {
@@ -215,5 +245,5 @@ export function useV8BatchSimulations(batchId: string | null) {
     };
   }, [batchId, reload]);
 
-  return { simulations, loading, reload, lastUpdateAt };
+  return { simulations, batch, loading, reload, lastUpdateAt };
 }
