@@ -30,9 +30,6 @@ export default function CommissionsV2() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState('base');
 
-  if (accessLoading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
-  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Comissões Parceiros V2" /></DashboardLayout>;
-
   useEffect(() => {
     loadProfiles();
   }, []);
@@ -46,6 +43,9 @@ export default function CommissionsV2() {
     const p = profiles.find(pr => pr.user_id === sellerId);
     return p?.name || p?.email || sellerId.slice(0, 8);
   };
+
+  if (accessLoading) return <DashboardLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div></DashboardLayout>;
+  if (!canSee) return <DashboardLayout><EmptyStateNoAccess feature="Comissões Parceiros V2" /></DashboardLayout>;
 
   return (
     <DashboardLayout>
