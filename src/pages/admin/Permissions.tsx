@@ -273,6 +273,7 @@ export default function Permissions() {
           .update({
             allowed_user_ids: f.allowed_user_ids,
             allowed_roles: f.allowed_roles,
+            role_scopes: f.role_scopes,
             updated_at: new Date().toISOString(),
           } as any)
           .eq("id", f.id);
