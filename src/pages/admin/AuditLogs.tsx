@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface AuditLog {
   id: string;
@@ -216,7 +217,7 @@ export default function AuditLogs() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const { sort, toggle: toggleSort } = useSortState();
 
-  const { canSee, loading: accessLoading } = useFeatureAccess('audit_logs');
+  const { canSee, loading: accessLoading, isMenuOnly, userId } = useFeatureAccess('audit_logs');
 
   // API Tester state
   const [apiUrl, setApiUrl] = useState('https://api.newcorban.com.br/api/propostas/');
@@ -252,6 +253,9 @@ export default function AuditLogs() {
       .range(from, from + PAGE_SIZE - 1);
     if (filterCategory !== 'all') {
       query = query.eq('details->>category', filterCategory);
+    }
+    if (isMenuOnly && userId) {
+      query = query.eq('user_id', userId);
     }
     const { data, error } = await query;
     if (error) {
@@ -362,6 +366,7 @@ export default function AuditLogs() {
             <p className="text-muted-foreground text-sm">Histórico de ações do sistema registradas automaticamente</p>
           </div>
         </div>
+        {isMenuOnly && <MenuOnlyScopeBanner feature="Logs" />}
 
         <Tabs defaultValue="logs">
           <TabsList>

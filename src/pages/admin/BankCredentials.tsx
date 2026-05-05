@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Eye, EyeOff, ExternalLink, Landmark, Loader2 } fr
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface BankCredential {
   id: string;
@@ -35,7 +36,7 @@ export default function BankCredentials() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const { sort, toggle } = useSortState();
 
-  const { canSee, loading: accessLoading } = useFeatureAccess('bank_credentials');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('bank_credentials');
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['bank-credentials'],

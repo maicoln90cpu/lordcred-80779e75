@@ -14,6 +14,7 @@ import { Loader2, Plus, Play, Pause, Trash2, Eye, Send, CheckCircle2, XCircle, R
 import { cn } from '@/lib/utils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 const BroadcastCreateDialog = lazy(() => import('@/components/broadcasts/BroadcastCreateDialog'));
 const BlacklistManager = lazy(() => import('@/components/broadcasts/BlacklistManager'));
@@ -64,7 +65,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 
 export default function Broadcasts() {
   const { toast } = useToast();
-  const { canSee, loading: accessLoading } = useFeatureAccess('broadcasts');
+  const { canSee, loading: accessLoading, isMenuOnly, userId } = useFeatureAccess('broadcasts');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [chips, setChips] = useState<ChipInfo[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileInfo>>({});
@@ -81,8 +82,10 @@ export default function Broadcasts() {
   }, []);
 
   const loadData = async () => {
+    let campQ = supabase.from('broadcast_campaigns').select('*').order('created_at', { ascending: false }).limit(100);
+    if (isMenuOnly && userId) campQ = campQ.eq('created_by', userId);
     const [campRes, chipRes, profileRes] = await Promise.all([
-      supabase.from('broadcast_campaigns').select('*').order('created_at', { ascending: false }).limit(100),
+      campQ,
       supabase.from('chips').select('id, instance_name, nickname, provider, user_id'),
       supabase.rpc('get_visible_profiles'),
     ]);

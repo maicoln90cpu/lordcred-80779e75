@@ -17,6 +17,7 @@ import { TSHead, useSortState, applySortToData } from '@/components/commission-r
 import SharedChipManager from '@/components/admin/SharedChipManager';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
+import { MenuOnlyScopeBanner } from '@/components/common/MenuOnlyScopeBanner';
 
 interface QueueItem {
   id: string;
@@ -54,7 +55,7 @@ export default function QueueManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<{ action: string; ids: string[] } | null>(null);
-  const { canSee, loading: accessLoading } = useFeatureAccess('queue');
+  const { canSee, loading: accessLoading, isMenuOnly } = useFeatureAccess('queue');
 
   useEffect(() => {
     loadData();

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { checkPermission, type PermissionEntry } from '@/lib/permissionLogic';
+import { checkPermission, checkScope, type PermissionEntry, type FeatureScope } from '@/lib/permissionLogic';
 import { FEATURE_ROUTE_MAP, ROUTE_FEATURE_MAP } from '@/lib/featureRouteMap';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -17,11 +17,12 @@ interface FeatureToggle {
 async function fetchPermissions(): Promise<PermissionEntry[]> {
   const { data } = await supabase
     .from('feature_permissions')
-    .select('feature_key, allowed_user_ids, allowed_roles');
+    .select('feature_key, allowed_user_ids, allowed_roles, role_scopes');
   return (data || []).map(d => ({
     feature_key: d.feature_key,
     allowed_user_ids: (d as any).allowed_user_ids || [],
     allowed_roles: (d as any).allowed_roles || [],
+    role_scopes: ((d as any).role_scopes || {}) as Record<string, FeatureScope>,
   }));
 }
 
@@ -115,6 +116,17 @@ export function useFeaturePermissions() {
     );
   }, [user, isMaster, userRole, permissions, disabledFeatures]);
 
+  const getScope = useCallback((featureKey: string): FeatureScope => {
+    return checkScope(
+      featureKey,
+      user?.id || null,
+      userRole,
+      isMaster,
+      permissions,
+      disabledFeatures,
+    );
+  }, [user, isMaster, userRole, permissions, disabledFeatures]);
+
   const hasRoutePermission = useCallback((path: string): boolean => {
     const featureKey = ROUTE_FEATURE_MAP[path];
     if (!featureKey) return true;
@@ -128,5 +140,5 @@ export function useFeaturePermissions() {
 
   const loading = isLoading || authLoading || togglesLoading;
 
-  return { permissions, toggles, loading, hasPermission, hasRoutePermission, isFeatureEnabled };
+  return { permissions, toggles, loading, hasPermission, getScope, hasRoutePermission, isFeatureEnabled };
 }

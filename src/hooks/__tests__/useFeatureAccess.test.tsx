@@ -23,10 +23,11 @@ function setup({
 }: Partial<{
   isMaster: boolean; userRole: string; hasPerm: boolean; enabled: boolean; loading: boolean;
 }>) {
-  authMock.mockReturnValue({ isMaster, userRole });
+  authMock.mockReturnValue({ isMaster, userRole, user: { id: 'u1' } });
   featureMock.mockReturnValue({
     hasPermission: () => hasPerm,
     isFeatureEnabled: () => enabled,
+    getScope: () => (!enabled ? 'none' : hasPerm ? 'full' : 'none'),
     loading,
   });
 }
