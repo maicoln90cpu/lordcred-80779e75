@@ -1468,6 +1468,7 @@ async function actionSimulateOne(supabase: any, input: SimulateInput) {
  *  - Webhook traz dados mais ricos (faixa de parcelas/valor) do que /simulation rápido
  */
 async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
+  const earlySimulationId = (input as any)?.simulation_id ? String((input as any).simulation_id) : null;
   const cpf = (input.cpf || "").replace(/\D/g, "");
   if (cpf.length !== 11) {
     return { success: false, kind: "invalid_data", step: "consult", error: "CPF inválido" };
@@ -1504,6 +1505,19 @@ async function actionSimulateConsultOnly(supabase: any, input: SimulateInput) {
   );
   if (!consultId) {
     return { success: false, step: "consult", error: "consult_id não retornado pela V8", raw: consultJson };
+  }
+
+  // FIX RACE WEBHOOK: grava consult_id na linha do lote ANTES de /authorize.
+  // O webhook V8 chega em ~1-2s após /authorize. Se a linha não tem consult_id,
+  // o webhook cria uma "órfã" e o lote nunca atualiza.
+  if (earlySimulationId) {
+    await supabase
+      .from("v8_simulations")
+      .update({
+        consult_id: consultId,
+        last_step: "consult_authorized_pending",
+      })
+      .eq("id", earlySimulationId);
   }
 
   // Authorize — opcional, mas a V8 só dispara webhook após termo aceito.
