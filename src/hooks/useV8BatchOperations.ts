@@ -453,9 +453,119 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
     }
   }
 
+  /**
+   * Etapa 4 (d): Forçar dispatch de uma linha específica.
+   * Re-invoca simulate_consult_only ignorando dedupe (dedupe só age em create_batch).
+   * Útil quando uma linha ficou pending sem attempt_count (zumbi).
+   */
+  async function handleForceDispatchRow(sim: any) {
+    if (!sim?.id) return;
+    const ok = window.confirm(
+      `Forçar nova consulta para CPF ${sim.cpf}?\n\n` +
+      `O sistema vai re-disparar a consulta na V8 ignorando deduplicação. ` +
+      `Use só se a linha estiver presa em "aguardando" sem nunca ter chegado resposta.`
+    );
+    if (!ok) return;
+    const toastId = toast.loading(`Forçando dispatch para ${sim.cpf}...`);
+    try {
+      const parsedRow = pasteAnalysis.rows.find((r) => r.cpf === sim.cpf);
+      // Heartbeat antes do POST
+      await supabase.from('v8_simulations').update({
+        status: 'pending',
+        attempt_count: Number(sim.attempt_count ?? 0) + 1,
+        last_attempt_at: new Date().toISOString(),
+        last_step: 'dispatch_started',
+        error_kind: null,
+        error_message: null,
+      }).eq('id', sim.id);
+      const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+        body: {
+          action: 'simulate_consult_only',
+          params: {
+            cpf: sim.cpf, nome: sim.name, data_nascimento: sim.birth_date,
+            genero: parsedRow?.genero, telefone: parsedRow?.telefone,
+            config_id: sim.config_id || configId, parcelas: parcelas || sim.installments,
+            batch_id: sim.batch_id, simulation_id: sim.id,
+            attempt_count: Number(sim.attempt_count ?? 0) + 1,
+            triggered_by: 'force_dispatch',
+          },
+        },
+      });
+      if (error || data?.success === false) {
+        toast.error(`Falha: ${data?.user_message || data?.error || error?.message || 'erro'}`, { id: toastId });
+      } else {
+        toast.success(`Dispatch enviado · aguarde retorno da V8`, { id: toastId });
+      }
+    } catch (e: any) {
+      toast.error(`Erro: ${e?.message || e}`, { id: toastId });
+    }
+  }
+
+  /**
+   * Etapa 4 (d): Forçar dispatch de TODAS as linhas presas do lote ativo
+   * (status=pending com attempt_count=0 ou last_attempt_at antigo).
+   */
+  async function handleForceDispatchBatch() {
+    if (!activeBatchId) return;
+    const stuck = simulations.filter((s: any) => {
+      if (s.status !== 'pending') return false;
+      if (Number(s.attempt_count ?? 0) === 0) return true;
+      if (s.last_attempt_at) {
+        return Date.now() - new Date(s.last_attempt_at).getTime() > 5 * 60 * 1000;
+      }
+      return true;
+    });
+    if (stuck.length === 0) {
+      toast.info('Nenhuma linha presa para forçar dispatch.');
+      return;
+    }
+    const ok = window.confirm(
+      `Forçar dispatch de ${stuck.length} linha(s) presa(s)?\n\n` +
+      `Vai re-disparar todas na V8, ignorando deduplicação.`
+    );
+    if (!ok) return;
+    setRunning(true);
+    const throttleMs = v8Settings?.consult_throttle_ms ?? 1200;
+    const toastId = toast.loading(`Forçando ${stuck.length} dispatch(es)...`);
+    let okCount = 0; let failCount = 0;
+    try {
+      for (let i = 0; i < stuck.length; i++) {
+        const sim: any = stuck[i];
+        const parsedRow = pasteAnalysis.rows.find((r) => r.cpf === sim.cpf);
+        await supabase.from('v8_simulations').update({
+          attempt_count: Number(sim.attempt_count ?? 0) + 1,
+          last_attempt_at: new Date().toISOString(),
+          last_step: 'dispatch_started',
+          error_kind: null, error_message: null,
+        }).eq('id', sim.id);
+        try {
+          const { data, error } = await supabase.functions.invoke('v8-clt-api', {
+            body: {
+              action: 'simulate_consult_only',
+              params: {
+                cpf: sim.cpf, nome: sim.name, data_nascimento: sim.birth_date,
+                genero: parsedRow?.genero, telefone: parsedRow?.telefone,
+                config_id: sim.config_id || configId, parcelas: parcelas || sim.installments,
+                batch_id: activeBatchId, simulation_id: sim.id,
+                attempt_count: Number(sim.attempt_count ?? 0) + 1,
+                triggered_by: 'force_dispatch_batch',
+              },
+            },
+          });
+          if (!error && data?.success !== false) okCount += 1; else failCount += 1;
+        } catch { failCount += 1; }
+        if (i < stuck.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
+      }
+      toast.success(`Forçado: ${okCount} ok · ${failCount} falha`, { id: toastId });
+    } finally {
+      setRunning(false);
+    }
+  }
+
   return {
     running,
     handleStart, handleRetryFailed, handleSimulateSelected,
     handleReplayPending, handleCancelBatch, handleCancelBatchHard, handleCheckStatus,
+    handleForceDispatchRow, handleForceDispatchBatch,
   };
 }
