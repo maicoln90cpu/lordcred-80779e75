@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Search, Download } from 'lucide-react';
 import { loadXLSX } from '@/lib/xlsx-lazy';
-import { TSHead, useSortState, applySortToData, TipWrap } from './CRSortUtils';
+import { TSHead, applySortToData, TipWrap } from './CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { batchFetchRpc } from '@/lib/batchFetchRpc';
 import CRDateFilter from './CRDateFilter';
