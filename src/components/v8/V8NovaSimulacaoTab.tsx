@@ -275,11 +275,17 @@ export default function V8NovaSimulacaoTab() {
   const [runningDraftId, setRunningDraftId] = useState<string | null>(null);
   const isThisDraftRunning = ops.running && runningDraftId === activeId;
 
-  // Etapa 1 (mai/2026): nome do lote auto-gerado quando o operador não digitar nada.
+  // Etapa 1 (mai/2026): nome do lote auto-gerado SEMPRE no momento do START.
   // Formato: "Lote DD/MM HH:mm — <Rascunho>". Mantém rastreabilidade nas listagens.
+  // Regex detecta nomes auto-gerados (mesmo padrão) e regenera com hora atual,
+  // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
+  const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
+  function isAutoName(name: string): boolean {
+    return !name.trim() || AUTO_NAME_RE.test(name.trim());
+  }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
-    if (current) return current;
+    if (current && !isAutoName(current)) return current;
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${active.label}`;
@@ -289,7 +295,7 @@ export default function V8NovaSimulacaoTab() {
 
   const wrappedStart = async () => {
     setRunningDraftId(activeId);
-    const needsAutoName = !active.batchName.trim();
+    const needsAutoName = isAutoName(active.batchName);
     if (needsAutoName) {
       ensureBatchName();
       // Aguarda 1 render para o hook receber a nova prop batchName.
