@@ -225,6 +225,7 @@ export default function V8ConfigTab() {
       <CpfDedupeSettingsCard />
 
       <AutoBestAlwaysOnCard />
+      <ParallelBatchesCard />
 
       <V8DatabaseHealthCard />
     </div>
