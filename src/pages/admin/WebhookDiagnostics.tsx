@@ -90,6 +90,8 @@ export default function WebhookDiagnostics() {
     if (searchTerm && !log.instance_name?.toLowerCase().includes(searchTerm.toLowerCase()) && !log.processing_result?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+  useEffect(() => { setPage(0); }, [filterEvent, filterChip, filterSource, searchTerm]);
+  const { paged: pagedLogs, totalPages, total: totalFiltered } = table.apply(filteredLogs);
 
   const uniqueEvents = [...new Set(logs.map(l => l.event_type))];
   const uniqueChipIds = [...new Set(logs.filter(l => l.chip_id).map(l => l.chip_id!))];
