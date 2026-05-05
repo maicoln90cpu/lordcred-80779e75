@@ -5528,7 +5528,9 @@ export type Database = {
         }[]
       }
       purge_old_deleted_batches: { Args: never; Returns: number }
+      recalculate_all_stuck_v8_batches: { Args: never; Returns: Json }
       recalculate_commissions_v2: { Args: never; Returns: Json }
+      recalculate_v8_batch: { Args: { p_batch_id: string }; Returns: Json }
       reset_daily_message_count: { Args: never; Returns: undefined }
       restore_import_batch: { Args: { _batch_id: string }; Returns: Json }
       round_robin_assign_conversations: { Args: never; Returns: undefined }
