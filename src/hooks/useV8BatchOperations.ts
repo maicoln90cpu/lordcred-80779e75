@@ -151,8 +151,8 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       const simsToProcess = sims.filter((s: any) => s.error_kind !== 'duplicate_recent' && s.status !== 'skipped');
 
       if (strategy === 'webhook_only') {
-        for (let i = 0; i < sims.length; i++) {
-          const sim = sims[i];
+        for (let i = 0; i < simsToProcess.length; i++) {
+          const sim = simsToProcess[i];
           try {
             const parsedRow = rows.find((r) => r.cpf === sim.cpf);
             await supabase.functions.invoke('v8-clt-api', {
