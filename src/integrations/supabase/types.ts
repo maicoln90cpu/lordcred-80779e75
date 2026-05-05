@@ -4693,6 +4693,7 @@ export type Database = {
       }
       v8_settings: {
         Row: {
+          auto_best_always_on: boolean
           auto_simulate_after_consult: boolean | null
           background_retry_enabled: boolean
           consult_throttle_ms: number | null
@@ -4717,6 +4718,7 @@ export type Database = {
           webhook_wait_timeout_min: number | null
         }
         Insert: {
+          auto_best_always_on?: boolean
           auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
           consult_throttle_ms?: number | null
@@ -4741,6 +4743,7 @@ export type Database = {
           webhook_wait_timeout_min?: number | null
         }
         Update: {
+          auto_best_always_on?: boolean
           auto_simulate_after_consult?: boolean | null
           background_retry_enabled?: boolean
           consult_throttle_ms?: number | null
