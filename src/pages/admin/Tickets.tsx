@@ -74,7 +74,7 @@ export default function Tickets() {
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { canSee, loading: accessLoading } = useFeatureAccess('tickets');
+  const { canSee, loading: accessLoading, isMenuOnly, userId } = useFeatureAccess('tickets');
 
   useEffect(() => {
     loadProfiles();
@@ -112,10 +112,12 @@ export default function Tickets() {
   };
 
   const loadTickets = async () => {
-    const { data, error } = await supabase
+    let q = supabase
       .from('support_tickets')
       .select('*')
       .order('updated_at', { ascending: false });
+    if (isMenuOnly && userId) q = q.eq('created_by', userId);
+    const { data, error } = await q;
     if (!error && data) {
       setTickets(data);
       if (selectedTicket) {
