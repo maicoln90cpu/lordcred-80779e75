@@ -238,6 +238,38 @@ export default function BatchCreatePanel(props: Props) {
                   onCheckedChange={onToggleAutoBest}
                 />
               </div>
+
+              {/* Etapa 3 (mai/2026): Agendamento movido para dentro de Avançadas (uso raro). */}
+              {onSchedule && (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium flex items-center gap-1.5">
+                        <CalendarClock className="w-4 h-4" /> Agendar para horário futuro
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Quando ligado, o lote fica em "Agendado" e só dispara as consultas no horário escolhido. Use para iniciar lotes fora do horário comercial ou em janelas controladas.
+                      </p>
+                    </div>
+                    <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} />
+                  </div>
+                  {scheduleEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <Label className="text-xs">Data e hora (horário de Brasília)</Label>
+                        <Input
+                          type="datetime-local"
+                          value={scheduledLocal}
+                          onChange={(e) => setScheduledLocal(e.target.value)}
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          O sistema confere a cada minuto e dispara assim que chegar o horário.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
