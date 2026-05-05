@@ -320,21 +320,30 @@ export function HRCalendarTab() {
                 </Select>
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.all_day}
+                onChange={(e) => setForm({ ...form, all_day: e.target.checked })}
+                className="rounded border-border accent-primary"
+              />
+              Dia inteiro (evento sem horário, aparece como faixa)
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Início *</Label>
                 <Input
-                  type="datetime-local"
-                  value={form.starts_at}
-                  onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
+                  type={form.all_day ? 'date' : 'datetime-local'}
+                  value={form.all_day ? form.starts_at.slice(0, 10) : form.starts_at}
+                  onChange={(e) => setForm({ ...form, starts_at: form.all_day ? `${e.target.value}T00:00` : e.target.value })}
                 />
               </div>
               <div>
                 <Label>Fim</Label>
                 <Input
-                  type="datetime-local"
-                  value={form.ends_at}
-                  onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
+                  type={form.all_day ? 'date' : 'datetime-local'}
+                  value={form.all_day ? form.ends_at.slice(0, 10) : form.ends_at}
+                  onChange={(e) => setForm({ ...form, ends_at: form.all_day ? `${e.target.value}T23:59` : e.target.value })}
                 />
               </div>
             </div>
