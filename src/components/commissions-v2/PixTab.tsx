@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Key } from 'lucide-react';
+import { Plus, Pencil, Trash2, Key, Download, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
 import type { SellerPix, Profile } from './commissionUtils';
+import { exportPixToXlsx, downloadPixTemplate, importPixFromFile } from '@/components/commissions/pixImportExport';
 
 interface PixTabProps {
   profiles: Profile[];
@@ -28,6 +29,8 @@ export default function PixTab({ profiles, getSellerName, isAdmin, userId }: Pix
   const [editing, setEditing] = useState<SellerPix | null>(null);
   const [form, setForm] = useState({ seller_id: userId, pix_key: '', pix_type: 'cpf' });
   const { sort, toggle } = useSortState();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => { loadPix(); }, []);
 
@@ -59,12 +62,56 @@ export default function PixTab({ profiles, getSellerName, isAdmin, userId }: Pix
 
   const visiblePix = isAdmin ? pixList : pixList.filter(p => p.seller_id === userId);
 
+  const handleExport = async () => {
+    if (visiblePix.length === 0) { toast({ title: 'Nada para exportar' }); return; }
+    await exportPixToXlsx(visiblePix, getSellerName, 'chaves_pix_v2.xlsx');
+    toast({ title: `${visiblePix.length} chave(s) exportada(s)` });
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const res = await importPixFromFile(file, profiles, 'seller_pix_v2');
+      const desc = `${res.inserted} nova(s), ${res.updated} atualizada(s), ${res.skipped} ignorada(s)`;
+      if (res.errors.length > 0) {
+        toast({ title: 'Importação com avisos', description: `${desc}. Ex.: ${res.errors[0]}`, variant: 'destructive' });
+      } else {
+        toast({ title: 'Importação concluída', description: desc });
+      }
+      loadPix();
+    } catch (err: any) {
+      toast({ title: 'Erro ao importar', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2"><Key className="w-5 h-5" /> Chaves PIX</CardTitle>
-          <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Adicionar</Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => downloadPixTemplate()}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" /> Modelo
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={visiblePix.length === 0}>
+              <Download className="w-4 h-4 mr-1" /> Exportar
+            </Button>
+            {isAdmin && (
+              <>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                  {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                  {importing ? 'Importando...' : 'Importar'}
+                </Button>
+              </>
+            )}
+            <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1" /> Adicionar</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
