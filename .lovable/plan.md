@@ -1,173 +1,137 @@
-Plano para corrigir e completar a Semana do Calendário RH
+# Auditoria de Permissões × RLS — Liberar dados quando o toggle é ativado
 
-Objetivo: deixar a aba Semana estável no estilo Google Calendar, sem precisar apertar F5, com faixa Dia inteiro controlada, editável e arrastável.
+## Diagnóstico (causa-raiz)
 
-1. Corrigir o bug do drag n drop que volta para a data anterior
+Hoje temos **duas camadas independentes** de permissão:
 
-Problema identificado:
-- O PATCH no Supabase está salvando com sucesso.
-- Porém a tela usa um estado local antigo enquanto aguarda realtime/refetch.
-- Como `hr_calendar_events` não está na publicação `supabase_realtime`, o evento não chega de volta automaticamente.
-- Depois de 1,5s o estado otimista é limpo e o card volta visualmente para a data antiga.
+1. **Frontend** — `feature_permissions` + `master_feature_toggles` controlam o que aparece na sidebar e quais rotas são acessíveis (`useFeaturePermissions`).
+2. **Banco (RLS)** — políticas hard-coded em `is_privileged()` (master/admin/manager) ou `has_role('support')`.
 
-Correção planejada:
-- Fazer `createEvent`, `updateEvent` e `deleteEvent` atualizarem a lista local imediatamente após sucesso no banco.
-- Fazer `updateEvent` retornar a linha atualizada via `.select().single()` e substituir o item no estado.
-- Remover o comportamento que limpa o otimista “no escuro” antes de o dado real chegar.
-- Prevenir clique acidental após arrastar, para o evento não abrir edição depois do drop.
-- Ajustar o drag para usar estado/ref mais estável, evitando reprocessamentos desnecessários enquanto o mouse se move.
+Quando você ativa o toggle "Credenciais Bancos" para **suporte**, a rota libera, mas a RLS de `bank_credentials` só tem:
 
-2. Ativar realtime de verdade para `hr_calendar_events`
+```
+Privileged can manage bank credentials  USING (is_privileged(auth.uid()))
+```
 
-Correção de banco planejada:
-- Criar uma migration idempotente para adicionar `hr_calendar_events` à publicação realtime:
+→ `support` recebe `SELECT` vazio. Mesmo problema em vários módulos.
+
+## Mapeamento (feature_key → tabela(s) → RLS atual → gap)
+
+| feature_key | Tabela(s) principal | Roles que podem receber toggle | RLS atual permite | Gap |
+|---|---|---|---|---|
+| `bank_credentials` | `bank_credentials` | manager, support | só `is_privileged` | **support BLOQUEADO** |
+| `partners` | `partners`, `partner_kanban_columns` | qualquer | só `is_privileged` | support/seller bloqueados |
+| `contract_template` | `contract_templates` | qualquer | SELECT já é `true` p/ autenticado, manage = privileged | OK leitura |
+| `commissions` (V1) | `commission_sales`, `commission_settings`, `commission_rates_*`, `seller_pix` | qualquer | SELECT rates/settings = `true`; sales = privileged + own | support não vê todas as vendas |
+| `commissions_v2` | `commission_sales_v2` etc | manager+ | privileged + own | OK pelo escopo atual |
+| `commission_reports` | `cr_geral`, `cr_relatorio`, `cr_repasse`, `cr_seguros`, `cr_rules_*` | qualquer | só `is_privileged` | support/seller bloqueados |
+| `broadcasts` | `broadcast_campaigns`, `broadcast_recipients`, `broadcast_blacklist` | manager+ | só `is_privileged` | OK pelo escopo atual |
+| `webhooks`, `chip_monitor`, `queue` | `message_queue`, logs | support, manager | privileged + support | OK |
+| `templates` | `message_templates` | seller, support, manager | privileged + support + own seller | OK |
+| `quick_replies` | `message_shortcuts` | seller, support, manager | privileged + support + own | OK |
+| `audit_logs` | `audit_logs` | support, manager | privileged + support | OK |
+| `leads` | `client_leads` | support, manager | privileged + support + own | OK |
+| `kanban` | `kanban_cards` | manager | privileged + support + own | manager OK; support depende do toggle |
+| `corban_*` (admin) | `corban_propostas_snapshot`, `corban_assets_cache`, `corban_seller_mapping`, `corban_feature_config` | support, manager | SELECT já é `true` autenticado | OK |
+| `seller_*` (corban) | mesmas | seller+ | SELECT autenticado | OK |
+| `hr` | `hr_candidates`, `hr_employees`, `hr_calendar_events`, `hr_kanban_columns` | qualquer | só `is_privileged` (+support em calendar) | support/seller bloqueados |
+| `v8_simulador` | `v8_simulations`, `v8_batches`, `v8_settings` | qualquer | own + privileged; settings só privileged | seller só vê os próprios (intencional) |
+| `permissions` | `feature_permissions`, `master_feature_toggles` | só master/admin | privileged | OK |
+| `users` | `profiles`, `user_roles` | support, manager | já tratado por edge functions | OK |
+| `internal_chat` | `internal_*` | qualquer | já modelado por membership | OK |
+
+**Tabelas que precisam de ajuste de RLS para respeitar o toggle:**
+`bank_credentials`, `partners`, `partner_kanban_columns`, `cr_geral`, `cr_relatorio`, `cr_repasse`, `cr_seguros`, `cr_rules_clt`, `cr_rules_fgts`, `commission_sales` (leitura ampla), `hr_candidates`, `hr_employees`, `hr_calendar_events`, `hr_kanban_columns`.
+
+## Solução proposta
+
+### 1. Função SECURITY DEFINER `has_feature_access(_user_id, _feature_key)`
+
+Centraliza a regra: retorna `true` se o usuário é privilegiado **OU** se a `feature_permissions` tem a role/uid do usuário **E** o `master_feature_toggles` está habilitado.
 
 ```sql
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime'
-      AND schemaname = 'public'
-      AND tablename = 'hr_calendar_events'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.hr_calendar_events;
-  END IF;
-END $$;
+create or replace function public.has_feature_access(_user_id uuid, _feature_key text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select
+    -- master/admin/manager sempre liberados
+    public.is_privileged(_user_id)
+    or exists (
+      select 1
+      from public.feature_permissions fp
+      left join public.master_feature_toggles mt on mt.feature_key = fp.feature_key
+      join public.user_roles ur on ur.user_id = _user_id
+      where fp.feature_key = _feature_key
+        and coalesce(mt.is_enabled, true) = true
+        and (
+          ur.role::text = any(coalesce(fp.allowed_roles, '{}'))
+          or _user_id = any(coalesce(fp.allowed_user_ids, '{}'))
+        )
+    );
+$$;
 ```
 
-- Também aplicar `REPLICA IDENTITY FULL` para updates/deletes terem payload mais completo no realtime:
+Vantagem: uma única fonte de verdade, espelhando exatamente o `checkPermission()` do frontend. Sem recursão (security definer + search_path fixo).
+
+### 2. Migration: expandir políticas SELECT (e ALL onde fizer sentido)
+
+Para cada tabela do gap, adicionar política com `has_feature_access()`. Exemplo `bank_credentials`:
 
 ```sql
-ALTER TABLE public.hr_calendar_events REPLICA IDENTITY FULL;
+create policy "Feature access can view bank credentials"
+  on public.bank_credentials for select to authenticated
+  using (has_feature_access(auth.uid(), 'bank_credentials'));
 ```
 
-Correção de frontend planejada:
-- Manter assinatura realtime no hook, mas torná-la mais útil:
-  - INSERT: inserir/atualizar evento local.
-  - UPDATE: substituir evento local.
-  - DELETE: remover evento local.
-  - fallback: refetch silencioso, sem colocar a tela inteira em “Carregando...”.
-- Resultado esperado: criar, editar, excluir e arrastar aparecem na tela na hora, sem F5.
+Para módulos onde o usuário precisa **editar** (ex.: `partners`, `bank_credentials` para support), adicionar também `INSERT/UPDATE/DELETE` com a mesma checagem. Se for somente leitura (ex.: `cr_*` para support), só `SELECT`.
 
-3. Agrupar a faixa Dia inteiro com botão “+N mais”
+Tabelas alvo e ação:
+- `bank_credentials` → SELECT + UPDATE + INSERT + DELETE via feature_access
+- `partners`, `partner_kanban_columns` → idem
+- `cr_geral`, `cr_relatorio`, `cr_repasse`, `cr_seguros`, `cr_rules_clt`, `cr_rules_fgts` → SELECT (somente leitura para suporte/vendedor)
+- `commission_sales` → SELECT amplo via feature_access (para support/seller que precisem auditar)
+- `hr_candidates`, `hr_employees`, `hr_calendar_events`, `hr_kanban_columns` → SELECT + UPDATE + INSERT via feature_access
 
-Como ficará:
-- A faixa Dia inteiro terá limite visual fixo, por exemplo 2 linhas visíveis.
-- Se houver mais eventos do que cabe em um dia, aparecerá um botão `+N mais` naquele dia.
-- Ao clicar em `+N mais`, abrirá um popover compacto com os eventos ocultos daquele dia.
-- Isso evita empilhamento infinito e impede a faixa de crescer demais.
+### 3. Habilitar todos os feature_keys da sidebar como toggles em `master_feature_toggles`
 
-Molde visual:
+Verificar se todos os 38 feature_keys do `featureRouteMap.ts` existem em `feature_permissions` (alguns como `bank_credentials`, `hr`, `v8_simulador`, `commissions_v2`, `broadcasts`, `integrations` já existem — confirmar `partners`, `contract_template`, `commission_reports`, `commissions`).
 
-```text
-Dia inteiro | [Evento longo ocupando seg-ter-qua] [Evento]
-            | [Outro evento]                 [+3 mais]
-```
+### 4. Teste automatizado (Vitest + Deno)
 
-4. Edição rápida na faixa Dia inteiro, sem dialog completo
+- **Vitest**: estender `useFeaturePermissions.test.ts` com matriz role × feature.
+- **SQL test** (manual via Supabase): rodar `select has_feature_access('<uid_support>', 'bank_credentials')` antes/depois.
 
-Como ficará:
-- Ao clicar em um bloco da faixa Dia inteiro, abrirá um popover pequeno, não o dialog grande.
-- Campos do popover:
-  - Título
-  - Data de início
-  - Data de fim
-  - Botão Salvar
-  - Botão Cancelar
-- A alteração atualizará o calendário imediatamente.
-- O dialog completo continuará existindo para eventos normais com horário e para criação completa.
+## Impacto
 
-5. Drag-to-move e drag-to-resize para eventos Dia inteiro
+**Antes**: toggle libera menu mas tela vem vazia/erro.
+**Depois**: toggle libera menu **e** dados (mesma visão do admin no escopo daquele módulo).
 
-Como ficará na faixa superior:
-- Arrastar o bloco pelo meio: move o intervalo inteiro para outros dias.
-  - Exemplo: evento de 04 a 18 movido +2 dias vira 06 a 20.
-- Arrastar a borda esquerda: altera o dia inicial.
-- Arrastar a borda direita: altera o dia final.
-- Snap será por dia inteiro, não por 15 minutos.
-- O intervalo mínimo será 1 dia.
-- O evento continuará com `all_day: true` e datas normalizadas:
-  - início: `00:00 -03:00`
-  - fim: `23:59 -03:00`
+**Vantagens**
+- Coerência: 1 fonte de verdade (frontend = banco).
+- Reduz suporte ao usuário ("liberei e não aparece nada").
+- Master continua oculto da UI; admin/manager intactos.
 
-6. Organização técnica para não aumentar mais um componente gigante
+**Desvantagens / cuidados**
+- Liberar `bank_credentials` para `support` expõe senhas. Recomendo manter `bank_credentials` apenas com toggle, porém mascarar senha no frontend para roles não-privilegiadas (ajuste menor).
+- `cr_*` carrega dados financeiros sensíveis — confirmar com você se support/seller realmente devem ver.
 
-Hoje `HRCalendarWeekView.tsx` já está grande. Para seguir a regra do projeto de componentes menores, a implementação será organizada assim:
+## Checklist manual pós-implementação
+1. Logar como **support**.
+2. Master ativa toggle "Credenciais Bancos" → support deve ver lista preenchida.
+3. Master desativa → support continua vendo o menu? Não. Lista some.
+4. Repetir para **Parceiros**, **Relat. Comissões**, **RH**.
+5. Confirmar que **seller** sem toggle continua sem acesso (regressão).
+6. Master/admin continuam com tudo (regressão).
 
-- `src/hooks/useHRCalendarEvents.ts`
-  - estado local imediato + realtime robusto.
+## Pendências (futuro)
+- Mascaramento condicional de campos sensíveis (`bank_credentials.password`) por role no frontend.
+- UI no painel Master mostrando "Esta feature requer dados sensíveis" como aviso ao alternar para roles não-privilegiadas.
+- Auditoria automatizada: query agendada que lista tabelas com `is_privileged` exclusivo e alerta quando uma nova feature for adicionada.
 
-- `src/components/hr/HRCalendarWeekView.tsx`
-  - fica como orquestrador da semana.
-  - remove parte da complexidade da faixa Dia inteiro.
+## Prevenção de regressão
+- Função `has_feature_access` testada por SQL.
+- Vitest cobrindo matriz role × feature_key (4 roles × 38 features).
+- Documentar em `docs/SECURITY.md` o padrão: **toda nova tabela ligada a um módulo deve usar `has_feature_access()` na RLS de SELECT**.
 
-- Novo componente planejado:
-  - `src/components/hr/HRCalendarAllDayBand.tsx`
-  - renderiza faixa Dia inteiro, agrupamento `+N mais`, popovers e drag horizontal.
+---
 
-- Novo helper planejado, se necessário:
-  - `src/components/hr/hrCalendarWeekUtils.ts`
-  - funções puras de datas/layout, como cálculo de colunas, lanes e normalização de horário São Paulo.
-
-Observação importante:
-- Não vou editar `src/integrations/supabase/types.ts`, pois a regra do projeto diz que esse arquivo é read-only.
-
-7. Validação manual após implementar
-
-Checklist:
-1. Abrir `/admin/hr` → Calendário → Semana.
-2. Criar evento novo e confirmar que aparece na hora, sem F5.
-3. Editar título/data de um evento e confirmar atualização imediata.
-4. Excluir evento e confirmar que some na hora.
-5. Arrastar evento com horário de terça para quinta e confirmar que não volta para terça.
-6. Redimensionar evento com horário e confirmar que duração salva.
-7. Criar vários eventos Dia inteiro no mesmo dia e confirmar que aparece `+N mais`.
-8. Clicar em `+N mais` e confirmar lista dos ocultos.
-9. Clicar em um evento Dia inteiro e editar título/início/fim no popover compacto.
-10. Arrastar evento Dia inteiro entre dias e confirmar que o intervalo é preservado.
-11. Redimensionar borda esquerda/direita de evento Dia inteiro e confirmar novo intervalo.
-12. Abrir em outra aba/sessão, criar/editar evento e confirmar atualização realtime.
-
-Antes vs Depois
-
-Antes:
-- Drag parecia salvar, mas depois piscava e voltava.
-- Criar/editar/excluir dependia de F5 em alguns casos.
-- Faixa Dia inteiro podia empilhar eventos indefinidamente.
-- Evento Dia inteiro só abria o dialog completo.
-- Dia inteiro não tinha drag/resize.
-
-Depois:
-- Drag salva e permanece no lugar correto.
-- Criar, editar e excluir atualizam a tela imediatamente e também via realtime.
-- Faixa Dia inteiro fica compacta com `+N mais`.
-- Edição rápida de título e intervalo direto na faixa.
-- Eventos Dia inteiro podem ser movidos e redimensionados horizontalmente.
-
-Vantagens e desvantagens
-
-Vantagens:
-- Corrige a causa raiz do F5 e do evento voltando.
-- Interface mais próxima do Google Calendar.
-- Menos scroll e menos poluição visual no topo.
-- Operação mais rápida para editar eventos de vários dias.
-
-Desvantagens/cuidados:
-- A faixa Dia inteiro terá mais lógica de interação, então precisa de validação manual cuidadosa.
-- Drag/resize por mouse será priorizado; suporte touch/mobile pode ficar para ajuste posterior se necessário.
-- Realtime depende da migration ser aplicada no banco.
-
-Pendências futuras, se quiser evoluir depois
-
-- Suporte touch/mobile para drag.
-- Sincronização real com Google Calendar.
-- Teste automatizado específico para layout de eventos sobrepostos/multi-dia.
-
-Prevenção de regressão
-
-- Funções de cálculo de faixa Dia inteiro ficarão isoladas em helper/componente próprio.
-- Realtime será habilitado por migration idempotente.
-- O hook manterá atualização local imediata, então mesmo se realtime atrasar, a tela não volta para o estado antigo.
-- O checklist acima cobre os cenários que quebraram: drag entre dias, criação sem F5 e muitos eventos Dia inteiro.
+**Posso prosseguir com a migration + ajustes?**
