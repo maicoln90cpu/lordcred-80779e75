@@ -16,6 +16,7 @@ import type { RateCLT } from './commissionUtils';
 import RatesBulkControls from '@/components/commissions/RatesBulkControls';
 import SmartPasteRatesButton from '@/components/commissions/SmartPasteRatesButton';
 import { previewRateUpsert, upsertRates } from './rateUpsert';
+import { parseEffectiveDate, countDateSources } from './dateParseUtils';
 
 export default function RatesCLTTab() {
   const { toast } = useToast();
