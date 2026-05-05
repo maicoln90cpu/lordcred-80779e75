@@ -923,6 +923,7 @@ export default function V8NovaSimulacaoTab() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
