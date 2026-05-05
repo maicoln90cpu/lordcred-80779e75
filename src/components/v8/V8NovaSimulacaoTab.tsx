@@ -805,6 +805,7 @@ export default function V8NovaSimulacaoTab() {
       {activeBatchId && (
         <BatchProgressTable
           simulations={simulations}
+          batch={activeBatchMeta}
           parcelas={parcelas}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={maxAutoRetry}
