@@ -24,6 +24,21 @@ function normalizeBirth(v: string | null | undefined): string | null {
   return String(v);
 }
 
+// Etapa 3C (mai/2026) — Cache module-level de v8_settings (TTL 60s).
+// Sobrevive entre invocações enquanto o worker estiver "quente".
+let _settingsCache: { value: any; expiresAt: number } | null = null;
+async function getCachedSettings(supabase: any): Promise<any> {
+  const now = Date.now();
+  if (_settingsCache && _settingsCache.expiresAt > now) return _settingsCache.value;
+  const { data } = await supabase
+    .from("v8_settings")
+    .select("max_concurrent_batches_per_owner, consult_throttle_ms")
+    .eq("singleton", true)
+    .maybeSingle();
+  _settingsCache = { value: data ?? {}, expiresAt: now + 60_000 };
+  return _settingsCache.value;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const startedAt = Date.now();
