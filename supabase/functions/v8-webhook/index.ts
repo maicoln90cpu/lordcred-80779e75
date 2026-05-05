@@ -197,6 +197,79 @@ async function processV8Payload(
         else { processed = true; action = canPromoteFromLimit && wantsSuccess ? (isActiveConsultRecovery ? "consult_promoted_active_consult" : "consult_promoted_webhook_only") : "consult_upsert"; }
         } // end else (not canceled_hard)
       } else {
+        // FIX RACE WEBHOOK: antes de criar órfã, tenta achar uma linha de lote
+        // pendente do mesmo CPF (criada nos últimos 15 min, sem consult_id).
+        // Isso casa o webhook quando ele chega antes do v8-clt-api gravar consult_id.
+        const docCpf = String(
+          (payload as any)?.data?.document
+            ?? (payload as any)?.document
+            ?? (payload as any)?.workerData?.document
+            ?? (payload as any)?.data?.workerData?.document
+            ?? "",
+        ).replace(/\D/g, "");
+
+        if (docCpf && docCpf.length === 11) {
+          const cutoffIso = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+          const { data: pendingMatch } = await supabase
+            .from("v8_simulations")
+            .select("id, batch_id, installments, simulation_strategy, error_kind")
+            .eq("cpf", docCpf)
+            .eq("status", "pending")
+            .is("consult_id", null)
+            .not("batch_id", "is", null)
+            .gte("created_at", cutoffIso)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (pendingMatch) {
+            const safeUpdates: Record<string, unknown> = {
+              consult_id: consultId,
+              raw_response: payload,
+              last_webhook_at: new Date().toISOString(),
+              webhook_status: v8Status,
+              last_step: "webhook_matched_by_cpf",
+            };
+            applyConsultExtras(safeUpdates, extras);
+            if (v8SimulationId) safeUpdates.v8_simulation_id = v8SimulationId;
+
+            const wantsSuccess = internalStatus === "success";
+            const valueMax = extras.simValueMax;
+            const instMax = extras.simInstallmentsMax;
+            if (wantsSuccess && valueMax != null && instMax != null) {
+              const instMin = (extras as any).simInstallmentsMin ?? 1;
+              const lotePref = Number((pendingMatch as any).installments ?? 0);
+              const useInst = (Number.isInteger(lotePref) && lotePref >= instMin && lotePref <= instMax)
+                ? lotePref
+                : instMax;
+              safeUpdates.released_value = valueMax;
+              safeUpdates.installments = useInst;
+              safeUpdates.installment_value = Number((valueMax / useInst).toFixed(2));
+              safeUpdates.total_value = valueMax;
+              safeUpdates.status = "success";
+              safeUpdates.processed_at = new Date().toISOString();
+              safeUpdates.simulate_status = "not_started";
+              safeUpdates.error_kind = null;
+              safeUpdates.error_message = null;
+            } else if (internalStatus === "failed") {
+              const rejectionReason = (payload as any)?.data?.description
+                ?? (payload as any)?.description ?? null;
+              safeUpdates.status = "failed";
+              safeUpdates.error_kind = "rejected_by_v8";
+              safeUpdates.error_message = rejectionReason ?? "Consulta rejeitada pela V8";
+              safeUpdates.processed_at = new Date().toISOString();
+            }
+
+            const { error: matchErr } = await supabase
+              .from("v8_simulations")
+              .update(safeUpdates)
+              .eq("id", (pendingMatch as any).id);
+            if (matchErr) processError = matchErr.message;
+            else { processed = true; action = "consult_matched_by_cpf"; }
+            return { processed, action, processError };
+          }
+        }
+
         // Sem linha local → cria "órfã" (CPF criado direto na V8, fora do simulador)
         const insertRow: Record<string, unknown> = {
           consult_id: consultId,
@@ -207,7 +280,7 @@ async function processV8Payload(
           processed_at: new Date().toISOString(),
           raw_response: payload,
           name: "(via webhook V8)",
-          cpf: "",
+          cpf: docCpf || "",
           installments: 0,
           is_orphan: true,
         };
