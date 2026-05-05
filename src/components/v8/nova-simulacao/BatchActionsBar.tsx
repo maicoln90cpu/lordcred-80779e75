@@ -74,6 +74,18 @@ export default function BatchActionsBar({
             <strong>Quando usar:</strong> apenas se você suspeitar que algum resultado ficou perdido. Se o contador "ok=0" e "total=0", está tudo certo (não tem nada pendente).
           </TooltipContent>
         </Tooltip>
+        {onForceDispatchBatch && stuckCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={onForceDispatchBatch} disabled={running} className="border-amber-500 text-amber-700">
+                <Zap className="w-3 h-3 mr-1" /> Forçar dispatch ({stuckCount})
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Re-dispara para a V8 as linhas presas em "aguardando" (sem tentativa registrada ou paradas há &gt; 5 min). Ignora deduplicação.
+            </TooltipContent>
+          </Tooltip>
+        )}
         {onExportCsv && (
           <Tooltip>
             <TooltipTrigger asChild>
