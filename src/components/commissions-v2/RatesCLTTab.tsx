@@ -138,9 +138,11 @@ export default function RatesCLTTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     const data = await file.arrayBuffer();
+    // cellDates:true para que datas formatadas no Excel cheguem como objeto Date
+    // (parseEffectiveDate aceita Date, número-serial, ISO e dd/mm/aaaa).
     const wb = XLSX.read(data, { type: 'array', cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { raw: true, defval: '' });
+    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { raw: false, defval: '' });
     setImportPreview(parseImportData(rows));
     setImportDialogOpen(true);
     if (importFileRef.current) importFileRef.current.value = '';
