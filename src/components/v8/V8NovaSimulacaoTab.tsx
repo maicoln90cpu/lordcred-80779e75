@@ -450,10 +450,18 @@ export default function V8NovaSimulacaoTab() {
   const [runAllReport, setRunAllReport] = useState<RunAllItemResult[] | null>(null);
   async function handleRunAllDrafts() {
     if (runAllBusy) return;
-    const eligible = drafts.filter((d) => d.pasteText.trim() && d.batchName.trim() && d.configId);
+    // Etapa 1 (mai/2026): auto-gera nome para rascunhos sem nome (mesmo formato do Iniciar).
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const draftsWithNames: V8DraftSlot[] = drafts.map((d) =>
+      d.batchName.trim() ? d : { ...d, batchName: `Lote ${stamp} — ${d.label}` },
+    );
+    setDrafts(draftsWithNames);
+    const eligible = draftsWithNames.filter((d) => d.pasteText.trim() && d.configId);
     if (eligible.length === 0) {
       toast.error('Nenhum rascunho preenchido', {
-        description: 'Cada rascunho precisa de NOME, TABELA selecionada e CPFs colados.',
+        description: 'Cada rascunho precisa de TABELA selecionada (em Opções avançadas) e CPFs colados.',
         duration: 8000,
       });
       return;
