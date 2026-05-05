@@ -149,6 +149,17 @@ export default function BatchHistoryPanel() {
               <SelectItem value="failed">Falhou</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground">De:</span>
+            <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-9 w-[140px]" />
+            <span className="text-muted-foreground">Até:</span>
+            <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-9 w-[140px]" />
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-9">
+              <X className="w-3 h-3" /> Limpar
+            </Button>
+          )}
           <div className="text-xs text-muted-foreground ml-auto">
             {totalCount > 0 ? <>Mostrando <strong>{fromIdx}–{toIdx}</strong> de <strong>{totalCount}</strong></> : null}
           </div>
