@@ -364,14 +364,14 @@ export default function Permissions() {
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground space-y-2">
           <p><strong>✅ Enforcement ativo:</strong> Itens do menu lateral e rotas são bloqueados automaticamente. Admin sempre têm acesso total. Gerente tem acesso total exceto esta página.</p>
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium">Legenda:</span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-muted text-muted-foreground">
-              <EyeOff className="w-3 h-3" /> Sem acesso (oculta)
+            <span className="font-medium">Legenda (cor do botão indica o estado ativo):</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-500 text-white border border-slate-600">
+              <EyeOff className="w-3 h-3" /> Sem acesso
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500 text-white border border-blue-600">
               <Menu className="w-3 h-3" /> Só menu (próprios dados)
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500 text-white border border-emerald-600">
               <Unlock className="w-3 h-3" /> Acesso total (todos os dados)
             </span>
           </div>
