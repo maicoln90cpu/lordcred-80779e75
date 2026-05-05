@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +16,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Eye, Trash2, ScrollText, LayoutList, Kanban, Phone, User, Download, AlertTriangle, Loader2 } from 'lucide-react';
-import { useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { loadXLSX } from '@/lib/xlsx-lazy';
@@ -116,8 +117,8 @@ export default function PartnersAdmin() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'tabela' | 'kanban'>('tabela');
   const [duplicateWarning, setDuplicateWarning] = useState('');
-  const { sort, toggle: toggleSort } = useSortState();
-  const [page, setPage] = useState(0);
+  const table = useTableState<any>({ pageSize: 50, resetPageOn: [] });
+  const { sort, toggleSort, page, setPage } = table;
   const PAGE_SIZE = 50;
 
   const [form, setForm] = useState({
@@ -240,12 +241,13 @@ export default function PartnersAdmin() {
       (p.telefone?.toLowerCase().includes(s)) ||
       (p.cnpj?.toLowerCase().includes(s));
   });
-  const filtered = useMemo(() => applySortToData(filteredBase, sort), [filteredBase, sort]);
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const pagedFiltered = useMemo(() => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [filtered, page]);
+  const applied = useMemo(() => table.apply(filteredBase), [filteredBase, sort, page]);
+  const filtered = applied.sorted;
+  const pagedFiltered = applied.paged;
+  const totalPages = applied.totalPages;
 
   // Reset page when filters change
-  useMemo(() => { setPage(0); }, [search, statusFilter]);
+  useEffect(() => { setPage(0); }, [search, statusFilter]);
 
   const statusCounts = allPartners.reduce<Record<string, number>>((acc, p) => {
     acc[p.pipeline_status] = (acc[p.pipeline_status] || 0) + 1;
@@ -440,13 +442,7 @@ export default function PartnersAdmin() {
                 </Table>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 py-3 border-t px-4">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({filtered.length} registros)</span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                </div>
-              )}
+              <TablePagination page={page} totalPages={totalPages} total={filtered.length} label="parceiros" onChange={setPage} />
             </CardContent>
           </Card>
         ) : (

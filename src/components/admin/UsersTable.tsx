@@ -9,7 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { TSHead, useSortState, applySortToData } from '@/components/commission-reports/CRSortUtils';
+import { TSHead } from '@/components/commission-reports/CRSortUtils';
+import { useTableState } from '@/hooks/useTableState';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface UserProfile {
   id: string;
@@ -51,9 +53,8 @@ interface UsersTableProps {
 
 export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdmin, canManageUsers, statusFilter, onStatusFilterChange, onEditUser, onRefresh }: UsersTableProps) {
   const { toast } = useToast();
-  const { sort, toggle } = useSortState();
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 50;
+  const table = useTableState<UserProfile>({ pageSize: 50, resetPageOn: [statusFilter] });
+  const { sort, toggleSort: toggle, page, setPage } = table;
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -153,12 +154,10 @@ export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdm
               </TableHeader>
               <TableBody>
                 {(() => {
-                  const sorted = applySortToData(users, sort, (item, key) => {
+                  const { sorted, paged, totalPages } = table.apply(users, (item, key) => {
                     if (key === 'name') return item.name || item.email;
                     return (item as any)[key];
                   });
-                  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-                  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
                   return (
                     <>
                       {paged.map((user) => (
@@ -212,17 +211,11 @@ export function UsersTable({ users, isLoading, isSupport, isMaster, isRegularAdm
                           )}
                         </TableRow>
                       ))}
-                      {totalPages > 1 && (
-                        <TableRow>
-                          <TableCell colSpan={isSupport ? 4 : 5}>
-                            <div className="flex items-center justify-center gap-2 py-1">
-                              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                              <span className="text-xs text-muted-foreground">Página {page + 1} de {totalPages} ({sorted.length} usuários)</span>
-                              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                      <TableRow>
+                        <TableCell colSpan={isSupport ? 4 : 5} className="p-0">
+                          <TablePagination page={page} totalPages={totalPages} total={sorted.length} label="usuários" onChange={setPage} />
+                        </TableCell>
+                      </TableRow>
                     </>
                   );
                 })()}
