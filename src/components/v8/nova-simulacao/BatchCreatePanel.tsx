@@ -118,46 +118,10 @@ export default function BatchCreatePanel(props: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Nome do lote</Label>
-            <Input
-              placeholder="Ex.: Lote 23/04 - manhã"
-              value={batchName}
-              onChange={(e) => setBatchName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>Tabela V8</Label>
-            <Select value={configId} onValueChange={setConfigId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a tabela" />
-              </SelectTrigger>
-              <SelectContent>
-                {configs.length === 0 && (
-                  <SelectItem value="__none__" disabled>
-                    Clique em "Atualizar tabelas V8"
-                  </SelectItem>
-                )}
-                {configs.map((c) => (
-                  <SelectItem key={c.config_id} value={c.config_id}>
-                    {c.name}{c.bank_name ? ` · ${c.bank_name}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {usingMaxDefault && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Parcelas: <strong>{parcelas}x</strong> (máximo da tabela — padrão).
-              </p>
-            )}
-          </div>
-        </div>
+        {/* Etapa 1 (mai/2026): "Nome do lote" REMOVIDO da UI — nome é gerado automaticamente
+            no orquestrador (V8NovaSimulacaoTab) no formato "Lote DD/MM HH:mm — <Rascunho>".
+            "Tabela V8" e "Auto-melhor" foram movidos para "Opções avançadas" (defaults sensatos). */}
 
-        {/* Etapa 2 (item 4): seletor de parcelas escondido por padrão.
-            Default = Math.max(parcelOptions). Operador só abre se quiser sobrescrever.
-            Etapa 1 (novo item 4): "Tipo da simulação" também movido para cá —
-            padrão "Sem valor (V8 escolhe)". */}
         <div className="rounded-lg border border-dashed border-border">
           <button
             type="button"
@@ -169,65 +133,109 @@ export default function BatchCreatePanel(props: Props) {
               Opções avançadas
             </span>
             <span className="text-xs text-muted-foreground">
-              Parcelas: {parcelas}x{usingMaxDefault ? ' (máx)' : ''}
-              {' · '}
-              Tipo: {simulationMode === 'none' ? 'V8 escolhe' : simulationMode === 'disbursed_amount' ? 'valor liberado' : 'valor da parcela'}
+              Tabela: {selectedConfig?.name ?? <span className="text-destructive">não escolhida</span>}
+              {' · '}Parcelas: {parcelas}x{usingMaxDefault ? ' (máx)' : ''}
+              {' · '}Auto-melhor: {autoBest ? '✓' : '✗'}
             </span>
           </button>
           {advancedOpen && (
-            <div className="px-3 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="px-3 pb-3 pt-1 space-y-4">
               <div>
-                <Label>Parcelas</Label>
-                <Select value={String(parcelas)} onValueChange={(v) => setParcelas(Number(v))}>
+                <Label>Tabela V8</Label>
+                <Select value={configId} onValueChange={setConfigId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione a tabela" />
                   </SelectTrigger>
                   <SelectContent>
-                    {parcelOptions.map((p) => (
-                      <SelectItem key={p} value={String(p)}>
-                        {p}x{maxParcelas === p ? ' (máximo)' : ''}
+                    {configs.length === 0 && (
+                      <SelectItem value="__none__" disabled>
+                        Clique em "Atualizar tabelas V8"
+                      </SelectItem>
+                    )}
+                    {configs.map((c) => (
+                      <SelectItem key={c.config_id} value={c.config_id}>
+                        {c.name}{c.bank_name ? ` · ${c.bank_name}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {selectedConfig
-                    ? `Disponíveis: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
-                    : 'Selecione uma tabela para ver as parcelas aceitas pela V8.'}
-                </p>
-                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                  ⓘ Por padrão usamos o máximo. Só altere se precisar de prazo menor para todo o lote.
-                </p>
-              </div>
-              <div>
-                <Label>Tipo da simulação</Label>
-                <Select value={simulationMode} onValueChange={(value: SimulationMode) => setSimulationMode(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
-                    <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
-                    <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
-                  </SelectContent>
-                </Select>
-                {simulationMode !== 'none' && (
-                  <div className="mt-2">
-                    <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
-                    <Input
-                      inputMode="decimal"
-                      placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
-                      value={simulationValue}
-                      onChange={(e) => setSimulationValue(e.target.value)}
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
-                    </p>
-                  </div>
+                {usingMaxDefault && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Parcelas: <strong>{parcelas}x</strong> (máximo da tabela — padrão).
+                  </p>
                 )}
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Padrão: <strong>Sem valor</strong> — a V8 calcula no meio da faixa permitida pelo CPF.
-                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Parcelas</Label>
+                  <Select value={String(parcelas)} onValueChange={(v) => setParcelas(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {parcelOptions.map((p) => (
+                        <SelectItem key={p} value={String(p)}>
+                          {p}x{maxParcelas === p ? ' (máximo)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selectedConfig
+                      ? `Disponíveis: ${parcelOptions.map((value) => `${value}x`).join(', ')}`
+                      : 'Selecione uma tabela para ver as parcelas aceitas pela V8.'}
+                  </p>
+                  <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    ⓘ Por padrão usamos o máximo. Só altere se precisar de prazo menor para todo o lote.
+                  </p>
+                </div>
+                <div>
+                  <Label>Tipo da simulação</Label>
+                  <Select value={simulationMode} onValueChange={(value: SimulationMode) => setSimulationMode(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem valor (V8 escolhe cenário padrão)</SelectItem>
+                      <SelectItem value="disbursed_amount">Valor liberado desejado</SelectItem>
+                      <SelectItem value="installment_face_value">Valor da parcela desejada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {simulationMode !== 'none' && (
+                    <div className="mt-2">
+                      <Label>{simulationMode === 'disbursed_amount' ? 'Valor liberado desejado' : 'Valor da parcela desejada'}</Label>
+                      <Input
+                        inputMode="decimal"
+                        placeholder={simulationMode === 'disbursed_amount' ? 'Ex.: 2500,00' : 'Ex.: 180,00'}
+                        value={simulationValue}
+                        onChange={(e) => setSimulationValue(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Opcional pela V8. Se não souber, escolha "Sem valor" acima e a V8 devolve cenários padrão.
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Padrão: <strong>Sem valor</strong> — Auto-melhor decide sozinho dentro da margem aprovada.
+                  </p>
+                </div>
+              </div>
+
+              {/* Auto-melhor agora vive aqui dentro de Avançadas. Default = ligado. */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-3">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    🤖 Auto-melhor (encontra a melhor proposta sozinha) · <span className="text-[10px] uppercase tracking-wide bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 rounded">recomendado</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Para cada CPF com margem confirmada, o sistema testa as melhores combinações <strong>valor × prazo</strong> (do maior para o menor) até a V8 aceitar. <strong>Ignora os campos "Tipo da simulação" e "Valor"</strong>. Padrão: <strong>ligado</strong>.
+                  </p>
+                </div>
+                <Switch
+                  checked={autoBest}
+                  onCheckedChange={onToggleAutoBest}
+                />
               </div>
             </div>
           )}
@@ -282,23 +290,7 @@ export default function BatchCreatePanel(props: Props) {
           </div>
         </div>
 
-        {/* Etapa 2 (abr/2026): Auto-melhor — descobre a melhor proposta sozinho.
-            Item 7 (abr/2026): toggle "Simular automaticamente após consulta" REMOVIDO.
-            Auto-melhor é estritamente superior (testa até 6 combinações até a V8 aceitar). */}
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-3">
-          <div className="space-y-0.5">
-            <Label className="text-sm font-medium flex items-center gap-1.5">
-              🤖 Auto-melhor (encontra a melhor proposta sozinha) · <span className="text-[10px] uppercase tracking-wide bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 rounded">recomendado</span>
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Quando ligado: para cada CPF com margem confirmada, o sistema tenta automaticamente as melhores combinações <strong>valor × prazo</strong> (do maior para o menor) até a V8 aceitar uma. Equivalente a clicar 🔍 "Encontrar proposta viável" em cada CPF — só que em lote. <strong>Ignora os campos "Modo de simulação" e "Valor"</strong> (decide tudo sozinho).
-            </p>
-          </div>
-          <Switch
-            checked={autoBest}
-            onCheckedChange={onToggleAutoBest}
-          />
-        </div>
+        {/* Bloco "Auto-melhor" foi movido para "Opções avançadas" (Etapa 1, mai/2026). */}
 
         {/* Etapa 3 (item 7): bloco de agendamento. Operador escolhe data/hora futura
             e o lote só inicia quando o launcher (pg_cron) chegar a esse horário. */}

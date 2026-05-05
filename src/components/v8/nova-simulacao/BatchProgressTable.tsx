@@ -110,17 +110,16 @@ export default function BatchProgressTable({
           <table className="w-full text-xs">
             <thead className="bg-muted sticky top-0">
               <tr>
-                {/* Etapa 1 (item 5): nova ordem — Nome, CPF, Valor liberado, Parcelas,
-                    Valor parcela, Status, Tentativas, Motivo. Removidas:
-                    Margem Disp., Margem LordCred, A cobrar (visíveis em Operações). */}
+                {/* Etapa 1 (mai/2026): nova ordem solicitada — Nome, CPF, Status, Motivo,
+                    Valor liberado, Parcelas, Valor parcela, Tentativas, Payload. */}
                 <th className="px-2 py-1 text-left">Nome</th>
                 <th className="px-2 py-1 text-left">CPF</th>
+                <th className="px-2 py-1 text-left">Status</th>
+                <th className="px-2 py-1 text-left">Motivo</th>
                 <th className="px-2 py-1 text-right" title="Valor liberado. Quando vem do webhook da consulta, é uma ESTIMATIVA (máximo da faixa V8). O valor real só é calculado ao clicar em 'Simular selecionados'.">Valor liberado</th>
                 <th className="px-2 py-1 text-center" title="Nº de parcelas usadas na simulação. Em cinza = ainda não simulado, mostra o configurado no lote. ⚠️ = V8 ajustou para caber nos limites do CPF.">Parcelas</th>
                 <th className="px-2 py-1 text-right" title="Parcela mensal. Estimativa enquanto a simulação real não foi rodada.">Valor parcela</th>
-                <th className="px-2 py-1 text-left">Status</th>
                 <th className="px-2 py-1 text-center">Tentativas</th>
-                <th className="px-2 py-1 text-left">Motivo</th>
                 <th className="px-2 py-1 text-center w-10" title="Ver payload completo (JSON cru recebido da V8 e tentativas registradas)">Payload</th>
               </tr>
             </thead>
@@ -136,6 +135,17 @@ export default function BatchProgressTable({
                   <tr key={s.id} className="border-t">
                     <td className="px-2 py-1">{(s as any).name || <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-2 py-1 font-mono">{s.cpf}</td>
+                    <td className="px-2 py-1">
+                      <Badge
+                        variant={getSimulationStatusVariant(s)}
+                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
+                      >
+                        {getSimulationStatusLabel(s)}
+                      </Badge>
+                    </td>
+                    <td className="px-2 py-1 align-top">
+                      <ReasonCell s={s} onCheckStatus={onCheckStatus} />
+                    </td>
                     <td className="px-2 py-1 text-right">
                       {s.released_value != null ? (
                         <span title={(s.simulate_status ?? 'not_started') !== 'success' ? 'Estimativa (máximo da faixa V8). Clique em "Simular selecionados" para o valor real.' : 'Valor real calculado pela V8 via /simulation.'}>
@@ -173,14 +183,6 @@ export default function BatchProgressTable({
                       </div>
                     </td>
                     <td className="px-2 py-1 text-right">{s.installment_value != null ? `R$ ${Number(s.installment_value).toFixed(2)}` : '—'}</td>
-                    <td className="px-2 py-1">
-                      <Badge
-                        variant={getSimulationStatusVariant(s)}
-                        className={isWaitingExternal ? 'border-yellow-500/50 text-yellow-700 bg-yellow-500/10' : undefined}
-                      >
-                        {getSimulationStatusLabel(s)}
-                      </Badge>
-                    </td>
                     <td
                       className={`px-2 py-1 text-center ${(s.attempt_count ?? 0) >= 2 ? 'font-bold text-amber-600' : ''}`}
                       title={(() => {
@@ -218,9 +220,6 @@ export default function BatchProgressTable({
                         }
                         return null;
                       })()}
-                    </td>
-                    <td className="px-2 py-1 align-top">
-                      <ReasonCell s={s} onCheckStatus={onCheckStatus} />
                     </td>
                     <td className="px-2 py-1 text-center align-top">
                       <Button

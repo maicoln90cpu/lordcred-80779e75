@@ -258,12 +258,29 @@ export default function V8NovaSimulacaoTab() {
   // Agora: guardamos qual draft disparou; só esse vê running=true.
   const [runningDraftId, setRunningDraftId] = useState<string | null>(null);
   const isThisDraftRunning = ops.running && runningDraftId === activeId;
+
+  // Etapa 1 (mai/2026): nome do lote auto-gerado quando o operador não digitar nada.
+  // Formato: "Lote DD/MM HH:mm — <Rascunho>". Mantém rastreabilidade nas listagens.
+  function ensureBatchName(): string {
+    const current = active.batchName.trim();
+    if (current) return current;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${active.label}`;
+    patchActive({ batchName: auto });
+    return auto;
+  }
+
   const wrappedStart = async () => {
     setRunningDraftId(activeId);
+    const needsAutoName = !active.batchName.trim();
+    if (needsAutoName) {
+      ensureBatchName();
+      // Aguarda 1 render para o hook receber a nova prop batchName.
+      await new Promise((r) => setTimeout(r, 0));
+    }
     try {
       await ops.handleStart();
-      // Onda 4: se o draft já tinha Auto-melhor ligado, propaga o flag pro batch recém-criado.
-      // Pequeno delay para garantir que `activeBatchId` foi setado pelo handleStart.
       if (autoBest) {
         setTimeout(async () => {
           try {
@@ -347,7 +364,7 @@ export default function V8NovaSimulacaoTab() {
     if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
     if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de agendar`); return; }
     if (!configId) { toast.error('Escolha uma tabela'); return; }
-    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+    const finalName = ensureBatchName();
 
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
     const numericValue = simulationMode !== 'none' && simulationValue.trim()
@@ -358,7 +375,7 @@ export default function V8NovaSimulacaoTab() {
       body: {
         action: 'schedule_batch',
         params: {
-          name: batchName.trim(),
+          name: finalName,
           config_id: configId,
           config_label: cfgLabel,
           parcelas,
@@ -391,7 +408,7 @@ export default function V8NovaSimulacaoTab() {
     if (rows.length === 0) { toast.error('Cole pelo menos 1 CPF válido'); return; }
     if (blockingIssues.length > 0) { toast.error(`Corrija ${blockingIssues.length} linha(s) inválida(s) antes de enfileirar`); return; }
     if (!configId) { toast.error('Escolha uma tabela'); return; }
-    if (!batchName.trim()) { toast.error('Dê um nome ao lote'); return; }
+    const finalName = ensureBatchName();
 
     const cfgLabel = configs.find((c) => c.config_id === configId)?.name;
     const numericValue = simulationMode !== 'none' && simulationValue.trim()
@@ -402,7 +419,7 @@ export default function V8NovaSimulacaoTab() {
       body: {
         action: 'queue_batch',
         params: {
-          name: batchName.trim(),
+          name: finalName,
           config_id: configId,
           config_label: cfgLabel,
           parcelas,
@@ -433,10 +450,18 @@ export default function V8NovaSimulacaoTab() {
   const [runAllReport, setRunAllReport] = useState<RunAllItemResult[] | null>(null);
   async function handleRunAllDrafts() {
     if (runAllBusy) return;
-    const eligible = drafts.filter((d) => d.pasteText.trim() && d.batchName.trim() && d.configId);
+    // Etapa 1 (mai/2026): auto-gera nome para rascunhos sem nome (mesmo formato do Iniciar).
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const draftsWithNames: V8DraftSlot[] = drafts.map((d) =>
+      d.batchName.trim() ? d : { ...d, batchName: `Lote ${stamp} — ${d.label}` },
+    );
+    setDrafts(draftsWithNames);
+    const eligible = draftsWithNames.filter((d) => d.pasteText.trim() && d.configId);
     if (eligible.length === 0) {
       toast.error('Nenhum rascunho preenchido', {
-        description: 'Cada rascunho precisa de NOME, TABELA selecionada e CPFs colados.',
+        description: 'Cada rascunho precisa de TABELA selecionada (em Opções avançadas) e CPFs colados.',
         duration: 8000,
       });
       return;
@@ -473,7 +498,7 @@ export default function V8NovaSimulacaoTab() {
     setRunAllBusy(true);
     try {
       const results = await queueAllDrafts({
-        drafts,
+        drafts: draftsWithNames,
         configs,
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
       });
