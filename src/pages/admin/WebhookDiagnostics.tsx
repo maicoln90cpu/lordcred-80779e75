@@ -176,7 +176,7 @@ export default function WebhookDiagnostics() {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {applySortToData(filteredLogs, sort).map(log => {
+                  {pagedLogs.map(log => {
                     const source = getSource(log.chip_id);
                     return (
                       <TableRow key={log.id}>
