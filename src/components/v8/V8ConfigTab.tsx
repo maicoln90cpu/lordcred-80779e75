@@ -224,6 +224,8 @@ export default function V8ConfigTab() {
 
       <CpfDedupeSettingsCard />
 
+      <AutoBestAlwaysOnCard />
+
       <V8DatabaseHealthCard />
     </div>
   );
@@ -273,6 +275,43 @@ function CpfDedupeSettingsCard() {
             Padrão: 7 dias. Aumente para janelas maiores (ex.: 30) ou diminua se quiser permitir reconsultas frequentes.
           </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Etapa 2 (mai/2026) — Auto-melhor sempre ligado em qualquer simulação com margem. */
+function AutoBestAlwaysOnCard() {
+  const { settings, saving, save } = useV8Settings();
+  if (!settings) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Auto-melhor automático (Operações + Pool)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!settings.auto_best_always_on}
+            disabled={saving}
+            onChange={(e) => void save({ auto_best_always_on: e.target.checked })}
+            className="mt-1 h-4 w-4"
+          />
+          <div>
+            <div className="text-sm font-medium">
+              Sempre rodar Auto-melhor para toda simulação com margem
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Quando ligado, qualquer CPF que voltar com margem disponível (status <strong>SUCCESS</strong> ou <strong>CONSENT_APPROVED</strong>)
+              entra automaticamente na fila do worker Auto-melhor — inclusive simulações criadas pelo <strong>Pool</strong>,
+              pela aba <strong>Operações</strong> ou importações manuais (sem lote). O <code>sim_id</code> é gerado em ~1 min sem clique do operador.
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Desligue se quiser controlar manualmente quando gerar a melhor combinação valor × prazo.
+            </p>
+          </div>
+        </label>
       </CardContent>
     </Card>
   );
