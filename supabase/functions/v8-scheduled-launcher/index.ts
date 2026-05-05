@@ -24,6 +24,21 @@ function normalizeBirth(v: string | null | undefined): string | null {
   return String(v);
 }
 
+// Etapa 3C (mai/2026) — Cache module-level de v8_settings (TTL 60s).
+// Sobrevive entre invocações enquanto o worker estiver "quente".
+let _settingsCache: { value: any; expiresAt: number } | null = null;
+async function getCachedSettings(supabase: any): Promise<any> {
+  const now = Date.now();
+  if (_settingsCache && _settingsCache.expiresAt > now) return _settingsCache.value;
+  const { data } = await supabase
+    .from("v8_settings")
+    .select("max_concurrent_batches_per_owner, consult_throttle_ms")
+    .eq("singleton", true)
+    .maybeSingle();
+  _settingsCache = { value: data ?? {}, expiresAt: now + 60_000 };
+  return _settingsCache.value;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const startedAt = Date.now();
@@ -37,18 +52,16 @@ Deno.serve(async (req) => {
   const MAX_BATCHES_PER_RUN = 5;
 
   try {
-    // Etapa 2 (mai/2026): paralelismo configurável por operador.
-    // Lê v8_settings.max_concurrent_batches_per_owner (default 2).
+    // Etapa 2 + 3C (mai/2026): paralelismo configurável + cache 60s.
     let maxConcurrent = 2;
+    let throttleMs = 1200;
     try {
-      const { data: stg } = await supabase
-        .from("v8_settings")
-        .select("max_concurrent_batches_per_owner")
-        .eq("singleton", true)
-        .maybeSingle();
+      const stg = await getCachedSettings(supabase);
       const v = Number((stg as any)?.max_concurrent_batches_per_owner);
       if (Number.isFinite(v) && v >= 1 && v <= 3) maxConcurrent = v;
-    } catch (_) { /* mantém default */ }
+      const t = Number((stg as any)?.consult_throttle_ms);
+      if (Number.isFinite(t) && t >= 200 && t <= 10000) throttleMs = t;
+    } catch (_) { /* mantém defaults */ }
 
     // 0) Etapa 4 (item 10): promove lotes da fila (queued) quando o operador
     //    tem menos de `maxConcurrent` lotes ativos.
@@ -180,7 +193,7 @@ Deno.serve(async (req) => {
         const projectUrl = Deno.env.get("SUPABASE_URL")!;
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const cltUrl = `${projectUrl}/functions/v1/v8-clt-api`;
-        const throttleMs = 1200;
+        // throttle vem do cache de settings (3C); fallback 1200ms.
 
         let dispatched = 0;
         let dispatchFailed = 0;

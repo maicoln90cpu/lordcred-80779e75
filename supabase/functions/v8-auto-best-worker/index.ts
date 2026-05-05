@@ -250,8 +250,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2) Processa em série (V8 throttled ~1.2s; paralelizar quebraria rate limit).
+    // 2) Etapa 3B (mai/2026) — Pré-carrega TODAS as configs distintas dos jobs reservados
+    //    em uma única chamada SQL (em vez de 1 SELECT por job). Reduz latência por lote.
     const configsCache = new Map<string, number[]>();
+    const distinctConfigIds = Array.from(new Set(jobs.map((j) => j.config_id).filter(Boolean)));
+    if (distinctConfigIds.length > 0) {
+      try {
+        const { data: cfgRows } = await supabase
+          .from("v8_configs_cache")
+          .select("id, raw_data")
+          .in("id", distinctConfigIds);
+        for (const row of (cfgRows ?? []) as any[]) {
+          const arr = row?.raw_data?.number_of_installments;
+          const list: number[] = Array.isArray(arr)
+            ? arr.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)
+            : DEFAULT_CLT_INSTALLMENTS;
+          configsCache.set(row.id as string, list);
+        }
+      } catch (err) {
+        console.warn("[auto-best-worker] prefetch configs failed:", (err as Error)?.message);
+      }
+    }
+
+    // 3) Processa em série (V8 throttled ~1.2s; paralelizar quebraria rate limit).
     let done = 0, failed = 0, skipped = 0;
 
     for (const job of jobs) {

@@ -620,13 +620,47 @@ serve(async (req) => {
     });
   }
 
-  // Etapa 2 (mai/2026) — Fast-path: ao processar um webhook de consult/operation,
-  // pinga o launcher para promover qualquer lote em fila imediatamente
-  // (em vez de esperar o cron de 1 min). Fire-and-forget, não bloqueia a resposta.
+  // Etapa 3A (mai/2026) — Pré-promoção otimista: se este webhook foi o último
+  // CPF pendente de um lote, fecha o lote (status=completed, completed_at=now())
+  // imediatamente, em vez de esperar o orphan-reconciler (15 min).
+  if (processed && action === "consult.updated" && consultId) {
+    try {
+      const { data: simRow } = await supabase
+        .from("v8_simulations")
+        .select("batch_id")
+        .eq("consult_id", consultId)
+        .maybeSingle();
+      const batchId = (simRow as any)?.batch_id;
+      if (batchId) {
+        const { count: pendingLeft } = await supabase
+          .from("v8_simulations")
+          .select("id", { count: "exact", head: true })
+          .eq("batch_id", batchId)
+          .in("status", ["pending"]);
+        if ((pendingLeft ?? 0) === 0) {
+          await supabase
+            .from("v8_batches")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", batchId)
+            .in("status", ["processing", "scheduled"]);
+          console.log(`[v8-webhook] fast-close batch ${batchId} (no pending sims left)`);
+        }
+      }
+    } catch (err) {
+      console.warn("[v8-webhook] fast-close error:", (err as Error)?.message);
+    }
+  }
+
+  // Etapa 2 (mai/2026) — Fast-path: pinga o launcher para promover qualquer
+  // lote em fila imediatamente (em vez de esperar o cron de 1 min).
+  // Fire-and-forget; não bloqueia a resposta.
   if (processed && (action === "consult.updated" || action.startsWith("operation."))) {
     try {
       const launcherUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-scheduled-launcher`;
-      // EdgeRuntime.waitUntil garante a execução mesmo após a resposta, sem bloquear.
       // @ts-ignore — EdgeRuntime existe no runtime Deno do Supabase.
       EdgeRuntime.waitUntil(
         fetch(launcherUrl, {
