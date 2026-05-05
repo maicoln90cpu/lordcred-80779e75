@@ -153,9 +153,16 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
       if (strategy === 'webhook_only') {
         for (let i = 0; i < simsToProcess.length; i++) {
           const sim = simsToProcess[i];
+          // Etapa 4 (b): heartbeat ANTES do POST. Marca attempt_count=1 + last_attempt_at
+          // para o watchdog conseguir distinguir "nunca disparou" de "disparou e aguarda".
+          await supabase
+            .from('v8_simulations')
+            .update({ attempt_count: 1, last_attempt_at: new Date().toISOString(), last_step: 'dispatch_started' })
+            .eq('id', sim.id);
+          let dispatchOk = false;
           try {
             const parsedRow = rows.find((r) => r.cpf === sim.cpf);
-            await supabase.functions.invoke('v8-clt-api', {
+            const { data: dResp, error: dErr } = await supabase.functions.invoke('v8-clt-api', {
               body: {
                 action: 'simulate_consult_only',
                 params: {
@@ -166,8 +173,20 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
                 },
               },
             });
-            pendingCount += 1;
+            dispatchOk = !dErr && (dResp?.success !== false);
+            if (dispatchOk) pendingCount += 1;
           } catch (err) { console.error('Sim err', sim.cpf, err); }
+          // Etapa 4 (a): se o dispatch falhou, marca FAILED imediatamente.
+          if (!dispatchOk) {
+            await supabase.from('v8_simulations').update({
+              status: 'failed',
+              error_kind: 'dispatch_failed',
+              error_message: 'Falha ao disparar a consulta para a V8 (timeout/erro de rede).',
+              last_step: 'dispatch_failed',
+              processed_at: new Date().toISOString(),
+            }).eq('id', sim.id);
+            await supabase.rpc('v8_increment_batch_failure', { _batch_id: batchId });
+          }
           if (i < simsToProcess.length - 1) await new Promise((r) => setTimeout(r, throttleMs));
         }
         toast.success(
