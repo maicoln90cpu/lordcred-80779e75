@@ -498,7 +498,7 @@ export default function V8NovaSimulacaoTab() {
     setRunAllBusy(true);
     try {
       const results = await queueAllDrafts({
-        drafts,
+        drafts: draftsWithNames,
         configs,
         strategy: v8Settings?.simulation_strategy ?? 'webhook_only',
       });
