@@ -337,7 +337,7 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
 
   /** Dispara o launcher imediatamente após cancelar para promover próximo da fila. */
   function triggerLauncherNow() {
-    supabase.functions.invoke('v8-scheduled-launcher').catch(() => {});
+    triggerLauncherShortLoop({ reason: 'cancel-batch' });
   }
 
   async function handleCancelBatch() {
