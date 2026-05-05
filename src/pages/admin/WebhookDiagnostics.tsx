@@ -245,6 +245,7 @@ export default function WebhookDiagnostics() {
                 </TableBody>
               </Table>
             </ScrollArea>
+            <TablePagination page={page} totalPages={totalPages} total={totalFiltered} label="logs" onChange={setPage} />
           </CardContent>
         </Card>
       </div>
