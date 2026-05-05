@@ -127,10 +127,18 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
 
       const batchId = data.data.batch_id as string;
       setActiveBatchId(batchId);
+      const skippedCount = Number((data?.data?.skipped_duplicates ?? 0)) || 0;
+      const dedupeWindow = Number((data?.data?.dedupe_window_days ?? 7)) || 7;
+      if (skippedCount > 0) {
+        toast.warning(
+          `${skippedCount} CPF(s) ignorado(s) — já consultados nos últimos ${dedupeWindow} dia(s). Veja-os marcados como "Duplicado recente".`,
+          { duration: 8000 },
+        );
+      }
       toast.success(`Lote criado com ${data.data.total} CPFs. Iniciando (estratégia: ${strategy})...`);
 
       const { data: sims } = await supabase
-        .from('v8_simulations').select('id, cpf, name, birth_date, paste_order')
+        .from('v8_simulations').select('id, cpf, name, birth_date, paste_order, status, error_kind')
         .eq('batch_id', batchId)
         // Etapa 1 (correção de ordem): respeitar a ordem em que o operador colou.
         // Antes ordenávamos por created_at — todas as linhas têm o mesmo timestamp
@@ -138,6 +146,9 @@ export function useV8BatchOperations(args: UseV8BatchOperationsArgs) {
         .order('paste_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
       if (!sims) throw new Error('Falha ao carregar simulações');
+
+      // Etapa C — não disparar consulta para CPFs deduplicados
+      const simsToProcess = sims.filter((s: any) => s.error_kind !== 'duplicate_recent' && s.status !== 'skipped');
 
       if (strategy === 'webhook_only') {
         for (let i = 0; i < sims.length; i++) {
