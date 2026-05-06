@@ -72,10 +72,11 @@ function pickLatest(rows: RateRow[]): RateRow | null {
 }
 
 /**
- * Calcula comissão V2 com fallback 3 níveis:
- *  1) specific  — bank + table_key + term + value + insurance
- *  2) generic   — bank + term + value + insurance (sem table_key)
- *  3) fallback  — bank + insurance + date (paridade com V1)
+ * Calcula comissão V2 com fallback 4 níveis:
+ *  1) specific          — bank + table_key + term + value + insurance
+ *  2) generic           — bank + term + value + insurance (sem table_key)
+ *  3) generic_no_value  — bank + term + insurance (ignora table_key e valor)
+ *  4) fallback          — bank + insurance + date (paridade com V1)
  */
 export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult {
   const bank = (sale.bank || '').toUpperCase().trim();
