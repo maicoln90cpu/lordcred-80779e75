@@ -64,7 +64,11 @@ interface Props {
     scheduled_payload: any;
     queue_position: number | null;
     name: string;
+    is_paused?: boolean | null;
+    paused_at?: string | null;
   } | null;
+  /** Mai/2026: callback para retomar lote pausado (despausar). */
+  onResumeBatch?: (batchId: string) => Promise<void> | void;
 }
 
 /**
