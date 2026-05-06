@@ -72,7 +72,7 @@ serve(async (req) => {
     // 1) Lê config
     const { data: settings } = await supabase
       .from("v8_settings")
-      .select("max_auto_retry_attempts, retry_min_backoff_seconds, background_retry_enabled, retry_batch_size")
+      .select("max_auto_retry_attempts, retry_min_backoff_seconds, background_retry_enabled, retry_batch_size, force_dispatch_enabled, force_dispatch_after_seconds")
       .eq("singleton", true)
       .maybeSingle();
 
@@ -86,6 +86,9 @@ serve(async (req) => {
     const maxAttempts: number = Number(settings.max_auto_retry_attempts ?? 15);
     const minBackoffSec: number = Number(settings.retry_min_backoff_seconds ?? 10);
     const batchSize: number = Number(settings.retry_batch_size ?? 25);
+    // Etapa 4 (mai/2026): força re-disparo de pendentes sem resposta da V8.
+    const forceDispatchEnabled: boolean = settings.force_dispatch_enabled !== false;
+    const forceDispatchAfterMs: number = Number(settings.force_dispatch_after_seconds ?? 300) * 1000;
 
     // 2) Busca candidatos retentáveis.
     // IMPORTANTE: incluímos 'pending' além de 'failed' porque o rate-limit da V8
@@ -116,14 +119,21 @@ serve(async (req) => {
       const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
       // Caso 1: kind retentável conhecido.
       if (kind && RETRIABLE_KINDS.has(kind)) return true;
-      // Caso 2: linha "presa" — pending sem kind, com >2 min sem novidade.
-      // Bug clássico: lote criado, V8 nem respondeu, attempt_count=0, kind=null.
-      // Sem isso, a linha NUNCA seria retentada e ficava esperando webhook que não vem.
-      if (s.status === "pending" && !kind) {
+      // Caso 2: linha "presa" — pending sem kind, com idade > janela configurada.
+      // Etapa 4 (mai/2026): força re-disparo (force_dispatch) quando attempt_count=0
+      // e a V8/webhook não respondeu em force_dispatch_after_seconds (default 300s).
+      // Para attempt_count > 0 mantém regra antiga (>2 min) para não estourar V8.
+      if (s.status === "pending") {
         const ageMs = s.last_attempt_at
           ? Date.now() - new Date(s.last_attempt_at).getTime()
           : Date.now() - new Date(s.created_at ?? Date.now()).getTime();
-        return ageMs > 120_000;
+        const attempts = Number(s.attempt_count ?? 0);
+        if (attempts === 0) {
+          if (!forceDispatchEnabled) return false;
+          return ageMs > forceDispatchAfterMs;
+        }
+        // Sem kind e já tentou: usa janela curta de 2 min (regra legada).
+        if (!kind) return ageMs > 120_000;
       }
       return false;
     });
@@ -184,7 +194,7 @@ serve(async (req) => {
               batch_id: sim.batch_id,
               simulation_id: sim.id,
               attempt_count: Number(sim.attempt_count ?? 0) + 1,
-              triggered_by: "cron",
+              triggered_by: (sim.status === "pending" && Number(sim.attempt_count ?? 0) === 0) ? "force_dispatch" : "cron",
               cron_user_id: sim.created_by,
             },
           };
