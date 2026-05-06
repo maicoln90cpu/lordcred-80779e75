@@ -201,15 +201,14 @@ export function useV8BatchSimulations(batchId: string | null) {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Polling adaptativo: 3s enquanto não há simulações na lista (acelera
-    // a primeira aparição de "Ver progresso" vazio); 10s após chegarem dados.
+    // Fallback de polling 10s — pausa quando aba não está visível para economizar egress.
+    // (O polling adaptativo de 3s para listas vazias está em useEffect separado abaixo.)
     const startPolling = () => {
-      stopPolling();
-      const interval = simulations.length === 0 ? 3_000 : 10_000;
+      if (pollTimer) return;
       const tick = () => {
         if (!cancelled && document.visibilityState === 'visible') reload();
       };
-      pollTimer = setInterval(tick, interval);
+      pollTimer = setInterval(tick, 10_000);
     };
     const stopPolling = () => {
       if (pollTimer) {
