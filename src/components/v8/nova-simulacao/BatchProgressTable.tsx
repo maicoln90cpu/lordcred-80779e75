@@ -305,6 +305,18 @@ export default function BatchProgressTable({
                           '',
                           `Estado atual: ${n} chamada(s) completa(s) usada(s) de até ${maxAutoRetry}.`,
                         ];
+                        // Cálculo "Próxima tentativa em Xs" — só faz sentido quando ainda há retry
+                        // disponível e o erro é retriable (ou pending com last_attempt_at).
+                        const isRetriable = k ? isRetriableErrorKind(k) : (s.status === 'pending' && !!s.last_attempt_at);
+                        if (s.last_attempt_at && n < maxAutoRetry && isRetriable && k !== 'active_consult') {
+                          const ageSec = Math.floor((Date.now() - new Date(s.last_attempt_at).getTime()) / 1000);
+                          const remaining = Math.max(0, retryMinBackoffSeconds - ageSec);
+                          if (remaining > 0) {
+                            linhas.push(`⏱ Próxima tentativa em ~${remaining}s (backoff mínimo ${retryMinBackoffSeconds}s).`);
+                          } else {
+                            linhas.push('⏱ Pronto para retentar — aguardando próximo ciclo do cron (a cada 1 min).');
+                          }
+                        }
                         if (k === 'active_consult') {
                           linhas.push('Motivo "active_consult" não retenta automaticamente: o cliente já tem uma consulta ativa na V8. Aguarde a V8 finalizar a consulta original ou cancele-a no painel V8 antes de tentar de novo.');
                         } else if (k && !isRetriableErrorKind(k)) {
