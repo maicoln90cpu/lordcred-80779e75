@@ -78,15 +78,40 @@ function pickLatest(rows: RateRow[]): RateRow | null {
  *  3) generic_no_value  — bank + term + insurance (ignora table_key e valor)
  *  4) fallback          — bank + insurance + date (paridade com V1)
  */
+/** Espelho dos aliases do trigger. Mantenha sincronizado com `calculate_commission_v2`. */
+export function bankAliases(bank: string): string[] {
+  const upper = (bank || '').toUpperCase().trim();
+  const norm = upper
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const set = new Set<string>([upper, norm]);
+  const add = (...xs: string[]) => xs.forEach(x => set.add(x.toUpperCase()));
+
+  if (norm.includes('LOTUS')) add('LOTUS', 'LOTUS MAIS', 'LOTUS+');
+  else if (norm.includes('HUB')) add('HUB', 'HUB CREDITO', 'HUB CRÉDITO', 'HUBCREDITO');
+  else if (norm.includes('V8')) add('V8', 'V8 BANK', 'V8BANK');
+  else if (norm.includes('C6')) add('C6', 'BANCO C6', 'BANCOC6');
+  else if (norm.includes('MERCANTIL')) add('MERCANTIL', 'MERCANTIL DO BRASIL', 'BANCO MERCANTIL');
+  else if (norm.includes('PRESENCA')) add('PRESENCA', 'PRESENÇA', 'PRESENCA BANK', 'PRESENÇA BANK', 'BANCO PRESENCA', 'BANCO PRESENÇA');
+  else if (norm.includes('PRATA') || norm.includes('CELCOIN') || norm.includes('QI TECH') || norm.includes('QITECH'))
+    add('PRATA', 'PRATA DIGITAL', 'PRATA CELCOIN', 'CELCOIN', 'QI TECH', 'QITECH');
+  else if (norm.includes('HAPPY')) add('HAPPY', 'HAPPY CONSIG', 'HAPPYCONSIG');
+  else if (norm.includes('ZILI')) add('ZILICRED', 'ZILI CRED');
+  else if (norm.includes('QUALI')) add('QUALIBANK', 'QUALI BANK');
+  else if (norm.includes('FACTA')) add('FACTA', 'BANCO FACTA');
+  else if (norm.includes('PARANA')) add('PARANA BANCO', 'PARANÁ BANCO', 'PARANA', 'PARANÁ');
+
+  return Array.from(set);
+}
+
 export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult {
-  const bank = (sale.bank || '').toUpperCase().trim();
+  const aliases = bankAliases(sale.bank).map(a => a.toUpperCase().trim());
   const tk = extractTableKey(sale.table_name ?? sale.bank);
   const term = sale.term ?? 0;
   const value = sale.released_value || 0;
   const ins = !!sale.has_insurance;
 
   const sameBank = rates.filter(r =>
-    (r.bank || '').toUpperCase().trim() === bank &&
+    aliases.includes((r.bank || '').toUpperCase().trim()) &&
     r.has_insurance === ins &&
     dateLE(r.effective_date, sale.sale_date),
   );
