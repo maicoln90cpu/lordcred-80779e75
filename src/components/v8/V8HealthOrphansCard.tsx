@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, RefreshCw, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Activity, RefreshCw, AlertTriangle, Loader2, CheckCircle2, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
