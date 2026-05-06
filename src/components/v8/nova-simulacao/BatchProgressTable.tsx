@@ -78,9 +78,10 @@ interface Props {
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
-  onForceDispatchRow,
+  onForceDispatchRow, onResumeBatch,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
+  const [resuming, setResuming] = useState(false);
 
   // Etapa 1 (mai/2026): linhas-fantasma. Quando o lote está enfileirado/agendado/processando
   // mas v8_simulations ainda não foi materializado, mostramos os CPFs do scheduled_payload.rows
