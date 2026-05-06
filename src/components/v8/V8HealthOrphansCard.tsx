@@ -132,29 +132,12 @@ export default function V8HealthOrphansCard() {
         {loading && !data ? (
           <div className="py-8 flex justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : data ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Stat
-                label="Órfãs (últimas 24h)"
-                value={data.orphans_24h}
-                hint="webhook V8 sem casamento com lote"
-                warn={orphansWarn}
-                threshold="> 5"
-              />
-              <Stat
-                label="Pendentes sem consult_id"
-                value={data.pending_without_consult_id}
-                hint="criadas há +5 min, falha ao gravar"
-                error={pendingErr}
-                threshold="> 0"
-              />
-              <Stat
-                label="Lotes travados (stuck)"
-                value={data.stuck_batches}
-                hint="sem atividade há +60 min"
-                error={stuckErr}
+                label="Lotes pausados +1h"
+                value={data.paused_stale_batches}
+                hint="processing/scheduled/queued pausados há +60 min"
+                warn={pausedWarn}
                 threshold="> 0"
               />
             </div>
