@@ -95,6 +95,13 @@ export default function BatchHistoryPanel() {
           awaitingManualSim={0}
           showManualWarning={false}
           onCheckStatus={() => {}}
+          onResumeBatch={async (bid) => {
+            const { error } = await supabase.from('v8_batches')
+              .update({ is_paused: false, paused_at: null, paused_by: null })
+              .eq('id', bid);
+            if (error) toast.error('Falha ao retomar: ' + error.message);
+            else toast.success('▶ Lote retomado');
+          }}
           actionsSlot={
             <Button
               variant="outline"
