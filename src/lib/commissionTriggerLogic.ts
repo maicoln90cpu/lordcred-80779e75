@@ -7,7 +7,7 @@
  */
 
 export type Product = 'FGTS' | 'CLT' | string;
-export type MatchLevel = 'specific' | 'generic' | 'fallback' | 'none';
+export type MatchLevel = 'specific' | 'generic' | 'generic_no_value' | 'fallback' | 'none';
 
 export interface RateRow {
   effective_date: string;       // ISO yyyy-mm-dd
