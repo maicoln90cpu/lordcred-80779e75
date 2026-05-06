@@ -308,24 +308,10 @@ export default function V8NovaSimulacaoTab() {
   // Formato: "Lote DD/MM HH:mm — <Rascunho>". Mantém rastreabilidade nas listagens.
   // Regex detecta nomes auto-gerados (mesmo padrão) e regenera com hora atual,
   // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
-  const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
-  function isAutoName(name: string): boolean {
-    const v = name.trim();
-    if (!v) return true;
-    if (AUTO_NAME_RE.test(v)) return true;
-    // Nomes "rascunho temporário" (≤3 chars OU sem qualquer dígito) são reescritos
-    // com data/hora para evitar lotes "a", "b", "c" sem rastreabilidade no histórico.
-    if (v.length <= 3) return true;
-    if (!/\d/.test(v)) return true;
-    return false;
-  }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
     if (current && !isAutoName(current)) return current;
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const baseLabel = current && current.length <= 3 ? `${active.label} (${current})` : active.label;
-    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${baseLabel}`;
+    const auto = buildAutoBatchName(current, active.label);
     patchActive({ batchName: auto });
     return auto;
   }
