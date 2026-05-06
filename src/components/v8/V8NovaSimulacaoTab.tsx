@@ -862,6 +862,7 @@ export default function V8NovaSimulacaoTab() {
           parcelas={parcelas}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={maxAutoRetry}
+          retryMinBackoffSeconds={v8Settings?.retry_min_backoff_seconds ?? 10}
           awaitingManualSim={awaitingManualSim}
           showManualWarning={showManualWarning}
           onCheckStatus={(cpf, simId) =>
