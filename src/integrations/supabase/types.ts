@@ -4851,6 +4851,8 @@ export type Database = {
           attempt_count: number
           batch_id: string | null
           birth_date: string | null
+          cet_annual_pct: number | null
+          cet_monthly_pct: number | null
           company_margin: number | null
           config_id: string | null
           config_name: string | null
@@ -4869,6 +4871,7 @@ export type Database = {
           last_step: string | null
           last_webhook_at: string | null
           margem_valor: number | null
+          markup_pct: number | null
           name: string | null
           paste_order: number | null
           processed_at: string | null
@@ -4885,6 +4888,8 @@ export type Database = {
           simulate_status: string | null
           simulation_strategy: string | null
           status: string
+          total_interest: number | null
+          total_paid: number | null
           total_value: number | null
           updated_at: string
           v8_simulation_id: string | null
@@ -4897,6 +4902,8 @@ export type Database = {
           attempt_count?: number
           batch_id?: string | null
           birth_date?: string | null
+          cet_annual_pct?: number | null
+          cet_monthly_pct?: number | null
           company_margin?: number | null
           config_id?: string | null
           config_name?: string | null
@@ -4915,6 +4922,7 @@ export type Database = {
           last_step?: string | null
           last_webhook_at?: string | null
           margem_valor?: number | null
+          markup_pct?: number | null
           name?: string | null
           paste_order?: number | null
           processed_at?: string | null
@@ -4931,6 +4939,8 @@ export type Database = {
           simulate_status?: string | null
           simulation_strategy?: string | null
           status?: string
+          total_interest?: number | null
+          total_paid?: number | null
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
@@ -4943,6 +4953,8 @@ export type Database = {
           attempt_count?: number
           batch_id?: string | null
           birth_date?: string | null
+          cet_annual_pct?: number | null
+          cet_monthly_pct?: number | null
           company_margin?: number | null
           config_id?: string | null
           config_name?: string | null
@@ -4961,6 +4973,7 @@ export type Database = {
           last_step?: string | null
           last_webhook_at?: string | null
           margem_valor?: number | null
+          markup_pct?: number | null
           name?: string | null
           paste_order?: number | null
           processed_at?: string | null
@@ -4977,6 +4990,8 @@ export type Database = {
           simulate_status?: string | null
           simulation_strategy?: string | null
           status?: string
+          total_interest?: number | null
+          total_paid?: number | null
           total_value?: number | null
           updated_at?: string
           v8_simulation_id?: string | null
@@ -5594,6 +5609,16 @@ export type Database = {
       v8_backfill_simulation_config: {
         Args: { _batch_id?: string }
         Returns: number
+      }
+      v8_compute_financial_breakdown: {
+        Args: { _installment: number; _installments: number; _released: number }
+        Returns: {
+          cet_annual_pct: number
+          cet_monthly_pct: number
+          markup_pct: number
+          total_interest: number
+          total_paid: number
+        }[]
       }
       v8_decrement_batch_failure: {
         Args: { _batch_id: string }
