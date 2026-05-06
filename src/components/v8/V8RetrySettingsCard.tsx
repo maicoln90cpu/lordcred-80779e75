@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { Loader2, Save, Zap, Volume2, RefreshCw, Timer, Settings2 } from 'lucide-react';
+import { Loader2, Save, Zap, Volume2, RefreshCw, Timer, Settings2, Rocket } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
 import { useV8Settings } from '@/hooks/useV8Settings';
 
