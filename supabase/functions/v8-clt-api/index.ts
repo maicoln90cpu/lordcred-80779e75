@@ -1834,6 +1834,9 @@ async function actionCreateBatch(
       total_count: validRows.length,
       pending_count: validRows.length,
       status: "processing",
+      // Etapa 3 (mai/2026): Auto-best automático já no nascimento do lote.
+      // Elimina necessidade de clicar em "Simular selecionados" no Histórico/Nova Simulação.
+      auto_best_enabled: true,
     })
     .select()
     .single();
