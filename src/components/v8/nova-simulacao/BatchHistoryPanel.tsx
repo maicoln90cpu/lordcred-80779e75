@@ -72,47 +72,7 @@ export default function BatchHistoryPanel() {
   };
 
   if (selected) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)} className="gap-1">
-            <ArrowLeft className="w-4 h-4" /> Voltar para histórico
-          </Button>
-          <div className="text-xs text-muted-foreground">
-            Lote: <strong className="text-foreground">{selected.name}</strong>
-            {' · '}criado em {new Date(selected.created_at).toLocaleString('pt-BR')}
-          </div>
-        </div>
-        <BatchProgressTable
-          simulations={simulations}
-          batch={selectedBatchMeta}
-          parcelas={selected.installments ?? 0}
-          lastUpdateAt={lastUpdateAt}
-          maxAutoRetry={3}
-          retryMinBackoffSeconds={10}
-          awaitingManualSim={0}
-          showManualWarning={false}
-          onCheckStatus={() => {}}
-          onResumeBatch={async (bid) => {
-            const { error } = await supabase.from('v8_batches')
-              .update({ is_paused: false, paused_at: null, paused_by: null })
-              .eq('id', bid);
-            if (error) toast.error('Falha ao retomar: ' + error.message);
-            else toast.success('▶ Lote retomado');
-          }}
-          actionsSlot={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={simulations.length === 0}
-              onClick={() => downloadBatchCsv(simulations, selected.name)}
-            >
-              Exportar CSV
-            </Button>
-          }
-        />
-      </div>
-    );
+    return <HistoryBatchDetail batch={selected} onBack={() => setSelectedId(null)} />;
   }
 
   const fromIdx = totalCount === 0 ? 0 : page * PAGE_SIZE + 1;
