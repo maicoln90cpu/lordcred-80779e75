@@ -224,6 +224,7 @@ export default function V1V2CompareReport() {
                     <td className="p-2 text-center">
                       {r.v2_match_level === 'fallback' && <Badge variant="outline" className="text-amber-600 border-amber-500">FB</Badge>}
                       {r.v2_match_level === 'generic' && <Badge variant="outline" className="text-blue-600 border-blue-500">GEN</Badge>}
+                      {r.v2_match_level === 'generic_no_value' && <Badge variant="outline" className="text-purple-600 border-purple-500" title="Genérica sem faixa de valor">GNV</Badge>}
                       {r.v2_match_level === 'specific' && <Badge variant="outline" className="text-green-600 border-green-500">OK</Badge>}
                       {(!r.v2_match_level || r.v2_match_level === 'none') && <Badge variant="destructive">×</Badge>}
                     </td>
