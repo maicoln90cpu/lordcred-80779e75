@@ -22,6 +22,7 @@ interface OrphanHealth {
   orphans_24h: number;
   pending_without_consult_id: number;
   stuck_batches: number;
+  paused_stale_batches: number;
 }
 
 export default function V8HealthOrphansCard() {
