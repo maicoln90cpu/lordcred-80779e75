@@ -113,6 +113,15 @@ export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult 
     return { rate: gHit.rate, commission_value: +(value * gHit.rate / 100).toFixed(2), match_level: 'generic' };
   }
 
+  // Nível 3 — generic_no_value (ignora table_key e valor — só bank+seguro+prazo+data)
+  const genericNoValue = sameBank.filter(r =>
+    term >= r.term_min && term <= r.term_max,
+  );
+  const gnvHit = pickLatest(genericNoValue);
+  if (gnvHit && gnvHit.rate > 0) {
+    return { rate: gnvHit.rate, commission_value: +(value * gnvHit.rate / 100).toFixed(2), match_level: 'generic_no_value' };
+  }
+
   // Nível 3 — fallback (apenas bank + insurance + date — paridade V1)
   const fHit = pickLatest(sameBank);
   if (fHit && fHit.rate > 0) {
