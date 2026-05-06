@@ -202,6 +202,7 @@ export function useV8BatchSimulations(batchId: string | null) {
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     // Fallback de polling 10s — pausa quando aba não está visível para economizar egress.
+    // (O polling adaptativo de 3s para listas vazias está em useEffect separado abaixo.)
     const startPolling = () => {
       if (pollTimer) return;
       const tick = () => {

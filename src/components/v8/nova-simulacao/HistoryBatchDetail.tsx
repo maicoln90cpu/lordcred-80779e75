@@ -9,6 +9,7 @@ import { useV8BatchSimulations, type V8Batch } from '@/hooks/useV8Batches';
 import { useV8Settings } from '@/hooks/useV8Settings';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { triggerLauncherShortLoop } from '@/lib/v8LauncherTrigger';
+import { playBatchCompleteSound } from '@/lib/v8Sound';
 
 interface Props {
   batch: V8Batch;
@@ -76,6 +77,7 @@ export default function HistoryBatchDetail({ batch, onBack }: Props) {
         if (i < candidates.length - 1) await new Promise(r => setTimeout(r, throttle));
       }
       toast.success(`Auto-melhor: ${ok} ok · ${fail} sem proposta`, { id: tId, duration: 7000 });
+      if (v8Settings?.sound_on_complete) playBatchCompleteSound(fail === 0);
     } finally { setRunning(false); reload(); }
   }
 
