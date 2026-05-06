@@ -123,7 +123,7 @@ export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult 
     return { rate: gnvHit.rate, commission_value: +(value * gnvHit.rate / 100).toFixed(2), match_level: 'generic_no_value' };
   }
 
-  // Nível 3 — fallback (apenas bank + insurance + date — paridade V1)
+  // Nível 4 — fallback (apenas bank + insurance + date — paridade V1)
   const fHit = pickLatest(sameBank);
   if (fHit && fHit.rate > 0) {
     return { rate: fHit.rate, commission_value: +(value * fHit.rate / 100).toFixed(2), match_level: 'fallback' };
