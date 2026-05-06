@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
 import BatchProgressTable from './BatchProgressTable';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 50;
 const STATUS_ALL = '__all__';
