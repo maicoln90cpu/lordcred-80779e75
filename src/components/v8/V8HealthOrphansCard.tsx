@@ -207,9 +207,13 @@ export default function V8HealthOrphansCard() {
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button variant="default" size="sm" onClick={handleRecalculate} disabled={recalculating || loading}>
+          <Button variant="default" size="sm" onClick={handleRecalculate} disabled={recalculating || loading || fullRecon}>
             {recalculating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Activity className="w-4 h-4 mr-2" />}
             Recalcular lotes agora
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleFullReconciliation} disabled={fullRecon || loading || recalculating}>
+            {fullRecon ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+            Reconciliação completa
           </Button>
         </div>
       </CardContent>
