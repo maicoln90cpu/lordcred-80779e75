@@ -88,6 +88,7 @@ export default function V8HealthOrphansCard() {
       toast.error(`Erro ao recalcular: ${err?.message || err}`);
     } finally {
       setRecalculating(false);
+    }
   }
 
   async function handleFullReconciliation() {
@@ -106,7 +107,6 @@ export default function V8HealthOrphansCard() {
     } finally {
       setFullRecon(false);
     }
-  }
   }
 
   useEffect(() => { void load(); }, []);
