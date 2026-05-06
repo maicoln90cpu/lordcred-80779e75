@@ -230,7 +230,62 @@ export default function V8RetrySettingsCard() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* === SEÇÃO 4: AVANÇADO (persistência interna) === */}
+          {/* === SEÇÃO 3.5: Force-dispatch automático === */}
+          <AccordionItem value="secao-force-dispatch">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Rocket className="w-4 h-4 text-muted-foreground" />
+                <span>4. Força-dispatch (pendentes presas)</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Quando o lote dispara mas a V8 não responde nem manda webhook, a linha
+                fica em "Aguardando V8" para sempre. Esta regra força um novo disparo
+                após a janela definida abaixo — sem você precisar clicar em
+                "Forçar dispatch" no histórico.
+              </p>
+
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={forceDispatchOn}
+                  onCheckedChange={setForceDispatchOn}
+                  disabled={loading}
+                />
+                <Label>Ativar force-dispatch automático</Label>
+              </div>
+
+              <div className={forceDispatchOn ? '' : 'opacity-50 pointer-events-none'}>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Janela para considerar "presa" (segundos)</Label>
+                  <span className="text-sm font-medium tabular-nums">
+                    {forceDispatchAfter}s
+                    <span className="text-muted-foreground ml-1">
+                      ({Math.round(forceDispatchAfter / 60)} min)
+                    </span>
+                  </span>
+                </div>
+                <Slider
+                  min={60}
+                  max={1800}
+                  step={30}
+                  value={[forceDispatchAfter]}
+                  onValueChange={(v) => setForceDispatchAfter(v[0] ?? 300)}
+                  disabled={loading || !forceDispatchOn}
+                />
+                <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
+                  <span>60s</span>
+                  <span>5 min (default)</span>
+                  <span>30 min</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Recomendado: <strong>5 min</strong>. Valores muito baixos podem disparar
+                  antes do webhook real chegar; valores muito altos atrasam destravamento.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
           <AccordionItem value="secao-avancado">
             <AccordionTrigger className="hover:no-underline">
               <span className="flex items-center gap-2">
