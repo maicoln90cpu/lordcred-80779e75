@@ -28,6 +28,9 @@ export interface V8Settings {
   auto_best_always_on: boolean;
   /** Etapa 2 (mai/2026) — Quantos lotes V8 o mesmo operador roda em paralelo (1-3). */
   max_concurrent_batches_per_owner: number;
+  /** Etapa 4 (mai/2026) — Force-dispatch automático para pendentes presas sem resposta da V8. */
+  force_dispatch_enabled: boolean;
+  force_dispatch_after_seconds: number;
   updated_at: string;
 }
 
@@ -51,6 +54,8 @@ const DEFAULTS: Omit<V8Settings, 'id' | 'updated_at'> = {
   cpf_dedupe_window_days: 7,
   auto_best_always_on: true,
   max_concurrent_batches_per_owner: 2,
+  force_dispatch_enabled: true,
+  force_dispatch_after_seconds: 300,
 };
 
 export function useV8Settings() {

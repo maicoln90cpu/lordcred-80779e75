@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { Loader2, Save, Zap, Volume2, RefreshCw, Timer, Settings2 } from 'lucide-react';
+import { Loader2, Save, Zap, Volume2, RefreshCw, Timer, Settings2, Rocket } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
 import { useV8Settings } from '@/hooks/useV8Settings';
 
@@ -32,6 +33,8 @@ export default function V8RetrySettingsCard() {
   const [retConsult, setRetConsult] = useState(defaults.max_retries_consult);
   const [retAuthorize, setRetAuthorize] = useState(defaults.max_retries_authorize);
   const [retSimulate, setRetSimulate] = useState(defaults.max_retries_simulate);
+  const [forceDispatchOn, setForceDispatchOn] = useState(defaults.force_dispatch_enabled);
+  const [forceDispatchAfter, setForceDispatchAfter] = useState(defaults.force_dispatch_after_seconds);
 
   useEffect(() => {
     if (!settings) return;
@@ -44,6 +47,8 @@ export default function V8RetrySettingsCard() {
     setRetConsult(settings.max_retries_consult ?? 3);
     setRetAuthorize(settings.max_retries_authorize ?? 15);
     setRetSimulate(settings.max_retries_simulate ?? 15);
+    setForceDispatchOn(settings.force_dispatch_enabled ?? true);
+    setForceDispatchAfter(settings.force_dispatch_after_seconds ?? 300);
   }, [settings]);
 
   async function handleSave() {
@@ -56,6 +61,10 @@ export default function V8RetrySettingsCard() {
       toast.error('Retentativas internas devem estar entre 1 e 30');
       return;
     }
+    if (forceDispatchAfter < 60 || forceDispatchAfter > 1800) {
+      toast.error('Janela de force-dispatch deve estar entre 60 e 1800 segundos');
+      return;
+    }
     const ok = await save({
       max_auto_retry_attempts: maxAttempts,
       retry_min_backoff_seconds: minBackoff,
@@ -66,6 +75,8 @@ export default function V8RetrySettingsCard() {
       max_retries_consult: retConsult,
       max_retries_authorize: retAuthorize,
       max_retries_simulate: retSimulate,
+      force_dispatch_enabled: forceDispatchOn,
+      force_dispatch_after_seconds: forceDispatchAfter,
     });
     if (ok) toast.success('Configurações salvas');
     else toast.error('Falha ao salvar (verifique permissões)');
@@ -219,12 +230,67 @@ export default function V8RetrySettingsCard() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* === SEÇÃO 4: AVANÇADO (persistência interna) === */}
+          {/* === SEÇÃO 3.5: Force-dispatch automático === */}
+          <AccordionItem value="secao-force-dispatch">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Rocket className="w-4 h-4 text-muted-foreground" />
+                <span>4. Força-dispatch (pendentes presas)</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Quando o lote dispara mas a V8 não responde nem manda webhook, a linha
+                fica em "Aguardando V8" para sempre. Esta regra força um novo disparo
+                após a janela definida abaixo — sem você precisar clicar em
+                "Forçar dispatch" no histórico.
+              </p>
+
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={forceDispatchOn}
+                  onCheckedChange={setForceDispatchOn}
+                  disabled={loading}
+                />
+                <Label>Ativar force-dispatch automático</Label>
+              </div>
+
+              <div className={forceDispatchOn ? '' : 'opacity-50 pointer-events-none'}>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Janela para considerar "presa" (segundos)</Label>
+                  <span className="text-sm font-medium tabular-nums">
+                    {forceDispatchAfter}s
+                    <span className="text-muted-foreground ml-1">
+                      ({Math.round(forceDispatchAfter / 60)} min)
+                    </span>
+                  </span>
+                </div>
+                <Slider
+                  min={60}
+                  max={1800}
+                  step={30}
+                  value={[forceDispatchAfter]}
+                  onValueChange={(v) => setForceDispatchAfter(v[0] ?? 300)}
+                  disabled={loading || !forceDispatchOn}
+                />
+                <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
+                  <span>60s</span>
+                  <span>5 min (default)</span>
+                  <span>30 min</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Recomendado: <strong>5 min</strong>. Valores muito baixos podem disparar
+                  antes do webhook real chegar; valores muito altos atrasam destravamento.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
           <AccordionItem value="secao-avancado">
             <AccordionTrigger className="hover:no-underline">
               <span className="flex items-center gap-2">
                 <Settings2 className="w-4 h-4 text-muted-foreground" />
-                <span>4. Avançado — persistência interna por etapa V8</span>
+                <span>5. Avançado — persistência interna por etapa V8</span>
               </span>
             </AccordionTrigger>
             <AccordionContent className="space-y-4">

@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, RefreshCw, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Activity, RefreshCw, AlertTriangle, Loader2, CheckCircle2, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -30,6 +30,7 @@ export default function V8HealthOrphansCard() {
   const [loading, setLoading] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [resumingPaused, setResumingPaused] = useState(false);
+  const [fullRecon, setFullRecon] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -87,6 +88,24 @@ export default function V8HealthOrphansCard() {
       toast.error(`Erro ao recalcular: ${err?.message || err}`);
     } finally {
       setRecalculating(false);
+    }
+  }
+
+  async function handleFullReconciliation() {
+    if (!confirm('Rodar reconciliação completa V8?\n\n• Watchdog (pendentes >15min sem webhook → failed)\n• Recálculo de lotes travados\n• Marca dispatch perdido como falha (re-tentável)\n• Re-enfileira Auto-best órfãos')) return;
+    setFullRecon(true);
+    try {
+      const { data, error } = await supabase.rpc('v8_force_full_reconciliation' as any);
+      if (error) throw error;
+      const d: any = data || {};
+      toast.success(
+        `Reconciliação OK — watchdog: ${d?.watchdog?.marked_failed ?? 0} | lotes: ${d?.recalc_batches?.recalculated ?? 0} | dispatch perdido: ${d?.lost_dispatch_marked_failed ?? 0} | auto-best re-fila: ${d?.auto_best_requeued ?? 0}`
+      );
+      await load();
+    } catch (err: any) {
+      toast.error(`Erro na reconciliação: ${err?.message || err}`);
+    } finally {
+      setFullRecon(false);
     }
   }
 
@@ -188,9 +207,13 @@ export default function V8HealthOrphansCard() {
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button variant="default" size="sm" onClick={handleRecalculate} disabled={recalculating || loading}>
+          <Button variant="default" size="sm" onClick={handleRecalculate} disabled={recalculating || loading || fullRecon}>
             {recalculating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Activity className="w-4 h-4 mr-2" />}
             Recalcular lotes agora
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleFullReconciliation} disabled={fullRecon || loading || recalculating}>
+            {fullRecon ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+            Reconciliação completa
           </Button>
         </div>
       </CardContent>
