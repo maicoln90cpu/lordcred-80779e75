@@ -52,7 +52,10 @@ export default function V8NovaSimulacaoTab() {
     // Etapa 1 (mai/2026): one-shot — força defaults novos (48x, sem valor, auto-melhor ON)
     // em rascunhos existentes que NÃO têm lote ativo. configId "CLT Acelera" é preenchido
     // pelo useEffect de configs abaixo (precisa esperar a lista carregar).
-    const MIGRATION_FLAG = 'v8:drafts-defaults-migrated-v1';
+    // Bump v2 (mai/2026): re-aplica defaults atuais em rascunhos antigos que ficaram com
+    // parcelas=24 / configId fixado por sessões anteriores. Limpa também flag v1.
+    try { if (typeof window !== 'undefined') window.localStorage.removeItem('v8:drafts-defaults-migrated-v1'); } catch { /* ignore */ }
+    const MIGRATION_FLAG = 'v8:drafts-defaults-migrated-v2';
     let migratedDrafts = restoredDrafts;
     try {
       if (typeof window !== 'undefined' && !window.localStorage.getItem(MIGRATION_FLAG)) {
