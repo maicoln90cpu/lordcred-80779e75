@@ -52,7 +52,10 @@ export default function V8NovaSimulacaoTab() {
     // Etapa 1 (mai/2026): one-shot — força defaults novos (48x, sem valor, auto-melhor ON)
     // em rascunhos existentes que NÃO têm lote ativo. configId "CLT Acelera" é preenchido
     // pelo useEffect de configs abaixo (precisa esperar a lista carregar).
-    const MIGRATION_FLAG = 'v8:drafts-defaults-migrated-v1';
+    // Bump v2 (mai/2026): re-aplica defaults atuais em rascunhos antigos que ficaram com
+    // parcelas=24 / configId fixado por sessões anteriores. Limpa também flag v1.
+    try { if (typeof window !== 'undefined') window.localStorage.removeItem('v8:drafts-defaults-migrated-v1'); } catch { /* ignore */ }
+    const MIGRATION_FLAG = 'v8:drafts-defaults-migrated-v2';
     let migratedDrafts = restoredDrafts;
     try {
       if (typeof window !== 'undefined' && !window.localStorage.getItem(MIGRATION_FLAG)) {
@@ -307,14 +310,22 @@ export default function V8NovaSimulacaoTab() {
   // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
   const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
   function isAutoName(name: string): boolean {
-    return !name.trim() || AUTO_NAME_RE.test(name.trim());
+    const v = name.trim();
+    if (!v) return true;
+    if (AUTO_NAME_RE.test(v)) return true;
+    // Nomes "rascunho temporário" (≤3 chars OU sem qualquer dígito) são reescritos
+    // com data/hora para evitar lotes "a", "b", "c" sem rastreabilidade no histórico.
+    if (v.length <= 3) return true;
+    if (!/\d/.test(v)) return true;
+    return false;
   }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
     if (current && !isAutoName(current)) return current;
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
-    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${active.label}`;
+    const baseLabel = current && current.length <= 3 ? `${active.label} (${current})` : active.label;
+    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${baseLabel}`;
     patchActive({ batchName: auto });
     return auto;
   }
@@ -870,6 +881,16 @@ export default function V8NovaSimulacaoTab() {
             ops.handleCheckStatus(cpf, simId, setStatusDialogData, () => setStatusDialogOpen(true))
           }
           onForceDispatchRow={ops.handleForceDispatchRow}
+          onResumeBatch={async (bid) => {
+            const { error } = await supabase
+              .from('v8_batches')
+              .update({ is_paused: false, paused_at: null, paused_by: null })
+              .eq('id', bid);
+            if (error) { toast.error('Falha ao retomar: ' + error.message); return; }
+            setActiveBatchPaused(false);
+            toast.success('▶ Lote retomado — auto-retry e poller voltam a processar');
+            triggerLauncherShortLoop({ reason: 'resume-batch' });
+          }}
           actionsSlot={
             <BatchActionsBar
               running={ops.running}

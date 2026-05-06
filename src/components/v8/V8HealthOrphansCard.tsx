@@ -22,20 +22,23 @@ interface OrphanHealth {
   orphans_24h: number;
   pending_without_consult_id: number;
   stuck_batches: number;
+  paused_stale_batches: number;
 }
 
 export default function V8HealthOrphansCard() {
   const [data, setData] = useState<OrphanHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [resumingPaused, setResumingPaused] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const cutoff5m = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const cutoffPause1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-      const [orphRes, pendRes, stuckRes] = await Promise.all([
+      const [orphRes, pendRes, stuckRes, pausedRes] = await Promise.all([
         supabase
           .from('v8_simulations')
           .select('id', { count: 'exact', head: true })
@@ -51,12 +54,19 @@ export default function V8HealthOrphansCard() {
           .from('v8_batches')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'stuck'),
+        supabase
+          .from('v8_batches')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_paused', true)
+          .in('status', ['processing', 'scheduled', 'queued'])
+          .lt('paused_at', cutoffPause1h),
       ]);
 
       setData({
         orphans_24h: orphRes.count ?? 0,
         pending_without_consult_id: pendRes.count ?? 0,
         stuck_batches: stuckRes.count ?? 0,
+        paused_stale_batches: pausedRes.count ?? 0,
       });
     } catch (err: any) {
       toast.error(`Erro ao carregar saúde V8: ${err?.message || err}`);
@@ -85,7 +95,30 @@ export default function V8HealthOrphansCard() {
   const orphansWarn = (data?.orphans_24h ?? 0) > 5;
   const pendingErr = (data?.pending_without_consult_id ?? 0) > 0;
   const stuckErr = (data?.stuck_batches ?? 0) > 0;
-  const allHealthy = data && !orphansWarn && !pendingErr && !stuckErr;
+  const pausedWarn = (data?.paused_stale_batches ?? 0) > 0;
+  const allHealthy = data && !orphansWarn && !pendingErr && !stuckErr && !pausedWarn;
+
+  async function handleResumeStalePaused() {
+    if (!confirm(`Retomar ${data?.paused_stale_batches ?? 0} lote(s) pausado(s) há +1h?`)) return;
+    setResumingPaused(true);
+    try {
+      const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: list } = await supabase.from('v8_batches')
+        .select('id').eq('is_paused', true)
+        .in('status', ['processing', 'scheduled', 'queued'])
+        .lt('paused_at', cutoff);
+      const ids = (list ?? []).map((b: any) => b.id);
+      if (ids.length === 0) { toast.info('Nenhum lote elegível.'); return; }
+      const { error } = await supabase.from('v8_batches')
+        .update({ is_paused: false, paused_at: null, paused_by: null })
+        .in('id', ids);
+      if (error) throw error;
+      toast.success(`▶ ${ids.length} lote(s) retomado(s)`);
+      await load();
+    } catch (err: any) {
+      toast.error(`Erro ao retomar: ${err?.message || err}`);
+    } finally { setResumingPaused(false); }
+  }
 
   return (
     <Card>
@@ -103,62 +136,46 @@ export default function V8HealthOrphansCard() {
         ) : data ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Stat
-                label="Órfãs (últimas 24h)"
-                value={data.orphans_24h}
-                hint="webhook V8 sem casamento com lote"
-                warn={orphansWarn}
-                threshold="> 5"
-              />
-              <Stat
-                label="Pendentes sem consult_id"
-                value={data.pending_without_consult_id}
-                hint="criadas há +5 min, falha ao gravar"
-                error={pendingErr}
-                threshold="> 0"
-              />
-              <Stat
-                label="Lotes travados (stuck)"
-                value={data.stuck_batches}
-                hint="sem atividade há +60 min"
-                error={stuckErr}
-                threshold="> 0"
-              />
+              <Stat label="Órfãs (últimas 24h)" value={data.orphans_24h} hint="webhook V8 sem casamento com lote" warn={orphansWarn} threshold="> 5" />
+              <Stat label="Pendentes sem consult_id" value={data.pending_without_consult_id} hint="criadas há +5 min, falha ao gravar" error={pendingErr} threshold="> 0" />
+              <Stat label="Lotes travados (stuck)" value={data.stuck_batches} hint="sem atividade há +60 min" error={stuckErr} threshold="> 0" />
             </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Stat label="Lotes pausados +1h" value={data.paused_stale_batches} hint="processing/scheduled/queued pausados há +60 min" warn={pausedWarn} threshold="> 0" />
+            </div>
             {allHealthy && (
               <div className="rounded-md border border-green-500/30 bg-green-500/10 p-3 text-sm flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
-                Tudo nominal. Nenhum sintoma de órfã ou lote travado.
+                Tudo nominal. Nenhum sintoma de órfã, lote travado ou pausa esquecida.
               </div>
             )}
-
             {orphansWarn && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <strong>{data.orphans_24h} órfãs</strong> criadas nas últimas 24h. O reconciler roda a cada 2 min e tenta casar por CPF.
-                  Se o número não cair, verifique logs de <code>v8-orphan-reconciler</code>.
-                </div>
+                <div><strong>{data.orphans_24h} órfãs</strong> em 24h. Reconciler roda a cada 2 min.</div>
               </div>
             )}
-
             {pendingErr && (
               <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
-                <div>
-                  <strong>{data.pending_without_consult_id} simulações pendentes</strong> sem <code>consult_id</code> há +5 min.
-                  Indica falha na gravação após /consult — verifique <code>v8-clt-api</code>.
-                </div>
+                <div><strong>{data.pending_without_consult_id} pendentes</strong> sem <code>consult_id</code> há +5 min.</div>
               </div>
             )}
-
             {stuckErr && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div>
-                  <strong>{data.stuck_batches} lote(s)</strong> marcado(s) como travado(s). Use o botão "Recalcular agora" para reprocessar.
+                <div><strong>{data.stuck_batches} lote(s)</strong> travado(s). Use "Recalcular lotes agora".</div>
+              </div>
+            )}
+            {pausedWarn && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <strong>{data.paused_stale_batches} lote(s) pausados há +1h</strong> com simulações ainda em aberto. Auto-retry e poller pulam pausados — se foi esquecido, retome.
                 </div>
+                <Button size="sm" variant="default" disabled={resumingPaused} onClick={handleResumeStalePaused}>
+                  {resumingPaused ? <Loader2 className="w-4 h-4 animate-spin" /> : '▶'} Retomar todos
+                </Button>
               </div>
             )}
           </>

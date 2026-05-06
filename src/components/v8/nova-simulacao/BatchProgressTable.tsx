@@ -64,7 +64,11 @@ interface Props {
     scheduled_payload: any;
     queue_position: number | null;
     name: string;
+    is_paused?: boolean | null;
+    paused_at?: string | null;
   } | null;
+  /** Mai/2026: callback para retomar lote pausado (despausar). */
+  onResumeBatch?: (batchId: string) => Promise<void> | void;
 }
 
 /**
@@ -74,9 +78,10 @@ interface Props {
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
-  onForceDispatchRow,
+  onForceDispatchRow, onResumeBatch,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
+  const [resuming, setResuming] = useState(false);
 
   // Etapa 1 (mai/2026): linhas-fantasma. Quando o lote está enfileirado/agendado/processando
   // mas v8_simulations ainda não foi materializado, mostramos os CPFs do scheduled_payload.rows
@@ -131,6 +136,30 @@ export default function BatchProgressTable({
       </CardHeader>
       <CardContent className="space-y-3">
         <BatchStatusLegend />
+        {batch?.is_paused && (
+          <div className="rounded-md border-2 border-destructive/50 bg-destructive/10 p-3 text-sm flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-destructive">⏸ Lote pausado{batch.paused_at ? ` em ${new Date(batch.paused_at).toLocaleString('pt-BR')}` : ''}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Enquanto pausado, <strong>nenhum auto-retry, poller ou worker</strong> processa este lote — os CPFs ficam congelados em "aguardando V8". Clique em <strong>▶ Retomar</strong> para reativar.
+              </div>
+            </div>
+            {onResumeBatch && batch?.id && (
+              <Button
+                size="sm"
+                variant="default"
+                disabled={resuming}
+                onClick={async () => {
+                  setResuming(true);
+                  try { await onResumeBatch(batch.id); } finally { setResuming(false); }
+                }}
+              >
+                {resuming ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : '▶'} Retomar lote
+              </Button>
+            )}
+          </div>
+        )}
         {showManualWarning && (
           <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs leading-relaxed">
             ⚠️ <strong>{awaitingManualSim} consulta(s) com margem aprovada aguardando simulação.</strong>{' '}

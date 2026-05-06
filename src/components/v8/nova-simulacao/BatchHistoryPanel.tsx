@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
 import BatchProgressTable from './BatchProgressTable';
 import { downloadBatchCsv } from '@/lib/v8BatchExport';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 50;
 const STATUS_ALL = '__all__';
@@ -93,6 +95,13 @@ export default function BatchHistoryPanel() {
           awaitingManualSim={0}
           showManualWarning={false}
           onCheckStatus={() => {}}
+          onResumeBatch={async (bid) => {
+            const { error } = await supabase.from('v8_batches')
+              .update({ is_paused: false, paused_at: null, paused_by: null })
+              .eq('id', bid);
+            if (error) toast.error('Falha ao retomar: ' + error.message);
+            else toast.success('▶ Lote retomado');
+          }}
           actionsSlot={
             <Button
               variant="outline"
@@ -197,7 +206,12 @@ export default function BatchHistoryPanel() {
                       <TableCell className="text-right tabular-nums">{b.total_count}</TableCell>
                       <TableCell className="text-right tabular-nums text-emerald-600">{b.success_count}</TableCell>
                       <TableCell className="text-right tabular-nums text-destructive">{b.failure_count}</TableCell>
-                      <TableCell>{statusBadge(b.status)}</TableCell>
+                      <TableCell className="space-x-1">
+                        {statusBadge(b.status)}
+                        {(b as any).is_paused && (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/60 text-amber-700 dark:text-amber-400 bg-amber-500/10">⏸ pausado</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(b.created_at).toLocaleString('pt-BR')}
                       </TableCell>
