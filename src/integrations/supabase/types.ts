@@ -5589,6 +5589,14 @@ export type Database = {
         Args: { _batch_id?: string }
         Returns: number
       }
+      v8_decrement_batch_failure: {
+        Args: { _batch_id: string }
+        Returns: undefined
+      }
+      v8_decrement_batch_success: {
+        Args: { _batch_id: string }
+        Returns: undefined
+      }
       v8_extract_operation_fields: { Args: { _payload: Json }; Returns: Json }
       v8_increment_batch_failure: {
         Args: { _batch_id: string }
