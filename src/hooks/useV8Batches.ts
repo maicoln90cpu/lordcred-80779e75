@@ -183,7 +183,7 @@ export function useV8BatchSimulations(batchId: string | null) {
         .order('created_at', { ascending: true }),
       supabase
         .from('v8_batches')
-        .select('id, status, scheduled_payload, queue_position, queue_owner, installments, name')
+        .select('id, status, scheduled_payload, queue_position, queue_owner, installments, name, is_paused, paused_at, auto_best_enabled, config_id')
         .eq('id', batchId)
         .maybeSingle(),
     ]);
