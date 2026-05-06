@@ -61,6 +61,10 @@ export default function V8RetrySettingsCard() {
       toast.error('Retentativas internas devem estar entre 1 e 30');
       return;
     }
+    if (forceDispatchAfter < 60 || forceDispatchAfter > 1800) {
+      toast.error('Janela de force-dispatch deve estar entre 60 e 1800 segundos');
+      return;
+    }
     const ok = await save({
       max_auto_retry_attempts: maxAttempts,
       retry_min_backoff_seconds: minBackoff,
@@ -71,6 +75,8 @@ export default function V8RetrySettingsCard() {
       max_retries_consult: retConsult,
       max_retries_authorize: retAuthorize,
       max_retries_simulate: retSimulate,
+      force_dispatch_enabled: forceDispatchOn,
+      force_dispatch_after_seconds: forceDispatchAfter,
     });
     if (ok) toast.success('Configurações salvas');
     else toast.error('Falha ao salvar (verifique permissões)');
