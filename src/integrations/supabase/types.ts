@@ -5604,6 +5604,7 @@ export type Database = {
         Returns: undefined
       }
       v8_extract_operation_fields: { Args: { _payload: Json }; Returns: Json }
+      v8_force_full_reconciliation: { Args: never; Returns: Json }
       v8_increment_batch_failure: {
         Args: { _batch_id: string }
         Returns: undefined
