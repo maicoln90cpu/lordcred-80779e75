@@ -47,6 +47,8 @@ export default function V8RetrySettingsCard() {
     setRetConsult(settings.max_retries_consult ?? 3);
     setRetAuthorize(settings.max_retries_authorize ?? 15);
     setRetSimulate(settings.max_retries_simulate ?? 15);
+    setForceDispatchOn(settings.force_dispatch_enabled ?? true);
+    setForceDispatchAfter(settings.force_dispatch_after_seconds ?? 300);
   }, [settings]);
 
   async function handleSave() {
