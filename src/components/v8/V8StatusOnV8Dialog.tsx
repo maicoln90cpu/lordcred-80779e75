@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
 import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
+import { computeFinancialBreakdown } from '@/lib/v8FinancialComposition';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -326,10 +327,6 @@ export function V8StatusOnV8Dialog({
                 </div>
 
                 {(() => {
-                  // Composição financeira — Etapa 6: explica liberado vs total pago.
-                  // Só renderiza quando temos os 3 valores essenciais.
-                  // eslint-disable-next-line @typescript-eslint/no-var-requires
-                  const { computeFinancialBreakdown } = require('@/lib/v8FinancialComposition');
                   const b = computeFinancialBreakdown(sim.released_value, sim.installment_value, sim.installments);
                   if (!b) return null;
                   return (
