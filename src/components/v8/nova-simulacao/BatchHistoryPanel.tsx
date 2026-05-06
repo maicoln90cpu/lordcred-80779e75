@@ -36,7 +36,7 @@ export default function BatchHistoryPanel() {
     status: statusFilter === STATUS_ALL ? '' : statusFilter,
     dateFrom, dateTo, orderBy, orderDir,
   });
-  const { simulations, batch: selectedBatchMeta, lastUpdateAt } = useV8BatchSimulations(selectedId);
+  
 
   const toggleSort = (col: SortCol) => {
     if (orderBy === col) {
