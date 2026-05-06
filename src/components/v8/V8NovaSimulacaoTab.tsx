@@ -881,6 +881,16 @@ export default function V8NovaSimulacaoTab() {
             ops.handleCheckStatus(cpf, simId, setStatusDialogData, () => setStatusDialogOpen(true))
           }
           onForceDispatchRow={ops.handleForceDispatchRow}
+          onResumeBatch={async (bid) => {
+            const { error } = await supabase
+              .from('v8_batches')
+              .update({ is_paused: false, paused_at: null, paused_by: null })
+              .eq('id', bid);
+            if (error) { toast.error('Falha ao retomar: ' + error.message); return; }
+            setActiveBatchPaused(false);
+            toast.success('▶ Lote retomado — auto-retry e poller voltam a processar');
+            triggerLauncherShortLoop({ reason: 'resume-batch' });
+          }}
           actionsSlot={
             <BatchActionsBar
               running={ops.running}
