@@ -170,11 +170,12 @@ Funcionalidades:
 - Exporta XLSX para auditoria offline.
 
 ### 3. Indicador `rate_match_level` na UI
-Já implementado em `ExtratoTab.tsx`:
-- 🟢 **OK** = specific (ideal)
-- 🔵 **GEN** = generic (sem table_key)
-- 🟡 **FB** = fallback (paridade V1)
-- 🔴 **×** = none (sem taxa cadastrada)
+Implementado em `ExtratoTab.tsx` e `V1V2CompareReport.tsx`:
+- 🟢 **OK** = `specific` — banco + table_key + prazo + valor + seguro casaram (ideal)
+- 🔵 **GEN** = `generic` — banco + prazo + valor + seguro casaram (ignora table_key)
+- 🟣 **GNV** = `generic_no_value` — banco + prazo + seguro casaram (ignora table_key e faixa de valor)
+- 🟡 **FB** = `fallback` — só banco + seguro + data (paridade com V1)
+- 🔴 **×** = `none` — nenhuma taxa cadastrada / vigência futura
 
 ### Como validar
 1. Acesse **/admin/commissions-v2 → V1 × V2**.
@@ -182,3 +183,45 @@ Já implementado em `ExtratoTab.tsx`:
 3. Δ Total deve ficar **verde** (≤ R$ 0,01) → paridade OK.
 4. Se houver linhas amarelas, exporte XLSX e revise as taxas FGTS.
 5. Rode `bunx vitest run src/lib/__tests__/commissionTriggerLogic.test.ts` antes de qualquer alteração no trigger.
+
+---
+
+## 🆕 Etapa 4 — Cascata `generic_no_value` + alerta de vigência (2026-05-06)
+
+### Novo nível de fallback no trigger
+A função `calculate_commission_v2()` (e o espelho TS `commissionTriggerLogic.ts`) agora segue **4 níveis** em ordem:
+
+```text
+1) specific          — bank + table_key + term + value + insurance
+2) generic           — bank + term + value + insurance (ignora table_key)
+3) generic_no_value  — bank + term + insurance       (ignora table_key e valor)
+4) fallback          — bank + insurance + date        (paridade V1)
+```
+
+Motivo: bancos como **PARANA BANCO** e **FOCO** frequentemente têm taxas cadastradas só para uma faixa de valor; quando a venda fica fora dessa faixa, antes caía em `none`. O nível `generic_no_value` recupera essas vendas usando a regra do prazo.
+
+> Se você adicionar/remover níveis, atualize **3 lugares**:
+> - SQL: `supabase/migrations/...` (trigger `calculate_commission_v2`)
+> - TS: `src/lib/commissionTriggerLogic.ts`
+> - Tipos: `MatchLevel` em `commissionTriggerLogic.ts` + UI badges em `ExtratoTab` e `V1V2CompareReport`.
+
+### Vitest cobrindo o novo nível
+`src/lib/__tests__/commissionTriggerLogic.test.ts` — **19 testes** (4 novos):
+- PARANA BANCO sem tabela e valor fora da faixa → `generic_no_value`.
+- FOCO CLT sem tabela e valor fora da faixa → `generic_no_value`.
+- Precedência: `generic` vence sobre `generic_no_value` quando ambos casam.
+- Quando o prazo também não casa, cai corretamente em `fallback`.
+
+### Alerta de vigência futura
+Componente: `src/components/commissions-v2/FutureEffectiveDateAlert.tsx`
+Renderizado no topo de `/admin/commissions-v2` (somente admin).
+
+Detecta automaticamente taxas V2 cuja `effective_date`:
+- é **posterior à data de hoje**, OU
+- é **posterior à data da venda mais antiga** marcada como `none` para o mesmo banco/seguro/produto.
+
+Exibe lista priorizada (mais vendas afetadas primeiro) com atalho para abrir as abas **Taxas FGTS** ou **Taxas CLT** e corrigir a vigência. Após ajustar, basta clicar em **Recalcular V2** (aba V1 × V2) para reprocessar.
+
+### Botão "Recalcular V2"
+Visível para admin no relatório V1 × V2. Chama a RPC `recalculate_commissions_v2()` e atualiza a comparação automaticamente.
+

@@ -19,6 +19,7 @@ import HistImportTab from '@/components/commissions-v2/HistImportTab';
 import V2BetaBanner from '@/components/commissions-v2/V2BetaBanner';
 import V1V2CompareReport from '@/components/commissions-v2/V1V2CompareReport';
 import NoneAuditTab from '@/components/commissions-v2/NoneAuditTab';
+import FutureEffectiveDateAlert from '@/components/commissions-v2/FutureEffectiveDateAlert';
 import type { Profile } from '@/components/commissions-v2/commissionUtils';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { EmptyStateNoAccess } from '@/components/common/EmptyStateNoAccess';
@@ -58,6 +59,13 @@ export default function CommissionsV2() {
         </div>
 
         {isMenuOnly && <MenuOnlyScopeBanner feature="Comissões" />}
+
+        {isAdmin && (
+          <FutureEffectiveDateAlert
+            onGoToFGTS={() => setActiveTab('rates-fgts')}
+            onGoToCLT={() => setActiveTab('rates-clt')}
+          />
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <V2BetaBanner />
