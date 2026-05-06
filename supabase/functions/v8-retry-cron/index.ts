@@ -72,7 +72,7 @@ serve(async (req) => {
     // 1) Lê config
     const { data: settings } = await supabase
       .from("v8_settings")
-      .select("max_auto_retry_attempts, retry_min_backoff_seconds, background_retry_enabled, retry_batch_size")
+      .select("max_auto_retry_attempts, retry_min_backoff_seconds, background_retry_enabled, retry_batch_size, force_dispatch_enabled, force_dispatch_after_seconds")
       .eq("singleton", true)
       .maybeSingle();
 
@@ -86,6 +86,9 @@ serve(async (req) => {
     const maxAttempts: number = Number(settings.max_auto_retry_attempts ?? 15);
     const minBackoffSec: number = Number(settings.retry_min_backoff_seconds ?? 10);
     const batchSize: number = Number(settings.retry_batch_size ?? 25);
+    // Etapa 4 (mai/2026): força re-disparo de pendentes sem resposta da V8.
+    const forceDispatchEnabled: boolean = settings.force_dispatch_enabled !== false;
+    const forceDispatchAfterMs: number = Number(settings.force_dispatch_after_seconds ?? 300) * 1000;
 
     // 2) Busca candidatos retentáveis.
     // IMPORTANTE: incluímos 'pending' além de 'failed' porque o rate-limit da V8
