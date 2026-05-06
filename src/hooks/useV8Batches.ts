@@ -271,5 +271,18 @@ export function useV8BatchSimulations(batchId: string | null) {
     };
   }, [batchId, reload]);
 
+  // Etapa 2 (mai/2026 — item 4): polling adaptativo de 3s enquanto o lote
+  // não materializou simulações (ex.: "Ver progresso" recém-aberto).
+  // Corrige o lag de "tabela vazia" quando o usuário abre um lote queued/processing
+  // antes do v8_simulations ser populado.
+  useEffect(() => {
+    if (!batchId) return;
+    if (simulations.length > 0) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') reload();
+    }, 3_000);
+    return () => clearInterval(t);
+  }, [batchId, simulations.length, reload]);
+
   return { simulations, batch, loading, reload, lastUpdateAt };
 }
