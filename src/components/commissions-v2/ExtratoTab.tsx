@@ -361,6 +361,9 @@ export default function ExtratoTab({ profiles, getSellerName, isAdmin, userId }:
                           {(s as any).rate_match_level === 'generic' && (
                             <Badge variant="outline" className="border-blue-500 text-blue-600 text-[10px] px-1 py-0" title="Cálculo via taxa genérica (sem table_key)">GEN</Badge>
                           )}
+                          {(s as any).rate_match_level === 'generic_no_value' && (
+                            <Badge variant="outline" className="border-purple-500 text-purple-600 text-[10px] px-1 py-0" title="Cálculo via taxa genérica ignorando faixa de valor (banco+seguro+prazo)">GNV</Badge>
+                          )}
                           {(s as any).rate_match_level === 'none' && (s.commission_value === 0) && (
                             <Badge variant="outline" className="border-destructive text-destructive text-[10px] px-1 py-0" title="Nenhuma taxa encontrada">×</Badge>
                           )}

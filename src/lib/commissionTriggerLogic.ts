@@ -7,7 +7,7 @@
  */
 
 export type Product = 'FGTS' | 'CLT' | string;
-export type MatchLevel = 'specific' | 'generic' | 'fallback' | 'none';
+export type MatchLevel = 'specific' | 'generic' | 'generic_no_value' | 'fallback' | 'none';
 
 export interface RateRow {
   effective_date: string;       // ISO yyyy-mm-dd
@@ -72,10 +72,11 @@ function pickLatest(rows: RateRow[]): RateRow | null {
 }
 
 /**
- * Calcula comissão V2 com fallback 3 níveis:
- *  1) specific  — bank + table_key + term + value + insurance
- *  2) generic   — bank + term + value + insurance (sem table_key)
- *  3) fallback  — bank + insurance + date (paridade com V1)
+ * Calcula comissão V2 com fallback 4 níveis:
+ *  1) specific          — bank + table_key + term + value + insurance
+ *  2) generic           — bank + term + value + insurance (sem table_key)
+ *  3) generic_no_value  — bank + term + insurance (ignora table_key e valor)
+ *  4) fallback          — bank + insurance + date (paridade com V1)
  */
 export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult {
   const bank = (sale.bank || '').toUpperCase().trim();
@@ -113,7 +114,16 @@ export function calcCommissionV2(sale: SaleInput, rates: RateRow[]): CalcResult 
     return { rate: gHit.rate, commission_value: +(value * gHit.rate / 100).toFixed(2), match_level: 'generic' };
   }
 
-  // Nível 3 — fallback (apenas bank + insurance + date — paridade V1)
+  // Nível 3 — generic_no_value (ignora table_key e valor — só bank+seguro+prazo+data)
+  const genericNoValue = sameBank.filter(r =>
+    term >= r.term_min && term <= r.term_max,
+  );
+  const gnvHit = pickLatest(genericNoValue);
+  if (gnvHit && gnvHit.rate > 0) {
+    return { rate: gnvHit.rate, commission_value: +(value * gnvHit.rate / 100).toFixed(2), match_level: 'generic_no_value' };
+  }
+
+  // Nível 4 — fallback (apenas bank + insurance + date — paridade V1)
   const fHit = pickLatest(sameBank);
   if (fHit && fHit.rate > 0) {
     return { rate: fHit.rate, commission_value: +(value * fHit.rate / 100).toFixed(2), match_level: 'fallback' };

@@ -120,3 +120,71 @@ describe('V1 vs V2 — divergências esperadas', () => {
     expect(v1.rate).toBe(4); // V1 não filtra por table_key
   });
 });
+
+describe('calcCommissionV2 — nível generic_no_value (Etapa 2)', () => {
+  it('PARANA BANCO sem tabela e valor fora da faixa → usa generic_no_value pelo prazo', () => {
+    const rates: RateRow[] = [
+      // taxa cadastrada só p/ valor 0-5000, mas a venda é R$ 8000
+      { effective_date: '2026-01-01', bank: 'PARANA BANCO', table_key: null,
+        term_min: 0, term_max: 999, min_value: 0, max_value: 5000,
+        has_insurance: false, rate: 4 },
+    ];
+    const sale: SaleInput = {
+      sale_date: '2026-04-01', product: 'FGTS', bank: 'parana banco',
+      table_name: 'TABELA 40005 - FGTS | 5 ANOS', term: 60,
+      released_value: 8000, has_insurance: false,
+    };
+    const r = calcCommissionV2(sale, rates);
+    expect(r.match_level).toBe('generic_no_value');
+    expect(r.rate).toBe(4);
+    expect(r.commission_value).toBe(320);
+  });
+
+  it('FOCO sem tabela e prazo fora da faixa de valor → generic_no_value', () => {
+    const rates: RateRow[] = [
+      { effective_date: '2026-01-01', bank: 'FOCO', table_key: null,
+        term_min: 12, term_max: 84, min_value: 1000, max_value: 3000,
+        has_insurance: false, rate: 5.5 },
+    ];
+    const sale: SaleInput = {
+      sale_date: '2026-03-01', product: 'CLT', bank: 'FOCO',
+      table_name: null, term: 36, released_value: 10000, has_insurance: false,
+    };
+    const r = calcCommissionV2(sale, rates);
+    expect(r.match_level).toBe('generic_no_value');
+    expect(r.rate).toBe(5.5);
+    expect(r.commission_value).toBe(550);
+  });
+
+  it('precedência: generic vence sobre generic_no_value quando ambos casam', () => {
+    const rates: RateRow[] = [
+      { effective_date: '2026-01-01', bank: 'FACTA', table_key: null,
+        term_min: 12, term_max: 24, min_value: 0, max_value: 100000,
+        has_insurance: false, rate: 5 },
+      { effective_date: '2026-01-01', bank: 'FACTA', table_key: null,
+        term_min: 12, term_max: 24, min_value: 0, max_value: 999999999,
+        has_insurance: false, rate: 3 },
+    ];
+    const sale: SaleInput = {
+      sale_date: '2026-04-01', product: 'FGTS', bank: 'FACTA',
+      table_name: 'INEXISTENTE', term: 18, released_value: 5000, has_insurance: false,
+    };
+    const r = calcCommissionV2(sale, rates);
+    expect(r.match_level).toBe('generic');
+  });
+
+  it('generic_no_value não dispara se prazo também estiver fora → cai em fallback', () => {
+    const rates: RateRow[] = [
+      { effective_date: '2026-01-01', bank: 'PARANA BANCO', table_key: null,
+        term_min: 12, term_max: 24, min_value: 0, max_value: 5000,
+        has_insurance: false, rate: 4 },
+    ];
+    const sale: SaleInput = {
+      sale_date: '2026-04-01', product: 'FGTS', bank: 'PARANA BANCO',
+      table_name: null, term: 60, released_value: 8000, has_insurance: false,
+    };
+    const r = calcCommissionV2(sale, rates);
+    expect(r.match_level).toBe('fallback');
+    expect(r.rate).toBe(4);
+  });
+});

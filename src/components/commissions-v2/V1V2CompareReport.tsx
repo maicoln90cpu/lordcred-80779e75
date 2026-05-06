@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Loader2, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Download, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { fmtBRL } from './commissionUtils';
 import * as XLSX from 'xlsx';
@@ -42,9 +42,26 @@ function buildKey(r: any): string {
 
 export default function V1V2CompareReport() {
   const [loading, setLoading] = useState(false);
+  const [recalcing, setRecalcing] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [onlyDiff, setOnlyDiff] = useState(true);
   const [limit, setLimit] = useState(500);
+
+  const recalcAll = async () => {
+    if (!confirm('Recalcular comissão V2 de TODAS as vendas? Pode demorar alguns segundos.')) return;
+    setRecalcing(true);
+    try {
+      const { data, error } = await supabase.rpc('recalculate_commissions_v2' as any);
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? (data as any)?.count ?? '?';
+      toast({ title: 'Recálculo V2 concluído', description: `Linhas atualizadas: ${updated}` });
+      await load();
+    } catch (e: any) {
+      toast({ title: 'Erro no recálculo', description: e.message, variant: 'destructive' });
+    } finally {
+      setRecalcing(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -157,6 +174,10 @@ export default function V1V2CompareReport() {
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Carregar comparação
           </Button>
+          <Button variant="secondary" onClick={recalcAll} disabled={recalcing} title="Reexecuta o trigger calculate_commission_v2 em todas as vendas">
+            {recalcing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Recalcular V2
+          </Button>
           <Button variant="outline" onClick={() => setOnlyDiff(s => !s)}>
             {onlyDiff ? 'Mostrar todas' : 'Só divergentes / sem par'}
           </Button>
@@ -224,6 +245,7 @@ export default function V1V2CompareReport() {
                     <td className="p-2 text-center">
                       {r.v2_match_level === 'fallback' && <Badge variant="outline" className="text-amber-600 border-amber-500">FB</Badge>}
                       {r.v2_match_level === 'generic' && <Badge variant="outline" className="text-blue-600 border-blue-500">GEN</Badge>}
+                      {r.v2_match_level === 'generic_no_value' && <Badge variant="outline" className="text-purple-600 border-purple-500" title="Genérica sem faixa de valor">GNV</Badge>}
                       {r.v2_match_level === 'specific' && <Badge variant="outline" className="text-green-600 border-green-500">OK</Badge>}
                       {(!r.v2_match_level || r.v2_match_level === 'none') && <Badge variant="destructive">×</Badge>}
                     </td>
