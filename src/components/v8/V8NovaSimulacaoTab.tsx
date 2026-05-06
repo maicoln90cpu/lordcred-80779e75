@@ -27,6 +27,7 @@ import { downloadBatchCsv } from '@/lib/v8BatchExport';
 import { Input } from '@/components/ui/input';
 import { loadDrafts, saveDrafts, emptyDraft, loadDraftBatchMap, addDraftBatchEntry, removeDraftBatchByBatchId, type V8DraftSlot, type SimulationMode } from '@/lib/v8DraftSlots';
 import { triggerLauncherShortLoop } from '@/lib/v8LauncherTrigger';
+import { isAutoName, buildAutoBatchName } from '@/lib/v8BatchName';
 
 const DEFAULT_PARCEL_OPTIONS = [12, 24, 36, 48, 60, 72, 84, 96];
 
@@ -308,24 +309,10 @@ export default function V8NovaSimulacaoTab() {
   // Formato: "Lote DD/MM HH:mm — <Rascunho>". Mantém rastreabilidade nas listagens.
   // Regex detecta nomes auto-gerados (mesmo padrão) e regenera com hora atual,
   // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
-  const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
-  function isAutoName(name: string): boolean {
-    const v = name.trim();
-    if (!v) return true;
-    if (AUTO_NAME_RE.test(v)) return true;
-    // Nomes "rascunho temporário" (≤3 chars OU sem qualquer dígito) são reescritos
-    // com data/hora para evitar lotes "a", "b", "c" sem rastreabilidade no histórico.
-    if (v.length <= 3) return true;
-    if (!/\d/.test(v)) return true;
-    return false;
-  }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
     if (current && !isAutoName(current)) return current;
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const baseLabel = current && current.length <= 3 ? `${active.label} (${current})` : active.label;
-    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${baseLabel}`;
+    const auto = buildAutoBatchName(current, active.label);
     patchActive({ batchName: auto });
     return auto;
   }
@@ -337,6 +324,30 @@ export default function V8NovaSimulacaoTab() {
       ensureBatchName();
       // Aguarda 1 render para o hook receber a nova prop batchName.
       await new Promise((r) => setTimeout(r, 0));
+    }
+    // Mai/2026: Validação automática do webhook V8 antes de iniciar.
+    // Se nenhum dos webhooks (consult/operation) está com last_status='success',
+    // alerta o operador (não bloqueia — pode ser intencional em modo simulate_now).
+    try {
+      const { data: regs } = await supabase
+        .from('v8_webhook_registrations')
+        .select('webhook_type, last_status, last_error, last_registered_at');
+      const okCount = (regs ?? []).filter((r: any) => r.last_status === 'success').length;
+      const total = (regs ?? []).length;
+      if (total === 0) {
+        toast.warning('⚠ Webhooks V8 não registrados — eventos podem não chegar', {
+          description: 'Vá em Configurações → V8 → "Registrar webhooks". Lote vai iniciar mesmo assim.',
+          duration: 8000,
+        });
+      } else if (okCount < total) {
+        const failed = (regs ?? []).filter((r: any) => r.last_status !== 'success').map((r: any) => r.webhook_type).join(', ');
+        toast.warning(`⚠ Webhook(s) V8 com falha: ${failed}`, {
+          description: 'Re-registre em Configurações → V8 para garantir recepção em tempo real.',
+          duration: 8000,
+        });
+      }
+    } catch {
+      /* silencioso — não bloqueia o start */
     }
     try {
       await ops.handleStart();
@@ -875,6 +886,7 @@ export default function V8NovaSimulacaoTab() {
           parcelas={parcelas}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={maxAutoRetry}
+          retryMinBackoffSeconds={v8Settings?.retry_min_backoff_seconds ?? 10}
           awaitingManualSim={awaitingManualSim}
           showManualWarning={showManualWarning}
           onCheckStatus={(cpf, simId) =>

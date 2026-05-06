@@ -92,6 +92,7 @@ export default function BatchHistoryPanel() {
           parcelas={selected.installments ?? 0}
           lastUpdateAt={lastUpdateAt}
           maxAutoRetry={3}
+          retryMinBackoffSeconds={10}
           awaitingManualSim={0}
           showManualWarning={false}
           onCheckStatus={() => {}}

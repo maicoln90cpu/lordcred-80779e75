@@ -75,15 +75,24 @@ export function useV8Batches(options: UseV8BatchesOptions = {}) {
 
   useEffect(() => {
     reload();
+    // Mai/2026: debounce de 300ms — agrupa rajadas de UPDATE (ex.: contador
+    // atômico atualizando success_count + failure_count em sequência) e evita
+    // re-fetch sob pressão durante lotes grandes.
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => { pending = null; reload(); }, 300);
+    };
     const channel = supabase
       .channel('v8-batches-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'v8_batches' },
-        () => reload()
+        debouncedReload
       )
       .subscribe();
     return () => {
+      if (pending) clearTimeout(pending);
       supabase.removeChannel(channel);
     };
   }, [reload]);
