@@ -325,6 +325,30 @@ export default function V8NovaSimulacaoTab() {
       // Aguarda 1 render para o hook receber a nova prop batchName.
       await new Promise((r) => setTimeout(r, 0));
     }
+    // Mai/2026: Validação automática do webhook V8 antes de iniciar.
+    // Se nenhum dos webhooks (consult/operation) está com last_status='success',
+    // alerta o operador (não bloqueia — pode ser intencional em modo simulate_now).
+    try {
+      const { data: regs } = await supabase
+        .from('v8_webhook_registrations')
+        .select('webhook_type, last_status, last_error, last_registered_at');
+      const okCount = (regs ?? []).filter((r: any) => r.last_status === 'success').length;
+      const total = (regs ?? []).length;
+      if (total === 0) {
+        toast.warning('⚠ Webhooks V8 não registrados — eventos podem não chegar', {
+          description: 'Vá em Configurações → V8 → "Registrar webhooks". Lote vai iniciar mesmo assim.',
+          duration: 8000,
+        });
+      } else if (okCount < total) {
+        const failed = (regs ?? []).filter((r: any) => r.last_status !== 'success').map((r: any) => r.webhook_type).join(', ');
+        toast.warning(`⚠ Webhook(s) V8 com falha: ${failed}`, {
+          description: 'Re-registre em Configurações → V8 para garantir recepção em tempo real.',
+          duration: 8000,
+        });
+      }
+    } catch {
+      /* silencioso — não bloqueia o start */
+    }
     try {
       await ops.handleStart();
       if (autoBest) {
