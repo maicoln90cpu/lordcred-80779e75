@@ -6,15 +6,11 @@ describe('<FinancialCompositionBlock />', () => {
   it('renderiza com os 3 valores e formata em BRL', () => {
     render(<FinancialCompositionBlock released={10847} installment={745.84} installments={36} />);
     expect(screen.getByTestId('financial-composition-block')).toBeInTheDocument();
-    // Total a pagar: 26.850,24
-    expect(screen.getByText(/26\.850,24/)).toBeInTheDocument();
-    // Liberado formatado
+    // Total a pagar: 26.850,24 (aparece nas duas frases)
+    expect(screen.getAllByText(/26\.850,24/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/10\.847,00/).length).toBeGreaterThan(0);
-    // Heading leigo
     expect(screen.getByText(/Composição financeira/i)).toBeInTheDocument();
-    // Texto explicativo
     expect(screen.getByText(/O cliente recebe/i)).toBeInTheDocument();
-    // CET mensal aparece com sufixo % a.m.
     expect(screen.getByText(/% a\.m\./)).toBeInTheDocument();
   });
 
@@ -47,14 +43,13 @@ describe('<FinancialCompositionBlock />', () => {
         }}
       />
     );
-    expect(screen.getByText(/99\.999,99/)).toBeInTheDocument();
+    expect(screen.getAllByText(/99\.999,99/).length).toBeGreaterThan(0);
     expect(screen.getByText(/12\.34% a\.m\./)).toBeInTheDocument();
     expect(screen.getByText(/900\.0%/)).toBeInTheDocument();
   });
 
   it('formata zero juros corretamente quando parcela*n == liberado', () => {
     render(<FinancialCompositionBlock released={1200} installment={100} installments={12} />);
-    // Markup 0% — não deve exibir CET (cetMonthly==0 mostra, mas formatado)
-    expect(screen.getByText(/0\.0%/)).toBeInTheDocument();
+    expect(screen.getAllByText(/0\.0%/).length).toBeGreaterThan(0);
   });
 });
