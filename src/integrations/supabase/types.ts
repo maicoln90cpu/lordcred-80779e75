@@ -4700,6 +4700,8 @@ export type Database = {
           cpf_dedupe_enabled: boolean
           cpf_dedupe_window_days: number
           created_at: string
+          force_dispatch_after_seconds: number
+          force_dispatch_enabled: boolean
           id: string
           max_auto_retry_attempts: number
           max_concurrent_batches_per_owner: number
@@ -4726,6 +4728,8 @@ export type Database = {
           cpf_dedupe_enabled?: boolean
           cpf_dedupe_window_days?: number
           created_at?: string
+          force_dispatch_after_seconds?: number
+          force_dispatch_enabled?: boolean
           id?: string
           max_auto_retry_attempts?: number
           max_concurrent_batches_per_owner?: number
@@ -4752,6 +4756,8 @@ export type Database = {
           cpf_dedupe_enabled?: boolean
           cpf_dedupe_window_days?: number
           created_at?: string
+          force_dispatch_after_seconds?: number
+          force_dispatch_enabled?: boolean
           id?: string
           max_auto_retry_attempts?: number
           max_concurrent_batches_per_owner?: number
