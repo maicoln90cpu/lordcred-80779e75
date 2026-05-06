@@ -151,6 +151,11 @@ export interface V8BatchMeta {
   queue_owner: string | null;
   installments: number | null;
   name: string;
+  /** Etapa 2 (mai/2026 — item 6): pausa/auto-best expostos para a UI do histórico. */
+  is_paused?: boolean;
+  paused_at?: string | null;
+  auto_best_enabled?: boolean;
+  config_id?: string | null;
 }
 
 export function useV8BatchSimulations(batchId: string | null) {
