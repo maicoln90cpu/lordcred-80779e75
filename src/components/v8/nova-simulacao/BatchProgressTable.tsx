@@ -69,6 +69,8 @@ interface Props {
   } | null;
   /** Mai/2026: callback para retomar lote pausado (despausar). */
   onResumeBatch?: (batchId: string) => Promise<void> | void;
+  /** Mai/2026: backoff mínimo entre retentativas (segundos) — default 10. */
+  retryMinBackoffSeconds?: number;
 }
 
 /**
@@ -78,7 +80,7 @@ interface Props {
 export default function BatchProgressTable({
   simulations, parcelas, lastUpdateAt, maxAutoRetry,
   awaitingManualSim, showManualWarning, actionsSlot, onCheckStatus, batch,
-  onForceDispatchRow, onResumeBatch,
+  onForceDispatchRow, onResumeBatch, retryMinBackoffSeconds = 10,
 }: Props) {
   const [payloadSim, setPayloadSim] = useState<any | null>(null);
   const [resuming, setResuming] = useState(false);
