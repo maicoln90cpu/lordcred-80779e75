@@ -174,6 +174,10 @@ export default function V1V2CompareReport() {
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Carregar comparação
           </Button>
+          <Button variant="secondary" onClick={recalcAll} disabled={recalcing} title="Reexecuta o trigger calculate_commission_v2 em todas as vendas">
+            {recalcing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Recalcular V2
+          </Button>
           <Button variant="outline" onClick={() => setOnlyDiff(s => !s)}>
             {onlyDiff ? 'Mostrar todas' : 'Só divergentes / sem par'}
           </Button>
