@@ -95,7 +95,30 @@ export default function V8HealthOrphansCard() {
   const orphansWarn = (data?.orphans_24h ?? 0) > 5;
   const pendingErr = (data?.pending_without_consult_id ?? 0) > 0;
   const stuckErr = (data?.stuck_batches ?? 0) > 0;
-  const allHealthy = data && !orphansWarn && !pendingErr && !stuckErr;
+  const pausedWarn = (data?.paused_stale_batches ?? 0) > 0;
+  const allHealthy = data && !orphansWarn && !pendingErr && !stuckErr && !pausedWarn;
+
+  async function handleResumeStalePaused() {
+    if (!confirm(`Retomar ${data?.paused_stale_batches ?? 0} lote(s) pausado(s) há +1h?`)) return;
+    setResumingPaused(true);
+    try {
+      const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: list } = await supabase.from('v8_batches')
+        .select('id').eq('is_paused', true)
+        .in('status', ['processing', 'scheduled', 'queued'])
+        .lt('paused_at', cutoff);
+      const ids = (list ?? []).map((b: any) => b.id);
+      if (ids.length === 0) { toast.info('Nenhum lote elegível.'); return; }
+      const { error } = await supabase.from('v8_batches')
+        .update({ is_paused: false, paused_at: null, paused_by: null })
+        .in('id', ids);
+      if (error) throw error;
+      toast.success(`▶ ${ids.length} lote(s) retomado(s)`);
+      await load();
+    } catch (err: any) {
+      toast.error(`Erro ao retomar: ${err?.message || err}`);
+    } finally { setResumingPaused(false); }
+  }
 
   return (
     <Card>
