@@ -1,0 +1,1 @@
+UPDATE public.commission_sales_v2 SET updated_at = now() WHERE id IS NOT NULL;
