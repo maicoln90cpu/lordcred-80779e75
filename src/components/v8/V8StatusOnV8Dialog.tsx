@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { JsonTreeView } from '@/components/admin/JsonTreeView';
 import { extractAvailableMargin, formatMarginBRL } from '@/lib/v8MarginExtractor';
-import { computeFinancialBreakdown } from '@/lib/v8FinancialComposition';
+import { FinancialCompositionBlock } from './FinancialCompositionBlock';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
@@ -326,28 +326,18 @@ export function V8StatusOnV8Dialog({
                   )}
                 </div>
 
-                {(() => {
-                  const b = computeFinancialBreakdown(sim.released_value, sim.installment_value, sim.installments);
-                  if (!b) return null;
-                  return (
-                    <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs space-y-1">
-                      <div className="font-semibold text-amber-700 dark:text-amber-400">
-                        💡 Composição financeira (entenda os números)
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        <div><span className="text-muted-foreground">Total a pagar:</span> <strong>{formatBRL(b.totalPaid)}</strong> ({b.installments}× {formatBRL(b.installment)})</div>
-                        <div><span className="text-muted-foreground">Juros totais:</span> <strong>{formatBRL(b.totalInterest)}</strong></div>
-                        <div><span className="text-muted-foreground">Markup sobre o liberado:</span> <strong>{b.markupPct.toFixed(1)}%</strong></div>
-                        {b.monthlyRatePct != null && (
-                          <div><span className="text-muted-foreground">CET aprox.:</span> <strong>{b.monthlyRatePct.toFixed(2)}% a.m.</strong> ({b.annualRatePct?.toFixed(1)}% a.a.)</div>
-                        )}
-                      </div>
-                      <div className="text-muted-foreground italic mt-1">
-                        O cliente recebe {formatBRL(b.released)} hoje e devolve {formatBRL(b.totalPaid)} ao final — a diferença ({formatBRL(b.totalInterest)}) é o custo do crédito.
-                      </div>
-                    </div>
-                  );
-                })()}
+                <FinancialCompositionBlock
+                  released={sim.released_value}
+                  installment={sim.installment_value}
+                  installments={sim.installments}
+                  precomputed={{
+                    total_paid: sim.total_paid ?? null,
+                    total_interest: sim.total_interest ?? null,
+                    markup_pct: sim.markup_pct ?? null,
+                    cet_monthly_pct: sim.cet_monthly_pct ?? null,
+                    cet_annual_pct: sim.cet_annual_pct ?? null,
+                  }}
+                />
               </section>
             )}
 
