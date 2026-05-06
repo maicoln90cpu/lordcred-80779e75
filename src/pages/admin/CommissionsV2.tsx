@@ -60,6 +60,13 @@ export default function CommissionsV2() {
 
         {isMenuOnly && <MenuOnlyScopeBanner feature="Comissões" />}
 
+        {isAdmin && (
+          <FutureEffectiveDateAlert
+            onGoToFGTS={() => setActiveTab('rates-fgts')}
+            onGoToCLT={() => setActiveTab('rates-clt')}
+          />
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <V2BetaBanner />
           <TabsList className="flex-wrap h-auto">
