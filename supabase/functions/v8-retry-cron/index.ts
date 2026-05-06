@@ -15,13 +15,12 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { writeAuditLog } from "../_shared/auditLog.ts";
 import { packPayloadForAudit } from "../_shared/v8AuditPayload.ts";
+import { isRetryEligible, classifyTriggeredBy } from "../_shared/v8RetryEligibility.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const RETRIABLE_KINDS = new Set(["temporary_v8", "analysis_pending", "dispatch_failed"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -115,27 +114,15 @@ serve(async (req) => {
       return ok({ error: candErr.message }, 200);
     }
 
+    const nowMs = Date.now();
     const eligible = (candidates ?? []).filter((s: any) => {
+      // Normaliza kind aceitando fallback do raw_response (regra histórica).
       const kind = s.error_kind || s.raw_response?.kind || s.raw_response?.error_kind || null;
-      // Caso 1: kind retentável conhecido.
-      if (kind && RETRIABLE_KINDS.has(kind)) return true;
-      // Caso 2: linha "presa" — pending sem kind, com idade > janela configurada.
-      // Etapa 4 (mai/2026): força re-disparo (force_dispatch) quando attempt_count=0
-      // e a V8/webhook não respondeu em force_dispatch_after_seconds (default 300s).
-      // Para attempt_count > 0 mantém regra antiga (>2 min) para não estourar V8.
-      if (s.status === "pending") {
-        const ageMs = s.last_attempt_at
-          ? Date.now() - new Date(s.last_attempt_at).getTime()
-          : Date.now() - new Date(s.created_at ?? Date.now()).getTime();
-        const attempts = Number(s.attempt_count ?? 0);
-        if (attempts === 0) {
-          if (!forceDispatchEnabled) return false;
-          return ageMs > forceDispatchAfterMs;
-        }
-        // Sem kind e já tentou: usa janela curta de 2 min (regra legada).
-        if (!kind) return ageMs > 120_000;
-      }
-      return false;
+      return isRetryEligible(
+        { status: s.status, attempt_count: s.attempt_count, error_kind: kind, last_attempt_at: s.last_attempt_at, created_at: s.created_at },
+        nowMs,
+        { forceDispatchEnabled, forceDispatchAfterMs },
+      );
     });
 
     if (eligible.length === 0) {
