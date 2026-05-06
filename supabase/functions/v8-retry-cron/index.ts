@@ -181,7 +181,7 @@ serve(async (req) => {
               batch_id: sim.batch_id,
               simulation_id: sim.id,
               attempt_count: Number(sim.attempt_count ?? 0) + 1,
-              triggered_by: (sim.status === "pending" && Number(sim.attempt_count ?? 0) === 0) ? "force_dispatch" : "cron",
+              triggered_by: classifyTriggeredBy({ status: sim.status, attempt_count: sim.attempt_count, error_kind: null, last_attempt_at: null, created_at: null }),
               cron_user_id: sim.created_by,
             },
           };
