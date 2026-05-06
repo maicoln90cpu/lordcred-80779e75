@@ -1,16 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, History, Loader2, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, History, Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useV8Batches, useV8BatchSimulations } from '@/hooks/useV8Batches';
-import BatchProgressTable from './BatchProgressTable';
-import { downloadBatchCsv } from '@/lib/v8BatchExport';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useV8Batches } from '@/hooks/useV8Batches';
+import HistoryBatchDetail from './HistoryBatchDetail';
 
 const PAGE_SIZE = 50;
 const STATUS_ALL = '__all__';
@@ -39,7 +36,7 @@ export default function BatchHistoryPanel() {
     status: statusFilter === STATUS_ALL ? '' : statusFilter,
     dateFrom, dateTo, orderBy, orderDir,
   });
-  const { simulations, batch: selectedBatchMeta, lastUpdateAt } = useV8BatchSimulations(selectedId);
+  
 
   const toggleSort = (col: SortCol) => {
     if (orderBy === col) {
@@ -75,47 +72,7 @@ export default function BatchHistoryPanel() {
   };
 
   if (selected) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)} className="gap-1">
-            <ArrowLeft className="w-4 h-4" /> Voltar para histórico
-          </Button>
-          <div className="text-xs text-muted-foreground">
-            Lote: <strong className="text-foreground">{selected.name}</strong>
-            {' · '}criado em {new Date(selected.created_at).toLocaleString('pt-BR')}
-          </div>
-        </div>
-        <BatchProgressTable
-          simulations={simulations}
-          batch={selectedBatchMeta}
-          parcelas={selected.installments ?? 0}
-          lastUpdateAt={lastUpdateAt}
-          maxAutoRetry={3}
-          retryMinBackoffSeconds={10}
-          awaitingManualSim={0}
-          showManualWarning={false}
-          onCheckStatus={() => {}}
-          onResumeBatch={async (bid) => {
-            const { error } = await supabase.from('v8_batches')
-              .update({ is_paused: false, paused_at: null, paused_by: null })
-              .eq('id', bid);
-            if (error) toast.error('Falha ao retomar: ' + error.message);
-            else toast.success('▶ Lote retomado');
-          }}
-          actionsSlot={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={simulations.length === 0}
-              onClick={() => downloadBatchCsv(simulations, selected.name)}
-            >
-              Exportar CSV
-            </Button>
-          }
-        />
-      </div>
-    );
+    return <HistoryBatchDetail batch={selected} onBack={() => setSelectedId(null)} />;
   }
 
   const fromIdx = totalCount === 0 ? 0 : page * PAGE_SIZE + 1;

@@ -151,6 +151,11 @@ export interface V8BatchMeta {
   queue_owner: string | null;
   installments: number | null;
   name: string;
+  /** Etapa 2 (mai/2026 — item 6): pausa/auto-best expostos para a UI do histórico. */
+  is_paused?: boolean;
+  paused_at?: string | null;
+  auto_best_enabled?: boolean;
+  config_id?: string | null;
 }
 
 export function useV8BatchSimulations(batchId: string | null) {
@@ -178,7 +183,7 @@ export function useV8BatchSimulations(batchId: string | null) {
         .order('created_at', { ascending: true }),
       supabase
         .from('v8_batches')
-        .select('id, status, scheduled_payload, queue_position, queue_owner, installments, name')
+        .select('id, status, scheduled_payload, queue_position, queue_owner, installments, name, is_paused, paused_at, auto_best_enabled, config_id')
         .eq('id', batchId)
         .maybeSingle(),
     ]);
@@ -265,6 +270,19 @@ export function useV8BatchSimulations(batchId: string | null) {
       supabase.removeChannel(channel);
     };
   }, [batchId, reload]);
+
+  // Etapa 2 (mai/2026 — item 4): polling adaptativo de 3s enquanto o lote
+  // não materializou simulações (ex.: "Ver progresso" recém-aberto).
+  // Corrige o lag de "tabela vazia" quando o usuário abre um lote queued/processing
+  // antes do v8_simulations ser populado.
+  useEffect(() => {
+    if (!batchId) return;
+    if (simulations.length > 0) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') reload();
+    }, 3_000);
+    return () => clearInterval(t);
+  }, [batchId, simulations.length, reload]);
 
   return { simulations, batch, loading, reload, lastUpdateAt };
 }
