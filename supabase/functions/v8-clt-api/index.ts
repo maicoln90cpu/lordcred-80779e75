@@ -2670,6 +2670,7 @@ const handler = async (req: Request) => {
           const batchId = (result as any)?.data?.batch_id;
           if (batchId) {
             const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-retry-cron`;
+            const autoBestUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/v8-auto-best-worker`;
             const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
             const kickStart = (async () => {
               for (const delayMs of [30_000, 60_000, 90_000]) {
@@ -2685,7 +2686,22 @@ const handler = async (req: Request) => {
                     body: JSON.stringify({ batch_id: batchId, manual: true }),
                   });
                 } catch (e) {
-                  console.warn("[v8-clt-api] kick-start fail", e);
+                  console.warn("[v8-clt-api] kick-start retry fail", e);
+                }
+                // Etapa 3 (mai/2026): também kicka o auto-best-worker para
+                // não esperar até 1min do pg_cron processar a fila recém-enfileirada.
+                try {
+                  await fetch(autoBestUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${serviceKey}`,
+                      "x-cron-trigger": "v8-clt-api-kickstart",
+                    },
+                    body: JSON.stringify({ batch_id: batchId, manual: true }),
+                  });
+                } catch (e) {
+                  console.warn("[v8-clt-api] kick-start auto-best fail", e);
                 }
               }
             })();
