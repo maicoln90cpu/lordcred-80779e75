@@ -30,6 +30,7 @@ export default function V8HealthOrphansCard() {
   const [loading, setLoading] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [resumingPaused, setResumingPaused] = useState(false);
+  const [fullRecon, setFullRecon] = useState(false);
 
   async function load() {
     setLoading(true);
