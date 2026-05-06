@@ -33,6 +33,8 @@ export default function V8RetrySettingsCard() {
   const [retConsult, setRetConsult] = useState(defaults.max_retries_consult);
   const [retAuthorize, setRetAuthorize] = useState(defaults.max_retries_authorize);
   const [retSimulate, setRetSimulate] = useState(defaults.max_retries_simulate);
+  const [forceDispatchOn, setForceDispatchOn] = useState(defaults.force_dispatch_enabled);
+  const [forceDispatchAfter, setForceDispatchAfter] = useState(defaults.force_dispatch_after_seconds);
 
   useEffect(() => {
     if (!settings) return;
