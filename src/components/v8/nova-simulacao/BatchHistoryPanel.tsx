@@ -206,7 +206,12 @@ export default function BatchHistoryPanel() {
                       <TableCell className="text-right tabular-nums">{b.total_count}</TableCell>
                       <TableCell className="text-right tabular-nums text-emerald-600">{b.success_count}</TableCell>
                       <TableCell className="text-right tabular-nums text-destructive">{b.failure_count}</TableCell>
-                      <TableCell>{statusBadge(b.status)}</TableCell>
+                      <TableCell className="space-x-1">
+                        {statusBadge(b.status)}
+                        {(b as any).is_paused && (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/60 text-amber-700 dark:text-amber-400 bg-amber-500/10">⏸ pausado</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(b.created_at).toLocaleString('pt-BR')}
                       </TableCell>
