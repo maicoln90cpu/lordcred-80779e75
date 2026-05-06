@@ -36,8 +36,9 @@ export default function V8HealthOrphansCard() {
     try {
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const cutoff5m = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const cutoffPause1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-      const [orphRes, pendRes, stuckRes] = await Promise.all([
+      const [orphRes, pendRes, stuckRes, pausedRes] = await Promise.all([
         supabase
           .from('v8_simulations')
           .select('id', { count: 'exact', head: true })
@@ -53,12 +54,19 @@ export default function V8HealthOrphansCard() {
           .from('v8_batches')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'stuck'),
+        supabase
+          .from('v8_batches')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_paused', true)
+          .in('status', ['processing', 'scheduled', 'queued'])
+          .lt('paused_at', cutoffPause1h),
       ]);
 
       setData({
         orphans_24h: orphRes.count ?? 0,
         pending_without_consult_id: pendRes.count ?? 0,
         stuck_batches: stuckRes.count ?? 0,
+        paused_stale_batches: pausedRes.count ?? 0,
       });
     } catch (err: any) {
       toast.error(`Erro ao carregar saúde V8: ${err?.message || err}`);
