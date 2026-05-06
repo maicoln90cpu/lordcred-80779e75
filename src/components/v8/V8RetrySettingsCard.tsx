@@ -290,7 +290,7 @@ export default function V8RetrySettingsCard() {
             <AccordionTrigger className="hover:no-underline">
               <span className="flex items-center gap-2">
                 <Settings2 className="w-4 h-4 text-muted-foreground" />
-                <span>4. Avançado — persistência interna por etapa V8</span>
+                <span>5. Avançado — persistência interna por etapa V8</span>
               </span>
             </AccordionTrigger>
             <AccordionContent className="space-y-4">
