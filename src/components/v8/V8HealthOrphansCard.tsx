@@ -88,7 +88,25 @@ export default function V8HealthOrphansCard() {
       toast.error(`Erro ao recalcular: ${err?.message || err}`);
     } finally {
       setRecalculating(false);
+  }
+
+  async function handleFullReconciliation() {
+    if (!confirm('Rodar reconciliação completa V8?\n\n• Watchdog (pendentes >15min sem webhook → failed)\n• Recálculo de lotes travados\n• Marca dispatch perdido como falha (re-tentável)\n• Re-enfileira Auto-best órfãos')) return;
+    setFullRecon(true);
+    try {
+      const { data, error } = await supabase.rpc('v8_force_full_reconciliation' as any);
+      if (error) throw error;
+      const d: any = data || {};
+      toast.success(
+        `Reconciliação OK — watchdog: ${d?.watchdog?.marked_failed ?? 0} | lotes: ${d?.recalc_batches?.recalculated ?? 0} | dispatch perdido: ${d?.lost_dispatch_marked_failed ?? 0} | auto-best re-fila: ${d?.auto_best_requeued ?? 0}`
+      );
+      await load();
+    } catch (err: any) {
+      toast.error(`Erro na reconciliação: ${err?.message || err}`);
+    } finally {
+      setFullRecon(false);
     }
+  }
   }
 
   useEffect(() => { void load(); }, []);
