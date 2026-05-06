@@ -42,9 +42,26 @@ function buildKey(r: any): string {
 
 export default function V1V2CompareReport() {
   const [loading, setLoading] = useState(false);
+  const [recalcing, setRecalcing] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [onlyDiff, setOnlyDiff] = useState(true);
   const [limit, setLimit] = useState(500);
+
+  const recalcAll = async () => {
+    if (!confirm('Recalcular comissão V2 de TODAS as vendas? Pode demorar alguns segundos.')) return;
+    setRecalcing(true);
+    try {
+      const { data, error } = await supabase.rpc('recalculate_commissions_v2' as any);
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? (data as any)?.count ?? '?';
+      toast({ title: 'Recálculo V2 concluído', description: `Linhas atualizadas: ${updated}` });
+      await load();
+    } catch (e: any) {
+      toast({ title: 'Erro no recálculo', description: e.message, variant: 'destructive' });
+    } finally {
+      setRecalcing(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
