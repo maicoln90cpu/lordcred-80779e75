@@ -310,14 +310,22 @@ export default function V8NovaSimulacaoTab() {
   // preservando nomes personalizados pelo operador (ex.: "a", "Mailing julho").
   const AUTO_NAME_RE = /^Lote \d{2}\/\d{2} \d{2}:\d{2} — /;
   function isAutoName(name: string): boolean {
-    return !name.trim() || AUTO_NAME_RE.test(name.trim());
+    const v = name.trim();
+    if (!v) return true;
+    if (AUTO_NAME_RE.test(v)) return true;
+    // Nomes "rascunho temporário" (≤3 chars OU sem qualquer dígito) são reescritos
+    // com data/hora para evitar lotes "a", "b", "c" sem rastreabilidade no histórico.
+    if (v.length <= 3) return true;
+    if (!/\d/.test(v)) return true;
+    return false;
   }
   function ensureBatchName(): string {
     const current = active.batchName.trim();
     if (current && !isAutoName(current)) return current;
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
-    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${active.label}`;
+    const baseLabel = current && current.length <= 3 ? `${active.label} (${current})` : active.label;
+    const auto = `Lote ${pad(now.getDate())}/${pad(now.getMonth() + 1)} ${pad(now.getHours())}:${pad(now.getMinutes())} — ${baseLabel}`;
     patchActive({ batchName: auto });
     return auto;
   }
